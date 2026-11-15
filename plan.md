@@ -70,11 +70,15 @@ Notes:
   answers 302 to the Access login (also `POST /mcp`); on workers.dev the page answers 403 and
   `POST /mcp` 401. See [Slice 2](docs/plan/slices/02-tile-board.md) (the hostname is not written
   in this repo).
-- Open, left by the deployed checks of 2026-11-15: project `zz-deploy-check` holds 205 items, all done
-  (`zz-deploy-check/a`, `/b`, `/s0` to `/s2`, `/bulk-0` to `/bulk-199`). They show under "Done in the
-  last 12 h" until about 05:00Z on 2026-11-16 and stay in the database (the board has no delete tool).
-  One OAuth client was registered on the live Worker during the checks (no grant or token issued; it
-  cannot be deleted through the Worker).
+- The owner opened the board page on the custom hostname from a phone on 2026-11-15 and signed in
+  ("it works on my phone"). What they saw was the 205 test items of project `zz-deploy-check` that the
+  deployed checks of that day had left, and it made no sense to them. With the owner's yes those items
+  and their 412 events were deleted from the live database the same evening (`wrangler d1 execute
+  --remote`; a count afterwards shows 0 items and 0 events). The board is empty until a client reports.
+  Rule for later checks: a check that writes to the live board removes its own rows in the same run and
+  never writes more than a handful.
+- Still there from those checks: one OAuth client registered on the live Worker (no grant or token
+  issued; it cannot be deleted through the Worker).
 - **Waiting on the user:** open the board page on the custom hostname, sign in with the one-time code
   sent to the owner's inbox and confirm the board shows. It blocks the two Access checks of
   [Slice 2](docs/plan/slices/02-tile-board.md) (the page after signing in, the phone check) and comes

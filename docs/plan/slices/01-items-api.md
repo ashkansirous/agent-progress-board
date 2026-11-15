@@ -5,7 +5,7 @@ across projects" (2026-11-15), milestone 1 and *First step*; changed at the desk
 the owner decided the board exposes **everything through MCP**, and building clients is the
 job of the repos that want one (see [Slice 3](03-reporter.md)).
 
-*Built 2026-11-15, PR #31, not merged. 33 tests; lint, typecheck and test green. The deploy waits on the Workers Builds connection (owner step, see *Waiting on the user*); nothing is checked against a deployed Worker yet.*
+*Built 2026-11-15, merged 2026-11-15 as PR #31. 33 tests; lint, typecheck and test green. The deploy waits on the Workers Builds connection (owner step, see *Waiting on the user*); nothing is checked against a deployed Worker yet.*
 
 **Migrations:** 0001
 
@@ -199,11 +199,11 @@ Files: `reviews/pr-31-high.md` (10 findings), `reviews/pr-31-medium.md` (10),
 - `src/infrastructure/d1Repository.ts:92`: heartbeat events have no coalescing or cap, so `events` grows and costs rows written (check 6).
 - `src/mcp/tools.ts:111`: `get_item` and `list_open` have no size limit or `truncated` marker (check 7).
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-15)
 
 None beyond the branch's own edits.
 
-#### For README.md
+#### For README.md (lifted 2026-11-15)
 
 None beyond the branch's own edits.
 

@@ -18,11 +18,10 @@ owner confirms, is removed here and its slice marked `verified`.
 
 ### Slice 2: Tile board page ([slice](slices/02-tile-board.md))
 
-- Seeded data shows correctly on the owner's phone, opened from the deployed URL through Access (drawer and waiting strip included); blocked until the Access application exists.
-- Opening the page without passing Access is refused, checked through Access itself.
-- The custom domain is attached to the Worker and a pipeline deploy leaves it attached.
+- Seeded data shows correctly on the owner's phone, opened from the deployed URL through Access (drawer and waiting strip included); blocked until the owner has signed in once on the custom hostname. Not seen: the page after signing in.
+- The custom domain is attached to the Worker and a pipeline deploy leaves it attached. Seen 2026-11-15: attached, resolves. Not seen: still attached after a later pipeline deploy.
 - The first pipeline run of the new `deploy:ci` (`vite build`, then migrations, then deploy with `web/dist/agent_progress_board/wrangler.json`); locally `vite build` and `wrangler deploy --dry-run` passed. Seen 2026-11-15: the check "Workers Builds: agent-progress-board" on c1cc5de succeeded and the Worker is live with migrations applied. Not seen: the pipeline log.
-- Worker secrets (`ACCESS_*`, `BOARD_CONFIG`) survive a pipeline deploy. Seen 2026-11-15: `BOARD_WRITE`/`BOARD_READ` tokens and the `OWNER_PASSPHRASE` page work after the deploy. Not seen: `ACCESS_*` and `BOARD_CONFIG` (the Access guard answers 403).
+- Worker secrets (`ACCESS_*`, `BOARD_CONFIG`) survive a pipeline deploy. Seen 2026-11-15: `BOARD_WRITE`/`BOARD_READ` tokens and the `OWNER_PASSPHRASE` page work after the deploy. Seen 2026-11-15: `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` are set. Not seen: them or `BOARD_CONFIG` after a later pipeline deploy.
 - The seed script run against the deployed Worker.
 - The Node version in `engines` (`>= 22.18.0`): the number comes from the review and the fixer's knowledge; context7 confirmed only that type stripping is default in Node 24.
 

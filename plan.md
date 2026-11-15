@@ -52,7 +52,7 @@ Notes:
 
 ## Outstanding work
 
-- **Not yet tried on a device:** 21 checks across 7 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
+- **Not yet tried on a device:** 20 checks across 7 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
 - The D1 database and the Worker secrets exist.
 - The client guide (`docs/clients.md`) is ready (Slice 3); the owner's config repo can start its
   client.
@@ -63,23 +63,22 @@ Notes:
 - The Worker is deployed (first deployment created 17:00:39Z on 2026-11-15, read from
   `wrangler deployments list`). A deploy happens on a merge to `main` without the skip-CI marker.
   On its workers.dev address `/mcp` answers 401 without a token, the page and `/api/board` answer 403.
-- **Waiting on the user:** add the custom hostname as a Custom domain on the Worker's Domains page
-  ([link](https://dash.cloudflare.com/?to=/:account/workers/services/view/agent-progress-board/production/domains):
-  Cloudflare dashboard, Workers & Pages, the Worker, Domains tab). The attach by API with the machine's
-  wrangler login was tried on 2026-11-15 and refused by the session's permission check (not by
-  Cloudflare). It blocks the Access application step below and the owner seeing the page; see
-  [Slice 2](docs/plan/slices/02-tile-board.md) (the hostname is not written in this repo).
+- Done 2026-11-15 (18:29Z to 18:34Z, read back): the custom hostname is attached to the Worker as a
+  Custom domain and resolves; a self-hosted Access application "Agent progress board" with one
+  Allow policy for the owner's email address covers it; `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` are
+  set as Worker secrets and recorded in the secrets store. Without a session the custom hostname
+  answers 302 to the Access login (also `POST /mcp`); on workers.dev the page answers 403 and
+  `POST /mcp` 401. See [Slice 2](docs/plan/slices/02-tile-board.md) (the hostname is not written
+  in this repo).
 - Open, left by the deployed checks of 2026-11-15: project `zz-deploy-check` holds 205 items, all done
   (`zz-deploy-check/a`, `/b`, `/s0` to `/s2`, `/bulk-0` to `/bulk-199`). They show under "Done in the
   last 12 h" until about 05:00Z on 2026-11-16 and stay in the database (the board has no delete tool).
   One OAuth client was registered on the live Worker during the checks (no grant or token issued; it
   cannot be deleted through the Worker).
-- **Waiting on the user:** create the Cloudflare Access application for the board page on the custom hostname and set the
-  `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` Worker secrets, in
-  [Zero Trust, Access applications](https://one.dash.cloudflare.com/?to=/:account/access/apps) (the link was not
-  opened by the run that wrote it: it needs the owner's login).
-  It blocks only the two Access checks of Slice 2 (the phone check and the refused request); until
-  then the deployed page answers 403.
+- **Waiting on the user:** open the board page on the custom hostname, sign in with the one-time code
+  sent to the owner's inbox and confirm the board shows. It blocks the two Access checks of
+  [Slice 2](docs/plan/slices/02-tile-board.md) (the page after signing in, the phone check) and comes
+  before the claude.ai connector step below.
 - **Waiting on the user:** after the first deploy, add the board as a custom connector in claude.ai ([https://claude.ai/settings/connectors](https://claude.ai/settings/connectors), "Add custom connector", the Worker's `/mcp` address on `workers.dev`, not the page's custom domain, which sits behind Access; see [Slice 2](docs/plan/slices/02-tile-board.md) *Address*) and type the passphrase from the secrets store entry `OWNER_PASSPHRASE`. It blocks only the claude.ai check. (The link was not opened by the run that wrote it: it needs the owner's login.)
 - `OWNER_PASSPHRASE` is in the secrets store and set as a Worker secret; the `OAUTH_KV` namespace is created by the first deploy ([Slice 5](docs/plan/slices/05-remote-mcp.md)).
 - Follow-up (Slice 5): the Worker has no way for the owner to end a grant; the README names the library calls only. See [Slice 5](docs/plan/slices/05-remote-mcp.md) *Not yet verified*.

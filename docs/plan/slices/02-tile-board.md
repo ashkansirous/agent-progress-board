@@ -208,17 +208,23 @@ text `#E8EAEE`, muted `#9AA3B2`, card `#171A21`, hairline `#262B35`, link `#9DBD
       events, the window hours, and the server time, so the drawer opens with no second call.
 - [x] Add the mock's type, priority and status colour maps (light and dark) and labels to
       `config/board.example.json`; the page reads them.
-- [ ] Attach the custom domain to the Worker in Cloudflare (see *Address*). Tried by API with the
-      machine's wrangler login on 2026-11-15 and refused by the session's permission check (not by
-      Cloudflare); handed to the owner, see *Waiting on the user* below. The hostname is never
+- [x] Attach the custom domain to the Worker in Cloudflare (see *Address*). Done 2026-11-15
+      (18:29Z to 18:34Z, by the session that started the run, at the owner's instruction, in the
+      owner's signed-in browser): the custom hostname is attached as a Custom domain (production)
+      on the Worker's Domains page, and resolves on a public resolver. The hostname is never
       written here.
-- [ ] Put the page behind Cloudflare Access (by API with a token from the secrets store).
-      **Parked, waits for the owner (answered 2026-11-15):** no token with Access edit rights
-      exists (the secrets store holds only read-only Cloudflare tokens and the wrangler login
-      has no Access scope, both checked 2026-11-15), and only the owner can create one. An
-      unattended run builds everything else in this slice, leaves this item open, and records
-      the two Verification lines that need Access (the phone check, the refused request through
-      Access) under *Not yet verified*; it does not park the whole slice for it.
+- [x] Put the page behind Cloudflare Access. Done 2026-11-15 (same window and session, in the
+      owner's signed-in browser and with wrangler, not by API token): a self-hosted Access
+      application "Agent progress board" on the custom hostname (whole hostname, no path), one
+      policy "Owner only" (Allow, Include rule Emails with the owner's single email address), all
+      identity providers accepted (one-time PIN is the only one configured), session 24 hours.
+      The Worker secrets `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` are set (`wrangler secret list`
+      shows five names: those two, `BOARD_READ_TOKEN`, `BOARD_WRITE_TOKEN`, `OWNER_PASSPHRASE`)
+      and both values are recorded in the secrets store. Read back: a request to the custom
+      hostname with no session answers 302 to the Access login; `POST /mcp` there also answers
+      302 (behind Access, as decided; agents use the workers.dev address); on the workers.dev
+      address the page answers 403 and `POST /mcp` answers 401. The page after signing in is not
+      yet seen (see *Waiting on the user*).
 - [x] Seed script with three made-up projects (the mock's Recipe Box, Garden Planner and Home
       Lab, 14 items) covering every type and status, including a stale and a done item.
 - [x] Playwright E2E at a 390×844 viewport and at desktop width: groups, ordering, drawer
@@ -302,17 +308,12 @@ files rendered side by side (values were taken from the *Design* section).
   and repaints. Optional: a dedicated defaults constant.
 - `reviews/pr-35-high.md` #10: no Cancel on the loading card (the mock draws none).
 
-*Waiting on the user:* add the custom hostname as a Custom domain on the Worker's Domains page
-([link](https://dash.cloudflare.com/?to=/:account/workers/services/view/agent-progress-board/production/domains):
-Cloudflare dashboard, Workers & Pages, the Worker, Domains tab). The attach by API was tried on
-2026-11-15 and refused by the session's permission check, not by Cloudflare. It blocks the Access
-application step below and the owner seeing the page.
+*Done 2026-11-15 (18:29Z to 18:34Z, read back the same time):* the custom domain is attached and
+the Access application and the two Worker secrets exist; see the two ticked items in *Work*.
 
-*Waiting on the user (after the custom domain):* create the Cloudflare Access application on that
-hostname (one-time PIN or Google, one Allow policy for the owner's email) and set the
-`ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` Worker secrets; until then the deployed page answers 403
-(read 2026-11-15 on the workers.dev address: `/` and `/api/board` answer 403).
-It blocks only the Access and custom-domain checks below. (The Worker is deployed, 2026-11-15, c1cc5de.)
+*Waiting on the user:* open the board page on the custom hostname, sign in with the one-time
+code that goes to the owner's inbox, and confirm the board shows. It blocks the phone check
+below and comes before the claude.ai connector step.
 
 *Decision (2026-11-15, feedback loop):* the owner's "or claude.ai" for the sign-in was read as
 the claude.ai connector to `/mcp` ([Slice 5](05-remote-mcp.md)), not a login for the page:
@@ -336,14 +337,18 @@ Nothing to lift: the README is updated in PR #35.
 #### Not yet verified
 
 - Seeded data shows correctly on the owner's phone, opened from the deployed URL through Access
-  (drawer and waiting strip included); blocked until the Access application exists.
-- Opening the page without passing Access is refused, checked through Access itself.
+  (drawer and waiting strip included); blocked until the owner has signed in once on the custom
+  hostname (the Access application exists since 2026-11-15). Not seen: the page after signing in.
+- ~~Opening the page without passing Access is refused, checked through Access itself.~~ Verified
+  2026-11-15: a request to the custom hostname with no session answers 302 to the Access login
+  (`POST /mcp` there also answers 302).
 - The custom domain is attached to the Worker and a pipeline deploy leaves it attached (the
-  config keeps no `routes` key; read in the wrangler docs, not yet seen on a real deploy).
+  config keeps no `routes` key; read in the wrangler docs). Seen 2026-11-15: attached as a Custom
+  domain, resolves on a public resolver. Not seen: it still attached after a later pipeline deploy.
 - The first pipeline run of the new `deploy:ci` (`vite build`, then migrations, then deploy with
   `web/dist/agent_progress_board/wrangler.json`); locally `vite build` and `wrangler deploy
   --dry-run` passed. Seen 2026-11-15: the check "Workers Builds: agent-progress-board" on c1cc5de succeeded and the Worker is live with migrations applied. Not seen: the pipeline log.
-- Worker secrets (`ACCESS_*`, `BOARD_CONFIG`) survive a pipeline deploy. Seen 2026-11-15: `BOARD_WRITE`/`BOARD_READ` tokens and the `OWNER_PASSPHRASE` page work after the deploy. Not seen: `ACCESS_*` and `BOARD_CONFIG` (the Access guard answers 403).
+- Worker secrets (`ACCESS_*`, `BOARD_CONFIG`) survive a pipeline deploy. Seen 2026-11-15: `BOARD_WRITE`/`BOARD_READ` tokens and the `OWNER_PASSPHRASE` page work after the deploy. Seen 2026-11-15: `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` are set (`wrangler secret list`). Not seen: them or `BOARD_CONFIG` after a later pipeline deploy.
 - The seed script run against the deployed Worker.
 - The Node version in `engines` (`>= 22.18.0`): the number comes from the review and the fixer's
   knowledge; context7 confirmed only that type stripping is default in Node 24.

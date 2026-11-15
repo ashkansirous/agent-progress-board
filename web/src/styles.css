@@ -10,6 +10,7 @@
   --link: LinkText;
   --linkHover: LinkText;
   --tileWhy: GrayText;
+  --staleBg: Canvas;
   --staleBorder: GrayText;
   --grab: GrayText;
   --scrim: color-mix(in srgb, CanvasText 40%, transparent);
@@ -499,7 +500,7 @@ h1 {
 }
 
 .tile-stale {
-  background: var(--page);
+  background: var(--staleBg);
   border-style: dashed;
   border-color: var(--staleBorder);
 }

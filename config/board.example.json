@@ -1,5 +1,6 @@
 {
   "window": { "default_hours": 12, "max_hours": 72 },
+  "staleAfterMinutes": 120,
   "projects": [
     { "id": "recipe-box", "label": "Recipe Box" },
     { "id": "garden-planner", "label": "Garden Planner" },
@@ -72,6 +73,7 @@
       "link": "#1D4ED8",
       "linkHover": "#1E3A8A",
       "tileWhy": "#5B6370",
+      "staleBg": "#F5F6F8",
       "staleBorder": "#9AA3B2",
       "grab": "#C9CED6",
       "scrim": "rgba(20,23,28,0.32)",
@@ -98,7 +100,8 @@
       "link": "#9DBDFF",
       "linkHover": "#C7D8FF",
       "tileWhy": "#B3BBC8",
-      "staleBorder": "#9AA3B2",
+      "staleBg": "#171A21",
+      "staleBorder": "#4A5262",
       "grab": "#4A5262",
       "scrim": "rgba(0,0,0,0.55)",
       "panel": "#171A21",

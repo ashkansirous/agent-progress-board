@@ -74,7 +74,7 @@ export function assertSameProject(stored: SyncRow | undefined, project: string):
 }
 
 /** The live status wins when it was set after the docs last changed; no doc time is older. */
-function showsLiveStatus(liveAt: string | null, docAt: string | null): boolean {
+export function showsLiveStatus(liveAt: string | null, docAt: string | null): boolean {
   return liveAt !== null && (docAt === null || liveAt > docAt);
 }
 

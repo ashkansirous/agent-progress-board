@@ -5,11 +5,12 @@ import {
   HEARTBEAT_NOTE,
   type Item,
   type ItemEvent,
-  type ItemStatus,
+  ItemStatus,
   type ItemType,
   type ItemWithEvents,
   type Priority,
 } from "../domain/item";
+import { EXPIRING_STATUSES, STALE_NOTE } from "../domain/stale";
 import type { ReportInput } from "../domain/upsert";
 
 interface ItemRow extends Omit<Item, "links" | "type" | "priority" | "status"> {
@@ -56,19 +57,42 @@ const CHANGEABLE_COLUMNS = [
 ] as const;
 type ChangeableColumn = (typeof CHANGEABLE_COLUMNS)[number];
 
+const LIVE_STATUS_LIST = EXPIRING_STATUSES.map((status) => `'${status}'`).join(", ");
+
 const FIRST_GIVEN_PARAM = 14;
 const STATUS_COLUMN = CHANGEABLE_COLUMNS.indexOf("status");
 
 const flagParam = (index: number): string => `?${FIRST_GIVEN_PARAM + 2 * index}`;
 const valueParam = (index: number): string => `?${FIRST_GIVEN_PARAM + 2 * index + 1}`;
 
-const NEXT_STATUS = `CASE WHEN ${flagParam(STATUS_COLUMN)} THEN ${valueParam(STATUS_COLUMN)} ELSE status END`;
-const ANY_CHANGED = CHANGEABLE_COLUMNS.map(
-  (col, i) => `(${flagParam(i)} AND ${valueParam(i)} IS NOT ${col})`,
+/**
+ * The status after a report: the given one, else the stored one, except that a report with no
+ * status brings a stale item back to the status of its newest non-stale event (the status the
+ * cron replaced) when that is a live one, else to in_progress (Slice 7, expiry rule design).
+ */
+const LAST_LIVE_STATUS = `COALESCE((SELECT e.status FROM events e WHERE e.item_key = items.key
+  AND e.status != '${ItemStatus.Stale}' AND e.status IN (${LIVE_STATUS_LIST})
+  AND e.id = (SELECT n.id FROM events n WHERE n.item_key = items.key AND n.status != '${ItemStatus.Stale}'
+    ORDER BY n.at DESC, n.id DESC LIMIT 1)), '${ItemStatus.InProgress}')`;
+const NEXT_STATUS = `CASE WHEN ${flagParam(STATUS_COLUMN)} THEN ${valueParam(STATUS_COLUMN)}
+  WHEN status = '${ItemStatus.Stale}' THEN ${LAST_LIVE_STATUS} ELSE status END`;
+const ANY_CHANGED = CHANGEABLE_COLUMNS.map((col, i) =>
+  i === STATUS_COLUMN ? `${NEXT_STATUS} IS NOT status` : `(${flagParam(i)} AND ${valueParam(i)} IS NOT ${col})`,
 ).join(" OR ");
-const SET_CHANGEABLE = CHANGEABLE_COLUMNS.map(
-  (col, i) => `${col} = CASE WHEN ${flagParam(i)} THEN ${valueParam(i)} ELSE ${col} END`,
+const SET_CHANGEABLE = CHANGEABLE_COLUMNS.map((col, i) =>
+  i === STATUS_COLUMN
+    ? `status = ${NEXT_STATUS}`
+    : `${col} = CASE WHEN ${flagParam(i)} THEN ${valueParam(i)} ELSE ${col} END`,
 ).join(", ");
+
+/** The rule of isExpired (domain/stale.ts) in SQL: ?1 is the cutoff, an ISO time. */
+const EXPIRED_ROWS = `status IN (${LIVE_STATUS_LIST}) AND live_status_at IS NOT NULL
+  AND (doc_status_at IS NULL OR live_status_at > doc_status_at) AND heartbeat_at < ?1`;
+
+/** ?1 cutoff, ?2 now, ?3 note. */
+const STALE_EVENTS = `INSERT INTO events (item_key, at, status, source, note)
+  SELECT key, ?2, '${ItemStatus.Stale}', NULL, ?3 FROM items WHERE ${EXPIRED_ROWS}`;
+const STALE_ITEMS = `UPDATE items SET status = '${ItemStatus.Stale}', updated_at = ?2 WHERE ${EXPIRED_ROWS}`;
 
 const SOURCE_COLUMN = CHANGEABLE_COLUMNS.indexOf("source");
 /** A report that gave a status and did not say it came from doc sync moves live_status_at. */
@@ -182,6 +206,14 @@ export class D1ItemRepository implements ItemRepository {
       );
     }
     await this.db.batch(statements);
+  }
+
+  async markStale(cutoff: string, now: string): Promise<number> {
+    const [, items] = await this.db.batch([
+      this.db.prepare(STALE_EVENTS).bind(cutoff, now, STALE_NOTE),
+      this.db.prepare(STALE_ITEMS).bind(cutoff, now),
+    ]);
+    return items?.meta.changes ?? 0;
   }
 
   async listBoard(filter: BoardFilter): Promise<ItemWithEvents[]> {

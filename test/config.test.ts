@@ -47,6 +47,20 @@ describe("parseConfig", () => {
     log.mockRestore();
   });
 
+  it("reads staleAfterMinutes: default 120, whole minutes from 60 to 10080, else the default and a log", () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    expect(parseConfig(undefined).staleAfterMinutes).toBe(120);
+    expect(parseConfig('{"staleAfterMinutes":90}').staleAfterMinutes).toBe(90);
+    expect(parseConfig('{"staleAfterMinutes":60}').staleAfterMinutes).toBe(60);
+    expect(parseConfig('{"staleAfterMinutes":10080}').staleAfterMinutes).toBe(10080);
+    expect(log).not.toHaveBeenCalled();
+    for (const bad of ["59", "10081", "1000000000000", "90.5", '"60"', "null", "-5"]) {
+      expect(parseConfig(`{"staleAfterMinutes":${bad}}`).staleAfterMinutes).toBe(120);
+    }
+    expect(log).toHaveBeenCalledTimes(7);
+    log.mockRestore();
+  });
+
   it("falls back to defaults and logs on bad json, bad windows and wrong shapes", () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
     expect(parseConfig("{").window).toEqual(DEFAULT_WINDOW);

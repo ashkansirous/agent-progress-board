@@ -19,7 +19,7 @@ private Claude Code config repo; this repo hands them a tool reference and a cli
 
 | Slice | Title | Status | PR | Issue | File |
 | --- | --- | --- | --- | --- | --- |
-| 1 | Worker + D1 items store behind an MCP endpoint | parked: built and merged (PR #31); deploy waits for the owner to connect Workers Builds | | #31 | [01](docs/plan/slices/01-items-api.md) |
+| 1 | Worker + D1 items store behind an MCP endpoint | parked: built and merged (PR #31); deploy waits for the owner to connect Workers Builds | #31 | | [01](docs/plan/slices/01-items-api.md) |
 | 2 | Tile board page | planned | | | [02](docs/plan/slices/02-tile-board.md) |
 | 3 | Client handover: tool reference and client guide | planned | | | [03](docs/plan/slices/03-reporter.md) |
 | 4 | Doc sync: `sync_snapshot` tool | planned | | | [04](docs/plan/slices/04-doc-sync.md) |

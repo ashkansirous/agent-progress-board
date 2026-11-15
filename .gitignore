@@ -24,7 +24,6 @@ build/
 .mf/
 
 # Test output
-tmp/
 test-results/
 playwright-report/
 

@@ -298,7 +298,7 @@ files rendered side by side (values were taken from the *Design* section).
 
 *Waiting on the user:* create the Cloudflare Access application for the page and set the
 `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` Worker secrets; until then the deployed page answers 403.
-It blocks only the two Access checks below. (The Workers Builds step is already in `plan.md`.)
+It blocks only the two Access checks below. (Workers Builds is connected; the first deploy is in `plan.md`.)
 
 #### For CLAUDE.md (lifted 2026-11-15)
 

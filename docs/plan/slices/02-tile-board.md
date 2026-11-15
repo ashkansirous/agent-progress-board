@@ -2,10 +2,20 @@
 
 Source: phone scope (2026-11-15), milestone 2 — see [Slice 1](01-items-api.md).
 
-*Planned.*
+*In progress (wave 2026-11-15), draft PR.*
 
 **Touches:** `web/**`, `wrangler.jsonc`, `package.json`, `package-lock.json`, `src/api/**`,
-`e2e/**`, `playwright.config.ts`, `config/board.example.json`, `README.md`
+`src/config.ts`, `src/index.ts`, `e2e/**`, `playwright.config.ts`, `vite.config.ts`,
+`tsconfig*.json`, `eslint.config.js`, `vitest.config.ts`, `.gitignore`, `.dev.vars.example`,
+`scripts/**`, `test/**` (new test files and `test/config.test.ts` only), `config/board.example.json`,
+`README.md`
+
+Touches widened at the claim (2026-11-15, premise check against `origin/main`): the palette
+maps need the config parser (`src/config.ts`), the page and `/api/board` need the Worker entry
+(`src/index.ts`), `web/**` and `e2e/**` need their own TypeScript, ESLint and Vitest settings,
+and the seed script lives in `scripts/`. Slice 4 builds beside this slice and owns
+`src/domain/**`, `src/application/**`, `src/infrastructure/**` and `src/mcp/**`: this slice
+does not edit them (the board route calls the existing `listOpen` as it is).
 
 #### Why
 

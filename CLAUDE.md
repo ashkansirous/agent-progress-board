@@ -22,3 +22,14 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
 - **Read-mostly.** The board shows work; editing, assigning and planning stay in the repos.
 - **Deploys only through the pipeline** (merge to `main`), never `wrangler deploy` from a
   shell.
+
+## Commands and layout
+
+- `npm run lint`, `npm run typecheck`, `npm test` (Vitest in the Workers pool, local D1).
+- Layers: `src/domain` (pure rules), `src/application` (use cases, repository port),
+  `src/infrastructure` (D1), `src/mcp` (tools, schemas), `src/api` (routing, auth). Tools hold
+  no rules.
+- TypeScript is pinned to 6.0.x: typescript-eslint 8.72 rejects 7.x as a peer. Vitest uses
+  `@cloudflare/vitest-plugin` (the renamed pool), not `@cloudflare/vitest-pool-workers`.
+- MCP is stateless: a new `McpServer` and transport per request, no sessions, no Durable
+  Objects. See [Slice 1](docs/plan/slices/01-items-api.md) *Decisions*.

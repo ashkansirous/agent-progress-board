@@ -1,0 +1,14 @@
+{
+  "window": { "default_hours": 12, "max_hours": 72 },
+  "projects": [
+    { "id": "demo-app", "label": "Demo App" },
+    { "id": "sample-site", "label": "Sample Site" }
+  ],
+  "types": {
+    "slice": { "label": "Slice", "color": "#3b82f6" },
+    "problem": { "label": "Problem", "color": "#ef4444" },
+    "waiting_for_me": { "label": "Waiting for me", "color": "#f59e0b" },
+    "bug": { "label": "Bug", "color": "#a855f7" },
+    "unplanned": { "label": "Unplanned", "color": "#6b7280" }
+  }
+}

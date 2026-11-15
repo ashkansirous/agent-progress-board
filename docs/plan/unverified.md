@@ -21,6 +21,7 @@ owner confirms, is removed here and its slice marked `verified`.
 
 - Seeded data shows correctly on the owner's phone, opened from the deployed URL through Access (drawer and waiting strip included); blocked until the Access application exists.
 - Opening the page without passing Access is refused, checked through Access itself.
+- The custom domain is attached to the Worker and a pipeline deploy leaves it attached.
 - The first pipeline run of the new `deploy:ci` (`vite build`, then migrations, then deploy with `web/dist/agent_progress_board/wrangler.json`); locally `vite build` and `wrangler deploy --dry-run` passed.
 - Worker secrets (`ACCESS_*`, `BOARD_CONFIG`) survive a pipeline deploy.
 - The seed script run against the deployed Worker.

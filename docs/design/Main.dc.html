@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Progress board, desktop</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F6F8}
+a{color:#1D4ED8}a:hover{color:#1E3A8A}
+button{font:inherit;color:inherit}
+</style>
+</helmet>
+<div style="position: relative; min-height: 1500px; background: #F5F6F8; font-family: Inter, system-ui, sans-serif; color: #14171C; font-size: 14px; line-height: 1.45">
+<div style="max-width: 1280px; margin: 0 auto; padding: 32px 32px 64px; display: flex; flex-direction: column; gap: 28px">
+
+<header style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px; justify-content: space-between">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<h1 style="margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.02em">Progress</h1>
+<p style="margin: 0; color: #5B6370; font-size: 13px">Open work plus everything finished in the last 12 hours · updated 13:48 · refreshes every 60 s</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+<sc-for list="{{ legend }}" as="l" hint-placeholder-count="5">
+<span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: {{ l.bg }}; color: {{ l.fg }}"><span style="width: 7px; height: 7px; border-radius: 50%; background: {{ l.fg }}"></span>{{ l.label }}</span>
+</sc-for>
+<button aria-label="Refresh now" style="margin-left: 8px; width: 44px; height: 44px; border-radius: 10px; border: 1px solid #E3E6EB; background: #FFFFFF; display: inline-flex; align-items: center; justify-content: center; cursor: pointer"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#14171C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"></path><path d="M21 3v6h-6"></path></svg></button>
+</div>
+</header>
+
+<section aria-labelledby="waiting-h" style="background: #FFFFFF; border: 1px solid #E3E6EB; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; align-items: baseline; gap: 10px">
+<h2 id="waiting-h" style="margin: 0; font-size: 16px; font-weight: 700; color: #7A3200">Waiting for you</h2>
+<span style="font-size: 13px; color: #8A4A12">3 items across 2 projects</span>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px">
+<sc-for list="{{ waiting }}" as="it" hint-placeholder-count="3">
+<button onClick="{{ it.open }}" style="text-align: left; cursor: pointer; background: #FDEBD8; border: 1px solid #F0C9A0; border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; min-height: 44px">
+<span style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #5B6370"><span style="font-weight: 600; color: #14171C">{{ it.project }}</span><span style="margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 1px 6px; border-radius: 6px; background: {{ it.prioBg }}; color: {{ it.prioFg }}; border: 1px solid {{ it.prioBorder }}">{{ it.priority }}</span></span>
+<span style="font-size: 15px; font-weight: 600">{{ it.title }}</span>
+<span style="font-size: 13px; color: #5B6370">{{ it.why }}</span>
+<span style="font-size: 12px; color: #8A4A12">Asked {{ it.age }} · {{ it.parent }}</span>
+</button>
+</sc-for>
+</div>
+</section>
+
+<sc-for list="{{ projects }}" as="p" hint-placeholder-count="3">
+<section style="display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; border-bottom: 1px solid #E3E6EB; padding-bottom: 10px">
+<h2 style="margin: 0; font-size: 19px; font-weight: 700; letter-spacing: -0.01em">{{ p.name }}</h2>
+<span style="font-size: 13px; color: #5B6370">{{ p.summary }}</span>
+</div>
+<sc-for list="{{ p.sections }}" as="s" hint-placeholder-count="2">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h3 style="margin: 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #5B6370">{{ s.label }}</h3>
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px">
+<sc-for list="{{ s.items }}" as="it" hint-placeholder-count="3">
+<button onClick="{{ it.open }}" style="text-align: left; cursor: pointer; background: {{ it.tileBg }}; border: 1px {{ it.borderStyle }} {{ it.borderColor }}; border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; opacity: {{ it.opacity }}">
+<span style="display: flex; align-items: center; gap: 8px">
+<span style="display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: {{ it.typeFg }}"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{ it.typeFg }}"></span>{{ it.typeLabel }}</span>
+<span style="margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 1px 6px; border-radius: 6px; background: {{ it.prioBg }}; color: {{ it.prioFg }}; border: 1px solid {{ it.prioBorder }}">{{ it.priority }}</span>
+</span>
+<span style="font-size: 15px; font-weight: 600; color: {{ it.titleColor }}">{{ it.title }}</span>
+<span style="font-size: 13px; color: #5B6370">{{ it.why }}</span>
+<span style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #5B6370; margin-top: 2px">
+<span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap">↳ {{ it.parent }}</span>
+<span style="margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-weight: 600; color: {{ it.statusFg }}; white-space: nowrap"><span style="width: 7px; height: 7px; border-radius: 50%; background: {{ it.statusDot }}; border: 1.5px solid {{ it.statusFg }}; box-sizing: border-box"></span>{{ it.statusLabel }}</span>
+</span>
+</button>
+</sc-for>
+</div>
+</div>
+</sc-for>
+</section>
+</sc-for>
+
+</div>
+
+<sc-if value="{{ hasSel }}" hint-placeholder-val="{{ false }}">
+<div style="position: absolute; inset: 0; display: flex; justify-content: flex-end">
+<button aria-label="Close details" onClick="{{ close }}" style="position: absolute; inset: 0; border: 0; background: rgba(20,23,28,0.32); cursor: pointer"></button>
+<aside aria-label="Item details" style="position: relative; width: 460px; max-width: 100%; background: #FFFFFF; box-shadow: -12px 0 32px rgba(20,23,28,0.12); padding: 28px; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px; overflow-y: auto">
+<div style="display: flex; align-items: center; gap: 8px">
+<span style="display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: {{ sel.typeBg }}; color: {{ sel.typeFg }}"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{ sel.typeFg }}"></span>{{ sel.typeLabel }}</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 2px 7px; border-radius: 6px; background: {{ sel.prioBg }}; color: {{ sel.prioFg }}; border: 1px solid {{ sel.prioBorder }}">{{ sel.priority }}</span>
+<button aria-label="Close" onClick="{{ close }}" style="margin-left: auto; width: 44px; height: 44px; border-radius: 10px; border: 1px solid #E3E6EB; background: #FFFFFF; cursor: pointer; display: inline-flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#14171C" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<h2 style="margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.01em">{{ sel.title }}</h2>
+<span style="font-size: 14px; color: #5B6370">{{ sel.why }}</span>
+</div>
+<dl style="margin: 0; display: grid; grid-template-columns: 96px 1fr; row-gap: 8px; font-size: 13px">
+<dt style="color: #5B6370">Status</dt><dd style="margin: 0; font-weight: 600; color: {{ sel.statusFg }}">{{ sel.statusLabel }}</dd>
+<dt style="color: #5B6370">Project</dt><dd style="margin: 0">{{ sel.project }}</dd>
+<dt style="color: #5B6370">Parent</dt><dd style="margin: 0">{{ sel.parent }}</dd>
+<dt style="color: #5B6370">Key</dt><dd style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 12px">{{ sel.key }}</dd>
+</dl>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h3 style="margin: 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #5B6370">Details</h3>
+<div style="background: #F5F6F8; border-radius: 10px; padding: 14px 16px; font-size: 14px; display: flex; flex-direction: column; gap: 8px">
+<sc-for list="{{ sel.details }}" as="d" hint-placeholder-count="2"><p style="margin: 0">{{ d }}</p></sc-for>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h3 style="margin: 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #5B6370">Links</h3>
+<sc-for list="{{ sel.links }}" as="lk" hint-placeholder-count="2"><a href="#" style="font-size: 14px; font-weight: 500">{{ lk }}</a></sc-for>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<h3 style="margin: 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #5B6370">History</h3>
+<ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px">
+<sc-for list="{{ sel.events }}" as="ev" hint-placeholder-count="3">
+<li style="display: grid; grid-template-columns: 52px 1fr; gap: 10px; font-size: 13px">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #5B6370">{{ ev.at }}</span>
+<span style="display: flex; flex-direction: column"><span style="font-weight: 600">{{ ev.status }}</span><span style="color: #5B6370">{{ ev.note }}</span></span>
+</li>
+</sc-for>
+</ol>
+</div>
+</aside>
+</div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+var TYPES = {
+  waiting_for_me: { label: 'Needs you', bg: '#FDEBD8', fg: '#9A3F00', border: '#F0C9A0' },
+  slice: { label: 'Slice', bg: '#E6EEFC', fg: '#1D4ED8', border: '#BFD0F5' },
+  problem: { label: 'Problem', bg: '#EFE7FB', fg: '#6B2FBF', border: '#D6C4F2' },
+  bug: { label: 'Bug', bg: '#FCE4E4', fg: '#B42318', border: '#F3BDBA' },
+  unplanned: { label: 'Unplanned', bg: '#DDF3F0', fg: '#0B6B60', border: '#A9DDD5' }
+};
+var STATUS = {
+  open: { label: 'Open', fg: '#5B6370', dot: 'transparent' },
+  in_progress: { label: 'In progress', fg: '#1D4ED8', dot: '#1D4ED8' },
+  blocked: { label: 'Blocked', fg: '#B42318', dot: '#B42318' },
+  stale: { label: 'Stale', fg: '#5B6370', dot: 'transparent' },
+  done: { label: 'Done', fg: '#0B6B4B', dot: '#0B6B4B' }
+};
+var ITEMS = [
+  { key: 'recipe-box/ask-migration', project: 'Recipe Box', type: 'waiting_for_me', priority: 'P1', status: 'open', title: 'Approve the tags migration', why: 'Drops the old tags column; needs your OK first', parent: 'Slice 4 · Tag search', age: '25 min ago',
+    details: ['The migration rewrites tags into a join table and drops the old column. It cannot be undone without the backup.', 'Reply in the session or mark this done once approved.'], links: ['Pull request #41', 'Migration file'],
+    events: [{ at: '13:23', status: 'Open', note: 'Asked by the wave runner' }] },
+  { key: 'garden-planner/ask-console', project: 'Garden Planner', type: 'waiting_for_me', priority: 'P0', status: 'open', title: 'Sign in to the store console', why: 'Release upload needs a fresh session', parent: 'Release 1.4.2', age: '1 h ago',
+    details: ['The release build is signed and waiting. The upload step stopped at the sign-in page.'], links: ['Release checklist'],
+    events: [{ at: '12:41', status: 'Open', note: 'Upload step paused' }] },
+  { key: 'garden-planner/ask-icon', project: 'Garden Planner', type: 'waiting_for_me', priority: 'P2', status: 'open', title: 'Pick the new app icon', why: 'Three options attached to the issue', parent: 'Slice 11 · Store listing', age: '3 h ago',
+    details: ['Three icon options are attached. Any one unblocks the store listing slice.'], links: ['Issue #77'],
+    events: [{ at: '10:52', status: 'Open', note: 'Asked during planning' }] },
+  { key: 'recipe-box/slice-4', project: 'Recipe Box', type: 'slice', priority: 'P1', status: 'in_progress', title: 'Slice 4 · Tag search', why: 'Find recipes by ingredient or tag', parent: 'Plan · Search',
+    details: ['Search box, tag chips and a join table for tags.', '3 of 5 work items done; waiting on the migration approval.'], links: ['Slice file', 'Pull request #41'],
+    events: [{ at: '13:23', status: 'In progress', note: 'Asked you to approve the migration' }, { at: '11:05', status: 'In progress', note: 'Session started' }, { at: '09:12', status: 'Open', note: 'Synced from plan docs' }] },
+  { key: 'recipe-box/ci-main', project: 'Recipe Box', type: 'problem', priority: 'P0', status: 'blocked', title: 'CI failing on main', why: 'Lint step times out after 10 minutes', parent: 'Wave 3',
+    details: ['Second failure in a row; the fix was retried once.', 'Wave 3 is paused until this passes.'], links: ['Failed run', 'Wave log'],
+    events: [{ at: '13:02', status: 'Blocked', note: 'Fix failed twice' }, { at: '12:30', status: 'Open', note: 'Reported by hook' }] },
+  { key: 'recipe-box/resize', project: 'Recipe Box', type: 'unplanned', priority: 'P2', status: 'open', title: 'Image uploads skip resizing', why: 'Found while testing tag search', parent: 'Slice 4 · Tag search',
+    details: ['Photos over 4 MB are stored at full size. No slice covers this yet.'], links: ['Session notes'],
+    events: [{ at: '12:10', status: 'Open', note: 'Found during a run' }] },
+  { key: 'recipe-box/slice-3', project: 'Recipe Box', type: 'slice', priority: 'P2', status: 'done', title: 'Slice 3 · Share links', why: 'Send a recipe to anyone with a link', parent: 'Plan · Sharing', doneAge: '2 h ago',
+    details: ['Merged and deployed.'], links: ['Pull request #38'],
+    events: [{ at: '11:44', status: 'Done', note: 'Merged to main' }, { at: '08:30', status: 'In progress', note: 'Session started' }] },
+  { key: 'garden-planner/crash-bed', project: 'Garden Planner', type: 'bug', priority: 'P1', status: 'open', title: 'Crash opening an empty bed', why: 'Null bed view; 14 crashes today', parent: 'Release 1.4.1',
+    details: ['Crash logs point at the bed view when a bed has no plants.'], links: ['Crash report'],
+    events: [{ at: '09:40', status: 'Open', note: 'From crash logs' }] },
+  { key: 'garden-planner/slice-9', project: 'Garden Planner', type: 'slice', priority: 'P2', status: 'in_progress', title: 'Slice 9 · Frost alerts', why: 'Warn the night before a frost', parent: 'Plan · Weather',
+    details: ['Forecast fetch done; notification channel next.'], links: ['Slice file'],
+    events: [{ at: '13:40', status: 'In progress', note: 'Heartbeat' }, { at: '12:00', status: 'In progress', note: 'Session started' }] },
+  { key: 'garden-planner/slice-10', project: 'Garden Planner', type: 'slice', priority: 'P2', status: 'stale', title: 'Slice 10 · Seed inventory', why: 'Track seed packets and expiry', parent: 'Plan · Inventory', staleNote: 'No heartbeat for 3 h',
+    details: ['The session stopped reporting. A new report on this key brings it back.'], links: ['Slice file'],
+    events: [{ at: '13:00', status: 'Stale', note: 'Heartbeat expired' }, { at: '10:48', status: 'In progress', note: 'Last heartbeat' }] },
+  { key: 'garden-planner/slice-8', project: 'Garden Planner', type: 'slice', priority: 'P2', status: 'done', title: 'Slice 8 · Watering log', why: 'One-tap log per bed', parent: 'Plan · Care', doneAge: '6 h ago',
+    details: ['Merged and released in 1.4.1.'], links: ['Pull request #70'], events: [{ at: '07:50', status: 'Done', note: 'Merged to main' }] },
+  { key: 'garden-planner/flaky-test', project: 'Garden Planner', type: 'problem', priority: 'P3', status: 'done', title: 'Flaky emulator test', why: 'Retried with a longer boot wait', parent: 'Wave 2', doneAge: '9 h ago',
+    details: ['Fixed by waiting for the emulator to finish booting.'], links: ['Fix commit'], events: [{ at: '04:55', status: 'Done', note: 'Fix merged' }] },
+  { key: 'home-lab/slice-2', project: 'Home Lab', type: 'slice', priority: 'P3', status: 'open', title: 'Slice 2 · Backup rotation', why: 'Keep 7 daily and 4 weekly backups', parent: 'Plan · Backups',
+    details: ['Not started.'], links: ['Slice file'], events: [{ at: '09:12', status: 'Open', note: 'Synced from plan docs' }] },
+  { key: 'home-lab/cert', project: 'Home Lab', type: 'unplanned', priority: 'P3', status: 'open', title: 'Renew the expiring certificate', why: 'Expires in 9 days', parent: 'Slice 1 · Reverse proxy',
+    details: ['Spotted while checking the proxy config.'], links: ['Session notes'], events: [{ at: '08:20', status: 'Open', note: 'Found during a run' }] }
+];
+var PRIO = {
+  P0: { bg: '#14171C', fg: '#FFFFFF', border: '#14171C' },
+  P1: { bg: '#FFFFFF', fg: '#14171C', border: '#14171C' },
+  P2: { bg: '#FFFFFF', fg: '#5B6370', border: '#C9CED6' },
+  P3: { bg: '#FFFFFF', fg: '#5B6370', border: '#E3E6EB' }
+};
+class Component extends DCLogic {
+  decorate(it) {
+    var t = TYPES[it.type], s = STATUS[it.status], p = PRIO[it.priority];
+    var self = this;
+    var statusLabel = it.status === 'done' ? 'Done ' + it.doneAge : it.status === 'stale' ? 'Stale · ' + it.staleNote : s.label;
+    return Object.assign({}, it, {
+      typeLabel: t.label, typeBg: t.bg, typeFg: t.fg,
+      prioBg: p.bg, prioFg: p.fg, prioBorder: p.border,
+      statusLabel: statusLabel, statusFg: s.fg, statusDot: s.dot,
+      tileBg: it.status === 'stale' ? '#F5F6F8' : t.bg,
+      borderStyle: it.status === 'stale' ? 'dashed' : 'solid',
+      borderColor: it.status === 'stale' ? '#9AA3B2' : t.border,
+      opacity: it.status === 'done' ? '0.78' : '1',
+      titleColor: it.status === 'stale' ? '#5B6370' : '#14171C',
+      open: function () { self.setState({ sel: it.key }); }
+    });
+  }
+  renderVals() {
+    var self = this;
+    var all = ITEMS.map(function (it) { return self.decorate(it); });
+    var names = ['Recipe Box', 'Garden Planner', 'Home Lab'];
+    var projects = names.map(function (n) {
+      var mine = all.filter(function (i) { return i.project === n && i.type !== 'waiting_for_me'; });
+      var flight = mine.filter(function (i) { return i.status !== 'done'; });
+      var done = mine.filter(function (i) { return i.status === 'done'; });
+      var sections = [{ label: 'In flight · ' + flight.length, items: flight }];
+      if (done.length) sections.push({ label: 'Done in the last 12 h · ' + done.length, items: done });
+      var waitingItems = all.filter(function (i) { return i.project === n && i.type === 'waiting_for_me'; });
+      var waitingN = waitingItems.length;
+      if (waitingN) sections.unshift({ label: 'Waiting for you · ' + waitingN, items: waitingItems });
+      var bits = [flight.length + ' open'];
+      if (waitingN) bits.unshift(waitingN + ' waiting for you');
+      bits.push(done.length + ' done in 12 h');
+      return { name: n, summary: bits.join(' · '), sections: sections };
+    });
+    var sel = all.find(function (i) { return i.key === (self.state || {}).sel; });
+    return {
+      legend: Object.keys(TYPES).map(function (k) { return TYPES[k]; }),
+      waiting: all.filter(function (i) { return i.type === 'waiting_for_me'; }),
+      projects: projects,
+      hasSel: !!sel,
+      sel: sel || all[3],
+      close: function () { self.setState({ sel: null }); }
+    };
+  }
+}
+</script>
+</body>
+</html>

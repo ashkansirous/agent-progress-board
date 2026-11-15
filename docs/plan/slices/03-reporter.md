@@ -34,7 +34,9 @@ work over: one page a client author can build from without reading the server co
       input and output, the key format, fail-open, what to report when.
 - [ ] README links to it.
 - [ ] Tell the owner's config repo it can start its client (its own planned slice already
-      exists there; no code from this repo goes into it).
+      exists there; no code from this repo goes into it). In an unattended run this is one
+      line under *Outstanding work* in `plan.md` saying the guide is ready; nothing is written
+      to another repo.
 
 #### Verification
 

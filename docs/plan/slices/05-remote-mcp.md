@@ -17,8 +17,9 @@ Ask "what's waiting for me?" from claude.ai on the phone.
 - claude.ai custom connectors connect from Anthropic's cloud and authorise with OAuth, so the
   endpoint needs OAuth alongside the bearer tokens (the Worker's public HTTPS URL already
   meets the "443, public" need).
-- Only the owner can authorise: identity checked through Cloudflare Access or a one-owner
-  allow rule from config.
+- Only the owner can authorise: identity checked by a one-owner allow rule from config
+  (owner, 2026-11-15; not Cloudflare Access, so this slice does not wait for the Access
+  setup). The owner's identity is private config, never in the repo.
 - Bearer tokens keep working for Claude Code and scripts.
 - Re-check before building: the current OAuth provider library for Workers
   (`workers-oauth-provider` or what context7 shows) and the MCP auth spec version claude.ai

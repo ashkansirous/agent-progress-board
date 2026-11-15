@@ -16,6 +16,9 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
   tool calls the application layer (one upsert keyed by a stable `key`). No public REST write
   path; the board page's read route calls the same application functions. Clients live in
   the repos that use them, not here; `docs/clients.md` is their guide.
+- **The design is in `docs/design/`.** Read every visual value (colour, size, spacing, copy)
+  from those files ([README](docs/design/README.md)); never guess one and never fetch the
+  design from outside the repo.
 - **Read-mostly.** The board shows work; editing, assigning and planning stay in the repos.
 - **Deploys only through the pipeline** (merge to `main`), never `wrangler deploy` from a
   shell.

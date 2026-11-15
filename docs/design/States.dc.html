@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Board states: loading, empty, error</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#1D4ED8}a:hover{color:#1E3A8A}
+button{font:inherit}
+</style>
+</helmet>
+<div style="width: 1280px; height: 560px; box-sizing: border-box; padding: 40px; background: #F5F6F8; color: #14171C; font-family: Inter, system-ui, sans-serif; font-size: 14px; line-height: 1.45; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px">
+
+<section aria-label="Loading" style="background: #FFFFFF; border: 1px solid #E3E6EB; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 14px">
+<h2 style="margin: 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #5B6370">Loading (after 500 ms)</h2>
+<div aria-hidden="true" style="width: 140px; height: 22px; border-radius: 6px; background: #E9ECF0"></div>
+<div aria-hidden="true" style="height: 84px; border-radius: 12px; background: #FBEFE2"></div>
+<div aria-hidden="true" style="width: 110px; height: 16px; border-radius: 6px; background: #E9ECF0"></div>
+<div aria-hidden="true" style="height: 96px; border-radius: 12px; background: #F0F2F5"></div>
+<div aria-hidden="true" style="height: 96px; border-radius: 12px; background: #F0F2F5"></div>
+<p style="margin: 0; font-size: 13px; color: #5B6370">Loading the board…</p>
+</section>
+
+<section aria-label="Empty" style="background: #FFFFFF; border: 1px solid #E3E6EB; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 14px">
+<h2 style="margin: 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #5B6370">Empty</h2>
+<div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center">
+<svg aria-hidden="true" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#0B6B4B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M8 12.5l2.5 2.5L16 9.5"></path></svg>
+<p style="margin: 0; font-size: 18px; font-weight: 700">Nothing open</p>
+<p style="margin: 0; max-width: 280px; color: #5B6370">No open items and nothing finished in the last 12 hours. Agents add items here as they report.</p>
+</div>
+</section>
+
+<section aria-label="Error" style="background: #FFFFFF; border: 1px solid #E3E6EB; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 14px">
+<h2 style="margin: 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #5B6370">Failed load</h2>
+<div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center">
+<svg aria-hidden="true" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#B42318" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9.5 17h-19z"></path><path d="M12 10v4"></path><path d="M12 17.5v.01"></path></svg>
+<p style="margin: 0; font-size: 18px; font-weight: 700">Couldn’t load the board</p>
+<p style="margin: 0; max-width: 300px; color: #5B6370">The board API answered 503 (service unavailable). Showing nothing rather than old data.</p>
+<button style="margin-top: 4px; min-height: 44px; padding: 0 22px; border-radius: 10px; border: 0; background: #14171C; color: #FFFFFF; font-weight: 600; cursor: pointer">Retry</button>
+</div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":560}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

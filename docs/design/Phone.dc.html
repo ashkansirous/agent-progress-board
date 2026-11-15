@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Progress board, phone, dark</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#9DBDFF}a:hover{color:#C7D8FF}
+button{font:inherit;color:inherit}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; overflow: hidden; background: #0E1014; color: #E8EAEE; font-family: Inter, system-ui, sans-serif; font-size: 14px; line-height: 1.45; display: flex; flex-direction: column">
+<header style="padding: 20px 16px 12px; display: flex; align-items: center; gap: 12px">
+<div style="display: flex; flex-direction: column; gap: 2px; flex: 1">
+<h1 style="margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.02em">Progress</h1>
+<span style="font-size: 12px; color: #9AA3B2">Updated 13:48 · last 12 h</span>
+</div>
+<button aria-label="Refresh now" style="width: 44px; height: 44px; border-radius: 10px; border: 1px solid #262B35; background: #171A21; display: inline-flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#E8EAEE" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"></path><path d="M21 3v6h-6"></path></svg></button>
+</header>
+
+<section aria-labelledby="pw" style="padding: 4px 0 16px; display: flex; flex-direction: column; gap: 10px">
+<h2 id="pw" style="margin: 0 16px; font-size: 14px; font-weight: 700; color: #FFB672">Waiting for you · 3</h2>
+<div style="display: flex; gap: 10px; overflow-x: auto; padding: 0 16px">
+<sc-for list="{{ waiting }}" as="it" hint-placeholder-count="3">
+<button style="flex: 0 0 260px; text-align: left; background: #2A1C0E; border: 1px solid #5A3712; border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px">
+<span style="display: flex; align-items: center; font-size: 12px; color: #D9B48E"><span style="font-weight: 600">{{ it.project }}</span><span style="margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 1px 6px; border-radius: 6px; border: 1px solid #D9B48E">{{ it.priority }}</span></span>
+<span style="font-size: 15px; font-weight: 600; color: #FFFFFF">{{ it.title }}</span>
+<span style="font-size: 12px; color: #D9B48E">{{ it.why }}</span>
+</button>
+</sc-for>
+</div>
+</section>
+
+<div style="flex: 1; overflow: hidden; padding: 0 16px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: baseline; gap: 8px; border-bottom: 1px solid #262B35; padding-bottom: 8px">
+<h2 style="margin: 0; font-size: 17px; font-weight: 700">Recipe Box</h2>
+<span style="font-size: 12px; color: #9AA3B2">1 waiting · 3 open · 1 done</span>
+</div>
+<h3 style="margin: 0; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #9AA3B2">In flight · 3</h3>
+<sc-for list="{{ tiles }}" as="it" hint-placeholder-count="3">
+<button style="text-align: left; background: {{ it.bg }}; border: 1px solid {{ it.border }}; border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 5px">
+<span style="display: flex; align-items: center; gap: 8px">
+<span style="display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: {{ it.fg }}"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{ it.fg }}"></span>{{ it.typeLabel }}</span>
+<span style="margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 1px 6px; border-radius: 6px; border: 1px solid {{ it.prioBorder }}; background: {{ it.prioBg }}; color: {{ it.prioFg }}">{{ it.priority }}</span>
+</span>
+<span style="font-size: 15px; font-weight: 600">{{ it.title }}</span>
+<span style="font-size: 13px; color: #B3BBC8">{{ it.why }}</span>
+<span style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #9AA3B2">
+<span>↳ {{ it.parent }}</span>
+<span style="margin-left: auto; font-weight: 600; color: {{ it.statusFg }}">{{ it.status }}</span>
+</span>
+</button>
+</sc-for>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var slice = { typeLabel: 'Slice', bg: '#1C2B4A', fg: '#9DBDFF', border: '#2E4473' };
+    var problem = { typeLabel: 'Problem', bg: '#2C1F45', fg: '#C9A7FF', border: '#46336B' };
+    var unplanned = { typeLabel: 'Unplanned', bg: '#123631', fg: '#6FD8C9', border: '#1F5249' };
+    var p0 = { prioBg: '#E8EAEE', prioFg: '#0E1014', prioBorder: '#E8EAEE' };
+    var p1 = { prioBg: 'transparent', prioFg: '#E8EAEE', prioBorder: '#E8EAEE' };
+    var p2 = { prioBg: 'transparent', prioFg: '#9AA3B2', prioBorder: '#4A5262' };
+    return {
+      waiting: [
+        { project: 'Garden Planner', priority: 'P0', title: 'Sign in to the store console', why: 'Release upload needs a fresh session' },
+        { project: 'Recipe Box', priority: 'P1', title: 'Approve the tags migration', why: 'Drops the old tags column' },
+        { project: 'Garden Planner', priority: 'P2', title: 'Pick the new app icon', why: 'Three options attached' }
+      ],
+      tiles: [
+        Object.assign({ priority: 'P0', title: 'CI failing on main', why: 'Lint step times out after 10 minutes', parent: 'Wave 3', status: 'Blocked', statusFg: '#FF9B94' }, problem, p0),
+        Object.assign({ priority: 'P1', title: 'Slice 4 · Tag search', why: 'Find recipes by ingredient or tag', parent: 'Plan · Search', status: 'In progress', statusFg: '#9DBDFF' }, slice, p1),
+        Object.assign({ priority: 'P2', title: 'Image uploads skip resizing', why: 'Found while testing tag search', parent: 'Slice 4', status: 'Open', statusFg: '#9AA3B2' }, unplanned, p2)
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,9 +1,8 @@
 import { env, exports } from "cloudflare:workers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { route } from "../src/api/router";
 import { type Item, ItemStatus } from "../src/domain/item";
 import { D1ItemRepository } from "../src/infrastructure/d1Repository";
-import { callTool, countRows, postMcp, READ_TOKEN, resetBoard, WRITE_TOKEN } from "./helpers";
+import { callTool, countRows, fetchWithEnv, postMcp, READ_TOKEN, resetBoard, WRITE_TOKEN } from "./helpers";
 
 interface BoardItem {
   key: string;
@@ -157,7 +156,7 @@ describe("report_progress safety", () => {
 
   it("still writes when BOARD_CONFIG is broken", async () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    const request = new Request("http://example.com/mcp", {
+    const request = new Request("https://example.com/mcp", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -171,11 +170,7 @@ describe("report_progress safety", () => {
         params: { name: "report_progress", arguments: SLICE },
       }),
     });
-    const response = await route(
-      request,
-      { BOARD_WRITE_TOKEN: WRITE_TOKEN, BOARD_CONFIG: "null" },
-      { repo: new D1ItemRepository(env.DB), clock: { now: () => new Date() } },
-    );
+    const response = await fetchWithEnv(request, { BOARD_CONFIG: "null" });
     expect(response.status).toBe(200);
     expect(await countRows("items")).toBe(1);
     log.mockRestore();
@@ -185,7 +180,7 @@ describe("report_progress safety", () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
     await callTool("report_progress", SLICE);
     for (const args of [{}, { window_hours: 1e12 }]) {
-      const request = new Request("http://example.com/mcp", {
+      const request = new Request("https://example.com/mcp", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -199,11 +194,7 @@ describe("report_progress safety", () => {
           params: { name: "list_open", arguments: args },
         }),
       });
-      const response = await route(
-        request,
-        { BOARD_READ_TOKEN: READ_TOKEN, BOARD_CONFIG: '{"window":{"max_hours":1e12}}' },
-        { repo: new D1ItemRepository(env.DB), clock: { now: () => new Date() } },
-      );
+      const response = await fetchWithEnv(request, { BOARD_CONFIG: '{"window":{"max_hours":1e12}}' });
       expect(response.status).toBe(200);
       expect(await response.text()).not.toContain("internal error");
     }

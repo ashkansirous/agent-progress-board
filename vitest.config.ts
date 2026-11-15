@@ -13,6 +13,7 @@ export default defineConfig({
             TEST_MIGRATIONS: migrations,
             BOARD_WRITE_TOKEN: "test-write-token",
             BOARD_READ_TOKEN: "test-read-token",
+            OWNER_PASSPHRASE: "test-owner-passphrase-0123456789-abcdef",
           },
         },
       };

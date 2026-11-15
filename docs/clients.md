@@ -49,6 +49,18 @@ claude mcp add --transport http agent-board https://board.example.com/mcp \
   --header "Authorization: Bearer <token>"
 ```
 
+### Adding the board to claude.ai (OAuth)
+
+claude.ai cannot send a bearer header; it signs in with OAuth. In claude.ai open Settings,
+Connectors, add a custom connector, and give it `https://<your-worker-host>/mcp`. claude.ai
+discovers the sign-in from the 401 on `/mcp`, opens the board's page, and you enter the owner
+passphrase (the Worker secret `OWNER_PASSPHRASE`) and press Allow. When the Worker has
+`public_origin` set, every client, bearer tokens included, must use that origin; other
+hostnames of the Worker answer 401. The connector is
+**read-only**: `list_open` and `get_item` work, every write tool answers
+`forbidden: this token is read-only`. Reporters keep using the write token. A wrong
+passphrase shows the page again; nothing locks.
+
 ### 2. A plain HTTPS POST (hooks, scripts, sessions that do not load MCP servers)
 
 The server is stateless: no `initialize`, no session id. Send one JSON-RPC `tools/call` per
@@ -99,8 +111,8 @@ wrapper around the curl above should end with `|| true` and `exit 0`.
   required`, or `internal error: the board could not complete the request`. Input that fails
   validation (wrong enum value, empty string, a link that is not http or https, too long) is
   also a tool error, and nothing is written.
-- **HTTP errors:** `401 Unauthorized` (with `WWW-Authenticate: Bearer`) for a missing or wrong
-  token; `405 Method not allowed` (with `Allow: POST`) for anything but POST; `404` for any
+- **HTTP errors:** `401 Unauthorized` (with `WWW-Authenticate: Bearer resource_metadata="..."`)
+  for a missing or wrong token; `405 Method not allowed` (with `Allow: POST`) for anything but POST; `404` for any
   path other than `/mcp`. A client treats all of them, and every network failure, as "report
   skipped".
 

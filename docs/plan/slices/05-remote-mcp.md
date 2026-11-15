@@ -3,7 +3,9 @@
 Source: phone scope (2026-11-15), milestone 5 — see [Slice 1](01-items-api.md). The MCP
 endpoint and its tools ship in Slice 1; this slice adds what claude.ai needs.
 
-*In progress (wave 2026-11-15), draft PR.*
+*Built 2026-11-15, PR #42, pending merge. Not yet deployed: the first deploy waits for the owner connecting Workers Builds, so nothing is verified on a deployed Worker or on claude.ai.*
+
+**Waiting on the user:** after the first deploy, add the board as a custom connector in claude.ai ([https://claude.ai/settings/connectors](https://claude.ai/settings/connectors), "Add custom connector", the Worker's `/mcp` address on `workers.dev`, not the page's custom domain, which sits behind Access; see [Slice 2](02-tile-board.md) *Address*) and type the passphrase from the secrets store entry `OWNER_PASSPHRASE`. It blocks only the claude.ai check. (The link was not opened by the run that wrote it: it needs the owner's login.)
 
 **Touches:** `src/**`, `wrangler.jsonc`, `vitest.config.ts`, `.dev.vars.example`, `package.json`,
 `package-lock.json`, `test/**`, `README.md`, `docs/clients.md`
@@ -54,10 +56,22 @@ Touches was widened: the Worker's entry (`src/index.ts`) and the test config mus
 - **Limits on the authorize step.** Client registration is open by the spec, so: only the
   redirect addresses of Claude are accepted (claude.ai's callback and Claude Code's loopback
   callback, taken from the library notes; a list in code, extendable from config), the consent
-  form is protected against cross-site posts with the library's consent helpers, and wrong
-  passphrases are throttled in KV (5 wrong tries lock the page for 15 minutes).
-- **States.** A wrong passphrase re-shows the form with an error and counts a try; a locked
-  page says when to retry; a cancelled or expired authorization leaves nothing behind (codes and
+  form is protected against cross-site posts with the library's consent helpers, and the
+  passphrase is checked only after the consent request and its cookie have been verified.
+  **No lockout (changed after both reviews).** The first design throttled wrong tries in KV.
+  Review 1 showed a per-address counter is bypassed by changing address; review 2 showed a
+  page-wide counter lets any stranger lock the owner out, and KV cannot count atomically either
+  way. One behaviour meets both: guessing is made hopeless by the passphrase itself, so the page
+  refuses everyone while `OWNER_PASSPHRASE` is shorter than 32 characters (the setup generates a
+  random one), compares in constant time, and counts nothing. No lockout code or KV counter
+  remains.
+- **What the owner approves.** The consent page shows the client's name and the full address it
+  will be sent back to (with the port for a loopback address). Approval always grants `read`,
+  whatever scope the client asked for, including none.
+- **Origin.** The issuer and resource address come from the request's own origin by default (no
+  hostname is in the repo); an optional `public_origin` in the private board config pins them.
+- **States.** A wrong passphrase re-shows the form with an error and a fresh consent request; a
+  cancelled or expired authorization leaves nothing behind (codes and
   grants live in KV with the library's expiry); a revoked or expired token gets the same 401 as
   no token. The page is one small server-rendered form (strings in one table, no private data,
   no third-party requests); the form post answers at once, so it has no loading state.
@@ -68,11 +82,81 @@ Touches was widened: the Worker's entry (`src/index.ts`) and the test config mus
 
 #### Work
 
-- [ ] context7 / `library-docs` for the Workers OAuth provider and MCP auth.
-- [ ] OAuth flow with tests; bearer auth unchanged.
-- [ ] `docs/clients.md` and README: adding the board to claude.ai.
+- [x] context7 / `library-docs` for the Workers OAuth provider and MCP auth.
+- [x] OAuth flow with tests; bearer auth unchanged.
+- [x] `docs/clients.md` and README: adding the board to claude.ai.
 
 #### Verification
 
 - Tests green; Claude Code with a bearer token still works.
 - From claude.ai mobile, "what's waiting for me?" lists the right items.
+
+*Changed while building:*
+
+- Client-id metadata documents are off (they need a compatibility flag); dynamic client
+  registration covers claude.ai.
+- A non-POST request to `/mcp` answers 405 before auth, as `routeMcp` in `src/api/router.ts`
+  did on `main`.
+- A provider is built per request from the request origin (or `public_origin`), and the env is
+  copied per request because the library binds its helpers to the first env it sees. Proven only
+  in the Vitest Workers pool, not on a deployed Worker.
+- The lockout from the design was removed after review (see *Design*): the page refuses everyone
+  while `OWNER_PASSPHRASE` is shorter than 32 characters.
+- Setup done by the coordinator on 2026-11-15: `OWNER_PASSPHRASE` (48 random characters)
+  generated into the secrets store and set as a Worker secret (`wrangler secret list` shows it).
+  The KV namespace is not created by hand: the `OAUTH_KV` binding has no id and wrangler
+  provisions it on the first deploy.
+
+*From review* (`reviews/pr-42-high.md`, `pr-42-medium.md`, `pr-42-check-medium.md`,
+`pr-42-check-2-medium.md`, all read in full):
+
+- Applied: high 1, 2, 3, 4 (explicit client expiry; the library offers no cap), 5, 6, 7, 10;
+  medium 1, 2, 3, 4, 8, 9, 10; check 3 and 5 in code; check 1 and 2 as documentation.
+- Skipped #8 (`reviews/pr-42-high.md`): "createProvider re-parses BOARD_CONFIG JSON on every request" - a per-request cost, no failure path.
+- Skipped #9 (`reviews/pr-42-high.md`): "MCP_PATH, MCP_METHOD and LOOPBACK_HOSTS are redefined in several files instead of imported" - duplicated constants, no failure path.
+- Skipped #5 (`reviews/pr-42-medium.md`): "OPTIONS preflight gets no CORS headers" - `main` already answered a non-POST `/mcp` with 405 before auth (`routeMcp` in `src/api/router.ts`); kept, and the claude.ai check will show if claude.ai needs otherwise.
+- Skipped #6 (`reviews/pr-42-medium.md`): "A new OAuthProvider is built per request, and BOARD_CONFIG is parsed twice" - a per-request cost, no failure path.
+- Skipped #7 (`reviews/pr-42-medium.md`): "LOOPBACK_HOSTS is duplicated in provider.ts and domain/redirect.ts" - duplicated constants, no failure path.
+- Skipped #4 (`reviews/pr-42-check-medium.md`): "Malformed public_origin (path, uppercase, :443) falls back silently to request host" - an invalid `public_origin` is logged and the request origin is used, which is the slice's default behaviour.
+- Skipped #6 (`reviews/pr-42-check-medium.md`): "Library bearer regex refuses static tokens with commas/whitespace" - the two static tokens are generated by tooling and contain no such characters (checked on 2026-11-15 against both stored values: 64 characters each, standard token characters only).
+- Skipped #7 (`reviews/pr-42-check-medium.md`): "oauth_redirect_uris accepts non-https, userinfo, malformed entries unvalidated" - the list is the owner's own private config.
+- Skipped #8 (`reviews/pr-42-check-medium.md`): "Passphrase gate is length >= 32 only (32 spaces passes)" - no lockout and a length-only floor are the slice's Design ("No lockout"); the setup generated a random 48-character passphrase.
+- Skipped #9 (`reviews/pr-42-check-medium.md`): "BOARD_CONFIG parsed 2-3 times per request" - a per-request cost, no failure path.
+- Skipped #1 (`reviews/pr-42-check-2-medium.md`): "OPTIONS /mcp gets 405 without CORS headers" - same as medium 5: 405 before auth is as on `main`.
+- Skipped #2 (`reviews/pr-42-check-2-medium.md`): "Unauthenticated GET /mcp gets 405, not 401 plus WWW-Authenticate" - same as medium 5.
+- Skipped #3 (`reviews/pr-42-check-2-medium.md`): "Wrong passphrase attempts are not counted or delayed" - no lockout is the slice's Design.
+- Skipped #4 (`reviews/pr-42-check-2-medium.md`): "Passphrase gate checks length only" - a length-only floor is the slice's Design; documented.
+- Skipped #5 (`reviews/pr-42-check-2-medium.md`): "parseConfig(BOARD_CONFIG) runs two to three times per request" - a per-request cost, no failure path.
+- Skipped #6 (`reviews/pr-42-check-2-medium.md`): "LOOPBACK_HOSTS and MCP_PATH/MCP_METHOD duplicated across files" - duplicated constants, no failure path.
+- Skipped #7 (`reviews/pr-42-check-2-medium.md`): "Owner-configured oauth_redirect_uris unvalidated" - the list is the owner's own private config.
+- Skipped #8 (`reviews/pr-42-check-2-medium.md`): "Static-token resolveExternalToken returns no scopes" - the reviewer marked it unconfirmed; kept as a *Not yet verified* line.
+- Skipped #9 (`reviews/pr-42-check-2-medium.md`): "Test named "leaves /mcp to its bearer tokens" no longer exercises the router" - one test's route, no failure path.
+
+*Follow-ups (open, not in this slice):*
+
+- The Worker has no way for the owner to end a grant: the README names the library calls, but no
+  route calls them.
+- A static bearer token used with `public_origin` set and a different request host is untested
+  (check-2 finding 8; also under *Not yet verified*).
+
+#### Not yet verified
+
+All wait for the first deploy, which waits for the owner connecting Workers Builds.
+
+- wrangler provisions the `OAUTH_KV` namespace on the first `deploy:ci` run.
+- The per-request env copy works on the deployed Worker (proven only in the Vitest Workers pool).
+- A bearer token still works against the deployed `/mcp`.
+- claude.ai accepts the connector (registration, the 401 pointer on POST, 405 on GET, consent page, token) and "what's waiting for me?" lists the right items from claude.ai mobile.
+- A static bearer token with `public_origin` set and a different request host still gets through (check-2 finding 8).
+
+#### For CLAUDE.md
+
+- Auth on `/mcp` runs through the OAuth provider in `src/api/oauth`; bearer tokens enter by its
+  external-token hook, and OAuth callers are read-only. Never add a second auth path (Slice 5:
+  docs/plan/slices/05-remote-mcp.md).
+- The default export in `src/index.ts` stays a plain object with `fetch` and `scheduled`
+  (Slice 5: docs/plan/slices/05-remote-mcp.md).
+
+#### For README.md
+
+None beyond the diff (the README already carries the claude.ai connector section).

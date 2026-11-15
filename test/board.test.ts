@@ -138,8 +138,8 @@ describe("Access gate", () => {
   it("leaves /mcp to its bearer tokens and answers 405 to a write on the page", async () => {
     const post = new Request(PAGE_URL, { method: "POST" });
     expect((await route(post, accessEnv, deps())).status).toBe(405);
-    const mcp = new Request("http://example.com/mcp", { method: "POST", body: "{}" });
-    expect((await route(mcp, accessEnv, deps())).status).toBe(401);
+    const mcp = await exports.default.fetch("https://example.com/mcp", { method: "POST", body: "{}" });
+    expect(mcp.status).toBe(401);
   });
 });
 

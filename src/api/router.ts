@@ -1,14 +1,11 @@
 import type { Clock } from "../application/board";
 import type { ItemRepository } from "../application/ports";
 import { parseConfig } from "../config";
-import { handleMcp } from "../mcp/handler";
 import { type AccessEnv, AccessDecision, type AccessKeys, checkAccess, remoteAccessKeys } from "./access";
-import { authenticate, type TokenSecrets } from "./auth";
+import type { TokenSecrets } from "./auth";
 import { boardResponse } from "./board";
 
-export const MCP_PATH = "/mcp";
 export const BOARD_PATH = "/api/board";
-const MCP_METHOD = "POST";
 const READ_METHODS = ["GET", "HEAD"];
 
 export interface RouterEnv extends TokenSecrets, AccessEnv {
@@ -26,20 +23,12 @@ export interface RouterDeps {
 
 export async function route(request: Request, env: RouterEnv, deps: RouterDeps): Promise<Response> {
   const url = new URL(request.url);
-  if (url.pathname === MCP_PATH) return routeMcp(request, env, deps);
   if (!READ_METHODS.includes(request.method)) return methodNotAllowed(READ_METHODS.join(", "));
   const access = await checkAccess(request, env, deps.accessKeys ?? remoteAccessKeys);
   if (access === AccessDecision.Denied) return forbidden();
   if (access === AccessDecision.Unavailable) return unavailable();
   if (url.pathname === BOARD_PATH) return boardResponse(deps.repo, parseConfig(env.BOARD_CONFIG), deps.clock);
   return env.ASSETS ? env.ASSETS.fetch(request) : notFound();
-}
-
-async function routeMcp(request: Request, env: RouterEnv, deps: RouterDeps): Promise<Response> {
-  if (request.method !== MCP_METHOD) return methodNotAllowed(MCP_METHOD);
-  const scope = await authenticate(request, env);
-  if (!scope) return unauthorized();
-  return handleMcp(request, { scope, rawConfig: env.BOARD_CONFIG, repo: deps.repo, clock: deps.clock });
 }
 
 function methodNotAllowed(allow: string): Response {
@@ -56,11 +45,4 @@ function forbidden(): Response {
 
 function unavailable(): Response {
   return new Response("Access check unavailable", { status: 503 });
-}
-
-function unauthorized(): Response {
-  return new Response("Unauthorized", {
-    status: 401,
-    headers: { "WWW-Authenticate": "Bearer" },
-  });
 }

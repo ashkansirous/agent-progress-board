@@ -208,7 +208,12 @@ text `#E8EAEE`, muted `#9AA3B2`, card `#171A21`, hairline `#262B35`, link `#9DBD
       events, the window hours, and the server time, so the drawer opens with no second call.
 - [x] Add the mock's type, priority and status colour maps (light and dark) and labels to
       `config/board.example.json`; the page reads them.
-- [ ] Attach the custom domain to the Worker in Cloudflare (owner's step, see *Address*).
+- [ ] Attach the custom domain to the Worker in Cloudflare (see *Address*). Try the API first:
+      the machine's wrangler login has `workers_routes (write)` and `zone (read)` (`wrangler
+      whoami`, 2026-11-15 16:50Z); the attach itself was not tried. It becomes the owner's step
+      only if the API refuses. The hostname is read from the owner's private notes for this
+      repo (the agent's memory on the owner's machine), else asked of the owner; never
+      written here.
 - [ ] Put the page behind Cloudflare Access (by API with a token from the secrets store).
       **Parked, waits for the owner (answered 2026-11-15):** no token with Access edit rights
       exists (the secrets store holds only read-only Cloudflare tokens and the wrangler login
@@ -299,8 +304,8 @@ files rendered side by side (values were taken from the *Design* section).
   and repaints. Optional: a dedicated defaults constant.
 - `reviews/pr-35-high.md` #10: no Cancel on the loading card (the mock draws none).
 
-*Waiting on the user:* attach the custom domain to the Worker (see *Address*; the hostname is
-not written here), create the Cloudflare Access application on that hostname (one-time PIN or
+*Waiting on the user:* once the custom domain is attached (a work item above, tried by API
+first), create the Cloudflare Access application on that hostname (one-time PIN or
 Google, one Allow policy for the owner's email) and set the `ACCESS_TEAM_DOMAIN` and
 `ACCESS_AUD` Worker secrets; until then the deployed page answers 403.
 It blocks only the Access and custom-domain checks below. (Workers Builds is connected; the first deploy is in `plan.md`.)

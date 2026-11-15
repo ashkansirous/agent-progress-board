@@ -21,7 +21,6 @@ private Claude Code config repo; this repo hands them a tool reference and a cli
 | --- | --- | --- | --- | --- | --- |
 | 1 | Worker + D1 items store behind an MCP endpoint | parked: built and merged (PR #31); deploy waits for the owner to connect Workers Builds | #31 | | [01](docs/plan/slices/01-items-api.md) |
 | 2 | Tile board page | planned | | | [02](docs/plan/slices/02-tile-board.md) |
-| 4 | Doc sync: `sync_snapshot` tool | planned | | | [04](docs/plan/slices/04-doc-sync.md) |
 | 5 | OAuth so claude.ai can use the MCP server | planned | | | [05](docs/plan/slices/05-remote-mcp.md) |
 | 7 | Stale detection | planned | | | [07](docs/plan/slices/07-stale-detection.md) |
 
@@ -52,7 +51,7 @@ Notes:
 
 ## Outstanding work
 
-- **Not yet tried on a device:** 8 checks across 3 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
+- **Not yet tried on a device:** 11 checks across 4 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
 - The D1 database and the Worker secrets exist.
 - The client guide (`docs/clients.md`) is ready (Slice 3); the owner's config repo can start its
   client.

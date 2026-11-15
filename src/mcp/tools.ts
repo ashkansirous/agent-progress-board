@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { askHuman, type Clock, getItem, listOpen, markDone, reportProgress } from "../application/board";
+import { askHuman, type Clock, getItem, listOpen, markDone, reportProgress, syncSnapshot } from "../application/board";
 import type { ItemRepository } from "../application/ports";
 import { parseConfig } from "../config";
 import { DomainError } from "../domain/upsert";
@@ -11,6 +11,7 @@ import {
   listOpenShape,
   markDoneShape,
   reportProgressShape,
+  syncSnapshotShape,
 } from "./schemas";
 
 const INTERNAL_ERROR = "internal error: the board could not complete the request";
@@ -29,6 +30,7 @@ export enum ToolName {
   AskHuman = "ask_human",
   ListOpen = "list_open",
   GetItem = "get_item",
+  SyncSnapshot = "sync_snapshot",
 }
 
 export function registerTools(server: McpServer, ctx: ToolContext): void {
@@ -37,6 +39,19 @@ export function registerTools(server: McpServer, ctx: ToolContext): void {
   registerAskHuman(server, ctx);
   registerListOpen(server, ctx);
   registerGetItem(server, ctx);
+  registerSyncSnapshot(server, ctx);
+}
+
+function registerSyncSnapshot(server: McpServer, ctx: ToolContext): void {
+  server.registerTool(
+    ToolName.SyncSnapshot,
+    {
+      description:
+        "Send one project's full doc-sync set (idempotent, atomic). Doc-sync items missing from it become done; live-only items are never touched. An empty list closes them all.",
+      inputSchema: syncSnapshotShape,
+    },
+    (args) => run(ctx, Scope.Write, () => syncSnapshot(ctx.repo, args, ctx.clock)),
+  );
 }
 
 function registerReportProgress(server: McpServer, ctx: ToolContext): void {

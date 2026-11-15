@@ -28,7 +28,13 @@ records when the live status or the doc status last changed. The design below ke
   "no change". Its rules:
   - Title, why, parent and links: the snapshot's values always win.
   - `doc_status_at` moves to now only when the snapshot's status differs from the stored
-    `doc_status` (or the item is new to doc sync). The same status again leaves it alone.
+    `doc_status`. The same status again leaves it alone.
+  - First sight (changed 2026-11-15 after the high review, finding 3: the first wording let
+    the first sync of a live item wipe a newer live status, against the Decision above): an
+    item that has never been in a snapshot (`doc_status` empty) gets `doc_status` recorded;
+    if it already has a `live_status_at`, `doc_status_at` stays empty and an empty
+    `doc_status_at` counts as older than any live status, so the live status stays until the
+    docs change. With no live status, `doc_status_at` is now and the doc status shows.
   - The shown status is the live one when `live_status_at` is newer than `doc_status_at`,
     otherwise the doc one. So a live "in progress" survives every sync until the docs
     themselves change, and a doc change made after the last live report wins.
@@ -37,8 +43,19 @@ records when the live status or the doc status last changed. The design below ke
 - **Close-missing:** every item of that project with `in_doc_sync` 1 whose key is not in the
   snapshot gets `in_doc_sync` 0 and, if it is not done already, status `done` with an event
   noted "Left the plan" (source `doc-sync`). Items with `in_doc_sync` 0 (live-only) are never
-  touched by a snapshot. A key that comes back in a later snapshot is a new doc status, so it
-  reopens.
+  touched by a snapshot. Leaving the plan is a doc change: the close also sets `doc_status`
+  `done` and `doc_status_at` now, so a key that comes back in a later snapshot carries a new
+  doc status and reopens. The close is set-based (a fixed number of statements however many
+  items close), so an empty snapshot of a large project stays inside the statement limits.
+- **A write never acts on a stale read** (added 2026-11-15, high review finding 1): each
+  status write and its event apply only if the row's `updated_at` still equals the value the
+  sync read; a row a live report changed in between keeps its status and the next sync
+  settles it. The same guard covers the close.
+- **Source:** a sync sets `source` to `doc-sync` only on a row it creates or whose shown
+  status it changes; a title or link change leaves the live reporter's source alone.
+- **Type and priority** are used only when the snapshot creates the key (the Decision names
+  title, why, parent and links as the doc-owned fields); the tool's schema text says so.
+- The four sync columns are internal: they are not part of the item the tools return.
 - **One owner, one transaction:** the application-layer use case `syncSnapshot` reads the
   project's items once, runs the pure function per item, and hands the repository one batch
   that is applied atomically (a D1 batch): a failure leaves nothing half applied, and a retry

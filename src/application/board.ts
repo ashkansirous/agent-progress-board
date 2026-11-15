@@ -1,3 +1,10 @@
+import {
+  assertSameProject,
+  closeTargets,
+  planItem,
+  type SnapshotItem,
+  validateSnapshot,
+} from "../domain/docSync";
 import { type Item, ItemStatus, ItemType, type ItemWithEvents } from "../domain/item";
 import { DomainError, newItem, type ReportInput } from "../domain/upsert";
 import { resolveWindowHours, type WindowConfig, windowCutoff } from "../domain/window";
@@ -52,6 +59,47 @@ export async function askHuman(
   }
   const report: ReportInput = { ...input, type: ItemType.WaitingForMe, status: ItemStatus.Open };
   return reportProgress(repo, report, clock);
+}
+
+export interface SyncSnapshotInput {
+  project: string;
+  items: SnapshotItem[];
+}
+
+export interface SyncSummary {
+  project: string;
+  created: number;
+  updated: number;
+  closed: number;
+  unchanged: number;
+}
+
+/** One project's full doc-sync set: merge each item, close the ones that left, one batch. */
+export async function syncSnapshot(
+  repo: ItemRepository,
+  input: SyncSnapshotInput,
+  clock: Clock,
+): Promise<SyncSummary> {
+  validateSnapshot(input.project, input.items);
+  const now = clock.now().toISOString();
+  const stored = await repo.loadForSync(input.project, input.items.map((item) => item.key));
+  const byKey = new Map(stored.map((item) => [item.key, item]));
+  const merges = input.items.map((snap) => {
+    assertSameProject(byKey.get(snap.key), input.project);
+    return { existed: byKey.has(snap.key), write: planItem(byKey.get(snap.key), snap, input.project, now) };
+  });
+  const listed = new Set(input.items.map((item) => item.key));
+  const closes = closeTargets(stored, input.project, listed);
+  const changed = merges.flatMap((m) => (m.write ? [m.write] : []));
+  if (changed.length > 0 || closes.length > 0) await repo.applySync(changed, closes, now);
+  const created = merges.filter((m) => !m.existed).length;
+  return {
+    project: input.project,
+    created,
+    updated: changed.length - created,
+    closed: closes.length,
+    unchanged: merges.length - changed.length,
+  };
 }
 
 export async function listOpen(

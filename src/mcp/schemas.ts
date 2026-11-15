@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_SNAPSHOT_ITEMS } from "../domain/docSync";
 import { ItemStatus, ItemType, Priority } from "../domain/item";
 
 const MAX_KEY = 200;
@@ -66,3 +67,20 @@ export const listOpenShape = {
 };
 
 export const getItemShape = { key };
+
+const snapshotItem = z.object({
+  key,
+  project: label.describe("Must equal the call's project"),
+  type: z.enum(ItemType).describe("Used only when the key is new; the docs never change it later"),
+  title: label,
+  status: z.enum(ItemStatus).describe("The status the docs give"),
+  priority: z.enum(Priority).optional().describe("Used only when the key is new; the docs never change it later"),
+  parent: detailShape.parent,
+  why: detailShape.why,
+  links: z.array(link).max(MAX_LINKS).optional(),
+});
+
+export const syncSnapshotShape = {
+  project: label.describe("The project whose doc-sync set this is"),
+  items: z.array(snapshotItem).max(MAX_SNAPSHOT_ITEMS).describe("The project's full doc-sync set; missing ones close"),
+};

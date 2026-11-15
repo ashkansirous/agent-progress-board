@@ -4,7 +4,7 @@ Source: phone scope (2026-11-15), milestone 6 — see [Slice 1](01-items-api.md)
 
 *Planned.*
 
-**Touches:** `README.md`
+**Touches:** `docs/clients.md`, `README.md`
 
 #### Why
 
@@ -12,21 +12,23 @@ Coding agents may build slices in Claude Code cloud sessions; their tiles must m
 
 #### Where it is built
 
-The setup (allowlist, environment secrets, installing the reporter) is in the owner's private
-config repo. This repo only documents it for other users.
+The setup (allowlist, environment secrets, installing the client) belongs to the client repo.
+This repo only documents it.
 
 #### Decisions
 
 - Cloud sessions don't load user-scoped MCP servers and the default network level allows only
-  package registries and GitHub, so a cloud session reports through the HTTP client: the board
-  host goes on the environment's custom allowlist and `AGENT_BOARD_URL` / `AGENT_BOARD_TOKEN`
-  go in as environment secrets.
+  package registries and GitHub. The board host goes on the environment's custom allowlist and
+  `AGENT_BOARD_URL` / `AGENT_BOARD_TOKEN` go in as environment secrets. The client either
+  loads the board as a project-scoped MCP server (if cloud sessions load those; check) or posts
+  `tools/call` over HTTPS to the same endpoint.
 - **Hard constraint:** the token is an environment secret, never in a repo or a prompt.
 
 #### Work
 
-- [ ] README section "Cloud sessions": the allowlist entry and the two secrets (re-check the
-      current cloud environment docs first).
+- [ ] Re-check the current cloud environment docs (network allowlist, secrets, whether a
+      project `.mcp.json` loads) and write the answer here.
+- [ ] `docs/clients.md` section "Cloud sessions".
 
 #### Verification
 

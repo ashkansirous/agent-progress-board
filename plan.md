@@ -7,19 +7,23 @@ merge on one stable key per item. The rule everything serves: **the board never 
 work it reports on** (reporters fail open), and **the public repo holds no private data**.
 
 Source: the owner's phone scope "Agent Progress Board — online dashboard of work progress
-across projects" (2026-11-15). Client-side work (reporter, hooks, doc-sync parser, cloud setup)
-is planned in the owner's private Claude Code config repo; slices 3, 4 and 6 here cover only
-the board side and the public client contract.
+across projects" (2026-11-15).
+
+**The board exposes everything through MCP** (owner's decision at the desk, 2026-11-15): one
+remote MCP endpoint is the only public contract, from Slice 1 on. Clients (reporter CLI, hooks,
+doc-sync parser, cloud setup) are built by the repos that want them, starting with the owner's
+private Claude Code config repo; this repo hands them a tool reference and a client guide
+(Slice 3).
 
 ## Status
 
 | Slice | Title | Status | PR | Issue | File |
 | --- | --- | --- | --- | --- | --- |
-| 1 | Worker + D1 items store and write API | planned | | | [01](docs/plan/slices/01-items-api.md) |
+| 1 | Worker + D1 items store behind an MCP endpoint | planned | | | [01](docs/plan/slices/01-items-api.md) |
 | 2 | Tile board page | planned | | | [02](docs/plan/slices/02-tile-board.md) |
-| 3 | Claude Code reporter (client contract) | planned | | | [03](docs/plan/slices/03-reporter.md) |
-| 4 | Doc sync: snapshot endpoint | planned | | | [04](docs/plan/slices/04-doc-sync.md) |
-| 5 | Remote MCP endpoint, then OAuth for claude.ai | planned | | | [05](docs/plan/slices/05-remote-mcp.md) |
+| 3 | Client handover: tool reference and client guide | planned | | | [03](docs/plan/slices/03-reporter.md) |
+| 4 | Doc sync: `sync_snapshot` tool | planned | | | [04](docs/plan/slices/04-doc-sync.md) |
+| 5 | OAuth so claude.ai can use the MCP server | planned | | | [05](docs/plan/slices/05-remote-mcp.md) |
 | 6 | Reporting from Claude Code cloud sessions | planned | | | [06](docs/plan/slices/06-cloud-sessions.md) |
 | 7 | Stale detection | planned | | | [07](docs/plan/slices/07-stale-detection.md) |
 

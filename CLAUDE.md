@@ -12,8 +12,10 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
   repo, so never copy its paths, line numbers or the owner's other project names here.
 - **Reporters fail open.** Any client that writes to the board (CLI, hook, skill) must never
   block or fail the caller: short timeout, swallow errors, exit 0.
-- **One upsert contract.** REST, CLI and MCP all go through the same item upsert keyed by a
-  stable `key`; never add a second write path with its own rules.
+- **One contract: MCP.** Every capability is an MCP tool on the one `/mcp` endpoint, and every
+  tool calls the application layer (one upsert keyed by a stable `key`). No public REST write
+  path; the board page's read route calls the same application functions. Clients live in
+  the repos that use them, not here; `docs/clients.md` is their guide.
 - **Read-mostly.** The board shows work; editing, assigning and planning stay in the repos.
 - **Deploys only through the pipeline** (merge to `main`), never `wrangler deploy` from a
   shell.

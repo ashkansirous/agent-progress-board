@@ -20,6 +20,8 @@ the repo that wants it); this slice is the MCP tool it calls.
   snapshot.
 - Merge on one key: when a doc-sync item and a live item share a key, doc sync wins on title,
   why, parent and links; the live status wins when its `updated_at` is newer.
+- Each snapshot item carries `parent` as display text (for example "Plan · Search"), as the
+  board mock shows it (the mock supersedes a parent key; see Slice 1).
 - Idempotent: the same snapshot twice changes nothing (callers retry).
 - Shares the upsert in the application layer with `report_progress` (`CLAUDE.md`, *One contract*).
 

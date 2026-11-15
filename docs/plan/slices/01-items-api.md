@@ -35,7 +35,18 @@ writes and reads through one contract from day one.
   that can't load an MCP server (cloud sessions, hooks) use the same endpoint.
 - Stateless MCP (no sessions, no Durable Objects) unless the library requires otherwise;
   decide after the context7 check and write the reason here.
-- `items` columns: `key` (PK), `project`, `parent_key`, `type`, `priority`, `status`, `title`,
+- **Board mock (2026-11-15, [Slice 2](02-tile-board.md) *Design*):** the tile shows the parent
+  as display text ("Plan · Search", "Wave 3", "Slice 4 · Tag search"), which is often not an
+  item. So the `items` column `parent_key` is replaced by `parent`, a free text label (the
+  mock supersedes `parent_key`); `report_progress`, `ask_human` and `sync_snapshot` take
+  `parent` as text. `ask_human` also takes `priority`, `why`, `details_md` and `links`, like
+  `report_progress`, so a waiting tile has everything the mock shows. A report that changes
+  nothing but the heartbeat writes an event with the note "Heartbeat" (the mock's history
+  shows these); the caller's `note` replaces it when given. `list_open` and `get_item` return
+  `created_at`, `updated_at`, `done_at`, `heartbeat_at` and the events (newest first, latest
+  20 on `list_open`, all on `get_item`); the page derives "Asked 25 min ago", "Done 2 h ago"
+  and "No heartbeat for 3 h" from them.
+- `items` columns: `key` (PK), `project`, `parent`, `type`, `priority`, `status`, `title`,
   `why`, `details_md`, `links` (JSON array of `{label,url}`), `source`, `heartbeat_at`,
   `created_at`, `updated_at`, `done_at`. Append-only `events` table (`item_key`, `at`,
   `status`, `source`, `note`) for the history.
@@ -70,7 +81,8 @@ writes and reads through one contract from day one.
       definitions and schemas), `src/api` (routing, auth).
 - [ ] `migrations/0001_items.sql`: `items` and `events`, indexes on `(project)`, `(status)`,
       `(done_at)`.
-- [ ] The five tools above, each with an input schema and tests.
+- [ ] The five tools above, each with an input schema and tests (including `parent` as text,
+      the heartbeat event note and the events on `list_open`).
 - [ ] Bearer auth with the two scopes, constant-time compare, 401 without a token.
 - [ ] Unit tests for the upsert rules and the window filter; integration tests calling the
       MCP endpoint against a local D1.
@@ -79,6 +91,14 @@ writes and reads through one contract from day one.
 - [ ] Create the D1 database and connect the repo to Workers Builds (by Cloudflare API with a
       token from the secrets store; a dashboard step only if no API covers it, then with a
       direct link). Deploy by merging.
+      **Answered 2026-11-15:** the owner approved these setup steps for unattended runs
+      (creating the D1 database and a KV namespace with wrangler, generating the tokens into
+      the secrets store, `wrangler secret put`, connecting Workers Builds by API) and is adding
+      the auto-mode allow line for them. The secrets store holds no Cloudflare token that can
+      edit; the machine's wrangler login can create D1 and KV and write Worker secrets (scopes
+      checked 2026-11-15; `wrangler` is not on PATH, run it with `npx wrangler`). If the
+      Workers Builds connection cannot be made with that login, park only that step with the
+      direct dashboard link; never `wrangler deploy` from a shell.
 - [ ] README: the tool reference (names, inputs, outputs, enums, key format) and a curl
       example of a `tools/call` with a made-up project.
 

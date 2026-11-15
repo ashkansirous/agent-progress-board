@@ -34,6 +34,8 @@ see `config/board.example.json` (window hours, projects, type labels and colours
 
 ## MCP tool reference
 
+Writing a client (hook, script, skill)? See the [client guide](docs/clients.md).
+
 One endpoint: `POST /mcp` (Streamable HTTP, stateless, JSON responses) with
 `Authorization: Bearer <token>`. A missing or wrong token gets 401. A read token calling a
 write tool gets a tool error and nothing is written. Invalid input returns a tool error

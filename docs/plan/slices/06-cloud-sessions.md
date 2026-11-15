@@ -2,7 +2,7 @@
 
 Source: phone scope (2026-11-15), milestone 6 — see [Slice 1](01-items-api.md).
 
-*Planned.*
+*In progress (wave 2026-11-15), draft PR.*
 
 **Touches:** `docs/clients.md`, `README.md`
 

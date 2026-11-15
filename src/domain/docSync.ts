@@ -160,10 +160,14 @@ export function planItem(stored: SyncRow | undefined, snap: SnapshotItem, projec
 /**
  * When a sync first saw the doc status. A first sight of an item that already has a live
  * status leaves it empty, which counts as older than any live status; with no live status it
- * is now. After that it moves only when the docs' status changes.
+ * is now, and so is a first-sight `done` (docs record a finish only after it happened, so it
+ * is never older news than a live open status). After that it moves only when the docs' status
+ * changes.
  */
 function nextDocStatusAt(stored: SyncRow, snap: SnapshotItem, now: string): string | null {
-  if (stored.doc_status === null) return stored.live_status_at === null ? now : null;
+  if (stored.doc_status === null) {
+    return stored.live_status_at === null || snap.status === ItemStatus.Done ? now : null;
+  }
   return stored.doc_status === snap.status ? stored.doc_status_at : now;
 }
 

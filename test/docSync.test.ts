@@ -87,6 +87,25 @@ describe("planItem", () => {
     expect(docChange.item).toMatchObject({ status: ItemStatus.InProgress, doc_status_at: T3, source: DOC_SYNC_SOURCE });
   });
 
+  it("first sight of open or blocked docs loses to a live status", () => {
+    const liveOnly = synced({
+      in_doc_sync: false, doc_status: null, doc_status_at: null, live_status_at: T1, status: ItemStatus.InProgress,
+    });
+    for (const status of [ItemStatus.Open, ItemStatus.Blocked]) {
+      const write = planItem(liveOnly, { ...snap, status }, PROJECT, T2)!;
+      expect(write.item).toMatchObject({ status: ItemStatus.InProgress, doc_status: status, doc_status_at: null });
+    }
+  });
+
+  it("first sight of done docs wins over a live open status", () => {
+    const liveOnly = synced({
+      in_doc_sync: false, doc_status: null, doc_status_at: null, live_status_at: T1, status: ItemStatus.InProgress,
+    });
+    const write = planItem(liveOnly, { ...snap, status: ItemStatus.Done }, PROJECT, T2)!;
+    expect(write.item).toMatchObject({ status: ItemStatus.Done, doc_status: ItemStatus.Done, doc_status_at: T2, done_at: T2 });
+    expect(write.event).toEqual({ at: T2, status: ItemStatus.Done, note: SYNC_CHANGED_NOTE });
+  });
+
   it("first sight of an item with no live status shows the docs' status at once", () => {
     const untouched = synced({ in_doc_sync: false, doc_status: null, doc_status_at: null, live_status_at: null });
     const write = planItem(untouched, { ...snap, status: ItemStatus.Done }, PROJECT, T2)!;

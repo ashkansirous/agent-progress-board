@@ -107,9 +107,16 @@ const SYNC_EVENT = `INSERT INTO events (item_key, at, status, source, note)
   SELECT key, ?2, ?3, ?4, ?5 FROM items
   WHERE key = ?1 AND updated_at = ?2 AND status = ?3 AND source = ?4`;
 
-/** ?1 is a JSON list of {key, updated_at}: the rows the close read, matched in one statement. */
-const CLOSE_ROWS = `in_doc_sync = 1 AND (key, updated_at) IN (
-  SELECT json_extract(value, '$.key'), json_extract(value, '$.updated_at') FROM json_each(?1))`;
+/**
+ * ?1 is a JSON list of {key, updated_at, live_status_at}: the rows the close read, matched in
+ * one statement. Like the write guard, a row whose updated_at or live_status_at moved since
+ * the read (a live report, even one with the same status) is left open.
+ */
+const CLOSE_ROWS = `in_doc_sync = 1 AND EXISTS (
+  SELECT 1 FROM json_each(?1) AS r
+  WHERE json_extract(r.value, '$.key') = items.key
+    AND json_extract(r.value, '$.updated_at') IS items.updated_at
+    AND json_extract(r.value, '$.live_status_at') IS items.live_status_at)`;
 
 /** ?1 rows, ?2 now, ?3 source, ?4 note: one event per row that was not done yet. */
 const CLOSE_EVENTS = `INSERT INTO events (item_key, at, status, source, note)
@@ -153,7 +160,8 @@ export class D1ItemRepository implements ItemRepository {
 
   async loadForSync(project: string, keys: string[]): Promise<SyncRow[]> {
     const { results } = await this.db
-      .prepare(`SELECT * FROM items WHERE project = ?1 OR key IN (SELECT value FROM json_each(?2))`)
+      .prepare(`SELECT * FROM items
+         WHERE (project = ?1 AND in_doc_sync = 1) OR key IN (SELECT value FROM json_each(?2))`)
       .bind(project, JSON.stringify(keys))
       .all<SyncItemRow>();
     return results.map(toSyncRow);
@@ -167,7 +175,7 @@ export class D1ItemRepository implements ItemRepository {
       ...(change ? [event.bind(item.key, change.at, change.status, DOC_SYNC_SOURCE, change.note)] : []),
     ]);
     if (closes.length > 0) {
-      const rows = JSON.stringify(closes.map(({ key, updated_at }) => ({ key, updated_at })));
+      const rows = JSON.stringify(closes.map(({ key, updated_at, live_status_at }) => ({ key, updated_at, live_status_at })));
       statements.push(
         this.db.prepare(CLOSE_EVENTS).bind(rows, now, DOC_SYNC_SOURCE, SYNC_LEFT_NOTE),
         this.db.prepare(CLOSE_ITEMS).bind(rows, now, DOC_SYNC_SOURCE),

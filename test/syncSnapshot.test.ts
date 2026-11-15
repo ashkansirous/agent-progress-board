@@ -173,6 +173,48 @@ describe("sync_snapshot", () => {
     expect(await get(1)).toMatchObject({ status: "blocked" });
   });
 
+  it("keeps an item open when a same-status live report lands between the read and the close", async () => {
+    await sync([item(1), item(2)]);
+    at(5);
+    const repo = new D1ItemRepository(env.DB);
+    const racing: ItemRepository = Object.create(repo, {
+      loadForSync: {
+        value: async (project: string, keys: string[]) => {
+          const rows = await repo.loadForSync(project, keys);
+          at(6);
+          await callTool("report_progress", { key: "demo-app/slice-2", status: "open", source: "agent" });
+          return rows;
+        },
+      },
+    });
+    at(7);
+    const snapshot = { project: PROJECT, items: [item(1)] as SnapshotItem[] };
+    await syncSnapshot(racing, snapshot, { now: () => new Date() });
+    expect(await get(2)).toMatchObject({ status: "open" });
+    expect(await inSync(2)).toBe(true);
+    expect((await get(2)).events.map((e) => e.note)).not.toContain("Left the plan");
+    at(10);
+    expect((await sync([item(1)])).data).toMatchObject({ closed: 1 });
+    expect(await get(2)).toMatchObject({ status: "done" });
+  });
+
+  it("syncs a 200-item snapshot in one call and updates all of it again", async () => {
+    const full = Array.from({ length: 200 }, (_, i) => item(i + 1));
+    expect((await sync(full)).data).toMatchObject({ created: 200, closed: 0 });
+    expect(await countRows("items")).toBe(200);
+    at(5);
+    const renamed = full.map((one) => ({ ...one, title: `${one.title} renamed` }));
+    expect((await sync(renamed)).data).toMatchObject({ updated: 200, unchanged: 0 });
+    expect(await get(200)).toMatchObject({ title: "Slice 200 renamed" });
+  });
+
+  it("refuses a 201-item snapshot naming the limit, and writes nothing", async () => {
+    const reply = await sync(Array.from({ length: 201 }, (_, i) => item(i + 1)));
+    expect(reply.isError).toBe(true);
+    expect(reply.text).toContain("200");
+    expect(await countRows("items")).toBe(0);
+  });
+
   it("rejects a bad snapshot and writes nothing", async () => {
     const wrongProject = await sync([item(1, { project: "other" })]);
     expect(wrongProject.isError).toBe(true);

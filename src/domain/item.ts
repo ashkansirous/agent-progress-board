@@ -23,6 +23,7 @@ export enum Priority {
 
 export const DEFAULT_PRIORITY = Priority.P2;
 export const HEARTBEAT_NOTE = "Heartbeat";
+export const DOC_SYNC_SOURCE = "doc-sync";
 
 export interface ItemLink {
   label: string;

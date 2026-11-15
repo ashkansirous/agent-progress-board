@@ -331,6 +331,7 @@ describe("raw http", () => {
       "list_open",
       "mark_done",
       "report_progress",
+      "sync_snapshot",
     ]);
   });
 });

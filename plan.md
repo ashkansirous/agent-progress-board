@@ -21,8 +21,7 @@ private Claude Code config repo; this repo hands them a tool reference and a cli
 | --- | --- | --- | --- | --- | --- |
 | 1 | Worker + D1 items store behind an MCP endpoint | parked: built and merged (PR #31); deploy waits for the owner to connect Workers Builds | #31 | | [01](docs/plan/slices/01-items-api.md) |
 | 2 | Tile board page | parked: built and merged (PR #35); Access setup waits for the owner | #35 | | [02](docs/plan/slices/02-tile-board.md) |
-| 5 | OAuth so claude.ai can use the MCP server | planned | | | [05](docs/plan/slices/05-remote-mcp.md) |
-| 7 | Stale detection | planned | | | [07](docs/plan/slices/07-stale-detection.md) |
+| 5 | OAuth so claude.ai can use the MCP server | parked: built and merged (PR #42); the claude.ai connector waits for the owner, after the first deploy | #42 | | [05](docs/plan/slices/05-remote-mcp.md) |
 
 Notes:
 
@@ -51,7 +50,7 @@ Notes:
 
 ## Outstanding work
 
-- **Not yet tried on a device:** 17 checks across 5 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
+- **Not yet tried on a device:** 25 checks across 7 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
 - The D1 database and the Worker secrets exist.
 - The client guide (`docs/clients.md`) is ready (Slice 3); the owner's config repo can start its
   client.
@@ -66,6 +65,10 @@ Notes:
   opened by the run that wrote it: it needs the owner's login).
   It blocks only the two Access checks of Slice 2 (the phone check and the refused request); until
   then the deployed page answers 403.
+- **Waiting on the user:** after the first deploy, add the board as a custom connector in claude.ai ([https://claude.ai/settings/connectors](https://claude.ai/settings/connectors), "Add custom connector", the Worker's `/mcp` address on `workers.dev`, not the page's custom domain, which sits behind Access; see [Slice 2](docs/plan/slices/02-tile-board.md) *Address*) and type the passphrase from the secrets store entry `OWNER_PASSPHRASE`. It blocks only the claude.ai check. (The link was not opened by the run that wrote it: it needs the owner's login.)
+- `OWNER_PASSPHRASE` is in the secrets store and set as a Worker secret; the `OAUTH_KV` namespace is created by the first deploy ([Slice 5](docs/plan/slices/05-remote-mcp.md)).
+- Follow-up (Slice 5): the Worker has no way for the owner to end a grant; the README names the library calls only. See [Slice 5](docs/plan/slices/05-remote-mcp.md) *Not yet verified*.
+- Follow-up (Slice 7): the browser test `e2e/board.spec.ts:317` ("after a failure, Retry never leaves a blank page") failed once in a full run and is intermittent. See [Slice 7](docs/plan/slices/07-stale-detection.md) *Verification*.
 
 ## Risks / kill criteria
 

@@ -2,7 +2,7 @@
 
 Source: phone scope (2026-11-15), milestone 2 — see [Slice 1](01-items-api.md).
 
-*Built 2026-11-15 (wave 2026-11-15), PR #35, not merged. The Access-by-API item is parked; the Access checks and the first pipeline run are not yet verified (see the end of this file).*
+*Built 2026-11-15 (wave 2026-11-15), merged as PR #35 (be04d18). The Access-by-API item is parked; the Access checks and the first pipeline run are not yet verified (see the end of this file).*
 
 **Touches:** `web/**`, `wrangler.jsonc`, `package.json`, `package-lock.json`, `src/api/**`,
 `src/config.ts`, `src/index.ts`, `e2e/**`, `playwright.config.ts`, `vite.config.ts`,
@@ -287,7 +287,7 @@ files rendered side by side (values were taken from the *Design* section).
 `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` Worker secrets; until then the deployed page answers 403.
 It blocks only the two Access checks below. (The Workers Builds step is already in `plan.md`.)
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-15)
 
 - Commands: `npm run test:e2e` (Playwright, headless, faked `/api/board`) and `npm run dev`
   (Slice 2: docs/plan/slices/02-tile-board.md).

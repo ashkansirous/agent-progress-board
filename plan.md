@@ -20,7 +20,7 @@ private Claude Code config repo; this repo hands them a tool reference and a cli
 | Slice | Title | Status | PR | Issue | File |
 | --- | --- | --- | --- | --- | --- |
 | 1 | Worker + D1 items store behind an MCP endpoint | parked: built and merged (PR #31); deploy waits for the owner to connect Workers Builds | #31 | | [01](docs/plan/slices/01-items-api.md) |
-| 2 | Tile board page | planned | | | [02](docs/plan/slices/02-tile-board.md) |
+| 2 | Tile board page | parked: built and merged (PR #35); Access setup waits for the owner | #35 | | [02](docs/plan/slices/02-tile-board.md) |
 | 5 | OAuth so claude.ai can use the MCP server | planned | | | [05](docs/plan/slices/05-remote-mcp.md) |
 | 7 | Stale detection | planned | | | [07](docs/plan/slices/07-stale-detection.md) |
 
@@ -51,7 +51,7 @@ Notes:
 
 ## Outstanding work
 
-- **Not yet tried on a device:** 11 checks across 4 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
+- **Not yet tried on a device:** 17 checks across 5 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
 - The D1 database and the Worker secrets exist.
 - The client guide (`docs/clients.md`) is ready (Slice 3); the owner's config repo can start its
   client.
@@ -60,6 +60,12 @@ Notes:
   under *Build* choose *Connect*, pick the GitHub repo, branch `main`, deploy command
   `npm run deploy:ci`. It blocks the first deploy and every deployed-Worker check of Slice 1
   and the later slices.
+- **Waiting on the user:** create the Cloudflare Access application for the board page and set the
+  `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` Worker secrets, in
+  [Zero Trust, Access applications](https://one.dash.cloudflare.com/?to=/:account/access/apps) (the link was not
+  opened by the run that wrote it: it needs the owner's login).
+  It blocks only the two Access checks of Slice 2 (the phone check and the refused request); until
+  then the deployed page answers 403.
 
 ## Risks / kill criteria
 

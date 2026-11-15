@@ -20,6 +20,9 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
   from those files ([README](docs/design/README.md)); never guess one and never fetch the
   design from outside the repo.
 - **Read-mostly.** The board shows work; editing, assigning and planning stay in the repos.
+- **No gate bypass.** The E2E page mode exists only under the env flag `playwright.config.ts`
+  sets; never add a local or production path that skips the Access check in
+  `src/api/access.ts` (Slice 2: docs/plan/slices/02-tile-board.md).
 - **Deploys only through the pipeline** (merge to `main`), never `wrangler deploy` from a
   shell.
 
@@ -29,6 +32,9 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
 - Layers: `src/domain` (pure rules), `src/application` (use cases, repository port),
   `src/infrastructure` (D1), `src/mcp` (tools, schemas), `src/api` (routing, auth). Tools hold
   no rules.
+- `npm run test:e2e` (Playwright, headless, faked `/api/board`), `npm run dev`. `web/` is the
+  page (string table, palette from config), `e2e/` the Playwright tests, `scripts/seed.ts` the
+  seed script (Slice 2: docs/plan/slices/02-tile-board.md).
 - TypeScript is pinned to 6.0.x: typescript-eslint 8.72 rejects 7.x as a peer. Vitest uses
   `@cloudflare/vitest-plugin` (the renamed pool), not `@cloudflare/vitest-pool-workers`.
 - MCP is stateless: a new `McpServer` and transport per request, no sessions, no Durable

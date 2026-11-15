@@ -40,6 +40,19 @@ plan files or transcripts.
 - Until Access is set up the page stays closed: `GET /api/board` and the page refuse every
   request that carries no valid Access identity, so a deployed page never shows items to the
   public (owner, 2026-11-15).
+- **Address (owner, 2026-11-15):** the page is served on a custom domain the owner named, a
+  subdomain of a zone in the same Cloudflare account, and only the owner may open it; signing
+  in with a one-time PIN or with the owner's Google account are both fine. The hostname is
+  private: it is never written in this repo (not in `wrangler.jsonc`, docs or tests). It is
+  attached to the Worker in Cloudflare as a custom domain; the config keeps no `routes` key,
+  so a deploy leaves it alone (per the wrangler configuration docs, read 2026-11-15; not yet
+  seen on a real deploy).
+- **Access covers the custom hostname only (decided at the desk, 2026-11-15):** one
+  self-hosted Access application on that hostname with one Allow policy whose Include rule is
+  the owner's single email address. Agents and scripts keep calling `/mcp` on the Worker's
+  `workers.dev` address with their bearer tokens, where no Access application sits, so no
+  Bypass rule is needed; the page on `workers.dev` answers 403 because the Worker itself
+  checks the Access identity.
 - Phone first: one column under 600 px, readable at 360 px wide, dark and light themes. The
   mock draws the desktop in the light palette and the phone in the dark palette; the page
   follows the device colour scheme and both palettes come from config (see *Design*).

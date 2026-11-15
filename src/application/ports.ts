@@ -1,3 +1,4 @@
+import type { SyncRow, SyncWrite } from "../domain/docSync";
 import type { Item, ItemEvent, ItemType, ItemWithEvents } from "../domain/item";
 import type { ReportInput } from "../domain/upsert";
 
@@ -27,6 +28,14 @@ export interface ItemRepository {
    * anything changed (and so the event note); the item returned is the stored row.
    */
   save(write: ItemWrite): Promise<Item>;
+  /** Every item of the project plus any item with one of the keys (whatever its project). */
+  loadForSync(project: string, keys: string[]): Promise<SyncRow[]>;
+  /**
+   * The writes plus the close of the given rows (set-based, a fixed number of statements) in
+   * one atomic batch: a failure leaves nothing half applied. Each write and close applies only
+   * while its row still matches what was read, so a live report in between is never undone.
+   */
+  applySync(writes: SyncWrite[], closes: SyncRow[], now: string): Promise<void>;
   listBoard(filter: BoardFilter): Promise<ItemWithEvents[]>;
   /** Newest first, all events. */
   eventsFor(key: string): Promise<ItemEvent[]>;

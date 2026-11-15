@@ -181,6 +181,88 @@ with `events`: its latest 20 events, newest first.
 Field: `key` (required). Returns the item with `events`: its full history, newest first. An
 unknown key is the tool error `field key: no item <key>`.
 
+### `sync_snapshot` (write token)
+
+Send one project's full set of items as its plan documents describe them. A client that parses
+a repo's plan documents calls this once per project, after each parse. It is atomic (one batch:
+a failure leaves nothing half applied, so retry the whole call) and idempotent.
+
+Inputs:
+
+- `project` (required): the project this set belongs to.
+- `items` (required): the project's full doc-sync set, at most 200 items (the error names the
+  limit). An empty list is valid. Each item:
+  - `key`, `project`, `type`, `title`, `status`: required. `project` must equal the call's
+    `project`, and a key may appear only once in the call.
+  - `priority`, `parent` (display text, for example `Plan · Search`), `why`, `links`: optional.
+    The limits and the allowed values are the ones in *The item*.
+
+Output (a counts summary, not items): `{project, created, updated, closed, unchanged}`.
+`created` counts keys the board had not seen, `updated` counts existing items the sync
+changed, `closed` counts items that left the snapshot, `unchanged` counts snapshot items that
+needed no write.
+
+Errors (tool errors, nothing written): a read token (`forbidden: this token is read-only, a
+write token is required`); more than 200 items; an item whose `project` differs from the
+call's (`field items: <key> has project <p>, the call is for <project>`); a repeated key; a key
+that is already stored under another project; any invalid value.
+
+```
+curl -sS --max-time 3 -X POST "$AGENT_BOARD_URL/mcp" \
+  -H "Authorization: Bearer $AGENT_BOARD_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "sync_snapshot",
+      "arguments": {
+        "project": "demo-app",
+        "items": [
+          {
+            "key": "demo-app/slice-58",
+            "project": "demo-app",
+            "type": "slice",
+            "title": "Add the export button",
+            "status": "open",
+            "parent": "Plan · Export",
+            "why": "Users asked for CSV export",
+            "links": [{"label": "Slice file", "url": "https://example.com/docs/slice-58"}]
+          }
+        ]
+      }
+    }
+  }' || true
+```
+
+Reply text (parse it as for the other tools): `{"project":"demo-app","created":1,"updated":0,"closed":0,"unchanged":0}`.
+
+**The merge rule**, per key:
+
+- The docs own `title`, `why`, `parent` and `links`: the snapshot's values always win. A field
+  the snapshot leaves out is cleared (`why` and `parent` become null, `links` empty).
+- `type` and `priority` are used only when the key is new (priority defaults to `P2`); the docs
+  never change them afterwards.
+- The status shown is the live one (from `report_progress`, `mark_done` or `ask_human`) when a
+  live report came after the docs last changed their status; otherwise the docs' status wins.
+  So a live `in_progress` survives every sync until the docs change that item's status, and a
+  docs change made after the last live report wins. Sending the same docs status again is not
+  a change.
+- First sight of a key the board already holds from a live report: the live status stays until
+  the docs change. With no live report, the docs' status shows. One exception: a first-sight
+  docs status of `done` always wins, because docs record a finish only after it happened.
+- A key missing from the snapshot becomes `done` (event note "Left the plan") if the sync had
+  it in the project's last snapshot. Items only ever reported live are never touched by a
+  snapshot. An empty list closes every doc-sync item of the project. If a closed key returns in
+  a later snapshot, it carries a new docs status and reopens.
+- The same snapshot twice changes nothing: no write, no event, `updated_at` untouched.
+- A sync records an event (source `doc-sync`) only when the shown status changes, and takes over
+  the item's `source` only then.
+- If a live report lands between the sync's read and its write, that item keeps the live
+  status and the next sync settles it.
+
 ## Keys
 
 A key is chosen by the reporter and must be the same every time the same thing is reported:
@@ -190,7 +272,7 @@ A key is chosen by the reporter and must be the same every time the same thing i
   the client derives from the check's text)
 - `<project>/session-<id>`: one coding-agent session
 
-Document sync (planned, Slice 4) will use the same keys for slices read from plan documents,
+Document sync (`sync_snapshot`, above) uses the same keys for slices read from plan documents,
 so a live report and a slice read from a document are one tile. Use `project` equal to the
 `<project>` part of the key.
 

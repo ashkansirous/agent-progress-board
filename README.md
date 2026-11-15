@@ -52,6 +52,7 @@ Keys are stable and chosen by the reporter, for example `<project>/slice-58`.
 | `ask_human` | write | `key`, `project`, `title`; optional `parent`, `priority`, `why`, `details_md`, `links`, `source`, `note` (creates or updates a `waiting_for_me` item, open) | the item |
 | `list_open` | read | optional `project`, `type`, `window_hours` (capped by config) | items not done, plus items done inside the window, each with its latest 20 events |
 | `get_item` | read | `key` | the item with all its events, newest first |
+| `sync_snapshot` | write | `project`, `items[]` (each `key`, `project`, `type`, `title`, `status`; optional `priority`, `parent`, `why`, `links`; at most 200) | `{project, created, updated, closed, unchanged}`; doc-sync items missing from the list become done |
 
 Optional fields on `report_progress` and `ask_human`: leave one out to keep the stored value, send
 `null` to clear `parent`, `why`, `details_md`, `links` or `source`. An empty string for `note`,

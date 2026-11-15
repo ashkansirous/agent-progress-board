@@ -208,3 +208,51 @@ Guidance, not code: each client repo decides what it implements.
 - **A session finished:** `mark_done` on `<project>/session-<id>`.
 - **A session still running:** an occasional `report_progress` with just the `key` as a
   heartbeat.
+
+## Cloud sessions
+
+For Claude Code cloud sessions (Claude Code on the web). The setup belongs to the client repo
+and the owner's environment; this page only says what the board needs and what the Claude Code
+docs promise (read 2026-11-15; the docs change, so re-read them before relying on a detail):
+[cloud environments](https://code.claude.com/docs/en/cloud-environments),
+[Claude Code on the web](https://code.claude.com/docs/en/claude-code-on-the-web),
+[settings in cloud sessions](https://code.claude.com/docs/en/settings#settings-in-cloud-sessions).
+
+- **Network: allow the board host.** A new environment starts at the *Limited* level, which
+  allows the default package registries, GitHub and cloud SDKs only. Pick *Limited* and list
+  the board host (for example `board.example.com`) in the environment's **Allowed domains**
+  field, one domain per line (`*.` matches every subdomain). The list is per environment; there
+  is no organisation-wide list. Without it every report fails the network call, and a
+  fail-open client silently reports nothing.
+- **MCP: both call styles work.** A `.mcp.json` committed in the repo loads in a session with
+  one repository, so the `agent-board` entry from *Two ways to call* works as is. Servers added
+  with `claude mcp add` at user or local scope are not loaded, because they live in
+  `~/.claude.json` on the owner's machine, not in the repo. A client that does not want a
+  committed `.mcp.json` uses the plain HTTPS POST instead, which needs nothing from the
+  session but the network allowance above.
+- **Where the URL and token go.** `AGENT_BOARD_URL` is not secret: set it as an environment
+  variable (`KEY=value` lines in the environment dialog). `AGENT_BOARD_TOKEN` is a secret, so
+  never put it in the repo (`.mcp.json` included), a prompt or a setup script. The docs
+  describe two stores. Plain environment variables are not secret: anyone who can use the
+  environment can read them, so a token there is exposed to everyone with access to that
+  environment. Network secrets are the separate store: the value cannot be viewed again after
+  saving, and the docs say the key does not appear in the session's environment variables or
+  in any file. Organisations with customer-managed keys cannot save network secrets, and the
+  docs do not say how they are stored at rest. Use the least-exposed store you can: keep the
+  token in a network secret where available, and otherwise accept that the environment's users
+  can read it and use a dedicated write token you can rotate.
+- **Open point for the client author.** The docs read for this page do not say how a network
+  secret reaches an outgoing request (whether it is injected for the hosts it is bound to, and
+  in which header). Because it is not in the session's environment, `${AGENT_BOARD_TOKEN}` in
+  `.mcp.json` or `$AGENT_BOARD_TOKEN` in a script cannot see it. Check the current
+  *Add network secrets* section of the cloud-environments page before building on it, and
+  test one report from a real cloud session. Until then, the only documented way for the
+  client to read the token is as a plain environment variable, with the exposure above.
+- **Hooks.** `SessionStart` hooks behave the same in the cloud as locally. Hooks from the
+  repo's `.claude/settings.json` run in a cloud session; hooks in the owner's user-level
+  `~/.claude/settings.json` do not. A reporting hook for cloud sessions therefore goes in the
+  repo's settings. The environment also has a setup script that runs before Claude launches;
+  the docs do not say whether a file in the repo is read as that script.
+
+A client still fails open here: with the host not allowed, the token missing or the secret not
+reachable, it does nothing and exits 0.

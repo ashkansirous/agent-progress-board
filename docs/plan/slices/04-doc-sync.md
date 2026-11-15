@@ -2,7 +2,7 @@
 
 Source: phone scope (2026-11-15), milestone 4 and *The hard part* — see [Slice 1](01-items-api.md).
 
-*Built 2026-11-15 (wave 2026-11-15), PR #34, not merged. Not yet verified against a deployed board (see the end of this file).*
+*Built 2026-11-15 (wave 2026-11-15), merged as PR #34 (815023b). Not yet verified against a deployed board (see the end of this file).*
 
 **Touches:** `src/domain/**`, `src/application/**`, `src/infrastructure/**`, `src/mcp/**`,
 `migrations/**`, `test/**`, `README.md`, `docs/clients.md`

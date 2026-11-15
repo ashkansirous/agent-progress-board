@@ -3,6 +3,12 @@
 Every open "Not yet verified" check, one block per slice. A check that passes, or that the
 owner confirms, is removed here and its slice marked `verified`.
 
+### Slice 4: Doc sync: `sync_snapshot` tool ([slice](slices/04-doc-sync.md))
+
+- With a client: a repo with no live events shows its open slices and unverified checks after one sync; a second sync changes nothing; a slice removed from the repo's table turns done.
+- Migration 0002 applied to the remote D1 by the pipeline.
+- A 200-item snapshot against deployed D1 (local D1 passed).
+
 ### Slice 6: Reporting from Claude Code cloud sessions ([slice](slices/06-cloud-sessions.md))
 
 - A slice built in a cloud session updates its tile; waits for the first deploy and the client

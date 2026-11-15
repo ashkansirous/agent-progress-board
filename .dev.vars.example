@@ -1,5 +1,11 @@
 # Copy to .dev.vars for `wrangler dev`. Made-up values; real tokens are Worker secrets.
 BOARD_WRITE_TOKEN=dev-write-token
 BOARD_READ_TOKEN=dev-read-token
+# The page and /api/board refuse every request unless these two are set and the request carries a
+# valid Cloudflare Access JWT (header Cf-Access-Jwt-Assertion). Leave them unset to keep the page closed.
+# In production set them (and BOARD_CONFIG) as Worker secrets, `wrangler secret put <NAME>`: a
+# pipeline deploy would drop dashboard plain-text vars, but keeps secrets.
+# ACCESS_TEAM_DOMAIN=your-team.cloudflareaccess.com
+# ACCESS_AUD=the-access-application-aud-tag
 # Optional: the board config as one JSON line (see config/board.example.json).
 # BOARD_CONFIG={"window":{"default_hours":12,"max_hours":72}}

@@ -1,14 +1,119 @@
 {
   "window": { "default_hours": 12, "max_hours": 72 },
   "projects": [
-    { "id": "demo-app", "label": "Demo App" },
-    { "id": "sample-site", "label": "Sample Site" }
+    { "id": "recipe-box", "label": "Recipe Box" },
+    { "id": "garden-planner", "label": "Garden Planner" },
+    { "id": "home-lab", "label": "Home Lab" }
   ],
   "types": {
-    "slice": { "label": "Slice", "color": "#3b82f6" },
-    "problem": { "label": "Problem", "color": "#ef4444" },
-    "waiting_for_me": { "label": "Waiting for me", "color": "#f59e0b" },
-    "bug": { "label": "Bug", "color": "#a855f7" },
-    "unplanned": { "label": "Unplanned", "color": "#6b7280" }
+    "waiting_for_me": {
+      "label": "Needs you",
+      "color": "#9A3F00",
+      "light": { "bg": "#FDEBD8", "fg": "#9A3F00", "border": "#F0C9A0" },
+      "dark": { "bg": "#2A1C0E", "fg": "#FFB672", "border": "#5A3712" }
+    },
+    "slice": {
+      "label": "Slice",
+      "color": "#1D4ED8",
+      "light": { "bg": "#E6EEFC", "fg": "#1D4ED8", "border": "#BFD0F5" },
+      "dark": { "bg": "#1C2B4A", "fg": "#9DBDFF", "border": "#2E4473" }
+    },
+    "problem": {
+      "label": "Problem",
+      "color": "#6B2FBF",
+      "light": { "bg": "#EFE7FB", "fg": "#6B2FBF", "border": "#D6C4F2" },
+      "dark": { "bg": "#2C1F45", "fg": "#C9A7FF", "border": "#46336B" }
+    },
+    "bug": {
+      "label": "Bug",
+      "color": "#B42318",
+      "light": { "bg": "#FCE4E4", "fg": "#B42318", "border": "#F3BDBA" },
+      "dark": { "bg": "#3B1A1A", "fg": "#FF9B94", "border": "#6B2A2A" }
+    },
+    "unplanned": {
+      "label": "Unplanned",
+      "color": "#0B6B60",
+      "light": { "bg": "#DDF3F0", "fg": "#0B6B60", "border": "#A9DDD5" },
+      "dark": { "bg": "#123631", "fg": "#6FD8C9", "border": "#1F5249" }
+    }
+  },
+  "statuses": {
+    "open": { "light": { "fg": "#5B6370", "dot": "transparent" }, "dark": { "fg": "#9AA3B2", "dot": "transparent" } },
+    "in_progress": { "light": { "fg": "#1D4ED8", "dot": "#1D4ED8" }, "dark": { "fg": "#9DBDFF", "dot": "#9DBDFF" } },
+    "blocked": { "light": { "fg": "#B42318", "dot": "#B42318" }, "dark": { "fg": "#FF9B94", "dot": "#FF9B94" } },
+    "stale": { "light": { "fg": "#5B6370", "dot": "transparent" }, "dark": { "fg": "#9AA3B2", "dot": "transparent" } },
+    "done": { "light": { "fg": "#0B6B4B", "dot": "#0B6B4B" }, "dark": { "fg": "#5FD3A8", "dot": "#5FD3A8" } }
+  },
+  "priorities": {
+    "P0": {
+      "light": { "bg": "#14171C", "fg": "#FFFFFF", "border": "#14171C" },
+      "dark": { "bg": "#E8EAEE", "fg": "#0E1014", "border": "#E8EAEE" }
+    },
+    "P1": {
+      "light": { "bg": "#FFFFFF", "fg": "#14171C", "border": "#14171C" },
+      "dark": { "bg": "transparent", "fg": "#E8EAEE", "border": "#E8EAEE" }
+    },
+    "P2": {
+      "light": { "bg": "#FFFFFF", "fg": "#5B6370", "border": "#C9CED6" },
+      "dark": { "bg": "transparent", "fg": "#9AA3B2", "border": "#4A5262" }
+    },
+    "P3": {
+      "light": { "bg": "#FFFFFF", "fg": "#5B6370", "border": "#E3E6EB" },
+      "dark": { "bg": "transparent", "fg": "#9AA3B2", "border": "#262B35" }
+    }
+  },
+  "palettes": {
+    "light": {
+      "page": "#F5F6F8",
+      "text": "#14171C",
+      "muted": "#5B6370",
+      "card": "#FFFFFF",
+      "hairline": "#E3E6EB",
+      "link": "#1D4ED8",
+      "linkHover": "#1E3A8A",
+      "tileWhy": "#5B6370",
+      "staleBorder": "#9AA3B2",
+      "grab": "#C9CED6",
+      "scrim": "rgba(20,23,28,0.32)",
+      "panel": "#FFFFFF",
+      "well": "#F5F6F8",
+      "closeBg": "#FFFFFF",
+      "waitingHeading": "#7A3200",
+      "waitingMeta": "#8A4A12",
+      "waitingTitle": "#14171C",
+      "success": "#0B6B4B",
+      "danger": "#B42318",
+      "primaryBg": "#14171C",
+      "primaryFg": "#FFFFFF",
+      "skeletonBar": "#E9ECF0",
+      "skeletonStrip": "#FBEFE2",
+      "skeletonTile": "#F0F2F5"
+    },
+    "dark": {
+      "page": "#0E1014",
+      "text": "#E8EAEE",
+      "muted": "#9AA3B2",
+      "card": "#171A21",
+      "hairline": "#262B35",
+      "link": "#9DBDFF",
+      "linkHover": "#C7D8FF",
+      "tileWhy": "#B3BBC8",
+      "staleBorder": "#9AA3B2",
+      "grab": "#4A5262",
+      "scrim": "rgba(0,0,0,0.55)",
+      "panel": "#171A21",
+      "well": "#0E1014",
+      "closeBg": "#0E1014",
+      "waitingHeading": "#FFB672",
+      "waitingMeta": "#D9B48E",
+      "waitingTitle": "#FFFFFF",
+      "success": "#5FD3A8",
+      "danger": "#FF9B94",
+      "primaryBg": "#E8EAEE",
+      "primaryFg": "#0E1014",
+      "skeletonBar": "#262B35",
+      "skeletonStrip": "#2A1C0E",
+      "skeletonTile": "#1F232C"
+    }
   }
 }

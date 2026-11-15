@@ -1,4 +1,4 @@
-import { ItemType } from "./domain/item";
+import { ItemStatus, ItemType, Priority } from "./domain/item";
 import { MAX_WINDOW_HOURS, type WindowConfig } from "./domain/window";
 
 export const DEFAULT_WINDOW: WindowConfig = { defaultHours: 12, maxHours: 72 };
@@ -8,15 +8,66 @@ export interface ProjectConfig {
   label: string;
 }
 
-export interface TypeConfig {
+/** A background, text and border colour: a type tile or a priority badge in one colour scheme. */
+export interface ColorSet {
+  bg: string;
+  fg: string;
+  border: string;
+}
+
+/** A status label colour and its dot fill. */
+export interface StatusColors {
+  fg: string;
+  dot: string;
+}
+
+export interface Schemes<T> {
+  light?: T;
+  dark?: T;
+}
+
+export interface TypeConfig extends Schemes<ColorSet> {
   label: string;
   color: string;
 }
+
+/** The named colours of the page chrome, one set per colour scheme. */
+export const PALETTE_KEYS = [
+  "page",
+  "text",
+  "muted",
+  "card",
+  "hairline",
+  "link",
+  "linkHover",
+  "tileWhy",
+  "staleBorder",
+  "grab",
+  "scrim",
+  "panel",
+  "well",
+  "closeBg",
+  "waitingHeading",
+  "waitingMeta",
+  "waitingTitle",
+  "success",
+  "danger",
+  "primaryBg",
+  "primaryFg",
+  "skeletonBar",
+  "skeletonStrip",
+  "skeletonTile",
+] as const;
+
+export type Palette = Record<(typeof PALETTE_KEYS)[number], string>;
 
 export interface BoardConfig {
   window: WindowConfig;
   projects: ProjectConfig[];
   types: Partial<Record<ItemType, TypeConfig>>;
+  statuses: Partial<Record<ItemStatus, Schemes<StatusColors>>>;
+  priorities: Partial<Record<Priority, Schemes<ColorSet>>>;
+  palettes: Schemes<Partial<Palette>>;
 }
 
 /**
@@ -24,12 +75,83 @@ export interface BoardConfig {
  * defaults apply, so a config typo cannot stop reporters from writing.
  */
 export function parseConfig(raw: string | undefined): BoardConfig {
-  const parsed = parseJson(raw);
+  return configFromRecord(parseJson(raw));
+}
+
+export function configFromRecord(parsed: Record<string, unknown>): BoardConfig {
   return {
     window: readWindow(asRecord(parsed.window)),
     projects: readProjects(parsed.projects),
     types: readTypes(parsed.types),
+    statuses: readNamed("statuses", parsed.statuses, Object.values(ItemStatus), isStatusEntry),
+    priorities: readNamed("priorities", parsed.priorities, Object.values(Priority), isPriorityEntry),
+    palettes: readPalettes(parsed.palettes),
   };
+}
+
+/** Reads a map from a closed set of names to validated entries; a bad map is logged and dropped. */
+function readNamed<K extends string, V>(
+  field: string,
+  raw: unknown,
+  names: K[],
+  valid: (entry: unknown) => boolean,
+): Partial<Record<K, V>> {
+  if (raw === undefined) return {};
+  const record = asRecord(raw);
+  const ok = raw === record && Object.entries(record).every(([n, e]) => (names as string[]).includes(n) && valid(e));
+  if (ok) return record as Partial<Record<K, V>>;
+  console.error(`BOARD_CONFIG ${field}: need known names mapped to colour entries; using none`);
+  return {};
+}
+
+function readPalettes(raw: unknown): BoardConfig["palettes"] {
+  if (raw === undefined) return {};
+  const record = asRecord(raw);
+  const ok = raw === record && Object.entries(record).every(([n, e]) => isScheme(n) && isPalette(e));
+  if (ok) return record as BoardConfig["palettes"];
+  console.error("BOARD_CONFIG palettes: need light/dark maps of known colour names to colours; using none");
+  return {};
+}
+
+function isScheme(name: string): boolean {
+  return name === "light" || name === "dark";
+}
+
+function isPalette(value: unknown): boolean {
+  const entry = asRecord(value);
+  return (
+    value === entry &&
+    Object.entries(entry).every(([key, colour]) => (PALETTE_KEYS as readonly string[]).includes(key) && isColour(colour))
+  );
+}
+
+const COLOUR_PATTERN = /^(#[0-9a-f]{3,8}|transparent|rgba?\([\d\s.,%]+\))$/i;
+
+function isColour(value: unknown): value is string {
+  return typeof value === "string" && COLOUR_PATTERN.test(value);
+}
+
+function schemesOf(value: unknown, valid: (set: unknown) => boolean): boolean {
+  const entry = asRecord(value);
+  return value === entry && ["light", "dark"].every((scheme) => entry[scheme] === undefined || valid(entry[scheme]));
+}
+
+function isColorSet(value: unknown): boolean {
+  const set = asRecord(value);
+  return isColour(set.bg) && isColour(set.fg) && isColour(set.border);
+}
+
+function isStatusColors(value: unknown): boolean {
+  const set = asRecord(value);
+  return isColour(set.fg) && isColour(set.dot);
+}
+
+function isStatusEntry(value: unknown): boolean {
+  return schemesOf(value, isStatusColors);
+}
+
+function isPriorityEntry(value: unknown): boolean {
+  return schemesOf(value, isColorSet);
 }
 
 function readProjects(raw: unknown): ProjectConfig[] {
@@ -62,7 +184,8 @@ function isTypeEntry(name: string, value: unknown): boolean {
   return (
     (Object.values(ItemType) as string[]).includes(name) &&
     typeof entry.label === "string" &&
-    typeof entry.color === "string"
+    typeof entry.color === "string" &&
+    schemesOf(entry, isColorSet)
   );
 }
 

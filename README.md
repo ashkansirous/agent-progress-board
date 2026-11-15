@@ -24,13 +24,42 @@ npm ci
 npm run lint && npm run typecheck && npm test
 ```
 
-Tests run in the Workers pool against a local D1. `wrangler dev` reads `.dev.vars` (copy
-`.dev.vars.example`). Deploys happen only through Cloudflare Workers Builds on merge to
+Tests run in the Workers pool against a local D1. `npm run dev` (Vite with the Worker) reads
+`.dev.vars` (copy `.dev.vars.example`); raw `wrangler dev` has no built assets and is not used. Deploys happen only through Cloudflare Workers Builds on merge to
 `main`, whose deploy command is `npm run deploy:ci` (D1 remote migrations, then deploy).
 
-Secrets (Worker secrets, never in the repo): `BOARD_WRITE_TOKEN` (all tools) and
-`BOARD_READ_TOKEN` (`list_open`, `get_item`). Optional var `BOARD_CONFIG`: one JSON string,
-see `config/board.example.json` (window hours, projects, type labels and colours).
+## The board page
+
+A React + TypeScript page (`web/`, built by Vite) served by the Worker as static assets: a
+"Waiting for you" strip, one group per project, tiles by type and priority, a detail panel
+(side panel on desktop, bottom sheet on the phone), light and dark colours from the board
+config, fonts bundled with the page. It reads `GET /api/board`, which answers with the open
+items, those done in the window, their details, links and latest events, and the config the
+page draws with (colours and labels from `BOARD_CONFIG`, filled from `config/board.example.json`).
+
+The page and `/api/board` are closed until Cloudflare Access is set up: the Worker refuses
+every request that has no valid Access JWT, and refuses all of them while the Worker secrets
+`ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` are unset. `/mcp` keeps its bearer tokens.
+
+```
+npm run build      # vite build: page to web/dist/client, Worker bundle beside it
+npm run test:e2e   # Playwright (chromium) at 1440x900 and 390x844, /api/board faked
+npx playwright install chromium   # once
+npm run seed       # BOARD_URL=<worker>/mcp BOARD_WRITE_TOKEN=<token>; --dry-run prints the calls
+```
+
+`npm run dev` runs the Worker behind the same gate, so the real page can be opened only through
+Cloudflare Access (there is no local bypass). The E2E tests serve the bare page with
+`vite --mode e2e` (no Worker, no gate); that mode refuses to start or build unless
+`playwright.config.ts` sets its env flag.
+
+Worker secrets (never in the repo; `wrangler secret put <NAME>`): `BOARD_WRITE_TOKEN` (all
+tools), `BOARD_READ_TOKEN` (`list_open`, `get_item`), `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD` and the
+optional `BOARD_CONFIG` (one JSON string, see `config/board.example.json`: window hours,
+projects, type labels and colours). The last three are secrets too because the pipeline deploy
+(`wrangler deploy`) replaces dashboard plain-text vars with the config file's and the file holds
+none, while it keeps secrets. In `BOARD_CONFIG` a type's old single `color` key is no longer read:
+use its `light` and `dark` colour sets.
 
 ## MCP tool reference
 

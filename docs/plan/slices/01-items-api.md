@@ -5,7 +5,7 @@ across projects" (2026-11-15), milestone 1 and *First step*; changed at the desk
 the owner decided the board exposes **everything through MCP**, and building clients is the
 job of the repos that want one (see [Slice 3](03-reporter.md)).
 
-*Built 2026-11-15, merged 2026-11-15 as PR #31. 33 tests; lint, typecheck and test green. The deploy waits on the Workers Builds connection (owner step, see *Waiting on the user*); nothing is checked against a deployed Worker yet.*
+*Built 2026-11-15, merged 2026-11-15 as PR #31. 33 tests; lint, typecheck and test green. Workers Builds is connected (2026-11-15) but the first deploy has not run yet; nothing is checked against a deployed Worker yet.*
 
 **Migrations:** 0001
 
@@ -128,7 +128,7 @@ writes and reads through one contract from day one.
       the Worker as an empty placeholder); the Worker's secret list read back shows both.
 - [x] Create the D1 database. Done 2026-11-15 by the coordinator with wrangler: database
       `agent-progress-board`.
-- [ ] Connect the repo to Workers Builds (by Cloudflare API with a token from the secrets store;
+- [x] Connect the repo to Workers Builds (by Cloudflare API with a token from the secrets store;
       a dashboard step only if no API covers it, then with a direct link). Deploy by merging.
       **Parked 2026-11-15:** the Cloudflare API `/accounts/<id>/builds/*` with the machine's
       wrangler login returned 403 "Authentication error" (code 10000); the login has no Workers
@@ -142,6 +142,11 @@ writes and reads through one contract from day one.
       checked 2026-11-15; `wrangler` is not on PATH, run it with `npx wrangler`). If the
       Workers Builds connection cannot be made with that login, park only that step with the
       direct dashboard link; never `wrangler deploy` from a shell.
+      **Done 2026-11-15:** the starter session connected it in the dashboard after the owner
+      authenticated on GitHub, and read it back at 16:02Z from the Worker's settings page:
+      production branch `main`, no build command, deploy command `npm run deploy:ci`, preview
+      builds off. As reported by the starter session; the housekeeping session could not read the
+      connection itself (the machine's Cloudflare login has no Workers Builds scope).
 - [x] README: the tool reference (names, inputs, outputs, enums, key format) and a curl
       example of a `tools/call` with a made-up project.
 
@@ -157,11 +162,12 @@ writes and reads through one contract from day one.
 
 #### Waiting on the user
 
-- **Connect the repo to Workers Builds** (blocks the first deploy and every deployed-Worker
-  check in this and the later slices): open
-  [the Worker's settings](https://dash.cloudflare.com/?to=/:account/workers/services/view/agent-progress-board/production/settings),
-  under *Build* choose *Connect*, pick the GitHub repo, branch `main`, deploy command
-  `npm run deploy:ci`.
+- ~~**Connect the repo to Workers Builds**~~ Done 2026-11-15 by the starter session (see the work
+  item above); no longer waiting on the owner. No build has run yet: `wrangler deployments list`
+  at 16:33Z on 2026-11-15 shows only the upload and three "Secret Change" deployments (newest
+  16:24Z). The first build needs a push to `main` without the skip-CI marker, or the Worker's
+  deploy hook; the starter session starts it after the night's last merge. It holds every
+  deployed-Worker check in this and the later slices.
 
 #### Changed while building
 

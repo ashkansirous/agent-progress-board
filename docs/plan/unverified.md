@@ -13,7 +13,7 @@ owner confirms, is removed here and its slice marked `verified`.
 
 ### Slice 7: Stale detection ([slice](slices/07-stale-detection.md))
 
-- The cron trigger registers on deploy and fires (waits for the owner connecting Workers Builds).
+- The cron trigger registers on deploy and fires (waits for the first deploy).
 - A killed session's item turns stale within the expiry and recovers on the next report, on the live board.
 - The account's free-plan limit of 5 cron triggers is not exceeded.
 

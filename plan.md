@@ -19,7 +19,7 @@ private Claude Code config repo; this repo hands them a tool reference and a cli
 
 | Slice | Title | Status | PR | Issue | File |
 | --- | --- | --- | --- | --- | --- |
-| 1 | Worker + D1 items store behind an MCP endpoint | parked: built and merged (PR #31); deploy waits for the owner to connect Workers Builds | #31 | | [01](docs/plan/slices/01-items-api.md) |
+| 1 | Worker + D1 items store behind an MCP endpoint | parked: built and merged (PR #31); Workers Builds connected, first deploy not run yet | #31 | | [01](docs/plan/slices/01-items-api.md) |
 | 2 | Tile board page | parked: built and merged (PR #35); Access setup waits for the owner | #35 | | [02](docs/plan/slices/02-tile-board.md) |
 | 5 | OAuth so claude.ai can use the MCP server | parked: built and merged (PR #42); the claude.ai connector waits for the owner, after the first deploy | #42 | | [05](docs/plan/slices/05-remote-mcp.md) |
 
@@ -54,11 +54,11 @@ Notes:
 - The D1 database and the Worker secrets exist.
 - The client guide (`docs/clients.md`) is ready (Slice 3); the owner's config repo can start its
   client.
-- **Waiting on the user:** connect the repo to Workers Builds: open
-  [the Worker's settings](https://dash.cloudflare.com/?to=/:account/workers/services/view/agent-progress-board/production/settings),
-  under *Build* choose *Connect*, pick the GitHub repo, branch `main`, deploy command
-  `npm run deploy:ci`. It blocks the first deploy and every deployed-Worker check of Slice 1
-  and the later slices.
+- Workers Builds is connected (reported by the starter session, read back 16:02Z on 2026-11-15:
+  production branch `main`, no build command, deploy command `npm run deploy:ci`, preview builds off).
+  No build has run yet (`wrangler deployments list`, 16:33Z: only the upload and three secret changes);
+  the first one needs a push to `main` without the skip-CI marker or the deploy hook, which the
+  starter session starts after the night's last merge. It holds every deployed-Worker check.
 - **Waiting on the user:** create the Cloudflare Access application for the board page and set the
   `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` Worker secrets, in
   [Zero Trust, Access applications](https://one.dash.cloudflare.com/?to=/:account/access/apps) (the link was not

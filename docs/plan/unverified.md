@@ -3,6 +3,15 @@
 Every open "Not yet verified" check, one block per slice. A check that passes, or that the
 owner confirms, is removed here and its slice marked `verified`.
 
+### Slice 2: Tile board page ([slice](slices/02-tile-board.md))
+
+- Seeded data shows correctly on the owner's phone, opened from the deployed URL through Access (drawer and waiting strip included); blocked until the Access application exists.
+- Opening the page without passing Access is refused, checked through Access itself.
+- The first pipeline run of the new `deploy:ci` (`vite build`, then migrations, then deploy with `web/dist/agent_progress_board/wrangler.json`); locally `vite build` and `wrangler deploy --dry-run` passed.
+- Worker secrets (`ACCESS_*`, `BOARD_CONFIG`) survive a pipeline deploy.
+- The seed script run against the deployed Worker.
+- The Node version in `engines` (`>= 22.18.0`): the number comes from the review and the fixer's knowledge; context7 confirmed only that type stripping is default in Node 24.
+
 ### Slice 4: Doc sync: `sync_snapshot` tool ([slice](slices/04-doc-sync.md))
 
 - With a client: a repo with no live events shows its open slices and unverified checks after one sync; a second sync changes nothing; a slice removed from the repo's table turns done.

@@ -54,19 +54,54 @@ Cloudflare Access (there is no local bypass). The E2E tests serve the bare page 
 `playwright.config.ts` sets its env flag.
 
 Worker secrets (never in the repo; `wrangler secret put <NAME>`): `BOARD_WRITE_TOKEN` (all
-tools), `BOARD_READ_TOKEN` (`list_open`, `get_item`), `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD` and the
+tools), `BOARD_READ_TOKEN` (`list_open`, `get_item`), `OWNER_PASSPHRASE` (the claude.ai sign-in
+page, see *OAuth for claude.ai*), `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD` and the
 optional `BOARD_CONFIG` (one JSON string, see `config/board.example.json`: window hours, `staleAfterMinutes`,
 projects, type labels and colours). The last three are secrets too because the pipeline deploy
 (`wrangler deploy`) replaces dashboard plain-text vars with the config file's and the file holds
 none, while it keeps secrets. In `BOARD_CONFIG` a type's old single `color` key is no longer read:
 use its `light` and `dark` colour sets.
 
+## OAuth for claude.ai
+
+claude.ai connects from Anthropic's cloud and signs in with OAuth, so `/mcp` also accepts OAuth
+tokens next to the bearer tokens (`@cloudflare/workers-oauth-provider`, storage in the KV
+binding `OAUTH_KV`). To add the board: in claude.ai open Settings, Connectors, add a custom
+connector with the URL `https://<your-worker-host>/mcp`; claude.ai opens the board's sign-in
+page, you type the owner passphrase and allow. An OAuth caller is **read-only**
+(`list_open`, `get_item`); writes need a bearer write token.
+
+- Endpoints: `/.well-known/oauth-protected-resource/mcp`, `/.well-known/oauth-authorization-server`,
+  `/oauth/register` (open registration, limited to Claude's redirect addresses), `/authorize`,
+  `/oauth/token`.
+- The owner check is the Worker secret `OWNER_PASSPHRASE`, compared in constant time; unset or
+  shorter than 32 characters, the page refuses everyone. Nothing counts or locks wrong tries: the
+  long passphrase is what makes guessing hopeless. Approval always grants read; the page shows
+  the client's name and the full address (with port) the access is sent to.
+- Extra redirect addresses (exact strings) go in `BOARD_CONFIG` as `oauth_redirect_uris`.
+- The issuer and resource default to the origin of the request. To pin them (so the
+  workers.dev name and a custom domain do not issue tokens that fail on each other), set
+  `public_origin` in `BOARD_CONFIG` to an https origin, for example
+  `{"public_origin": "https://board.example.org"}`. Once it is set, every client, bearer
+  tokens included, must use that origin: the other hostnames of the Worker (for example the
+  workers.dev name) answer 401.
+- Changing `OWNER_PASSPHRASE` only guards new sign-ins; access already granted keeps working
+  until the grant's refresh token expires. To end it now, revoke the grant: the provider's
+  helper `env.OAUTH_PROVIDER.listUserGrants("owner")` lists the owner's grants and
+  `revokeGrant(grantId, "owner")` ends one (from the installed
+  `@cloudflare/workers-oauth-provider` types). The Worker has no admin route that calls them.
+- Setup: the KV namespace is created by the pipeline deploy (the binding has no id in
+  `wrangler.jsonc`); set the passphrase with `wrangler secret put OWNER_PASSPHRASE`.
+- Locally: `OWNER_PASSPHRASE` in `.dev.vars` (see `.dev.vars.example`).
+
 ## MCP tool reference
 
 Writing a client (hook, script, skill)? See the [client guide](docs/clients.md).
 
 One endpoint: `POST /mcp` (Streamable HTTP, stateless, JSON responses) with
-`Authorization: Bearer <token>`. A missing or wrong token gets 401. A read token calling a
+`Authorization: Bearer <token>` (a static token, or an OAuth token from the flow above). A
+missing or wrong token gets 401 with a `WWW-Authenticate` header pointing at the resource
+metadata. A read token calling a
 write tool gets a tool error and nothing is written. Invalid input returns a tool error
 naming the field; nothing is written.
 

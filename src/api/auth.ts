@@ -1,6 +1,5 @@
 import { Scope } from "../domain/scope";
 
-const BEARER_PREFIX = "Bearer ";
 const encoder = new TextEncoder();
 
 export interface TokenSecrets {
@@ -8,17 +7,15 @@ export interface TokenSecrets {
   BOARD_READ_TOKEN?: string;
 }
 
-/** Returns the scope the request's bearer token grants, or null (401). */
-export async function authenticate(request: Request, secrets: TokenSecrets): Promise<Scope | null> {
-  const header = request.headers.get("Authorization");
-  if (!header?.startsWith(BEARER_PREFIX)) return null;
-  const presented = header.slice(BEARER_PREFIX.length);
+/** The scope a static bearer token grants, or null when it is neither configured token. */
+export async function scopeForToken(presented: string, secrets: TokenSecrets): Promise<Scope | null> {
   if (await matches(presented, secrets.BOARD_WRITE_TOKEN)) return Scope.Write;
   if (await matches(presented, secrets.BOARD_READ_TOKEN)) return Scope.Read;
   return null;
 }
 
-async function matches(presented: string, expected: string | undefined): Promise<boolean> {
+/** Constant-time comparison of a presented secret with the configured one; false when none is configured. */
+export async function matches(presented: string, expected: string | undefined): Promise<boolean> {
   if (!expected) return false;
   const [a, b] = await Promise.all([digest(presented), digest(expected)]);
   return constantTimeEqual(a, b);

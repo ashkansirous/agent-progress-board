@@ -1,6 +1,9 @@
 # Copy to .dev.vars for `wrangler dev`. Made-up values; real tokens are Worker secrets.
 BOARD_WRITE_TOKEN=dev-write-token
 BOARD_READ_TOKEN=dev-read-token
+# The claude.ai sign-in page compares the typed passphrase with this; unset or shorter than 32
+# characters, the page refuses everyone.
+OWNER_PASSPHRASE=dev-owner-passphrase-0123456789-abcdef
 # The page and /api/board refuse every request unless these two are set and the request carries a
 # valid Cloudflare Access JWT (header Cf-Access-Jwt-Assertion). Leave them unset to keep the page closed.
 # In production set them (and BOARD_CONFIG) as Worker secrets, `wrangler secret put <NAME>`: a

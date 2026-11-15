@@ -13,6 +13,9 @@
   // Slice 7: every 15 minutes marks live items stale once their heartbeat expires (src/index.ts
   // scheduled); the expiry itself is staleAfterMinutes in BOARD_CONFIG, at least 60.
   "triggers": { "crons": ["*/15 * * * *"] },
+  // Slice 5: storage of the OAuth provider (clients, grants, tokens, consent handles). No id here:
+  // wrangler creates and binds the namespace by its binding name on deploy (resource provisioning).
+  "kv_namespaces": [{ "binding": "OAUTH_KV" }],
   "d1_databases": [
     {
       "binding": "DB",
@@ -21,7 +24,8 @@
       "migrations_dir": "migrations"
     }
   ]
-  // Secrets (never in this file): BOARD_WRITE_TOKEN, BOARD_READ_TOKEN.
+  // Secrets (never in this file): BOARD_WRITE_TOKEN, BOARD_READ_TOKEN, OWNER_PASSPHRASE (the
+  // authorize page's passphrase; unset or under 32 characters means nobody can authorize).
   // Also Worker secrets, not dashboard vars: ACCESS_TEAM_DOMAIN (the Cloudflare Access team domain),
   // ACCESS_AUD (the application's AUD tag) and the optional BOARD_CONFIG (JSON string, see
   // config/board.example.json). A deploy replaces dashboard plain-text vars with the config file's

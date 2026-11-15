@@ -16,6 +16,17 @@ describe("parseConfig", () => {
     expect(parseConfig('{"types":{"bug":{"label":"Bug","color":"#a855f7"}}}').types.bug?.color).toBe("#a855f7");
   });
 
+  it("reads public_origin only as a bare https origin", () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    expect(parseConfig(undefined).publicOrigin).toBeNull();
+    expect(parseConfig('{"public_origin":"https://board.example.org"}').publicOrigin).toBe("https://board.example.org");
+    expect(parseConfig('{"public_origin":"https://board.example.org/"}').publicOrigin).toBe("https://board.example.org");
+    for (const bad of ["http://board.example.org", "https://board.example.org/x", "https://u@board.example.org", "nope", 5]) {
+      expect(parseConfig(JSON.stringify({ public_origin: bad })).publicOrigin, String(bad)).toBeNull();
+    }
+    log.mockRestore();
+  });
+
   it("reads type colour sets, status and priority colours and palettes", () => {
     const config = parseConfig(
       JSON.stringify({

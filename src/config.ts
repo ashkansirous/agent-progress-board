@@ -77,6 +77,10 @@ export interface BoardConfig {
   statuses: Partial<Record<ItemStatus, Schemes<StatusColors>>>;
   priorities: Partial<Record<Priority, Schemes<ColorSet>>>;
   palettes: Schemes<Partial<Palette>>;
+  /** Exact extra redirect addresses an OAuth client may register, besides Claude's own (Slice 5). */
+  oauthRedirectUris: string[];
+  /** The https origin the OAuth issuer and /mcp resource are pinned to; null means the request's own origin (Slice 5). */
+  publicOrigin: string | null;
 }
 
 /**
@@ -96,7 +100,36 @@ export function configFromRecord(parsed: Record<string, unknown>): BoardConfig {
     statuses: readNamed("statuses", parsed.statuses, Object.values(ItemStatus), isStatusEntry),
     priorities: readNamed("priorities", parsed.priorities, Object.values(Priority), isPriorityEntry),
     palettes: readPalettes(parsed.palettes),
+    oauthRedirectUris: readRedirectUris(parsed.oauth_redirect_uris),
+    publicOrigin: readPublicOrigin(parsed.public_origin),
   };
+}
+
+/** An https origin with no path, query or credentials; anything else is logged and dropped. */
+function readPublicOrigin(raw: unknown): string | null {
+  if (raw === undefined) return null;
+  const origin = typeof raw === "string" ? httpsOrigin(raw) : null;
+  if (!origin) console.error("BOARD_CONFIG public_origin: need an https origin such as https://host; using the request origin");
+  return origin;
+}
+
+function httpsOrigin(text: string): string | null {
+  try {
+    const url = new URL(text);
+    const bare = url.protocol === "https:" && url.username === "" && url.password === "" && url.search === "" && url.hash === "";
+    return bare && (url.pathname === "/" || url.pathname === "") && url.origin === text.replace(/\/$/, "") ? url.origin : null;
+  } catch {
+    return null;
+  }
+}
+
+function readRedirectUris(raw: unknown): string[] {
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw) || !raw.every((uri) => typeof uri === "string")) {
+    console.error("BOARD_CONFIG oauth_redirect_uris: need a list of strings; using none");
+    return [];
+  }
+  return raw;
 }
 
 /** Reads a map from a closed set of names to validated entries; a bad map is logged and dropped. */

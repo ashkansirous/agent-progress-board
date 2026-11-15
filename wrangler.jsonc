@@ -3,6 +3,13 @@
   "name": "agent-progress-board",
   "main": "src/index.ts",
   "compatibility_date": "2026-11-15",
+  "assets": {
+    // The directory is the vite build's client output; @cloudflare/vite-plugin fills it in at build time.
+    // The Worker runs first for every path so the Access check covers the page and its files.
+    "binding": "ASSETS",
+    "run_worker_first": true,
+    "not_found_handling": "single-page-application"
+  },
   "d1_databases": [
     {
       "binding": "DB",
@@ -12,5 +19,9 @@
     }
   ]
   // Secrets (never in this file): BOARD_WRITE_TOKEN, BOARD_READ_TOKEN.
-  // Optional var BOARD_CONFIG: JSON string, see config/board.example.json.
+  // Also Worker secrets, not dashboard vars: ACCESS_TEAM_DOMAIN (the Cloudflare Access team domain),
+  // ACCESS_AUD (the application's AUD tag) and the optional BOARD_CONFIG (JSON string, see
+  // config/board.example.json). A deploy replaces dashboard plain-text vars with the config file's
+  // (none here) unless keep_vars is set; it never deletes secrets. Unset Access settings mean the
+  // page and /api/board refuse everyone.
 }

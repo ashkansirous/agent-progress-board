@@ -2,10 +2,20 @@
 
 Source: phone scope (2026-11-15), milestone 2 — see [Slice 1](01-items-api.md).
 
-*Planned.*
+*Built 2026-11-15 (wave 2026-11-15), PR #35, not merged. The Access-by-API item is parked; the Access checks and the first pipeline run are not yet verified (see the end of this file).*
 
 **Touches:** `web/**`, `wrangler.jsonc`, `package.json`, `package-lock.json`, `src/api/**`,
-`e2e/**`, `playwright.config.ts`, `config/board.example.json`, `README.md`
+`src/config.ts`, `src/index.ts`, `e2e/**`, `playwright.config.ts`, `vite.config.ts`,
+`tsconfig*.json`, `eslint.config.js`, `vitest.config.ts`, `.gitignore`, `.dev.vars.example`,
+`scripts/**`, `test/**` (new test files and `test/config.test.ts` only), `config/board.example.json`,
+`README.md`
+
+Touches widened at the claim (2026-11-15, premise check against `origin/main`): the palette
+maps need the config parser (`src/config.ts`), the page and `/api/board` need the Worker entry
+(`src/index.ts`), `web/**` and `e2e/**` need their own TypeScript, ESLint and Vitest settings,
+and the seed script lives in `scripts/`. Slice 4 builds beside this slice and owns
+`src/domain/**`, `src/application/**`, `src/infrastructure/**` and `src/mcp/**`: this slice
+does not edit them (the board route calls the existing `listOpen` as it is).
 
 #### Why
 
@@ -87,7 +97,9 @@ text `#E8EAEE`, muted `#9AA3B2`, card `#171A21`, hairline `#262B35`, link `#9DBD
 - **Tile.** Grid `auto-fill minmax(280px, 1fr)`, 12 gap (phone: one column, 10 gap). Button,
   radius 12, padding 14 / 16 (phone 12 / 14), bg and border from the type colours, left-aligned.
   Row 1: type label (11 px, 700, uppercase, 0.05 em, type fg, with a 6 px dot) and the priority
-  badge at the right. Then title (15 px, 600, `#14171C`), why (13 px, muted), and a last row:
+  badge at the right. Then title (15 px, 600, `#14171C`), why (13 px, muted; on the phone
+  `#B3BBC8`, not the dark muted `#9AA3B2`: `docs/design/Phone.dc.html` line 53, corrected
+  2026-11-15), and a last row:
   "↳ <parent>" (12 px muted, one line, ellipsis) and at the right the status label (12 px,
   600) with a 7 px dot: Open = hollow dot, muted; In progress = filled `#1D4ED8`; Blocked =
   filled `#B42318`; Done = filled `#0B6B4B`, label "Done 2 h ago"; Stale = hollow dot,
@@ -169,17 +181,17 @@ text `#E8EAEE`, muted `#9AA3B2`, card `#171A21`, hairline `#262B35`, link `#9DBD
 
 #### Work
 
-- [ ] Query context7 for the Cloudflare Vite plugin / Workers static assets setup, Cloudflare
+- [x] Query context7 for the Cloudflare Vite plugin / Workers static assets setup, Cloudflare
       Access in front of a Worker, and a markdown renderer with sanitising.
-- [ ] Board page built to the *Design* subsection: header with refresh button and legend,
+- [x] Board page built to the *Design* subsection: header with refresh button and legend,
       waiting strip, project groups with their sections and summaries, tiles (open, in
       progress, blocked, done, stale), the desktop side panel and the phone bottom sheet, light
       and dark palettes from config, bundled fonts.
-- [ ] Loading (after 500 ms), empty and failed-load states with Retry, as drawn.
-- [ ] `GET /api/board` for the page (Access-authenticated, reads through the same list
+- [x] Loading (after 500 ms), empty and failed-load states with Retry, as drawn.
+- [x] `GET /api/board` for the page (Access-authenticated, reads through the same list
       function as Slice 1). It returns, per item, `details_md`, `links` and the latest 20
       events, the window hours, and the server time, so the drawer opens with no second call.
-- [ ] Add the mock's type, priority and status colour maps (light and dark) and labels to
+- [x] Add the mock's type, priority and status colour maps (light and dark) and labels to
       `config/board.example.json`; the page reads them.
 - [ ] Put the page behind Cloudflare Access (by API with a token from the secrets store).
       **Parked, waits for the owner (answered 2026-11-15):** no token with Access edit rights
@@ -188,9 +200,9 @@ text `#E8EAEE`, muted `#9AA3B2`, card `#171A21`, hairline `#262B35`, link `#9DBD
       unattended run builds everything else in this slice, leaves this item open, and records
       the two Verification lines that need Access (the phone check, the refused request through
       Access) under *Not yet verified*; it does not park the whole slice for it.
-- [ ] Seed script with three made-up projects (the mock's Recipe Box, Garden Planner and Home
+- [x] Seed script with three made-up projects (the mock's Recipe Box, Garden Planner and Home
       Lab, 14 items) covering every type and status, including a stale and a done item.
-- [ ] Playwright E2E at a 390×844 viewport and at desktop width: groups, ordering, drawer
+- [x] Playwright E2E at a 390×844 viewport and at desktop width: groups, ordering, drawer
       (side panel on desktop, bottom sheet on phone), stale and done tiles, empty and error
       states.
 
@@ -203,3 +215,101 @@ text `#E8EAEE`, muted `#9AA3B2`, card `#171A21`, hairline `#262B35`, link `#9DBD
 - Screenshots of the seeded board at 1440 and 390 px match the four artboards: sizes, colours,
   labels and copy as listed in *Design*; a 503 from the API shows the failed-load card with
   Retry; no request leaves for a third-party host.
+
+#### Built (2026-11-15, PR #35)
+
+React page in `web/` (thin `App.tsx`) served as Worker static assets with the Worker running
+first. `GET /api/board` (`src/api/board.ts`) calls the existing `listOpen` and returns items with
+details, links and latest events, the window hours, the server time and the page config. The
+Cloudflare Access JWT gate is `src/api/access.ts` (jose) on the page, the assets and
+`/api/board`; `/mcp` is unchanged. Palettes, type, status and priority colours and labels are in
+`config/board.example.json`, parsed in `src/config.ts`. `scripts/seed.ts` seeds the mock's 14
+items (dry-run and unit-checked, not run remotely). Playwright E2E runs at 390x844 dark and
+1440x900 light. The string table has English plus German. Fonts are bundled. `deploy:ci` is
+`vite build`, then migrations apply, then `wrangler deploy` with the generated config. Last
+checks (the second check pass's own run): lint, typecheck, `npm test` 94, `npm run test:e2e` 54.
+
+*Changed while building (decisions of 2026-11-15):*
+
+- Access values are Worker secrets `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD`; `BOARD_CONFIG` is
+  documented as a secret too (per the wrangler docs read via context7, a deploy keeps secrets
+  but keeps dashboard plain vars only with `keep_vars`). Unset means every request is refused
+  with 403. An invalid or missing token is 403; a key-set fetch failure or a malformed team
+  domain is logged and gives 503.
+- No local bypass of the gate: the E2E page mode refuses to start or build without the env flag
+  that only `playwright.config.ts` sets.
+- A configured project with no items is hidden. Ages over 24 h read "N d ago" (a string added).
+- The page starts with the palette from `config/board.example.json` before the first response
+  and keeps the current palette on a failed load. The old per-type `color` key is no longer read.
+- `engines.node >= 22.18.0` for the seed script (see *Not yet verified*).
+- Dark colours the mock does not draw were chosen into the config palette: success, danger,
+  primary button, skeleton blocks, done status, stale border and the light grab handle `#C9CED6`.
+- Design correction (the mock wins): the phone tile "why" text is `#B3BBC8`, not `#9AA3B2`
+  (fixed in the *Design* Tile bullet).
+
+*Browser run (one run, 2026-11-15; evidence `D:/agent-progress-board-worktrees/reviews/wave2-s2-browser/`,
+`check.txt` and `contact-sheet.png`, outside the repo):* about 70 computed-style checks per
+viewport matched *Design*; no request to any host but 127.0.0.1; controls at least 44 px; the 503
+card copy and Retry worked. It found the failed-load and loading cards drawn in fallback colours
+(Retry `rgb(0,0,0)` instead of `#14171C`, grey skeleton blocks); fixed by the default palette,
+and the same measurements are now E2E tests that fail on the old code. Not reached: the mock HTML
+files rendered side by side (values were taken from the *Design* section).
+
+*From review:*
+
+- `reviews/pr-35-high.md`: findings 1-9 applied. Skipped #10 (`reviews/pr-35-high.md`): "Loading
+  state appears after 500 ms and names what it waits for, but has no Cancel" - the slice design
+  draws no Cancel on the loading card (line 139) and the slice file wins; follow-up below.
+- `reviews/pr-35-medium.md`: findings 1-5 applied.
+- `reviews/pr-35-check-medium.md`: no code change; its six lows are follow-ups (below).
+- `reviews/pr-35-check-2-medium.md`: no code change; its one low is a follow-up (below).
+
+*Follow-ups (open, not built):*
+
+- `reviews/pr-35-check-medium.md` #1: `src/api/access.ts:49`, "TOKEN_ERRORS is an allowlist"; a
+  hostile token raising other jose errors gets 503 plus a log instead of 403.
+- #2: `src/api/access.ts:68`, missing `ACCESS_TEAM_DOMAIN` or `ACCESS_AUD` returns 403 with no log;
+  should be 503 plus a log naming the setting.
+- #3: `web/src/Detail.tsx:82`, history rows keyed by index and no client sort; no test pins the
+  newest-first order for the page.
+- #4: `web/src/Detail.tsx:144`, `focusAfterClose` falls back to the first `.page button`; with
+  none, focus drops to the body.
+- #5: `e2e/board.spec.ts:316`, the Retry test uses 250 ms and 1000 ms wall-clock windows against
+  a 500 ms timer; flaky on a loaded runner.
+- #6: `src/api/router.ts:59`, the 503 has no `Cache-Control: no-store` or `Retry-After`, and each
+  asset request re-runs the failing key fetch and logs.
+- `reviews/pr-35-check-2-medium.md` #1: `web/src/theme.ts:38`, the fallback palette is the
+  static example file; with a different `BOARD_CONFIG` the first paint shows the example palette
+  and repaints. Optional: a dedicated defaults constant.
+- `reviews/pr-35-high.md` #10: no Cancel on the loading card (the mock draws none).
+
+*Waiting on the user:* create the Cloudflare Access application for the page and set the
+`ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` Worker secrets; until then the deployed page answers 403.
+It blocks only the two Access checks below. (The Workers Builds step is already in `plan.md`.)
+
+#### For CLAUDE.md
+
+- Commands: `npm run test:e2e` (Playwright, headless, faked `/api/board`) and `npm run dev`
+  (Slice 2: docs/plan/slices/02-tile-board.md).
+- Layout: `web/` is the page (string table, palette from config), `e2e/` the Playwright tests,
+  `scripts/seed.ts` the seed script (Slice 2: docs/plan/slices/02-tile-board.md).
+- No gate bypass: the E2E page mode exists only under the env flag `playwright.config.ts` sets;
+  never add a local or production path that skips the Access check in `src/api/access.ts`
+  (Slice 2: docs/plan/slices/02-tile-board.md).
+
+#### For README.md
+
+Nothing to lift: the README is updated in PR #35.
+
+#### Not yet verified
+
+- Seeded data shows correctly on the owner's phone, opened from the deployed URL through Access
+  (drawer and waiting strip included); blocked until the Access application exists.
+- Opening the page without passing Access is refused, checked through Access itself.
+- The first pipeline run of the new `deploy:ci` (`vite build`, then migrations, then deploy with
+  `web/dist/agent_progress_board/wrangler.json`); locally `vite build` and `wrangler deploy
+  --dry-run` passed.
+- Worker secrets (`ACCESS_*`, `BOARD_CONFIG`) survive a pipeline deploy.
+- The seed script run against the deployed Worker.
+- The Node version in `engines` (`>= 22.18.0`): the number comes from the review and the fixer's
+  knowledge; context7 confirmed only that type stripping is default in Node 24.

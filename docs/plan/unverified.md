@@ -3,6 +3,20 @@
 Every open "Not yet verified" check, one block per slice. A check that passes, or that the
 owner confirms, is removed here and its slice marked `verified`.
 
+### Slice 5: OAuth so claude.ai can use the MCP server ([slice](slices/05-remote-mcp.md))
+
+- wrangler provisions the `OAUTH_KV` namespace on the first `deploy:ci` run.
+- The per-request env copy works on the deployed Worker (proven only in the Vitest Workers pool).
+- A bearer token still works against the deployed `/mcp`.
+- claude.ai accepts the connector (registration, the 401 pointer on POST, 405 on GET, consent page, token) and "what's waiting for me?" lists the right items from claude.ai mobile.
+- A static bearer token with `public_origin` set and a different request host still gets through (check-2 finding 8).
+
+### Slice 7: Stale detection ([slice](slices/07-stale-detection.md))
+
+- The cron trigger registers on deploy and fires (waits for the owner connecting Workers Builds).
+- A killed session's item turns stale within the expiry and recovers on the next report, on the live board.
+- The account's free-plan limit of 5 cron triggers is not exceeded.
+
 ### Slice 2: Tile board page ([slice](slices/02-tile-board.md))
 
 - Seeded data shows correctly on the owner's phone, opened from the deployed URL through Access (drawer and waiting strip included); blocked until the Access application exists.

@@ -39,3 +39,11 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
   `@cloudflare/vitest-plugin` (the renamed pool), not `@cloudflare/vitest-pool-workers`.
 - MCP is stateless: a new `McpServer` and transport per request, no sessions, no Durable
   Objects. See [Slice 1](docs/plan/slices/01-items-api.md) *Decisions*.
+- Auth on `/mcp` runs through the OAuth provider in `src/api/oauth`; bearer tokens enter by its
+  external-token hook, and OAuth callers are read-only. Never add a second auth path (Slice 5:
+  docs/plan/slices/05-remote-mcp.md).
+- The default export in `src/index.ts` stays a plain object with `fetch` and `scheduled`
+  (Slice 5: docs/plan/slices/05-remote-mcp.md).
+- The stale rule exists twice: `isExpired` in `src/domain/stale.ts` and the `EXPIRED_ROWS` SQL in
+  `src/infrastructure/d1Repository.ts`. `test/stale.test.ts` holds them equal; change both
+  (Slice 7: docs/plan/slices/07-stale-detection.md).

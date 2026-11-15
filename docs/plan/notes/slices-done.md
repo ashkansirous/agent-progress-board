@@ -4,6 +4,7 @@ Rows moved out of `plan.md`'s status table once built.
 
 | Slice | Title | Status | PR | Issue | File |
 | --- | --- | --- | --- | --- | --- |
+| 7 | Stale detection | built | #41 | | [07](../slices/07-stale-detection.md) |
 | 4 | Doc sync: `sync_snapshot` tool | built | #34 | | [04](../slices/04-doc-sync.md) |
 | 3 | Client handover: tool reference and client guide | built | #36 | | [03](../slices/03-reporter.md) |
 | 6 | Reporting from Claude Code cloud sessions | built | #37 | | [06](../slices/06-cloud-sessions.md) |

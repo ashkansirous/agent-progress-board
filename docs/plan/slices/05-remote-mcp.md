@@ -3,7 +3,7 @@
 Source: phone scope (2026-11-15), milestone 5 — see [Slice 1](01-items-api.md). The MCP
 endpoint and its tools ship in Slice 1; this slice adds what claude.ai needs.
 
-*Built 2026-11-15, PR #42, pending merge. Not yet deployed: the first deploy waits for the owner connecting Workers Builds, so nothing is verified on a deployed Worker or on claude.ai.*
+*Parked: built and merged (PR #42, 9951aa2); the claude.ai connector waits for the owner, after the first deploy. Built 2026-11-15. Not yet deployed: the first deploy waits for the owner connecting Workers Builds, so nothing is verified on a deployed Worker or on claude.ai.*
 
 **Waiting on the user:** after the first deploy, add the board as a custom connector in claude.ai ([https://claude.ai/settings/connectors](https://claude.ai/settings/connectors), "Add custom connector", the Worker's `/mcp` address on `workers.dev`, not the page's custom domain, which sits behind Access; see [Slice 2](02-tile-board.md) *Address*) and type the passphrase from the secrets store entry `OWNER_PASSPHRASE`. It blocks only the claude.ai check. (The link was not opened by the run that wrote it: it needs the owner's login.)
 
@@ -149,7 +149,7 @@ All wait for the first deploy, which waits for the owner connecting Workers Buil
 - claude.ai accepts the connector (registration, the 401 pointer on POST, 405 on GET, consent page, token) and "what's waiting for me?" lists the right items from claude.ai mobile.
 - A static bearer token with `public_origin` set and a different request host still gets through (check-2 finding 8).
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-15)
 
 - Auth on `/mcp` runs through the OAuth provider in `src/api/oauth`; bearer tokens enter by its
   external-token hook, and OAuth callers are read-only. Never add a second auth path (Slice 5:

@@ -2,7 +2,7 @@
 
 Source: phone scope (2026-11-15), milestone 7 — see [Slice 1](01-items-api.md).
 
-*Built 2026-11-15, PR #41, pending merge; the cron trigger and the live recovery are not yet verified on the deployed Worker.*
+*Built 2026-11-15, merged as PR #41 (9115ca0); the cron trigger and the live recovery are not yet verified on the deployed Worker.*
 
 **Touches:** `src/**`, `wrangler.jsonc`, `test/**`, `web/**`, `config/board.example.json`,
 `README.md`, `docs/clients.md`, `e2e/**`
@@ -125,7 +125,7 @@ seen; `src/infrastructure/d1Repository.ts:77`), check 4 (index for `EXPIRED_ROWS
 full run (56 of 56). Cause unknown; the flow is Slice 2's and this slice changes only colours in
 `web/`.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-15)
 
 - The stale rule exists twice: `isExpired` in `src/domain/stale.ts` and the `EXPIRED_ROWS` SQL in
   `src/infrastructure/d1Repository.ts`. `test/stale.test.ts` holds them equal; change both

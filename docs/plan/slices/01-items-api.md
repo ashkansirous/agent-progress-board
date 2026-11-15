@@ -5,7 +5,7 @@ across projects" (2026-11-15), milestone 1 and *First step*; changed at the desk
 the owner decided the board exposes **everything through MCP**, and building clients is the
 job of the repos that want one (see [Slice 3](03-reporter.md)).
 
-*In progress (wave 2026-11-15), draft PR.*
+*Built 2026-11-15, PR #31, not merged. 33 tests; lint, typecheck and test green. The deploy waits on the Workers Builds connection (owner step, see *Waiting on the user*); nothing is checked against a deployed Worker yet.*
 
 **Migrations:** 0001
 
@@ -35,8 +35,25 @@ writes and reads through one contract from day one.
 - Every tool calls the application layer; no tool holds its own rules (`CLAUDE.md`,
   *One contract*). A plain HTTPS POST of an MCP `tools/call` request works too, so clients
   that can't load an MCP server (cloud sessions, hooks) use the same endpoint.
-- Stateless MCP (no sessions, no Durable Objects) unless the library requires otherwise;
-  decide after the context7 check and write the reason here.
+- **Stateless MCP, decided (2026-11-15, context7 and installed source):** MCP TypeScript SDK
+  1.32.2 `McpServer` plus `WebStandardStreamableHTTPServerTransport` with
+  `sessionIdGenerator: undefined` and `enableJsonResponse: true`, built per request. The library
+  does not require sessions: with no session id generator the transport skips session
+  validation, so a bare `tools/call` without `initialize` works (proved by a test), which is what
+  plain-POST clients (hooks, cloud sessions) need; a Durable Object would add cost and state for
+  nothing, since every tool is one D1 round trip. The POST must send
+  `Accept: application/json, text/event-stream`. Rejected: Agents SDK `createMcpHandler`
+  (needs SDK v2 and a large peer tree for no gain here).
+- **Toolchain facts (settled by the installed packages):** `readD1Migrations` is imported from
+  `@cloudflare/vitest-plugin`, `applyD1Migrations` from `cloudflare:test`; TypeScript is pinned
+  to 6.0.3 because typescript-eslint 8.72.2 allows `<6.1.0` only; zod 4.6.7 works with SDK
+  1.32.2 raw-shape schemas.
+- **Free-tier limits that matter:** Workers Free 100,000 requests/day and 10 ms CPU per
+  request; D1 Free 5,000,000 rows read and 100,000 rows written per day, 5 GB total. A board
+  with a few agents stays far inside them. Access seat limit not confirmed.
+- Config (`BOARD_CONFIG`, one JSON var, optional): window `default_hours` (12) and `max_hours`
+  (72), plus `projects` and `types` for the board page; examples in
+  `config/board.example.json`. `window_hours` on `list_open` is capped at `max_hours`.
 - **Board mock (2026-11-15, [Slice 2](02-tile-board.md) *Design*):** the tile shows the parent
   as display text ("Plan · Search", "Wave 3", "Slice 4 · Tag search"), which is often not an
   item. So the `items` column `parent_key` is replaced by `parent`, a free text label (the
@@ -69,30 +86,54 @@ writes and reads through one contract from day one.
 - **Hard constraint:** no project names, hostnames, account ids or item data in the repo.
 - Deploys only through Cloudflare Workers Builds on merge to `main`; D1 migrations applied by
   the build's deploy command, never `wrangler deploy` from a shell.
+- **Decided while building (2026-11-15):**
+  - (a) `wrangler.jsonc` carries no `database_id`; wrangler resolves the database by
+    `database_name`. Proved for migrations: `wrangler d1 migrations list DB --remote` found the
+    remote database with no id. For `wrangler deploy` it is read from the wrangler source via
+    context7, not yet run. Review disagreed: high finding 5 asked to keep the id out of the public
+    repo (CLAUDE.md: no account ids), medium finding 4 asked to put it back (a deploy could
+    provision a second empty database). The id stays out; D1 names are unique per account, so no
+    second database can appear.
+  - (b) A repeat `ask_human` on a done item reopens it: agents mark items done, the board is
+    read-mostly (`CLAUDE.md`), so a repeat ask must show on the board. `ask_human` on a key of
+    another type is a tool error, not a silent type change.
+  - (c) `null` clears an optional field, omitted keeps it, an empty string is an error.
+  - (d) A write is one atomic SQL upsert with `RETURNING`; SQL owns the upsert rules, so there is
+    no read-modify-write window.
+  - (e) A bad `BOARD_CONFIG` falls back to the defaults and never fails a write; window hours are
+    capped at one year.
+  - (f) TypeScript is pinned to 6.0.3 (typescript-eslint 8.72.2 peer range).
 
 #### Work
 
-- [ ] Query context7 for the current Wrangler, Workers TypeScript, D1, Vitest
+- [x] Query context7 for the current Wrangler, Workers TypeScript, D1, Vitest
       (`@cloudflare/vitest-pool-workers`) setup and the remote MCP server options on Workers
       (Cloudflare Agents SDK `createMcpHandler` / `McpAgent`, the MCP TypeScript SDK's
       Streamable HTTP transport); re-check the free-tier limits of Workers, D1 and Access and
       write the ones that matter here.
-- [ ] Scaffold the Worker (TypeScript, ESLint, Vitest in the Workers pool) with layered
+- [x] Scaffold the Worker (TypeScript, ESLint, Vitest in the Workers pool) with layered
       folders: `src/domain` (item types, enums, upsert rules), `src/application` (upsert,
       mark done, list window, get), `src/infrastructure` (D1 repository), `src/mcp` (tool
       definitions and schemas), `src/api` (routing, auth).
-- [ ] `migrations/0001_items.sql`: `items` and `events`, indexes on `(project)`, `(status)`,
+- [x] `migrations/0001_items.sql`: `items` and `events`, indexes on `(project)`, `(status)`,
       `(done_at)`.
-- [ ] The five tools above, each with an input schema and tests (including `parent` as text,
+- [x] The five tools above, each with an input schema and tests (including `parent` as text,
       the heartbeat event note and the events on `list_open`).
-- [ ] Bearer auth with the two scopes, constant-time compare, 401 without a token.
-- [ ] Unit tests for the upsert rules and the window filter; integration tests calling the
+- [x] Bearer auth with the two scopes, constant-time compare, 401 without a token.
+- [x] Unit tests for the upsert rules and the window filter; integration tests calling the
       MCP endpoint against a local D1.
-- [ ] Generate the write and read tokens, save them in the secrets store, set them as Worker
-      secrets.
-- [ ] Create the D1 database and connect the repo to Workers Builds (by Cloudflare API with a
-      token from the secrets store; a dashboard step only if no API covers it, then with a
-      direct link). Deploy by merging.
+- [x] Generate the write and read tokens, save them in the secrets store, set them as Worker
+      secrets. Done 2026-11-15 by the coordinator: `BOARD_WRITE_TOKEN` and `BOARD_READ_TOKEN`
+      generated into the owner's secrets store and set with `wrangler secret put` (this created
+      the Worker as an empty placeholder); the Worker's secret list read back shows both.
+- [x] Create the D1 database. Done 2026-11-15 by the coordinator with wrangler: database
+      `agent-progress-board`.
+- [ ] Connect the repo to Workers Builds (by Cloudflare API with a token from the secrets store;
+      a dashboard step only if no API covers it, then with a direct link). Deploy by merging.
+      **Parked 2026-11-15:** the Cloudflare API `/accounts/<id>/builds/*` with the machine's
+      wrangler login returned 403 "Authentication error" (code 10000); the login has no Workers
+      Builds scope, the secrets store has only read-only Cloudflare tokens and the repo has no
+      GitHub secrets. See *Waiting on the user*.
       **Answered 2026-11-15:** the owner approved these setup steps for unattended runs
       (creating the D1 database and a KV namespace with wrangler, generating the tokens into
       the secrets store, `wrangler secret put`, connecting Workers Builds by API) and is adding
@@ -101,7 +142,7 @@ writes and reads through one contract from day one.
       checked 2026-11-15; `wrangler` is not on PATH, run it with `npx wrangler`). If the
       Workers Builds connection cannot be made with that login, park only that step with the
       direct dashboard link; never `wrangler deploy` from a shell.
-- [ ] README: the tool reference (names, inputs, outputs, enums, key format) and a curl
+- [x] README: the tool reference (names, inputs, outputs, enums, key format) and a curl
       example of a `tools/call` with a made-up project.
 
 #### Verification
@@ -113,3 +154,62 @@ writes and reads through one contract from day one.
 - The same calls work from Claude Code with the server added (`claude mcp add --transport http`)
   and from curl as a plain POST.
 - No token gets 401; the read token calling `report_progress` gets an error and writes nothing.
+
+#### Waiting on the user
+
+- **Connect the repo to Workers Builds** (blocks the first deploy and every deployed-Worker
+  check in this and the later slices): open
+  [the Worker's settings](https://dash.cloudflare.com/?to=/:account/workers/services/view/agent-progress-board/production/settings),
+  under *Build* choose *Connect*, pick the GitHub repo, branch `main`, deploy command
+  `npm run deploy:ci`.
+
+#### Changed while building
+
+- See *Decided while building* in Decisions, (a) to (f).
+
+#### From review
+
+Files: `reviews/pr-31-high.md` (10 findings), `reviews/pr-31-medium.md` (10),
+`reviews/pr-31-check-medium.md` (9); all read in full.
+
+- Applied: high 1, 2, 3, 4 (type half), 5, 6, 8; medium 1, 2, 3, 6, 10; check 4.
+- Skipped #4, reopen half (`reviews/pr-31-high.md`): "a repeat call reopens a resolved item" - decision (b): the repeat ask must show on the board.
+- Skipped #7 (`reviews/pr-31-high.md`): "Optional fields can only be set, never cleared" - the same gap was applied as medium 2 (decision (c)).
+- Skipped #9 (`reviews/pr-31-high.md`): "Auth scheme match is case-sensitive" - low, not fixed in this slice.
+- Skipped #10 (`reviews/pr-31-high.md`): "two D1 reads of the same row per done mark" - low, not fixed in this slice.
+- Skipped #4 (`reviews/pr-31-medium.md`): "D1 binding has no database_id" - decision (a): wrangler resolves the database by name and D1 names are unique per account.
+- Skipped #5 (`reviews/pr-31-medium.md`): "duplicate find in markDone/askHuman then reportProgress" - low, not fixed in this slice.
+- Skipped #7 (`reviews/pr-31-medium.md`): "Bearer prefix match case-sensitive" - low, not fixed in this slice.
+- Skipped #8 (`reviews/pr-31-medium.md`): "method check runs before auth" - low, not fixed in this slice.
+- Skipped #9 (`reviews/pr-31-medium.md`): "built per request and never closed" - low, not fixed in this slice.
+- Skipped #1 (`reviews/pr-31-check-medium.md`): "an extra find per write costs 1-2 D1 reads" - low, not fixed in this slice.
+- Skipped #2 (`reviews/pr-31-check-medium.md`): "heartbeat note inferred from" - not fixed in this slice; see Follow-ups.
+- Skipped #3 (`reviews/pr-31-check-medium.md`): "A request delayed in D1 commits last" - not fixed in this slice; see Follow-ups.
+- Skipped #5 (`reviews/pr-31-check-medium.md`): "the event row takes status and source from the stored item" - low, not fixed in this slice; see Follow-ups.
+- Skipped #6 (`reviews/pr-31-check-medium.md`): "heartbeat-only report writes an items update and an events row, with no coalescing or cap" - the Decisions give a heartbeat event per report; see Follow-ups.
+- Skipped #7 (`reviews/pr-31-check-medium.md`): "get_item returns every event and list_open every item in the window" - the Decisions return all events on `get_item`; see Follow-ups.
+- Skipped #8 (`reviews/pr-31-check-medium.md`): "A repeat ask_human on an item the owner marked done silently reopens it" - decision (b).
+- Skipped #9 (`reviews/pr-31-check-medium.md`): "`givenParams` casts to `string | null`" - low, only a future caller is affected.
+
+#### Follow-ups
+
+- `src/infrastructure/d1Repository.ts:74`: the heartbeat note is inferred from `updated_at = ?1`; two writes in one millisecond can leave a blank note (check 2).
+- `src/infrastructure/d1Repository.ts:64`: a request delayed in D1 can move `heartbeat_at` and `updated_at` backwards; use `MAX` or time in SQL (check 3).
+- `src/infrastructure/d1Repository.ts:73`: the event row takes status and source from the stored item, not the report (check 5).
+- `src/infrastructure/d1Repository.ts:92`: heartbeat events have no coalescing or cap, so `events` grows and costs rows written (check 6).
+- `src/mcp/tools.ts:111`: `get_item` and `list_open` have no size limit or `truncated` marker (check 7).
+
+#### For CLAUDE.md
+
+None beyond the branch's own edits.
+
+#### For README.md
+
+None beyond the branch's own edits.
+
+#### Not yet verified
+
+- The whole "Against the deployed Worker" list of Verification.
+- The Claude Code `claude mcp add --transport http` and curl checks against the deployed URL.
+- That the Workers Builds build token can apply D1 migrations (`npm run deploy:ci`).
+- That `wrangler deploy` binds the existing database by name (no `database_id`).

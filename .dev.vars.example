@@ -1,0 +1,5 @@
+# Copy to .dev.vars for `wrangler dev`. Made-up values; real tokens are Worker secrets.
+BOARD_WRITE_TOKEN=dev-write-token
+BOARD_READ_TOKEN=dev-read-token
+# Optional: the board config as one JSON line (see config/board.example.json).
+# BOARD_CONFIG={"window":{"default_hours":12,"max_hours":72}}

@@ -1,0 +1,16 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "agent-progress-board",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-15",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "agent-progress-board",
+      // No database_id: wrangler resolves the existing database by name on deploy and on d1 migrations apply.
+      "migrations_dir": "migrations"
+    }
+  ]
+  // Secrets (never in this file): BOARD_WRITE_TOKEN, BOARD_READ_TOKEN.
+  // Optional var BOARD_CONFIG: JSON string, see config/board.example.json.
+}

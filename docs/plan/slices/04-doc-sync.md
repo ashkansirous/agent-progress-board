@@ -153,6 +153,6 @@ Nothing to lift (the tool row is already in the PR).
 
 #### Not yet verified
 
-- With a client: a repo with no live events shows its open slices and unverified checks after one sync; a second sync changes nothing; a slice removed from the repo's table turns done.
-- Migration 0002 applied to the remote D1 by the pipeline.
-- A 200-item snapshot against deployed D1 (local D1 passed).
+- Migration 0002 applied to the remote D1 by the pipeline. Seen 2026-11-15: `sync_snapshot` works against the remote D1. Not seen: the migration record itself.
+
+*Verified 2026-11-15* (Worker at c1cc5de, by curl, no real client used): a repo with no live events shows its items after one sync (`{created:3}`), a second sync changes nothing (`{unchanged:3}`), and a key removed from the list turns done (`{closed:1,unchanged:2}`; `get_item` showed status done, source doc-sync); an empty-list sync closed the rest with 200. A 200-item snapshot against deployed D1 gave `{created:200}` with HTTP 200; 201 items were refused with "expected array to have <=200 items".

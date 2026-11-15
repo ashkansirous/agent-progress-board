@@ -208,11 +208,9 @@ text `#E8EAEE`, muted `#9AA3B2`, card `#171A21`, hairline `#262B35`, link `#9DBD
       events, the window hours, and the server time, so the drawer opens with no second call.
 - [x] Add the mock's type, priority and status colour maps (light and dark) and labels to
       `config/board.example.json`; the page reads them.
-- [ ] Attach the custom domain to the Worker in Cloudflare (see *Address*). Try the API first:
-      the machine's wrangler login has `workers_routes (write)` and `zone (read)` (`wrangler
-      whoami`, 2026-11-15 16:50Z); the attach itself was not tried. It becomes the owner's step
-      only if the API refuses. The hostname is read from the owner's private notes for this
-      repo (the agent's memory on the owner's machine), else asked of the owner; never
+- [ ] Attach the custom domain to the Worker in Cloudflare (see *Address*). Tried by API with the
+      machine's wrangler login on 2026-11-15 and refused by the session's permission check (not by
+      Cloudflare); handed to the owner, see *Waiting on the user* below. The hostname is never
       written here.
 - [ ] Put the page behind Cloudflare Access (by API with a token from the secrets store).
       **Parked, waits for the owner (answered 2026-11-15):** no token with Access edit rights
@@ -304,11 +302,17 @@ files rendered side by side (values were taken from the *Design* section).
   and repaints. Optional: a dedicated defaults constant.
 - `reviews/pr-35-high.md` #10: no Cancel on the loading card (the mock draws none).
 
-*Waiting on the user:* once the custom domain is attached (a work item above, tried by API
-first), create the Cloudflare Access application on that hostname (one-time PIN or
-Google, one Allow policy for the owner's email) and set the `ACCESS_TEAM_DOMAIN` and
-`ACCESS_AUD` Worker secrets; until then the deployed page answers 403.
-It blocks only the Access and custom-domain checks below. (Workers Builds is connected; the first deploy is in `plan.md`.)
+*Waiting on the user:* add the custom hostname as a Custom domain on the Worker's Domains page
+([link](https://dash.cloudflare.com/?to=/:account/workers/services/view/agent-progress-board/production/domains):
+Cloudflare dashboard, Workers & Pages, the Worker, Domains tab). The attach by API was tried on
+2026-11-15 and refused by the session's permission check, not by Cloudflare. It blocks the Access
+application step below and the owner seeing the page.
+
+*Waiting on the user (after the custom domain):* create the Cloudflare Access application on that
+hostname (one-time PIN or Google, one Allow policy for the owner's email) and set the
+`ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` Worker secrets; until then the deployed page answers 403
+(read 2026-11-15 on the workers.dev address: `/` and `/api/board` answer 403).
+It blocks only the Access and custom-domain checks below. (The Worker is deployed, 2026-11-15, c1cc5de.)
 
 *Decision (2026-11-15, feedback loop):* the owner's "or claude.ai" for the sign-in was read as
 the claude.ai connector to `/mcp` ([Slice 5](05-remote-mcp.md)), not a login for the page:
@@ -338,8 +342,8 @@ Nothing to lift: the README is updated in PR #35.
   config keeps no `routes` key; read in the wrangler docs, not yet seen on a real deploy).
 - The first pipeline run of the new `deploy:ci` (`vite build`, then migrations, then deploy with
   `web/dist/agent_progress_board/wrangler.json`); locally `vite build` and `wrangler deploy
-  --dry-run` passed.
-- Worker secrets (`ACCESS_*`, `BOARD_CONFIG`) survive a pipeline deploy.
+  --dry-run` passed. Seen 2026-11-15: the check "Workers Builds: agent-progress-board" on c1cc5de succeeded and the Worker is live with migrations applied. Not seen: the pipeline log.
+- Worker secrets (`ACCESS_*`, `BOARD_CONFIG`) survive a pipeline deploy. Seen 2026-11-15: `BOARD_WRITE`/`BOARD_READ` tokens and the `OWNER_PASSPHRASE` page work after the deploy. Not seen: `ACCESS_*` and `BOARD_CONFIG` (the Access guard answers 403).
 - The seed script run against the deployed Worker.
 - The Node version in `engines` (`>= 22.18.0`): the number comes from the review and the fixer's
   knowledge; context7 confirmed only that type stripping is default in Node 24.

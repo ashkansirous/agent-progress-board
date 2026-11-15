@@ -141,13 +141,15 @@ Touches was widened: the Worker's entry (`src/index.ts`) and the test config mus
 
 #### Not yet verified
 
-All wait for the first deploy, which has not run yet.
+The first deploy ran 2026-11-15 (c1cc5de); the open lines below were checked by curl against it, as far as stated.
 
-- wrangler provisions the `OAUTH_KV` namespace on the first `deploy:ci` run.
-- The per-request env copy works on the deployed Worker (proven only in the Vitest Workers pool).
-- A bearer token still works against the deployed `/mcp`.
+- wrangler provisions the `OAUTH_KV` namespace on the first `deploy:ci` run. Seen 2026-11-15: `POST /oauth/register` answers 201, which needs the KV. Not seen: the namespace itself (needs wrangler).
+- The per-request env copy works on the deployed Worker (proven only in the Vitest Workers pool). Seen 2026-11-15: register, discovery, authorize and token routes answer repeatedly without error. Not seen: a full grant (the passphrase POST was not run).
 - claude.ai accepts the connector (registration, the 401 pointer on POST, 405 on GET, consent page, token) and "what's waiting for me?" lists the right items from claude.ai mobile.
-- A static bearer token with `public_origin` set and a different request host still gets through (check-2 finding 8).
+- A static bearer token with `public_origin` set and a different request host still gets through (check-2 finding 8). Not run 2026-11-15: another Host cannot be sent to the workers.dev address; the bearer works on that host.
+
+*Verified 2026-11-15* (Worker at c1cc5de, by curl): a bearer token works against the deployed `/mcp` (write token tool calls 200, read token `list_open` 200, wrong token 401).
+Pieces of the claude.ai check seen by curl, the check itself is still open: 401 without a token carries `WWW-Authenticate` with `resource_metadata`; `GET /mcp` is 405 with `Allow: POST`; both discovery documents are 200 (PKCE S256, `registration_endpoint`); registering with the claude.ai redirect is 201 and a foreign redirect is 400 `invalid_redirect_uri`; `GET /authorize` is 200 with the "Connect to the board" page (password field and Allow); a token request with a bogus code is 400 `invalid_grant`. The passphrase POST and a real token were not run (they would leave a grant that cannot be ended). One OAuth client was registered and stays on the live Worker.
 
 #### For CLAUDE.md (lifted 2026-11-15)
 

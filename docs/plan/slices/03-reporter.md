@@ -64,4 +64,5 @@ typecheck and `npm test` green (33 tests). No review passes (docs-only change).
 #### Not yet verified
 
 - A client written only from the guide reports a real run and its tiles move live (waits for the first deploy and for the client in the owner's config repo).
-- The curl example in `docs/clients.md` run against the deployed Worker (it was not run against a live server).
+
+*Verified 2026-11-15* (Worker at c1cc5de): the curl examples in `docs/clients.md` (`report_progress` and `sync_snapshot`) were run as written against the deployed Worker, only project and key made up; both answered 200 with `result.content[0].text` as documented. The required `Accept` and JSON headers were not tested without.

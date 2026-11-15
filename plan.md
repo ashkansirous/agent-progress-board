@@ -52,16 +52,28 @@ Notes:
 
 ## Outstanding work
 
-- **Not yet tried on a device:** 26 checks across 7 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
+- **Not yet tried on a device:** 21 checks across 7 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
 - The D1 database and the Worker secrets exist.
 - The client guide (`docs/clients.md`) is ready (Slice 3); the owner's config repo can start its
   client.
-- Workers Builds is connected (reported by the starter session, read back 16:02Z on 2026-11-15:
-  production branch `main`, no build command, deploy command `npm run deploy:ci`, preview builds off).
-  No build has run yet (`wrangler deployments list`, 16:33Z: only the upload and three secret changes);
-  the first one needs a push to `main` without the skip-CI marker or the deploy hook, which the
-  starter session starts after the night's last merge. It holds every deployed-Worker check.
-- The custom domain is not attached to the Worker yet; [Slice 2](docs/plan/slices/02-tile-board.md) has it as a work item, tried by API first (the hostname is not written in this repo).
+- Workers Builds is connected (production branch `main`, no build command, deploy command
+  `npm run deploy:ci`, preview builds off; read back 16:02Z on 2026-11-15) and has run once: the
+  check "Workers Builds: agent-progress-board" on the merge commit of PR #47 (c1cc5de) completed with
+  success.
+- The Worker is deployed (first deployment created 17:00:39Z on 2026-11-15, read from
+  `wrangler deployments list`). A deploy happens on a merge to `main` without the skip-CI marker.
+  On its workers.dev address `/mcp` answers 401 without a token, the page and `/api/board` answer 403.
+- **Waiting on the user:** add the custom hostname as a Custom domain on the Worker's Domains page
+  ([link](https://dash.cloudflare.com/?to=/:account/workers/services/view/agent-progress-board/production/domains):
+  Cloudflare dashboard, Workers & Pages, the Worker, Domains tab). The attach by API with the machine's
+  wrangler login was tried on 2026-11-15 and refused by the session's permission check (not by
+  Cloudflare). It blocks the Access application step below and the owner seeing the page; see
+  [Slice 2](docs/plan/slices/02-tile-board.md) (the hostname is not written in this repo).
+- Open, left by the deployed checks of 2026-11-15: project `zz-deploy-check` holds 205 items, all done
+  (`zz-deploy-check/a`, `/b`, `/s0` to `/s2`, `/bulk-0` to `/bulk-199`). They show under "Done in the
+  last 12 h" until about 05:00Z on 2026-11-16 and stay in the database (the board has no delete tool).
+  One OAuth client was registered on the live Worker during the checks (no grant or token issued; it
+  cannot be deleted through the Worker).
 - **Waiting on the user:** create the Cloudflare Access application for the board page on the custom hostname and set the
   `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` Worker secrets, in
   [Zero Trust, Access applications](https://one.dash.cloudflare.com/?to=/:account/access/apps) (the link was not
@@ -74,7 +86,6 @@ Notes:
 - Follow-up (Slice 7): the browser test `e2e/board.spec.ts:317` ("after a failure, Retry never leaves a blank page") failed once in a full run and is intermittent. See [Slice 7](docs/plan/slices/07-stale-detection.md) *Verification*; the likely cause (wall-clock timing windows) is the fifth follow-up in [Slice 2](docs/plan/slices/02-tile-board.md).
 - Follow-ups of built slices whose rows are in the finished list stay open in their slice files: [Slice 4](docs/plan/slices/04-doc-sync.md) *Follow-ups (open, not built)* (the summary counts include writes the stale-read guard skipped; a very large close fails the whole batch) and [Slice 7](docs/plan/slices/07-stale-detection.md) *Follow-ups*.
 - Open, small: add `tmp/` to `.gitignore` (check agents write logs with local paths there; a review of Slice 1 found them untracked in this public repo). Goes with the next code PR, since the merge gate reviews that file as code.
-- **First deploy, open task:** no build has deployed the Worker (`wrangler deployments list`, 16:39Z on 2026-11-15). Every merge of the night carried the skip-CI marker, the repo has no `workerPaths` in `.claude/merge-gate.json` and no deploy hook, so the batch release started nothing and warned about nothing. Done when `wrangler deployments list` shows a deployment whose source is not "Secret Change" and `/mcp` on the deployed Worker answers 401 without a token. Until then all 26 unverified checks wait. Route: a merge to `main` without the skip-CI marker once no batch is open, or a retry of the build in the Worker's Builds page; never `wrangler deploy` from a shell. **Started 2026-11-15, about 17:00Z:** the merge of the PR that adds this sentence is the first push to `main` without the marker since Workers Builds was connected (the run had ended and its batch was released); the result is recorded here once read.
 - **Deploy trigger, open tooling task:** add `.claude/merge-gate.json` with `workerPaths` (`src/**`, `web/**`, `migrations/**`, `wrangler.jsonc`, `package.json`) and a Workers Builds deploy hook URL in the secrets store, so a batch release starts the build. Creating the hook needs the Cloudflare dashboard (the machine's wrangler login has no Workers Builds scope).
 - Feedback loop of 2026-11-15: [note](docs/plan/notes/2026-11-15-1406-feedback-loop.md), with the open tooling findings it could not fix in its time.
 

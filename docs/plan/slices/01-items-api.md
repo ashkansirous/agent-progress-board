@@ -5,7 +5,7 @@ across projects" (2026-11-15), milestone 1 and *First step*; changed at the desk
 the owner decided the board exposes **everything through MCP**, and building clients is the
 job of the repos that want one (see [Slice 3](03-reporter.md)).
 
-*Built 2026-11-15, merged 2026-11-15 as PR #31. 33 tests; lint, typecheck and test green. Workers Builds is connected (2026-11-15) but the first deploy has not run yet; nothing is checked against a deployed Worker yet.*
+*Built 2026-11-15, merged 2026-11-15 as PR #31. 33 tests; lint, typecheck and test green. Workers Builds is connected (2026-11-15) but the first deploy has not run yet; nothing is checked against a deployed Worker yet.* (Update 2026-11-15: deployed at c1cc5de; the curl checks passed, two pipeline checks have indirect evidence only, see *Not yet verified*.)
 
 *Park note (2026-11-15; the feedback loop moved the row back to `planned` so the next run retries): the code is built and merged (PR #31). What is left is the first deploy and the checks against the deployed Worker. Workers Builds is connected; no build had run at 16:39Z on 2026-11-15 (`wrangler deployments list`).*
 
@@ -169,7 +169,8 @@ writes and reads through one contract from day one.
   at 16:33Z on 2026-11-15 shows only the upload and three "Secret Change" deployments (newest
   16:24Z). The first build needs a push to `main` without the skip-CI marker, or the Worker's
   deploy hook; the starter session starts it after the night's last merge. It holds every
-  deployed-Worker check in this and the later slices.
+  deployed-Worker check in this and the later slices. **Update 2026-11-15:** the first build ran on the
+  merge commit of PR #47 (c1cc5de) and succeeded; the Worker is deployed.
 
 #### Changed while building
 
@@ -217,7 +218,14 @@ None beyond the branch's own edits.
 
 #### Not yet verified
 
-- The whole "Against the deployed Worker" list of Verification.
-- The Claude Code `claude mcp add --transport http` and curl checks against the deployed URL.
-- That the Workers Builds build token can apply D1 migrations (`npm run deploy:ci`).
-- That `wrangler deploy` binds the existing database by name (no `database_id`).
+- The Claude Code `claude mcp add --transport http` check against the deployed URL (the curl checks passed, see *Verified 2026-11-15*).
+- That the Workers Builds build token can apply D1 migrations (`npm run deploy:ci`). Seen 2026-11-15: the tables exist after the pipeline deploy. Not seen: the pipeline log.
+- That `wrangler deploy` binds the existing database by name (no `database_id`). Seen 2026-11-15: the Worker reads and writes D1 after the pipeline deploy. Not seen: `wrangler.json` was not inspected.
+
+*Verified 2026-11-15* (Worker at c1cc5de, checks run by curl from the host; raw output not kept in the repo):
+the whole "Against the deployed Worker" list of Verification. `report_progress` created `a` (in_progress);
+the same key again gave blocked with `created_at` unchanged and one item in `list_open`; `mark_done` closed `b`
+(via `ask_human`) with `done_at`; `list_open` returned open `a` and done `b`; after 3 s a `window_hours` of
+0.0005 returned only `a`. No token gave 401; the read token calling `report_progress` got the error
+"forbidden: this token is read-only, a write token is required" and `get_item` for that key found no item
+(nothing written). The plain-POST curl half of the Claude Code and curl line passed too.

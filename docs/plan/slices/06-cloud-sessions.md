@@ -2,7 +2,7 @@
 
 Source: phone scope (2026-11-15), milestone 6 — see [Slice 1](01-items-api.md).
 
-*Built 2026-11-15, PR #37 (not merged); not yet verified in a cloud session.*
+*Built 2026-11-15, merged as PR #37 (9e53716); not yet verified in a cloud session.*
 
 **Touches:** `docs/clients.md`, `README.md`
 

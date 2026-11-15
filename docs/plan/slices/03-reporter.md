@@ -3,7 +3,7 @@
 Source: phone scope (2026-11-15), milestone 3, changed at the desk the same day — see
 [Slice 1](01-items-api.md).
 
-*Built (wave 2026-11-15), PR #36, not yet verified: no client has been written from the guide yet.*
+*Built (wave 2026-11-15), merged as PR #36 (e59a231); not yet verified: no client has been written from the guide yet.*
 
 **Touches:** `README.md`, `docs/clients.md`
 
@@ -39,7 +39,7 @@ work over: one page a client author can build from without reading the server co
 - [x] `docs/clients.md`: env variables, both call styles with examples, every tool with its
       input and output, the key format, fail-open, what to report when.
 - [x] README links to it.
-- [ ] Tell the owner's config repo it can start its client (its own planned slice already
+- [x] Tell the owner's config repo it can start its client (its own planned slice already
       exists there; no code from this repo goes into it). In an unattended run this is one
       line under *Outstanding work* in `plan.md` saying the guide is ready; nothing is written
       to another repo.
@@ -55,7 +55,7 @@ report when). Examples were checked against `src/mcp`, `src/api` and the tests' 
 and the POST headers against the MCP SDK source (both Accept values, JSON content type). Lint,
 typecheck and `npm test` green (33 tests). No review passes (docs-only change).
 
-#### For plan.md
+#### For plan.md (lifted 2026-11-15)
 
 - *Outstanding work* line: the client guide (`docs/clients.md`) is ready; the owner's config
   repo can start its client. Nothing was written to another repo. (Work item 3 closes with the

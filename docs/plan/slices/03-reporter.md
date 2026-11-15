@@ -3,7 +3,7 @@
 Source: phone scope (2026-11-15), milestone 3, changed at the desk the same day — see
 [Slice 1](01-items-api.md).
 
-*Planned.*
+*In progress (wave 2026-11-15), draft PR.*
 
 **Touches:** `README.md`, `docs/clients.md`
 

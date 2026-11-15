@@ -5,7 +5,9 @@ across projects" (2026-11-15), milestone 1 and *First step*; changed at the desk
 the owner decided the board exposes **everything through MCP**, and building clients is the
 job of the repos that want one (see [Slice 3](03-reporter.md)).
 
-*Planned.*
+*In progress (wave 2026-11-15), draft PR.*
+
+**Migrations:** 0001
 
 **Touches:** `package.json`, `package-lock.json`, `tsconfig.json`, `wrangler.jsonc`,
 `eslint.config.js`, `migrations/0001_items.sql`, `src/**`, `test/**`, `.dev.vars.example`,

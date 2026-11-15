@@ -1,4 +1,10 @@
 import { ItemStatus, ItemType, Priority } from "./domain/item";
+import {
+  DEFAULT_STALE_AFTER_MINUTES,
+  isValidStaleAfter,
+  MAX_STALE_AFTER_MINUTES,
+  MIN_STALE_AFTER_MINUTES,
+} from "./domain/stale";
 import { MAX_WINDOW_HOURS, type WindowConfig } from "./domain/window";
 
 export const DEFAULT_WINDOW: WindowConfig = { defaultHours: 12, maxHours: 72 };
@@ -41,6 +47,7 @@ export const PALETTE_KEYS = [
   "link",
   "linkHover",
   "tileWhy",
+  "staleBg",
   "staleBorder",
   "grab",
   "scrim",
@@ -63,6 +70,8 @@ export type Palette = Record<(typeof PALETTE_KEYS)[number], string>;
 
 export interface BoardConfig {
   window: WindowConfig;
+  /** Whole minutes without a heartbeat before a live item turns stale. */
+  staleAfterMinutes: number;
   projects: ProjectConfig[];
   types: Partial<Record<ItemType, TypeConfig>>;
   statuses: Partial<Record<ItemStatus, Schemes<StatusColors>>>;
@@ -81,6 +90,7 @@ export function parseConfig(raw: string | undefined): BoardConfig {
 export function configFromRecord(parsed: Record<string, unknown>): BoardConfig {
   return {
     window: readWindow(asRecord(parsed.window)),
+    staleAfterMinutes: readStaleAfter(parsed.staleAfterMinutes),
     projects: readProjects(parsed.projects),
     types: readTypes(parsed.types),
     statuses: readNamed("statuses", parsed.statuses, Object.values(ItemStatus), isStatusEntry),
@@ -215,6 +225,15 @@ function readWindow(raw: Record<string, unknown>): WindowConfig {
     return DEFAULT_WINDOW;
   }
   return { defaultHours, maxHours };
+}
+
+function readStaleAfter(raw: unknown): number {
+  if (raw === undefined) return DEFAULT_STALE_AFTER_MINUTES;
+  if (isValidStaleAfter(raw)) return raw;
+  console.error(
+    `BOARD_CONFIG staleAfterMinutes: need a whole number from ${MIN_STALE_AFTER_MINUTES} to ${MAX_STALE_AFTER_MINUTES}; using ${DEFAULT_STALE_AFTER_MINUTES}`,
+  );
+  return DEFAULT_STALE_AFTER_MINUTES;
 }
 
 function isHours(value: unknown): value is number {

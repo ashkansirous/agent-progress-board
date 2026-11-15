@@ -55,7 +55,7 @@ Cloudflare Access (there is no local bypass). The E2E tests serve the bare page 
 
 Worker secrets (never in the repo; `wrangler secret put <NAME>`): `BOARD_WRITE_TOKEN` (all
 tools), `BOARD_READ_TOKEN` (`list_open`, `get_item`), `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD` and the
-optional `BOARD_CONFIG` (one JSON string, see `config/board.example.json`: window hours,
+optional `BOARD_CONFIG` (one JSON string, see `config/board.example.json`: window hours, `staleAfterMinutes`,
 projects, type labels and colours). The last three are secrets too because the pipeline deploy
 (`wrangler deploy`) replaces dashboard plain-text vars with the config file's and the file holds
 none, while it keeps secrets. In `BOARD_CONFIG` a type's old single `color` key is no longer read:
@@ -90,6 +90,11 @@ Optional fields on `report_progress` and `ask_human`: leave one out to keep the 
 An item has `key`, `project`, `parent`, `type`, `priority`, `status`, `title`, `why`,
 `details_md`, `links`, `source`, `heartbeat_at`, `created_at`, `updated_at`, `done_at`. A
 report that changes nothing but the heartbeat writes an event with the note `Heartbeat`.
+
+A Workers cron trigger (every 15 minutes, `triggers` in `wrangler.jsonc`) turns a live
+`in_progress` or `blocked` item whose heartbeat is older than `staleAfterMinutes` (config,
+default 120, 60 to 10080) to `stale` and writes the event `Heartbeat expired`; a new report on
+the key brings it back. Items only doc sync set never go stale.
 
 A plain HTTPS POST works without an MCP client or an `initialize` call (both `Accept`
 types are required):

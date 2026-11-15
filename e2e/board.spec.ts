@@ -432,6 +432,21 @@ test.describe("tile why colour", () => {
   });
 });
 
+test.describe("stale tile colours", () => {
+  test("a stale tile draws the palette's staleBg and staleBorder and a muted title", async ({ page }) => {
+    await openBoard(page);
+    const stale = tileTitled(page, "Slice 10 · Seed inventory");
+    const palette = examplePalette();
+    expect(await css(stale, "background-color")).toBe(palette.staleBg);
+    expect(await css(stale, "border-top-color")).toBe(palette.staleBorder);
+    expect(await css(stale.locator(".tile-title"), "color")).toBe(palette.muted);
+    // The mock: light bg #F5F6F8 and border #9AA3B2; dark bg #171A21 and border #4A5262.
+    const dark = isPhone();
+    expect(await css(stale, "background-color")).toBe(dark ? "rgb(23, 26, 33)" : "rgb(245, 246, 248)");
+    expect(await css(stale, "border-top-color")).toBe(dark ? "rgb(74, 82, 98)" : "rgb(154, 163, 178)");
+  });
+});
+
 test.describe("refresh", () => {
   test("the refresh button loads again", async ({ page }) => {
     await page.clock.setFixedTime(new Date(SERVER_TIME));

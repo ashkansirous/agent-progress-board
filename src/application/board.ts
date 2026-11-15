@@ -6,6 +6,7 @@ import {
   validateSnapshot,
 } from "../domain/docSync";
 import { type Item, ItemStatus, ItemType, type ItemWithEvents } from "../domain/item";
+import { staleCutoff } from "../domain/stale";
 import { DomainError, newItem, type ReportInput } from "../domain/upsert";
 import { resolveWindowHours, type WindowConfig, windowCutoff } from "../domain/window";
 import { type ItemRepository, LIST_EVENT_LIMIT } from "./ports";
@@ -115,6 +116,16 @@ export async function listOpen(
     cutoff: windowCutoff(clock.now(), hours),
     eventLimit: LIST_EVENT_LIMIT,
   });
+}
+
+/** The cron's one job: turn live items without a recent heartbeat stale; returns how many. */
+export async function markStaleItems(
+  repo: ItemRepository,
+  staleAfterMinutes: number,
+  clock: Clock,
+): Promise<number> {
+  const now = clock.now();
+  return repo.markStale(staleCutoff(now, staleAfterMinutes), now.toISOString());
 }
 
 export async function getItem(repo: ItemRepository, key: string): Promise<ItemWithEvents> {

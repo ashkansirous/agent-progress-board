@@ -153,6 +153,14 @@ required; for an existing key they are optional.
 Returns the item. A report that changes nothing but the heartbeat writes an event with the note
 `Heartbeat`, so a client can call it periodically to show a session is alive.
 
+**Staleness.** A cron job on the board runs every 15 minutes. An `in_progress` or `blocked`
+item that a report (not doc sync alone) set, and whose last report is older than the expiry
+(`staleAfterMinutes` in `BOARD_CONFIG`, default 120, from 60 to 10080), turns `stale` with the history note
+`Heartbeat expired`. So a client must call `report_progress` at least once per expiry while it
+works. Any report on a stale key brings it back: with a `status` that status is set, with only
+the `key` the item returns to the live status it had before it expired. Items only the docs
+set never go stale.
+
 ### `mark_done` (write token)
 
 Sets an existing item to `done`. Fields: `key` (required), `source` (null clears), `note`.
@@ -288,8 +296,8 @@ Guidance, not code: each client repo decides what it implements.
 - **A session needs a person:** `ask_human` on the session's or slice's key with a one-line
   `title` and the reason in `why`; `mark_done` once answered.
 - **A session finished:** `mark_done` on `<project>/session-<id>`.
-- **A session still running:** an occasional `report_progress` with just the `key` as a
-  heartbeat.
+- **A session still running:** a `report_progress` with just the `key` as a heartbeat, at
+  least once per expiry (default 2 hours; every 30 minutes is safe), or the item turns stale.
 
 ## Cloud sessions
 

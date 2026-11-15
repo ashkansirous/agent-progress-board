@@ -36,6 +36,13 @@ export interface ItemRepository {
    * while its row still matches what was read, so a live report in between is never undone.
    */
   applySync(writes: SyncWrite[], closes: SyncRow[], now: string): Promise<void>;
+  /**
+   * One atomic batch: a history event (status stale) for every item whose heartbeat is older
+   * than the cutoff and whose shown status is a live one, then those items set to stale. Both
+   * statements carry the rule, so a report that lands in between is never overwritten; items
+   * already stale no longer match, so a second run writes nothing. Returns how many turned stale.
+   */
+  markStale(cutoff: string, now: string): Promise<number>;
   listBoard(filter: BoardFilter): Promise<ItemWithEvents[]>;
   /** Newest first, all events. */
   eventsFor(key: string): Promise<ItemEvent[]>;

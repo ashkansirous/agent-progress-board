@@ -10,6 +10,9 @@
     "run_worker_first": true,
     "not_found_handling": "single-page-application"
   },
+  // Slice 7: every 15 minutes marks live items stale once their heartbeat expires (src/index.ts
+  // scheduled); the expiry itself is staleAfterMinutes in BOARD_CONFIG, at least 60.
+  "triggers": { "crons": ["*/15 * * * *"] },
   "d1_databases": [
     {
       "binding": "DB",

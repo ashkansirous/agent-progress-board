@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import type { BoardPageConfig } from "../../src/api/boardDto";
 import type { ColorSet, Palette, StatusColors } from "../../src/config";
+import exampleConfig from "../../config/board.example.json" with { type: "json" };
 import type { ItemStatus, ItemType, Priority } from "../../src/domain/item";
 
 export type SchemeName = "light" | "dark";
@@ -32,8 +33,15 @@ export function looksFor(config: BoardPageConfig | null, scheme: SchemeName): Lo
   };
 }
 
+/**
+ * The palette the page starts with, per colour scheme, taken at build time from the example config (the
+ * one source of colours). It paints the loading and failed-load cards, which show before or without a
+ * response; the server's own palette replaces it as soon as one arrives.
+ */
+const DEFAULT_PALETTES = exampleConfig.palettes as Record<SchemeName, Palette>;
+
 /** The palette as CSS custom properties (`--page`, `--text`, ...) for the page's root element. */
 export function paletteVars(config: BoardPageConfig | null, scheme: SchemeName): CSSProperties {
-  const palette: Partial<Palette> = config?.palettes[scheme] ?? {};
+  const palette: Partial<Palette> = { ...DEFAULT_PALETTES[scheme], ...config?.palettes[scheme] };
   return Object.fromEntries(Object.entries(palette).map(([name, colour]) => [`--${name}`, colour])) as CSSProperties;
 }

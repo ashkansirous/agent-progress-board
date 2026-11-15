@@ -71,14 +71,15 @@ function HistoryRow({ event }: { event: BoardEventDto }) {
 
 function History({ item }: { item: BoardItemDto }) {
   const { t } = useView();
-  const events = [...item.events].sort((a, b) => b.at.localeCompare(a.at));
+  const events = item.events;
   if (events.length === 0) return null;
   return (
     <div className="history">
       <h3>{t("history")}</h3>
       <ol>
-        {events.map((event) => (
-          <HistoryRow key={`${event.at}|${event.status}|${event.note ?? ""}`} event={event} />
+        {events.map((event, index) => (
+          // The server's order is kept (newest first); rows never reorder, so the index is a stable key.
+          <HistoryRow key={index} event={event} />
         ))}
       </ol>
     </div>
@@ -134,10 +135,16 @@ function useDialogFocus(onClose: () => void) {
     document.addEventListener("keydown", onKey);
     return () => {
       document.removeEventListener("keydown", onKey);
-      if (opener instanceof HTMLElement) opener.focus();
+      focusAfterClose(opener);
     };
   }, [onClose, opener]);
   return closeRef;
+}
+
+/** Back to the tile that opened the dialog; if that tile is gone (the item left the board), to the page's first button. */
+function focusAfterClose(opener: Element | null) {
+  if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
+  else document.querySelector<HTMLElement>(".page button")?.focus();
 }
 
 /** The detail view: a side panel over the board on desktop, a bottom sheet on the phone. */

@@ -40,8 +40,9 @@ function Body({ props, onOpen }: { props: PageProps; onOpen: (key: string) => vo
   if (state.data) {
     return state.data.items.length === 0 ? <EmptyCard hours={state.data.window_hours} /> : <Groups data={state.data} onOpen={onOpen} />;
   }
-  if (state.error && !state.loading) return <ErrorCard status={state.error.status} onRetry={onRefresh} />;
-  return state.slow ? <LoadingCard /> : null;
+  if (state.slow) return <LoadingCard />;
+  if (state.error) return <ErrorCard status={state.error.status} onRetry={onRefresh} />;
+  return null;
 }
 
 function useViewValue(props: PageProps): View {
@@ -67,6 +68,8 @@ export function BoardPage(props: PageProps) {
   const close = useCallback(() => setOpenKey(null), []);
   const view = useViewValue(props);
   const open = state.data?.items.find((item) => item.key === openKey);
+  // The open item left the data (a refresh dropped it, or a failed refresh cleared the board): forget it.
+  if (openKey !== null && !open) setOpenKey(null);
   return (
     <ViewProvider value={view}>
       <div className={env.phone ? "app phone" : "app"} style={paletteVars(state.config, env.scheme)}>

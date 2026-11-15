@@ -1,7 +1,7 @@
 import { env, exports } from "cloudflare:workers";
-import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT } from "jose";
-import { beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { ACCESS_JWT_HEADER, type AccessKeys } from "../src/api/access";
+import { createLocalJWKSet, errors, exportJWK, generateKeyPair, SignJWT } from "jose";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { ACCESS_JWT_HEADER, type AccessKeys, remoteAccessKeys } from "../src/api/access";
 import type { BoardResponse } from "../src/api/boardDto";
 import { route, type RouterDeps, type RouterEnv } from "../src/api/router";
 import { D1ItemRepository } from "../src/infrastructure/d1Repository";
@@ -100,6 +100,33 @@ describe("Access gate", () => {
       .setExpirationTime("1h")
       .sign(other.privateKey);
     expect((await route(get(BOARD_URL, forged), accessEnv, deps())).status).toBe(403);
+  });
+
+  it("answers 503, logs, and serves nothing when the key set cannot be fetched", async () => {
+    const failing: AccessKeys = () => async () => {
+      throw new errors.JOSEError("Expected 200 OK from the JSON Web Key Set HTTP response");
+    };
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const token = await sign();
+    for (const url of [BOARD_URL, PAGE_URL]) {
+      const response = await route(get(url, token), accessEnv, { ...deps(), accessKeys: failing });
+      expect(response.status).toBe(503);
+      expect(await response.text()).toBe("Access check unavailable");
+    }
+    expect(assetRequests).toEqual([]);
+    expect(logged).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(logged.mock.calls)).not.toContain(token);
+    logged.mockRestore();
+  });
+
+  it("answers 503 and logs when the team domain is malformed", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const bad: RouterEnv = { ...accessEnv, ACCESS_TEAM_DOMAIN: "not a domain" };
+    const response = await route(get(BOARD_URL, await sign()), bad, { ...deps(), accessKeys: remoteAccessKeys });
+    expect(response.status).toBe(503);
+    expect(logged).toHaveBeenCalledTimes(1);
+    expect(assetRequests).toEqual([]);
+    logged.mockRestore();
   });
 
   it("refuses the deployed worker's board when Access is not configured", async () => {

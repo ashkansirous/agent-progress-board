@@ -2,7 +2,7 @@ import type { Clock } from "../application/board";
 import type { ItemRepository } from "../application/ports";
 import { parseConfig } from "../config";
 import { handleMcp } from "../mcp/handler";
-import { type AccessEnv, type AccessKeys, hasAccess, remoteAccessKeys } from "./access";
+import { type AccessEnv, AccessDecision, type AccessKeys, checkAccess, remoteAccessKeys } from "./access";
 import { authenticate, type TokenSecrets } from "./auth";
 import { boardResponse } from "./board";
 
@@ -28,7 +28,9 @@ export async function route(request: Request, env: RouterEnv, deps: RouterDeps):
   const url = new URL(request.url);
   if (url.pathname === MCP_PATH) return routeMcp(request, env, deps);
   if (!READ_METHODS.includes(request.method)) return methodNotAllowed(READ_METHODS.join(", "));
-  if (!(await hasAccess(request, env, deps.accessKeys ?? remoteAccessKeys))) return forbidden();
+  const access = await checkAccess(request, env, deps.accessKeys ?? remoteAccessKeys);
+  if (access === AccessDecision.Denied) return forbidden();
+  if (access === AccessDecision.Unavailable) return unavailable();
   if (url.pathname === BOARD_PATH) return boardResponse(deps.repo, parseConfig(env.BOARD_CONFIG), deps.clock);
   return env.ASSETS ? env.ASSETS.fetch(request) : notFound();
 }
@@ -50,6 +52,10 @@ function notFound(): Response {
 
 function forbidden(): Response {
   return new Response("Forbidden", { status: 403 });
+}
+
+function unavailable(): Response {
+  return new Response("Access check unavailable", { status: 503 });
 }
 
 function unauthorized(): Response {

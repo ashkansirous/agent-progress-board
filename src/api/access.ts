@@ -1,4 +1,4 @@
-import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from "jose";
+import { createRemoteJWKSet, errors, jwtVerify, type JWTVerifyGetKey } from "jose";
 
 export const ACCESS_JWT_HEADER = "Cf-Access-Jwt-Assertion";
 const ACCESS_CERTS_PATH = "/cdn-cgi/access/certs";
@@ -33,19 +33,47 @@ export function teamUrlOf(teamDomain: string): string {
   return SCHEME_PATTERN.test(trimmed) ? trimmed : `https://${trimmed}`;
 }
 
-/** True only for a request carrying a valid Cloudflare Access JWT for this application. */
-export async function hasAccess(request: Request, env: AccessEnv, keys: AccessKeys): Promise<boolean> {
+/** Granted: valid token. Denied: no or bad token (403). Unavailable: the check itself could not run (503). */
+export enum AccessDecision {
+  Granted = "granted",
+  Denied = "denied",
+  Unavailable = "unavailable",
+}
+
+/** Errors that mean "this token is not acceptable", as opposed to "the key set could not be read". */
+const TOKEN_ERRORS = [
+  errors.JWTInvalid,
+  errors.JWSInvalid,
+  errors.JWTExpired,
+  errors.JWTClaimValidationFailed,
+  errors.JWSSignatureVerificationFailed,
+  errors.JOSEAlgNotAllowed,
+  errors.JWKSNoMatchingKey,
+  errors.JWKSMultipleMatchingKeys,
+];
+
+function isTokenError(error: unknown): boolean {
+  return TOKEN_ERRORS.some((kind) => error instanceof kind);
+}
+
+/** Only the kind of failure is logged, never the token or the request. */
+function logUnavailable(error: unknown): void {
+  const kind = error instanceof Error ? error.name : typeof error;
+  const message = error instanceof Error ? error.message : "";
+  console.error(`Access check unavailable (${kind}): ${message}`);
+}
+
+/** Decides one request: a valid Cloudflare Access JWT for this application is the only way in. */
+export async function checkAccess(request: Request, env: AccessEnv, keys: AccessKeys): Promise<AccessDecision> {
   const token = request.headers.get(ACCESS_JWT_HEADER);
-  if (!token || !env.ACCESS_TEAM_DOMAIN?.trim() || !env.ACCESS_AUD?.trim()) return false;
-  const issuer = teamUrlOf(env.ACCESS_TEAM_DOMAIN);
+  if (!token || !env.ACCESS_TEAM_DOMAIN?.trim() || !env.ACCESS_AUD?.trim()) return AccessDecision.Denied;
   try {
-    await jwtVerify(token, keys(issuer), {
-      issuer,
-      audience: env.ACCESS_AUD,
-      algorithms: [ACCESS_ALGORITHM],
-    });
-    return true;
-  } catch {
-    return false;
+    const issuer = teamUrlOf(env.ACCESS_TEAM_DOMAIN);
+    await jwtVerify(token, keys(issuer), { issuer, audience: env.ACCESS_AUD, algorithms: [ACCESS_ALGORITHM] });
+    return AccessDecision.Granted;
+  } catch (error) {
+    if (isTokenError(error)) return AccessDecision.Denied;
+    logUnavailable(error);
+    return AccessDecision.Unavailable;
   }
 }

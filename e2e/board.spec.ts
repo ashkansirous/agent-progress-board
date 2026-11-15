@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import type { BoardResponse } from "../src/api/boardDto";
+import exampleConfig from "../config/board.example.json" with { type: "json" };
 import { demoBoard, demoItem, SERVER_TIME } from "./fixture";
 
 const BOARD_ROUTE = "**/api/board";
@@ -243,6 +244,50 @@ test.describe("detail", () => {
   });
 });
 
+test.describe("open item leaves the board", () => {
+  const OPEN_TITLE = "Slice 4 · Tag search";
+
+  test("a refresh that drops the item closes the detail for good and returns focus", async ({ page }) => {
+    const full = demoBoard();
+    const without = demoBoard(full.items.filter((item) => item.key !== "recipe-box/slice-4"));
+    let current = full;
+    await page.route(BOARD_ROUTE, (route) => route.fulfill({ json: current }));
+    await page.goto("/");
+    await tileTitled(page, OPEN_TITLE).click();
+    const dialog = page.getByRole("dialog", { name: "Item details" });
+    await expect(dialog).toBeVisible();
+    current = without;
+    await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+    await expect(dialog).toHaveCount(0);
+    await expect(tileTitled(page, OPEN_TITLE)).toHaveCount(0);
+    await expect(page.locator(".page")).not.toHaveAttribute("inert");
+    await expect(page.getByRole("button", { name: "Refresh now" })).toBeFocused();
+    current = full;
+    await page.getByRole("button", { name: "Refresh now" }).click();
+    await expect(tileTitled(page, OPEN_TITLE)).toBeVisible();
+    await expect(dialog).toHaveCount(0);
+  });
+
+  test("a failed refresh clears the board and closes the detail", async ({ page }) => {
+    let failing = false;
+    await page.route(BOARD_ROUTE, (route) =>
+      failing ? route.fulfill({ status: 503, body: "{}" }) : route.fulfill({ json: demoBoard() }),
+    );
+    await page.goto("/");
+    await tileTitled(page, OPEN_TITLE).click();
+    const dialog = page.getByRole("dialog", { name: "Item details" });
+    await expect(dialog).toBeVisible();
+    failing = true;
+    await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+    await expect(page.getByText("Couldn’t load the board")).toBeVisible();
+    await expect(dialog).toHaveCount(0);
+    failing = false;
+    await page.getByRole("button", { name: "Retry" }).click();
+    await expect(tileTitled(page, OPEN_TITLE)).toBeVisible();
+    await expect(dialog).toHaveCount(0);
+  });
+});
+
 test.describe("states", () => {
   test("an empty board says so", async ({ page }) => {
     await serveBoard(page, demoBoard([]));
@@ -267,6 +312,25 @@ test.describe("states", () => {
     await page.getByRole("button", { name: "Retry" }).click();
     await expect(project(page, "Recipe Box")).toBeVisible();
     await expect(page.getByText("Couldn’t load the board")).toHaveCount(0);
+  });
+
+  test("after a failure, Retry never leaves a blank page: the card stays until the loading card or the board", async ({ page }) => {
+    let failing = true;
+    await page.route(BOARD_ROUTE, async (route) => {
+      if (failing) return route.fulfill({ status: 503, body: "{}" });
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      return route.fulfill({ json: demoBoard() });
+    });
+    await page.goto("/");
+    await expect(page.getByText("Couldn’t load the board")).toBeVisible();
+    failing = false;
+    await page.getByRole("button", { name: "Retry" }).click();
+    await page.waitForTimeout(250);
+    await expect(page.getByText("Couldn’t load the board")).toBeVisible();
+    await expect(page.getByText("Loading the board…")).toHaveCount(0);
+    await expect(page.getByText("Loading the board…")).toBeVisible({ timeout: 1000 });
+    await expect(page.getByText("Couldn’t load the board")).toHaveCount(0);
+    await expect(project(page, "Recipe Box")).toBeVisible();
   });
 
   test("an unreachable API says so", async ({ page }) => {
@@ -299,6 +363,72 @@ test.describe("states", () => {
     await expect(page.getByText("Loading the board…")).toBeVisible({ timeout: 1000 });
     await expect(project(page, "Recipe Box")).toBeVisible();
     await expect(page.getByText("Loading the board…")).toHaveCount(0);
+  });
+});
+
+/** What the example config says the page's palette is, as the browser reports a colour. */
+const examplePalette = () => paletteOf(isPhone() ? "dark" : "light");
+
+function paletteOf(scheme: "light" | "dark"): Record<string, string> {
+  const raw = exampleConfig.palettes[scheme] as Record<string, string>;
+  return Object.fromEntries(Object.entries(raw).map(([name, hex]) => [name, rgbOf(hex)]));
+}
+
+function rgbOf(hex: string): string {
+  const [r, g, b] = [1, 3, 5].map((at) => Number.parseInt(hex.slice(at, at + 2), 16));
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+test.describe("state cards use the palette without a response", () => {
+  test("the failed-load card (503) is drawn in the config palette", async ({ page }) => {
+    await page.route(BOARD_ROUTE, (route) => route.fulfill({ status: 503, contentType: "application/json", body: "{}" }));
+    await page.goto("/");
+    const retry = page.getByRole("button", { name: "Retry" });
+    await expect(retry).toBeVisible();
+    const palette = examplePalette();
+    expect(await css(retry, "background-color")).toBe(palette.primaryBg);
+    expect(await css(retry, "color")).toBe(palette.primaryFg);
+    expect(await css(page.locator(".state-card svg"), "stroke")).toBe(palette.danger);
+    expect(await css(page.locator(".state-card"), "background-color")).toBe(palette.card);
+  });
+
+  test("the loading card (slow response) is drawn in the config palette", async ({ page }) => {
+    await page.route(BOARD_ROUTE, async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 2500));
+      await route.fulfill({ json: demoBoard() });
+    });
+    await page.goto("/");
+    await expect(page.getByText("Loading the board…")).toBeVisible({ timeout: 1500 });
+    const palette = examplePalette();
+    expect(await css(page.locator(".state-card"), "background-color")).toBe(palette.card);
+    expect(await css(page.locator(".skeleton-heading"), "background-color")).toBe(palette.skeletonBar);
+    expect(await css(page.locator(".skeleton-label"), "background-color")).toBe(palette.skeletonBar);
+    expect(await css(page.locator(".skeleton-strip"), "background-color")).toBe(palette.skeletonStrip);
+    expect(await css(page.locator(".skeleton-tile").first(), "background-color")).toBe(palette.skeletonTile);
+  });
+
+  test("a failed refresh keeps the palette the board arrived with", async ({ page }) => {
+    let failing = false;
+    await page.route(BOARD_ROUTE, (route) =>
+      failing ? route.fulfill({ status: 503, body: "{}" }) : route.fulfill({ json: demoBoard() }),
+    );
+    await page.goto("/");
+    await expect(project(page, "Recipe Box")).toBeVisible();
+    failing = true;
+    await page.getByRole("button", { name: "Refresh now" }).click();
+    const retry = page.getByRole("button", { name: "Retry" });
+    await expect(retry).toBeVisible();
+    expect(await css(retry, "background-color")).toBe(examplePalette().primaryBg);
+  });
+});
+
+test.describe("tile why colour", () => {
+  test("a tile's why text uses the palette's tileWhy colour", async ({ page }) => {
+    await openBoard(page);
+    const why = tileTitled(page, "CI failing on main").locator(".tile-why");
+    // The phone mock draws the tile why text #B3BBC8 (Phone.dc.html), which the dark palette's tileWhy holds.
+    expect(await css(why, "color")).toBe(examplePalette().tileWhy);
+    if (isPhone()) expect(await css(why, "color")).toBe("rgb(179, 187, 200)");
   });
 });
 

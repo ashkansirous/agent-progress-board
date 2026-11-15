@@ -121,7 +121,7 @@ describe("theme", () => {
   });
 
   it("turns the palette into custom properties", () => {
-    expect(paletteVars(config, "dark")).toEqual({ "--page": "#000" });
-    expect(paletteVars(null, "light")).toEqual({});
+    expect(paletteVars(config, "dark")).toMatchObject({ "--page": "#000", "--text": "#E8EAEE" });
+    expect(paletteVars(null, "light")).toMatchObject({ "--page": "#F5F6F8", "--primaryBg": "#14171C" });
   });
 });

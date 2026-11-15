@@ -19,13 +19,15 @@ private Claude Code config repo; this repo hands them a tool reference and a cli
 
 | Slice | Title | Status | PR | Issue | File |
 | --- | --- | --- | --- | --- | --- |
-| 1 | Worker + D1 items store behind an MCP endpoint | parked: built and merged (PR #31); Workers Builds connected, first deploy not run yet | #31 | | [01](docs/plan/slices/01-items-api.md) |
-| 2 | Tile board page | parked: built and merged (PR #35); Access setup waits for the owner | #35 | | [02](docs/plan/slices/02-tile-board.md) |
-| 5 | OAuth so claude.ai can use the MCP server | parked: built and merged (PR #42); the claude.ai connector waits for the owner, after the first deploy | #42 | | [05](docs/plan/slices/05-remote-mcp.md) |
+| 1 | Worker + D1 items store behind an MCP endpoint | planned | #31 | | [01](docs/plan/slices/01-items-api.md) |
+| 2 | Tile board page | planned | #35 | | [02](docs/plan/slices/02-tile-board.md) |
+| 5 | OAuth so claude.ai can use the MCP server | planned | #42 | | [05](docs/plan/slices/05-remote-mcp.md) |
 
 Notes:
 
 - [Finished slices](docs/plan/notes/slices-done.md): rows of built slices.
+- [Feedback loop 2026-11-15](docs/plan/notes/2026-11-15-1406-feedback-loop.md): what the end-of-run audit found.
+- Slices 1, 2 and 5 are built and merged; they are `planned` again so the next run retries what is left (each slice file has a *Park note*).
 
 ## Decisions (from the phone scope, approved 2026-11-15)
 
@@ -50,7 +52,7 @@ Notes:
 
 ## Outstanding work
 
-- **Not yet tried on a device:** 25 checks across 7 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
+- **Not yet tried on a device:** 26 checks across 7 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
 - The D1 database and the Worker secrets exist.
 - The client guide (`docs/clients.md`) is ready (Slice 3); the owner's config repo can start its
   client.
@@ -59,7 +61,8 @@ Notes:
   No build has run yet (`wrangler deployments list`, 16:33Z: only the upload and three secret changes);
   the first one needs a push to `main` without the skip-CI marker or the deploy hook, which the
   starter session starts after the night's last merge. It holds every deployed-Worker check.
-- **Waiting on the user:** create the Cloudflare Access application for the board page and set the
+- The custom domain is not attached to the Worker yet; [Slice 2](docs/plan/slices/02-tile-board.md) has it as a work item, tried by API first (the hostname is not written in this repo).
+- **Waiting on the user:** create the Cloudflare Access application for the board page on the custom hostname and set the
   `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` Worker secrets, in
   [Zero Trust, Access applications](https://one.dash.cloudflare.com/?to=/:account/access/apps) (the link was not
   opened by the run that wrote it: it needs the owner's login).
@@ -68,7 +71,12 @@ Notes:
 - **Waiting on the user:** after the first deploy, add the board as a custom connector in claude.ai ([https://claude.ai/settings/connectors](https://claude.ai/settings/connectors), "Add custom connector", the Worker's `/mcp` address on `workers.dev`, not the page's custom domain, which sits behind Access; see [Slice 2](docs/plan/slices/02-tile-board.md) *Address*) and type the passphrase from the secrets store entry `OWNER_PASSPHRASE`. It blocks only the claude.ai check. (The link was not opened by the run that wrote it: it needs the owner's login.)
 - `OWNER_PASSPHRASE` is in the secrets store and set as a Worker secret; the `OAUTH_KV` namespace is created by the first deploy ([Slice 5](docs/plan/slices/05-remote-mcp.md)).
 - Follow-up (Slice 5): the Worker has no way for the owner to end a grant; the README names the library calls only. See [Slice 5](docs/plan/slices/05-remote-mcp.md) *Not yet verified*.
-- Follow-up (Slice 7): the browser test `e2e/board.spec.ts:317` ("after a failure, Retry never leaves a blank page") failed once in a full run and is intermittent. See [Slice 7](docs/plan/slices/07-stale-detection.md) *Verification*.
+- Follow-up (Slice 7): the browser test `e2e/board.spec.ts:317` ("after a failure, Retry never leaves a blank page") failed once in a full run and is intermittent. See [Slice 7](docs/plan/slices/07-stale-detection.md) *Verification*; the likely cause (wall-clock timing windows) is the fifth follow-up in [Slice 2](docs/plan/slices/02-tile-board.md).
+- Follow-ups of built slices whose rows are in the finished list stay open in their slice files: [Slice 4](docs/plan/slices/04-doc-sync.md) *Follow-ups (open, not built)* (the summary counts include writes the stale-read guard skipped; a very large close fails the whole batch) and [Slice 7](docs/plan/slices/07-stale-detection.md) *Follow-ups*.
+- Open, small: add `tmp/` to `.gitignore` (check agents write logs with local paths there; a review of Slice 1 found them untracked in this public repo). Goes with the next code PR, since the merge gate reviews that file as code.
+- **First deploy, open task:** no build has deployed the Worker (`wrangler deployments list`, 16:39Z on 2026-11-15). Every merge of the night carried the skip-CI marker, the repo has no `workerPaths` in `.claude/merge-gate.json` and no deploy hook, so the batch release started nothing and warned about nothing. Done when `wrangler deployments list` shows a deployment whose source is not "Secret Change" and `/mcp` on the deployed Worker answers 401 without a token. Until then all 26 unverified checks wait. Route: a merge to `main` without the skip-CI marker once no batch is open, or a retry of the build in the Worker's Builds page; never `wrangler deploy` from a shell.
+- **Deploy trigger, open tooling task:** add `.claude/merge-gate.json` with `workerPaths` (`src/**`, `web/**`, `migrations/**`, `wrangler.jsonc`, `package.json`) and a Workers Builds deploy hook URL in the secrets store, so a batch release starts the build. Creating the hook needs the Cloudflare dashboard (the machine's wrangler login has no Workers Builds scope).
+- Feedback loop of 2026-11-15: [note](docs/plan/notes/2026-11-15-1406-feedback-loop.md), with the open tooling findings it could not fix in its time.
 
 ## Risks / kill criteria
 

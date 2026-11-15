@@ -7,6 +7,8 @@ job of the repos that want one (see [Slice 3](03-reporter.md)).
 
 *Built 2026-11-15, merged 2026-11-15 as PR #31. 33 tests; lint, typecheck and test green. Workers Builds is connected (2026-11-15) but the first deploy has not run yet; nothing is checked against a deployed Worker yet.*
 
+*Park note (2026-11-15; the feedback loop moved the row back to `planned` so the next run retries): the code is built and merged (PR #31). What is left is the first deploy and the checks against the deployed Worker. Workers Builds is connected; no build had run at 16:39Z on 2026-11-15 (`wrangler deployments list`).*
+
 **Migrations:** 0001
 
 **Touches:** `package.json`, `package-lock.json`, `tsconfig.json`, `wrangler.jsonc`,

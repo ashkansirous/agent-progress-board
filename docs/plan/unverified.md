@@ -3,6 +3,15 @@
 Every open "Not yet verified" check, one block per slice. A check that passes, or that the
 owner confirms, is removed here and its slice marked `verified`.
 
+### Slice 10: Task steps and the active work page ([slice](slices/10-task-steps.md))
+
+- The phone tile bar gap reads 2 px where the slice says "4 gap" (ambiguous).
+- Dark desktop (no artboard).
+- The loading blocks' colours and the failed card against the mock.
+- On the deployed board: three tasks from a real client run show on the active page with the right step (Verification section).
+- On the deployed board: a killed session leaves the page when it turns stale.
+- Migration 0004 applied by the pipeline.
+
 ### Slice 9: What 1% of the cap costs, per model ([slice](slices/09-cap-cost-estimate.md))
 
 - On the deployed board after some days of real reports: the estimate for a model that ran alone matches a hand calculation from the page's own numbers.

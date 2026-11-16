@@ -11,3 +11,4 @@ Rows moved out of `plan.md`'s status table once built.
 | 3 | Client handover: tool reference and client guide | built | #36 | | [03](../slices/03-reporter.md) |
 | 6 | Reporting from Claude Code cloud sessions | built | #37 | | [06](../slices/06-cloud-sessions.md) |
 | 5 | OAuth so claude.ai can use the MCP server | built | #42 | | [05](../slices/05-remote-mcp.md) |
+| 8 | Usage reports: tokens per model, cap readings, usage page | built | #53 | | [08](../slices/08-usage-reports.md) |

@@ -355,6 +355,7 @@ None: the README diff already carries the Active work view, the tile and drawer 
 
 #### Not yet verified
 
+- The deployed Worker accepts steps. Seen 2026-11-16 at 17:17Z, after the pipeline deploy of d90f7db: a `tools/list` call on the live `/mcp` endpoint with the read token shows a `steps` field. At 18:10Z a `list_open` call returned `steps`, `agent` and `model` on every item (all null: no client sends them yet, so the Active work page is empty).
 - The phone tile bar gap reads 2 px where the slice says "4 gap" (ambiguous).
 - Dark desktop (no artboard).
 - The loading blocks' colours and the failed card against the mock.

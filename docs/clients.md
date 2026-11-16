@@ -358,3 +358,20 @@ docs promise (read 2026-11-15; the docs change, so re-read them before relying o
 
 A client still fails open here: with the host not allowed, the token missing or the secret not
 reachable, it does nothing and exits 0.
+
+## Planned, not built yet (Slices 8 to 11)
+
+Nothing in this section exists on the board today. Do not send any of it yet: the tools do not
+read it yet. It is here so a client author can see what is coming. The tools
+described above are unchanged.
+
+- **`environment` on `report_progress` and `report_usage`** (optional, free text, 1 to 40
+  characters). It names where the agent ran, for example "laptop" or "cloud-vm". It comes from
+  the client's own config and is never hard-coded in a client or on the board: the board
+  shows the value as sent (or a label the board's owner maps to it) and treats the environment
+  named in its config as the main machine. A report with none counts as the main machine. The
+  board stores it on usage samples and on items.
+- The slices that add it: [Slice 8](plan/slices/08-usage-reports.md) (usage reports, the
+  `environment` field), [Slice 9](plan/slices/09-cap-cost-estimate.md) (what 1% of the cap
+  costs, per environment), [Slice 10](plan/slices/10-task-steps.md) (task steps) and
+  [Slice 11](plan/slices/11-slice-parts.md) (slice parts).

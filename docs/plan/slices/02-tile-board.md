@@ -311,9 +311,10 @@ files rendered side by side (values were taken from the *Design* section).
 *Done 2026-11-15 (18:29Z to 18:34Z, read back the same time):* the custom domain is attached and
 the Access application and the two Worker secrets exist; see the two ticked items in *Work*.
 
-*Waiting on the user:* open the board page on the custom hostname, sign in with the one-time
-code that goes to the owner's inbox, and confirm the board shows. It blocks the phone check
-below and comes before the claude.ai connector step.
+*Waiting on the user:* nothing. The owner opened the board page on the custom hostname and signed
+in on 2026-11-15 ("it works on my phone", see *History*), and the claude.ai connector step is done
+too (PR #55). The line that stood here until 2026-11-16 still asked for the sign-in, and a session
+gave it to the owner again as an open step that day.
 
 *Decision (2026-11-15, feedback loop):* the owner's "or claude.ai" for the sign-in was read as
 the claude.ai connector to `/mcp` ([Slice 5](05-remote-mcp.md)), not a login for the page:

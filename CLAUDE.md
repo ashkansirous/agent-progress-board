@@ -26,6 +26,10 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
 - **Deploys only through the pipeline** (merge to `main`), never `wrangler deploy` from a
   shell.
 
+- **This repo has no PR checks.** There is no GitHub Actions workflow; the only check is Workers
+  Builds on a push to `main`. Tell a merge agent "this repo has no PR checks" so it does not wait
+  for one ([note](docs/plan/notes/2026-11-16-1402-feedback-loop.md)).
+
 ## Commands and layout
 
 - `npm run lint`, `npm run typecheck`, `npm test` (Vitest in the Workers pool, local D1).

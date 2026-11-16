@@ -189,7 +189,7 @@ test.describe("usage page", () => {
     expect(await css(nav, "position")).toBe("sticky");
     const box = await nav.boundingBox();
     expect((box?.y ?? 0) + (box?.height ?? 0)).toBeGreaterThan(PHONE_HEIGHT - 2);
-    expect(await nav.locator("svg").count()).toBe(2);
+    expect(await nav.locator("svg").count()).toBe(3);
   });
 
   test("a wait over 500 ms shows the loading card, in the config palette", async ({ page }) => {

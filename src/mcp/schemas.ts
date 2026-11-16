@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { MAX_SNAPSHOT_ITEMS } from "../domain/docSync";
 import { ItemStatus, ItemType, Priority } from "../domain/item";
+import { MAX_STEP_LABEL, MAX_STEP_NOTE, MAX_STEPS } from "../domain/steps";
+import { StepState } from "../domain/stepTypes";
 
 const MAX_KEY = 200;
 const MAX_LABEL = 300;
@@ -47,6 +49,19 @@ const environment = z
   .max(MAX_ENVIRONMENT)
   .describe("Where the work ran, free text as the client names it (for example laptop or cloud-vm)");
 
+const step = z.object({
+  label: z.string().min(1).max(MAX_STEP_LABEL),
+  state: z.enum(StepState),
+  note: z.string().max(MAX_STEP_NOTE).nullable().optional().describe("Short text shown under the label"),
+});
+
+const stepsField = z
+  .array(step)
+  .max(MAX_STEPS)
+  .nullable()
+  .optional()
+  .describe("The task's whole steps list in order, at most one active; the newest list wins; null or empty clears it");
+
 export const reportProgressShape = {
   key,
   project: label.optional().describe("Required when the key is new"),
@@ -54,6 +69,9 @@ export const reportProgressShape = {
   title: label.optional().describe("Required when the key is new"),
   status: z.enum(ItemStatus).optional(),
   environment: environment.nullable().optional().describe("Where the work ran; null clears it"),
+  steps: stepsField,
+  agent: z.string().min(1).max(MAX_MODEL).nullable().optional().describe("Kind of agent holding the task; null clears it"),
+  model: z.string().min(1).max(MAX_MODEL).nullable().optional().describe("The agent's model; null clears it"),
   ...detailShape,
 };
 

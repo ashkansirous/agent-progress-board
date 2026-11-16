@@ -1,3 +1,5 @@
+import type { Step } from "./stepTypes";
+
 export enum ItemType {
   Slice = "slice",
   Problem = "problem",
@@ -44,6 +46,11 @@ export interface Item {
   source: string | null;
   /** Where the work ran, as the client sent it (free text, Slice 8). Optional so the doc sync, which never sets it, stays untouched. */
   environment?: string | null;
+  /** The task's own steps list, whole as the newest report sent it (Slice 10); optional like environment. */
+  steps?: Step[] | null;
+  /** The kind of agent holding the task, and its model: free text from the client (Slice 10). */
+  agent?: string | null;
+  model?: string | null;
   heartbeat_at: string;
   created_at: string;
   updated_at: string;

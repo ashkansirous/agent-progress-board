@@ -70,6 +70,11 @@ export function projectLabel(id: string, projects: ProjectConfig[]): string {
   return projects.find((p) => p.id === id)?.label ?? id;
 }
 
+/** The tasks an agent is working on now, the newest report first (the Active work page's list). */
+export function activeTasks(items: BoardItemDto[]): BoardItemDto[] {
+  return items.filter((item) => item.working).sort((a, b) => b.heartbeat_at.localeCompare(a.heartbeat_at));
+}
+
 export function distinctProjects(items: BoardItemDto[]): number {
   return new Set(items.map((i) => i.project)).size;
 }

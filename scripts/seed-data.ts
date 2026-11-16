@@ -36,6 +36,11 @@ export interface SeedItem {
   doneMinutesAgo?: number;
   /** Stale items: hours since the last heartbeat (the E2E fixture only). */
   heartbeatHoursAgo?: number;
+  /** A task an agent works on (Slice 10): its kind, model, where it runs and its steps. */
+  agent?: string;
+  model?: string;
+  environment?: string;
+  steps?: { label: string; state: string; note?: string }[];
 }
 
 export interface ToolCall {
@@ -127,6 +132,16 @@ export const SEED_ITEMS: SeedItem[] = [
       { at: "13:40", status: "in_progress", note: "Heartbeat" },
       { at: "12:00", status: "in_progress", note: "Session started" },
     ],
+    agent: "Implementer", model: "model-mid", environment: "cloud-vm",
+    steps: [
+      { label: "Implementation", state: "done" },
+      { label: "Review 1", state: "done" },
+      { label: "Fixing", state: "done" },
+      { label: "Review 2", state: "active", note: "Two helper agents count under this step" },
+      { label: "Phone test", state: "pending" },
+      { label: "Tablet test", state: "pending", note: "Skipped when no tablet code changed" },
+      { label: "Merging", state: "pending" },
+    ],
   },
   {
     key: "garden-planner/slice-10", project: "garden-planner", type: "slice", priority: "P2", status: "stale",
@@ -183,7 +198,8 @@ export function callFor(item: SeedItem): ToolCall {
     note: item.events[LATEST_EVENT]?.note,
   };
   if (item.type === WAITING_TYPE) return { name: "ask_human", arguments: shared };
-  return { name: "report_progress", arguments: { ...shared, type: item.type, status: item.status } };
+  const work = { agent: item.agent, model: item.model, environment: item.environment, steps: item.steps };
+  return { name: "report_progress", arguments: { ...shared, type: item.type, status: item.status, ...work } };
 }
 
 export function seedCalls(items: SeedItem[] = SEED_ITEMS): ToolCall[] {

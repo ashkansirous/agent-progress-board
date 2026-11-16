@@ -37,6 +37,10 @@ config, fonts bundled with the page. It reads `GET /api/board`, which answers wi
 items, those done in the window, their details, links and latest events, and the config the
 page draws with (colours and labels from `BOARD_CONFIG`, filled from `config/board.example.json`).
 
+An **Active work** view (`#/active`, a tab beside Board and Usage with a count) lists every task an
+agent is working on now: its step in words, `N of M steps · P%` over one bar segment per step, and
+the full list on a toggle. A task's tile and drawer on the board show the same bar when it has steps.
+
 The page and `/api/board` are closed until Cloudflare Access is set up: the Worker refuses
 every request that has no valid Access JWT, and refuses all of them while the Worker secrets
 `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` are unset. `/mcp` keeps its bearer tokens.
@@ -111,7 +115,7 @@ Keys are stable and chosen by the reporter, for example `<project>/slice-58`.
 
 | Tool | Scope | Inputs | Returns |
 | --- | --- | --- | --- |
-| `report_progress` | write | `key`; for a new key also `project`, `type`, `title`; optional `status`, `priority`, `parent` (text), `why`, `details_md`, `links` (`[{label,url}]`), `source`, `environment`, `note` | the item |
+| `report_progress` | write | `key`; for a new key also `project`, `type`, `title`; optional `status`, `priority`, `parent` (text), `why`, `details_md`, `links` (`[{label,url}]`), `source`, `environment`, `steps` (`[{label, state, note?}]`, the whole list each time), `agent`, `model`, `note` | the item |
 | `mark_done` | write | `key`, optional `source`, `note` | the item |
 | `ask_human` | write | `key`, `project`, `title`; optional `parent`, `priority`, `why`, `details_md`, `links`, `source`, `note` (creates or updates a `waiting_for_me` item, open) | the item |
 | `list_open` | read | optional `project`, `type`, `window_hours` (capped by config) | items not done, plus items done inside the window, each with its latest 20 events |
@@ -121,7 +125,7 @@ Keys are stable and chosen by the reporter, for example `<project>/slice-58`.
 | `sync_snapshot` | write | `project`, `items[]` (each `key`, `project`, `type`, `title`, `status`; optional `priority`, `parent`, `why`, `links`; at most 200) | `{project, created, updated, closed, unchanged}`; doc-sync items missing from the list become done |
 
 Optional fields on `report_progress` and `ask_human`: leave one out to keep the stored value, send
-`null` to clear `parent`, `why`, `details_md`, `links` or `source`. An empty string for `note`,
+`null` to clear `parent`, `why`, `details_md`, `links`, `source`, `environment`, `steps`, `agent` or `model`. An empty string for `note`,
 `why`, `details_md` or `parent` is a tool error naming the field.
 
 An item has `key`, `project`, `parent`, `type`, `priority`, `status`, `title`, `why`,

@@ -286,6 +286,27 @@ test.describe("open item leaves the board", () => {
     await expect(tileTitled(page, OPEN_TITLE)).toBeVisible();
     await expect(dialog).toHaveCount(0);
   });
+
+  test("opening the same item again after a failed refresh and Retry shows it", async ({ page }) => {
+    let failing = false;
+    await page.route(BOARD_ROUTE, (route) =>
+      failing ? route.fulfill({ status: 503, body: "{}" }) : route.fulfill({ json: demoBoard() }),
+    );
+    await page.goto("/");
+    await tileTitled(page, OPEN_TITLE).click();
+    const dialog = page.getByRole("dialog", { name: "Item details" });
+    await expect(dialog).toBeVisible();
+    failing = true;
+    await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+    await expect(page.getByText("Couldn’t load the board")).toBeVisible();
+    await expect(dialog).toHaveCount(0);
+    expect(page.url()).not.toContain("recipe-box");
+    failing = false;
+    await page.getByRole("button", { name: "Retry" }).click();
+    await expect(dialog).toHaveCount(0);
+    await tileTitled(page, OPEN_TITLE).click();
+    await expect(dialog).toBeVisible();
+  });
 });
 
 test.describe("states", () => {

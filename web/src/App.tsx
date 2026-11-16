@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from "react";
+import { ActivePage } from "./ActivePage";
 import { BoardPage, type Environment } from "./BoardPage";
 import { DARK_QUERY, PHONE_QUERY, useBoard, useMediaQuery } from "./hooks";
 import { Route } from "./route";
@@ -25,5 +26,7 @@ function BoardRoute({ env }: { env: Environment }) {
 export function App() {
   const route = useRoute();
   const env = useEnvironment();
-  return route === Route.Usage ? <UsagePage env={env} /> : <BoardRoute env={env} />;
+  if (route === Route.Usage) return <UsagePage env={env} />;
+  if (route === Route.Active) return <ActivePage env={env} />;
+  return <BoardRoute env={env} />;
 }

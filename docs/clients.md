@@ -161,10 +161,36 @@ required; for an existing key they are optional.
 | `links` | no | `[{label, url}]`, up to 20; null clears |
 | `source` | no | who reported: `hook`, `agent`, `human`; null clears |
 | `environment` | no | where the work ran, as the client names it (free text, 1 to 40 characters, for example `laptop` or `cloud-vm`); null clears |
+| `steps` | no | the task's whole steps list, in order (see *Steps* below); null or an empty list clears |
+| `agent` | no | the kind of agent holding the task, free text (1 to 100 characters, for example `Implementer`); null clears |
+| `model` | no | the agent's model, free text (1 to 100 characters); null clears |
 | `note` | no | history note for this report |
 
 Returns the item. A report that changes nothing but the heartbeat writes an event with the note
 `Heartbeat`, so a client can call it periodically to show a session is alive.
+
+#### Steps (Slice 10)
+
+A task carries its own list of steps; the board has no built-in list and holds no step names.
+Each step is `{label, state, note?}`: `label` 1 to 80 characters, `state` one of `done`,
+`active` or `pending`, `note` 0 to 120 characters (shown under the label). At most 30 steps and at
+most one `active`. Labels and notes are shown as sent.
+
+- **Send the whole list each time.** The newest list wins and replaces the stored one; a report
+  that leaves `steps` out keeps it. Progress is steps done over steps in the list (1 of 7 is
+  14%), worked out when the board is read; a task marked done shows 100% whatever its list says.
+- **Trim the list to the task.** Each kind of agent keeps its own usual list on the client side
+  and a task sends only what it really needs: no phone test step when no phone code changed. A
+  list may shrink or grow while the task runs (a step that is dropped simply is not sent again).
+  A short `note` can say why a step is missing or what counts under it.
+- **Helpers count under their parent's step.** A helper agent does not add steps of its own to the
+  task: its work counts under the step of the agent that started it (a note such as "Two helper
+  agents count under this step" says so).
+- **Active work.** The Active work page lists a task while its status is `in_progress`, it has a
+  steps list or an `agent`, and its last report is newer than the stale expiry (below), whether or
+  not the cron has run yet. Send `agent`, `model` and `environment` with the steps.
+- `get_item` and `list_open` return `steps` (each `{label, state, note}`), `agent`, `model` and
+  `environment` on the item.
 
 **Staleness.** A cron job on the board runs every 15 minutes. An `in_progress` or `blocked`
 item that a report (not doc sync alone) set, and whose last report is older than the expiry
@@ -465,5 +491,6 @@ described above are unchanged.
   environment named in its config (else the busiest one) as the main machine.
 - Built in [Slice 9](plan/slices/09-cap-cost-estimate.md): what 1% of the cap costs, per model
   and environment (see *What 1% of the cap costs* under *Reading usage*).
-- Still to come: [Slice 10](plan/slices/10-task-steps.md) (task steps) and
-  [Slice 11](plan/slices/11-slice-parts.md) (slice parts).
+- Built in [Slice 10](plan/slices/10-task-steps.md): task steps, `agent` and `model` (see *Steps*
+  under `report_progress`).
+- Still to come: [Slice 11](plan/slices/11-slice-parts.md) (slice parts).

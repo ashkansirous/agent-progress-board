@@ -127,7 +127,13 @@
       "pillNoneBg": "#F0F2F5",
       "pillNoneFg": "#3B424D",
       "mergedCellBg": "#F7F8FA",
-      "markInk": "#3B424D"
+      "markInk": "#3B424D",
+      "chipBg": "#F0F2F5",
+      "stepDone": "#0B6B4B",
+      "stepDoneText": "#0B6B4B",
+      "stepActive": "#9DBDFF",
+      "stepActiveRow": "#E6EEFC",
+      "stepPendingTile": "#D5DAE1"
     },
     "dark": {
       "page": "#0E1014",
@@ -170,7 +176,13 @@
       "pillNoneBg": "#262B35",
       "pillNoneFg": "#C7CDD8",
       "mergedCellBg": "#0E1014",
-      "markInk": "#C7CDD8"
+      "markInk": "#C7CDD8",
+      "chipBg": "#232833",
+      "stepDone": "#2E8F6A",
+      "stepDoneText": "#7FD8B4",
+      "stepActive": "#3B5A94",
+      "stepActiveRow": "#1C2B4A",
+      "stepPendingTile": "#0E1014"
     }
   }
 }

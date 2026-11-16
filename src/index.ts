@@ -1,5 +1,6 @@
 import { createProvider, issuerOrigin } from "./api/oauth/provider";
 import { markStaleItems } from "./application/board";
+import { thinOldUsage } from "./application/usage";
 import { parseConfig } from "./config";
 import type { Env } from "./env";
 import { D1ItemRepository } from "./infrastructure/d1Repository";
@@ -23,6 +24,17 @@ async function runStaleCheck(env: Env): Promise<number> {
   return turned;
 }
 
+/** The cron's second job: thins old usage samples. A failure is logged (it never stops the stale check, nor the other way round). */
+async function runUsageThinning(env: Env): Promise<void> {
+  try {
+    const { usage } = parseConfig(env.BOARD_CONFIG);
+    const deleted = await thinOldUsage(new D1ItemRepository(env.DB), usage.keepDays, clock);
+    console.log(`usage thinning: ${deleted} sample(s) deleted (keep ${usage.keepDays} days)`);
+  } catch (error) {
+    console.error("usage thinning failed", error);
+  }
+}
+
 /**
  * A plain object, not the provider itself, so `scheduled` stays on the default export. The OAuth
  * provider answers the metadata documents, registration and the token endpoint, checks every
@@ -44,6 +56,9 @@ export default {
     return createProvider(issuerOrigin(url, requestEnv), requestEnv, clock).fetch(request, requestEnv, ctx);
   },
   async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
-    await runStaleCheck(env);
+    // Each job runs even when the other throws; a failed stale check is still raised after both ran.
+    const results = await Promise.allSettled([runStaleCheck(env), runUsageThinning(env)]);
+    const failed = results.find((result) => result.status === "rejected");
+    if (failed?.status === "rejected") throw failed.reason;
   },
 } satisfies ExportedHandler<Env>;

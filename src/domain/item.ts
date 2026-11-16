@@ -42,6 +42,8 @@ export interface Item {
   details_md: string | null;
   links: ItemLink[];
   source: string | null;
+  /** Where the work ran, as the client sent it (free text, Slice 8). Optional so the doc sync, which never sets it, stays untouched. */
+  environment?: string | null;
   heartbeat_at: string;
   created_at: string;
   updated_at: string;

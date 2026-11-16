@@ -41,7 +41,7 @@ export function looksFor(config: BoardPageConfig | null, scheme: SchemeName): Lo
 const DEFAULT_PALETTES = exampleConfig.palettes as Record<SchemeName, Palette>;
 
 /** The palette as CSS custom properties (`--page`, `--text`, ...) for the page's root element. */
-export function paletteVars(config: BoardPageConfig | null, scheme: SchemeName): CSSProperties {
+export function paletteVars(config: Pick<BoardPageConfig, "palettes"> | null, scheme: SchemeName): CSSProperties {
   const palette: Partial<Palette> = { ...DEFAULT_PALETTES[scheme], ...config?.palettes[scheme] };
   return Object.fromEntries(Object.entries(palette).map(([name, colour]) => [`--${name}`, colour])) as CSSProperties;
 }

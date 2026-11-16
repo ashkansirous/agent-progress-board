@@ -5,15 +5,18 @@ import { Detail } from "./Detail";
 import { Header } from "./Header";
 import { groupByProject, waitingItems } from "./model";
 import { ProjectGroup } from "./ProjectGroup";
+import { Route } from "./route";
 import { EmptyCard, ErrorCard, LoadingCard } from "./StatePanels";
 import type { Translate } from "./strings";
 import { looksFor, paletteVars, type SchemeName } from "./theme";
 import { ViewProvider, type View } from "./view";
+import { ViewTabs } from "./ViewTabs";
 import { WaitingStrip } from "./WaitingStrip";
 
 export interface Environment {
   phone: boolean;
   scheme: SchemeName;
+  locale: string;
   t: Translate;
 }
 
@@ -74,6 +77,7 @@ export function BoardPage(props: PageProps) {
     <ViewProvider value={view}>
       <div className={env.phone ? "app phone" : "app"} style={paletteVars(state.config, env.scheme)}>
         <div className="page" inert={open ? true : undefined}>
+          {!env.phone && <ViewTabs current={Route.Board} phone={false} t={env.t} />}
           <Header
             config={state.config}
             hours={state.data?.window_hours ?? null}
@@ -83,6 +87,7 @@ export function BoardPage(props: PageProps) {
           />
           <Body props={props} onOpen={setOpenKey} />
         </div>
+        {env.phone && <ViewTabs current={Route.Board} phone t={env.t} />}
         {open && <Detail item={open} onClose={close} />}
       </div>
     </ViewProvider>

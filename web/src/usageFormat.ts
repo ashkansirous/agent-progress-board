@@ -1,0 +1,116 @@
+const MS_PER_MINUTE = 60_000;
+const MINUTES_PER_HOUR = 60;
+const CLOCK_DIGITS = 2;
+const MILLION = 1_000_000;
+const THOUSAND = 1_000;
+const DAY_KEY_LENGTH = "YYYY-MM-DD".length;
+const NICE_STEPS = [1, 2, 2.5, 5];
+const NICE_BASE = 10;
+
+/** A time as the viewer's wall clock: the UTC fields of the result are the viewer's local fields. */
+export function shifted(iso: string, offsetMinutes: number): Date {
+  return new Date(Date.parse(iso) + offsetMinutes * MS_PER_MINUTE);
+}
+
+function pad(n: number): string {
+  return String(n).padStart(CLOCK_DIGITS, "0");
+}
+
+/** HH:mm in the viewer's time. */
+export function clockAt(iso: string, offsetMinutes: number): string {
+  const date = shifted(iso, offsetMinutes);
+  return `${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}`;
+}
+
+function part(locale: string, date: Date, options: Intl.DateTimeFormatOptions): string {
+  return new Intl.DateTimeFormat(locale, { ...options, timeZone: "UTC" }).format(date);
+}
+
+/** "Tue 10" for a viewer-time date. */
+function dayText(locale: string, date: Date): string {
+  return `${part(locale, date, { weekday: "short" })} ${date.getUTCDate()}`;
+}
+
+/** "Tue 08:00". */
+export function weekdayClock(locale: string, iso: string, offsetMinutes: number): string {
+  const date = shifted(iso, offsetMinutes);
+  return `${part(locale, date, { weekday: "short" })} ${clockAt(iso, offsetMinutes)}`;
+}
+
+/** "Tue 17 Nov, 08:00". */
+export function longReset(locale: string, iso: string, offsetMinutes: number): string {
+  const date = shifted(iso, offsetMinutes);
+  const month = part(locale, date, { month: "short" });
+  return `${dayText(locale, date)} ${month}, ${clockAt(iso, offsetMinutes)}`;
+}
+
+/** The time a bucket key (`YYYY-MM-DD` or `YYYY-MM-DDTHH`) starts, as a viewer-time millisecond value. */
+export function bucketStartMs(bucket: string): number {
+  return Date.parse(bucket.length === DAY_KEY_LENGTH ? `${bucket}T00:00:00Z` : `${bucket}:00:00Z`);
+}
+
+/** "Tue 10" for a day bucket, "13:00" for an hour bucket. */
+export function bucketLabel(locale: string, bucket: string): string {
+  const date = new Date(bucketStartMs(bucket));
+  if (bucket.length === DAY_KEY_LENGTH) return dayText(locale, date);
+  return `${pad(date.getUTCHours())}:00`;
+}
+
+/** One letter for a day bucket (the phone), the hour for an hour bucket. */
+export function bucketLetter(locale: string, bucket: string): string {
+  if (bucket.length !== DAY_KEY_LENGTH) return pad(new Date(bucketStartMs(bucket)).getUTCHours());
+  return part(locale, new Date(bucketStartMs(bucket)), { weekday: "narrow" });
+}
+
+/** "34.2%"; a whole percent shows no decimal. */
+export function percentText(percent: number): string {
+  const rounded = Math.round(percent * 10) / 10;
+  return `${Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1)}%`;
+}
+
+function trimmed(n: number, locale: string): string {
+  return new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(n);
+}
+
+/** "7.1 M", "12.3 k" or "950". */
+export function tokenText(tokens: number, locale: string): string {
+  if (tokens >= MILLION) return `${trimmed(tokens / MILLION, locale)} M`;
+  if (tokens >= THOUSAND) return `${trimmed(tokens / THOUSAND, locale)} k`;
+  return trimmed(tokens, locale);
+}
+
+/** Millions with fixed decimals, for the token kinds table. */
+export function millionsText(tokens: number, decimals: number, locale: string): string {
+  return new Intl.NumberFormat(locale, { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(tokens / MILLION);
+}
+
+export interface NiceScale {
+  top: number;
+  step: number;
+}
+
+/** The smallest 1, 2, 2.5 or 5 times a power of ten whose `intervals` steps reach `max`. */
+export function niceScale(max: number, intervals: number): NiceScale {
+  const wanted = Math.max(max, 1) / intervals;
+  let power = NICE_BASE ** Math.floor(Math.log10(wanted));
+  for (;;) {
+    const step = NICE_STEPS.map((n) => n * power).find((candidate) => candidate >= wanted);
+    if (step !== undefined) return { top: step * intervals, step };
+    power *= NICE_BASE;
+  }
+}
+
+const TITLE_SEPARATOR = " · ";
+const SHORT_TITLE_PARTS = 2;
+
+/** "Slice 9 · Part C" from "Slice 9 · Part C · Notification channel": the first two parts of a title. */
+export function shortTaskTitle(title: string): string {
+  return title.split(TITLE_SEPARATOR).slice(0, SHORT_TITLE_PARTS).join(TITLE_SEPARATOR);
+}
+
+/** Hours and minutes from `nowIso` to the reset, or null when the reset is not ahead of it. */
+export function timeUntil(resetIso: string, nowIso: string): { hours: number; minutes: number } | null {
+  const minutes = Math.round((Date.parse(resetIso) - Date.parse(nowIso)) / MS_PER_MINUTE);
+  if (minutes <= 0) return null;
+  return { hours: Math.floor(minutes / MINUTES_PER_HOUR), minutes: minutes % MINUTES_PER_HOUR };
+}

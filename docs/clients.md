@@ -160,6 +160,7 @@ required; for an existing key they are optional.
 | `details_md` | no | markdown; null clears |
 | `links` | no | `[{label, url}]`, up to 20; null clears |
 | `source` | no | who reported: `hook`, `agent`, `human`; null clears |
+| `environment` | no | where the work ran, as the client names it (free text, 1 to 40 characters, for example `laptop` or `cloud-vm`); null clears |
 | `note` | no | history note for this report |
 
 Returns the item. A report that changes nothing but the heartbeat writes an event with the note
@@ -283,6 +284,69 @@ Reply text (parse it as for the other tools): `{"project":"demo-app","created":1
 - If a live report lands between the sync's read and its write, that item keeps the live
   status and the next sync settles it.
 
+### `report_usage` (write token)
+
+The tokens an agent used, as **totals so far**. The coding tool records, for every message, the
+model and four token counts; a client adds them up per agent and model and sends the running
+totals, never differences. Sending the same report twice stores one sample; a lost report is
+healed by the next one; the use between two times is a subtraction the board makes when it
+reads.
+
+| Field | Required | Notes |
+| --- | --- | --- |
+| `agent_key` | yes | `<project>/session-<id>` for a main session, `<project>/session-<id>/agent-<id>` for a helper |
+| `model` | yes | the model name as the tool records it (up to 100 characters) |
+| `record_at` | yes | ISO time of the newest record these totals counted |
+| `input_tokens` | yes | fresh input, running total (whole number, 0 or more) |
+| `cache_write_tokens` | yes | written to the cache, running total |
+| `cache_read_tokens` | yes | read from the cache, running total |
+| `output_tokens` | yes | output, running total |
+| `task_key` | no | item key of the task the tokens were for (a slice or a slice part) |
+| `agent_kind` | no | kind of agent, for example `reviewer` |
+| `step` | no | the step the agent was on, when known |
+| `environment` | no | where it ran (see `report_progress`); a report with none counts as the board's main machine |
+
+Returns `{stored}`: true for a new sample, false when one with the same agent key, model,
+environment and `record_at` was already stored (the first one stays). One agent key reported
+from two environments is two series. A running total that goes down for the same series is a
+restart: the new totals count from zero, never as negative use. Helpers report under the same
+`task_key` as their parent, with their own `agent_key` and model.
+
+**What to send and how often.** About every five minutes while work runs, and once when the
+agent stops (a client's last report is the one that closes the numbers). Totals are per agent
+and model: one report per model an agent used. Fail open, as for every client.
+
+### `report_cap` (write token)
+
+One reading of the subscription's cap: the time it was taken, the plan name and the percent
+used of each window the client can read.
+
+| Field | Required | Notes |
+| --- | --- | --- |
+| `taken_at` | yes | ISO time the reading was taken |
+| `plan` | yes | the plan's name as the client reads it (1 to 100 characters); recorded on every reading |
+| `windows` | yes | 1 to 20 of `{kind, percent, reset_at?}`: `kind` `weekly` is the weekly cap, `short` any shorter window, any other name is stored but not shown; `percent` 0 to 100 with decimals |
+| `source` | no | what took the reading |
+
+Returns `{stored, windows}`: how many windows were new. The board keeps the raw readings and
+works out which count: ordered by `taken_at`, a reading lower than one already stored in the same
+window is dropped as stale; a lower reading starts a new window when its `reset_at` differs from
+the stored one, or, with no `reset_at`, when it falls to the low mark (config `usage.lowMarkPercent`,
+default 2) from above it. So 98% to 1% is a reset and 60% to 55% is a stale reading. Send a
+reading whenever one is read; the plan name matters because 1% of one plan is not 1% of another.
+
+### Reading usage (the page's route)
+
+`GET /api/usage` (behind the same Access check as `/api/board`; not an MCP tool) takes `range`
+(`24h`, `window` default, `30d`), `plan` (default: the plan of the newest accepted reading),
+`environment` (default: all) and `utc_offset` (minutes east of UTC, so the days are the
+viewer's days). It answers with tokens per day (per hour for `24h`) split by model, token kind,
+agent kind and environment, totals, the top tasks, the environments and plans seen, the cap
+readings by window with the dropped ones and the percent each lost to, and the series colours
+from config. Config keys, all optional, under `usage` in `BOARD_CONFIG`: `series`, `topTasks`,
+`baseEnvironment`, `environmentLabels`, `lowMarkPercent`, `keepDays` (see
+`config/board.example.json`).
+
 ## Keys
 
 A key is chosen by the reporter and must be the same every time the same thing is reported:
@@ -359,19 +423,16 @@ docs promise (read 2026-11-15; the docs change, so re-read them before relying o
 A client still fails open here: with the host not allowed, the token missing or the secret not
 reachable, it does nothing and exits 0.
 
-## Planned, not built yet (Slices 8 to 11)
+## Planned, not built yet (Slices 9 to 11)
 
 Nothing in this section exists on the board today. Do not send any of it yet: the tools do not
 read it yet. It is here so a client author can see what is coming. The tools
 described above are unchanged.
 
-- **`environment` on `report_progress` and `report_usage`** (optional, free text, 1 to 40
-  characters). It names where the agent ran, for example "laptop" or "cloud-vm". It comes from
-  the client's own config and is never hard-coded in a client or on the board: the board
-  shows the value as sent (or a label the board's owner maps to it) and treats the environment
-  named in its config as the main machine. A report with none counts as the main machine. The
-  board stores it on usage samples and on items.
-- The slices that add it: [Slice 8](plan/slices/08-usage-reports.md) (usage reports, the
-  `environment` field), [Slice 9](plan/slices/09-cap-cost-estimate.md) (what 1% of the cap
-  costs, per environment), [Slice 10](plan/slices/10-task-steps.md) (task steps) and
+- **`environment`** (built in [Slice 8](plan/slices/08-usage-reports.md), see `report_usage`):
+  it comes from the client's own config and is never hard-coded in a client or on the board:
+  the board shows the value as sent (or a label the board's owner maps to it) and treats the
+  environment named in its config (else the busiest one) as the main machine.
+- Still to come: [Slice 9](plan/slices/09-cap-cost-estimate.md) (what 1% of the cap costs, per
+  environment), [Slice 10](plan/slices/10-task-steps.md) (task steps) and
   [Slice 11](plan/slices/11-slice-parts.md) (slice parts).

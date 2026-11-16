@@ -32,6 +32,7 @@ export interface ReportInput {
   details_md?: string | null;
   links?: ItemLink[] | null;
   source?: string | null;
+  environment?: string | null;
   note?: string;
 }
 
@@ -57,6 +58,7 @@ export function newItem(input: ReportInput, now: string): Item {
     details_md: input.details_md ?? null,
     links: input.links ?? [],
     source: input.source ?? null,
+    environment: input.environment ?? null,
     heartbeat_at: now,
     created_at: now,
     updated_at: now,

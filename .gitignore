@@ -23,6 +23,9 @@ build/
 .wrangler/
 .mf/
 
+# Scratch files of agents and scripts
+tmp/
+
 # Test output
 test-results/
 playwright-report/

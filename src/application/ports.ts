@@ -1,6 +1,8 @@
+import type { CapReading } from "../domain/cap";
 import type { SyncRow, SyncWrite } from "../domain/docSync";
 import type { Item, ItemEvent, ItemType, ItemWithEvents } from "../domain/item";
 import type { ReportInput } from "../domain/upsert";
+import type { UsageSample } from "../domain/usage";
 
 export const LIST_EVENT_LIMIT = 20;
 
@@ -46,4 +48,49 @@ export interface ItemRepository {
   listBoard(filter: BoardFilter): Promise<ItemWithEvents[]>;
   /** Newest first, all events. */
   eventsFor(key: string): Promise<ItemEvent[]>;
+}
+
+export enum SeriesKind {
+  Model = "model",
+  AgentKind = "agent_kind",
+  Environment = "environment",
+}
+
+export interface SeriesName {
+  kind: SeriesKind;
+  value: string;
+}
+
+export interface TaskInfo {
+  key: string;
+  title: string;
+  project: string;
+}
+
+/** What the usage tools and the usage route need from storage (Slice 8). Append-only: rows are never updated. */
+export interface UsageRepository {
+  /**
+   * One batch: the sample (INSERT OR IGNORE on agent key, model, environment and record time, so
+   * the same report twice stores one row) plus a usage_series row for each name it carries.
+   * Returns true when the sample was new, false when it was already stored.
+   */
+  saveUsage(sample: UsageSample, now: string): Promise<boolean>;
+  /** One atomic batch of INSERT OR IGNORE rows (time taken, plan, window kind); returns how many were new. */
+  saveCapReadings(readings: CapReading[]): Promise<number>;
+  /**
+   * The samples at or after `from`, plus per series the newest one before it (the sample the
+   * first delta in range subtracts from). A series with no sample in range is not read. Every
+   * stored time is UTC ISO (normalised before the write), so text order is time order.
+   */
+  usageSamplesFrom(from: string): Promise<UsageSample[]>;
+  capReadingsFrom(from: string): Promise<CapReading[]>;
+  /** Model, agent kind and environment names by first seen, then by value. */
+  seriesNames(): Promise<SeriesName[]>;
+  taskInfo(keys: string[]): Promise<TaskInfo[]>;
+  /**
+   * Deletes samples older than the cutoff down to the last of each hour per agent, model and
+   * environment, always keeping every restart sample and the one before it, so the use worked
+   * out afterwards is the same. A second run deletes nothing more. Returns how many were deleted.
+   */
+  thinUsage(cutoff: string): Promise<number>;
 }

@@ -64,6 +64,14 @@ export const PALETTE_KEYS = [
   "skeletonBar",
   "skeletonStrip",
   "skeletonTile",
+  "segmentBg",
+  "segmentText",
+  "segmentPressedBg",
+  "segmentPressedText",
+  "shadow",
+  "track",
+  "barFill",
+  "rowLine",
 ] as const;
 
 export type Palette = Record<(typeof PALETTE_KEYS)[number], string>;
@@ -81,7 +89,41 @@ export interface BoardConfig {
   oauthRedirectUris: string[];
   /** The https origin the OAuth issuer and /mcp resource are pinned to; null means the request's own origin (Slice 5). */
   publicOrigin: string | null;
+  usage: UsageConfig;
 }
+
+/** One chart series colour: a light and a dark value (Slice 8). */
+export interface SeriesColor {
+  light: string;
+  dark: string;
+}
+
+export interface UsageConfig {
+  /** A lower cap reading with no reset time starts a new window when it falls to this percent. */
+  lowMarkPercent: number;
+  /** Samples older than this many days are thinned to one an hour per agent, model and environment. */
+  keepDays: number;
+  series: SeriesColor[];
+  /** Tasks the usage route lists before its "everything else" row. */
+  topTasks: number;
+  /** The environment that counts as the main machine, as clients send it; null: the busiest one. */
+  baseEnvironment: string | null;
+  /** A sent environment value mapped to the text the page shows. */
+  environmentLabels: Record<string, string>;
+}
+
+export const DEFAULT_LOW_MARK_PERCENT = 2;
+export const DEFAULT_KEEP_DAYS = 30;
+export const DEFAULT_TOP_TASKS = 6;
+const MAX_KEEP_DAYS = 3650;
+const MAX_TOP_TASKS = 50;
+const MAX_ENVIRONMENT_LENGTH = 40;
+
+export const DEFAULT_SERIES: SeriesColor[] = [
+  { light: "#2a78d6", dark: "#3987e5" },
+  { light: "#eb6834", dark: "#d95926" },
+  { light: "#1baf7a", dark: "#199e70" },
+];
 
 /**
  * Parses BOARD_CONFIG where it is used (list_open). Never throws: a bad value is logged and the
@@ -102,7 +144,56 @@ export function configFromRecord(parsed: Record<string, unknown>): BoardConfig {
     palettes: readPalettes(parsed.palettes),
     oauthRedirectUris: readRedirectUris(parsed.oauth_redirect_uris),
     publicOrigin: readPublicOrigin(parsed.public_origin),
+    usage: readUsage(asRecord(parsed.usage)),
   };
+}
+
+function readUsage(raw: Record<string, unknown>): UsageConfig {
+  return {
+    lowMarkPercent: readNumber("usage.lowMarkPercent", raw.lowMarkPercent, DEFAULT_LOW_MARK_PERCENT, 0, 100, false),
+    keepDays: readNumber("usage.keepDays", raw.keepDays, DEFAULT_KEEP_DAYS, 1, MAX_KEEP_DAYS, true),
+    series: readSeries(raw.series),
+    topTasks: readNumber("usage.topTasks", raw.topTasks, DEFAULT_TOP_TASKS, 1, MAX_TOP_TASKS, true),
+    baseEnvironment: readBaseEnvironment(raw.baseEnvironment),
+    environmentLabels: readEnvironmentLabels(raw.environmentLabels),
+  };
+}
+
+function readNumber(field: string, raw: unknown, fallback: number, min: number, max: number, whole: boolean): number {
+  if (raw === undefined) return fallback;
+  if (typeof raw === "number" && Number.isFinite(raw) && raw >= min && raw <= max && (!whole || Number.isInteger(raw))) {
+    return raw;
+  }
+  console.error(`BOARD_CONFIG ${field}: need ${whole ? "a whole " : "a "}number from ${min} to ${max}; using ${fallback}`);
+  return fallback;
+}
+
+function isEnvironmentText(value: unknown): value is string {
+  return typeof value === "string" && value.length >= 1 && value.length <= MAX_ENVIRONMENT_LENGTH;
+}
+
+function readBaseEnvironment(raw: unknown): string | null {
+  if (raw === undefined) return null;
+  if (isEnvironmentText(raw)) return raw;
+  console.error("BOARD_CONFIG usage.baseEnvironment: need text of 1 to 40 characters; using the busiest environment");
+  return null;
+}
+
+function readEnvironmentLabels(raw: unknown): Record<string, string> {
+  if (raw === undefined) return {};
+  const record = asRecord(raw);
+  const valid = raw === record && Object.entries(record).every(([name, label]) => isEnvironmentText(name) && typeof label === "string");
+  if (valid) return record as Record<string, string>;
+  console.error("BOARD_CONFIG usage.environmentLabels: need sent values mapped to text; using none");
+  return {};
+}
+
+function readSeries(raw: unknown): SeriesColor[] {
+  if (raw === undefined) return DEFAULT_SERIES;
+  const valid = Array.isArray(raw) && raw.length > 0 && raw.every((pair) => isColour(asRecord(pair).light) && isColour(asRecord(pair).dark));
+  if (valid) return (raw as SeriesColor[]).map(({ light, dark }) => ({ light, dark }));
+  console.error("BOARD_CONFIG usage.series: need a list of {light, dark} colours; using the defaults");
+  return DEFAULT_SERIES;
 }
 
 /** An https origin with no path, query or credentials; anything else is logged and dropped. */

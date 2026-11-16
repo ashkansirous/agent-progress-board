@@ -48,10 +48,16 @@ export async function callTool(
 }
 
 export async function resetBoard(): Promise<void> {
-  await env.DB.batch([env.DB.prepare("DELETE FROM events"), env.DB.prepare("DELETE FROM items")]);
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM events"),
+    env.DB.prepare("DELETE FROM items"),
+    env.DB.prepare("DELETE FROM usage_samples"),
+    env.DB.prepare("DELETE FROM cap_readings"),
+    env.DB.prepare("DELETE FROM usage_series"),
+  ]);
 }
 
-export async function countRows(table: "items" | "events"): Promise<number> {
+export async function countRows(table: "items" | "events" | "usage_samples" | "cap_readings" | "usage_series"): Promise<number> {
   const row = await env.DB.prepare(`SELECT COUNT(*) AS n FROM ${table}`).first<{ n: number }>();
   return row?.n ?? 0;
 }

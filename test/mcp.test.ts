@@ -321,7 +321,9 @@ describe("raw http", () => {
       "get_item",
       "list_open",
       "mark_done",
+      "report_cap",
       "report_progress",
+      "report_usage",
       "sync_snapshot",
     ]);
   });

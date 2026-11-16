@@ -19,10 +19,8 @@ private Claude Code config repo; this repo hands them a tool reference and a cli
 
 | Slice | Title | Status | PR | Issue | File |
 | --- | --- | --- | --- | --- | --- |
-| 1 | Worker + D1 items store behind an MCP endpoint | planned | #31 | | [01](docs/plan/slices/01-items-api.md) |
-| 2 | Tile board page | planned | #35 | | [02](docs/plan/slices/02-tile-board.md) |
-| 5 | OAuth so claude.ai can use the MCP server | planned | #42 | | [05](docs/plan/slices/05-remote-mcp.md) |
-| 8 | Usage reports: tokens per model, cap readings, usage page | planned | | | [08](docs/plan/slices/08-usage-reports.md) |
+| 5 | OAuth so claude.ai can use the MCP server | parked: waits for the owner's claude.ai connector step | #42 | | [05](docs/plan/slices/05-remote-mcp.md) |
+| 8 | Usage reports: tokens per model, cap readings, usage page | in progress | #53 | | [08](docs/plan/slices/08-usage-reports.md) |
 | 9 | What 1% of the cap costs, per model | planned | | | [09](docs/plan/slices/09-cap-cost-estimate.md) |
 | 10 | Task steps and the active work page | planned | | | [10](docs/plan/slices/10-task-steps.md) |
 | 11 | Slice parts: progress bar on the slice, click through to the active part | planned | | | [11](docs/plan/slices/11-slice-parts.md) |
@@ -31,7 +29,7 @@ Notes:
 
 - [Finished slices](docs/plan/notes/slices-done.md): rows of built slices.
 - [Feedback loop 2026-11-15](docs/plan/notes/2026-11-15-1406-feedback-loop.md): what the end-of-run audit found.
-- Slices 1, 2 and 5 are built and merged; they are `planned` again so the next run retries what is left (each slice file has a *Park note*).
+- Slices 1 to 7 are built and merged and deployed; 1 is verified, 5 is parked until the owner adds the claude.ai connector, and the open checks of the rest are in `docs/plan/unverified.md` (2026-11-16).
 - Slices 8 to 11 (owner, 2026-11-16) run in this order: 8, 9, 10, 11. They edit the same server files, so one at a time. In each, part A (server) can be built now and part B (the page) is planned against the design mock the owner added on 2026-11-16 (`docs/design/`). The sending side is planned in the owner's private config repo.
 
 ## Decisions (from the phone scope, approved 2026-11-15)
@@ -57,7 +55,7 @@ Notes:
 
 ## Outstanding work
 
-- **Not yet tried on a device:** 20 checks across 7 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
+- **Not yet tried on a device:** 15 checks across 5 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
 - The D1 database and the Worker secrets exist.
 - The client guide (`docs/clients.md`) is ready (Slice 3); the owner's config repo can start its
   client.
@@ -84,11 +82,7 @@ Notes:
   never writes more than a handful.
 - Still there from those checks: one OAuth client registered on the live Worker (no grant or token
   issued; it cannot be deleted through the Worker).
-- **Waiting on the user:** open the board page on the custom hostname, sign in with the one-time code
-  sent to the owner's inbox and confirm the board shows. It blocks the two Access checks of
-  [Slice 2](docs/plan/slices/02-tile-board.md) (the page after signing in, the phone check) and comes
-  before the claude.ai connector step below.
-- **Waiting on the user:** after the first deploy, add the board as a custom connector in claude.ai ([https://claude.ai/settings/connectors](https://claude.ai/settings/connectors), "Add custom connector", the Worker's `/mcp` address on `workers.dev`, not the page's custom domain, which sits behind Access; see [Slice 2](docs/plan/slices/02-tile-board.md) *Address*) and type the passphrase from the secrets store entry `OWNER_PASSPHRASE`. It blocks only the claude.ai check. (The link was not opened by the run that wrote it: it needs the owner's login.)
+- **Waiting on the user:** add the board as a custom connector in claude.ai ([https://claude.ai/settings/connectors](https://claude.ai/settings/connectors), "Add custom connector", the Worker's `/mcp` address on `workers.dev`, not the page's custom domain, which sits behind Access; see [Slice 2](docs/plan/slices/02-tile-board.md) *Address*) and type the passphrase from the secrets store entry `OWNER_PASSPHRASE`. It blocks only the claude.ai check. (The link was not opened by the run that wrote it: it needs the owner's login.)
 - Done 2026-11-16: the owner added the design mock for the usage page, the active work page and the parts bar to the canvas; it is copied into `docs/design/` and part B of Slices 8 to 11 is rewritten to match it.
 - `OWNER_PASSPHRASE` is in the secrets store and set as a Worker secret; the `OAUTH_KV` namespace is created by the first deploy ([Slice 5](docs/plan/slices/05-remote-mcp.md)).
 - Follow-up (Slice 5): the Worker has no way for the owner to end a grant; the README names the library calls only. See [Slice 5](docs/plan/slices/05-remote-mcp.md) *Not yet verified*.

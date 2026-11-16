@@ -5,29 +5,24 @@ owner confirms, is removed here and its slice marked `verified`.
 
 ### Slice 5: OAuth so claude.ai can use the MCP server ([slice](slices/05-remote-mcp.md))
 
-- wrangler provisions the `OAUTH_KV` namespace on the first `deploy:ci` run. Seen 2026-11-15: `POST /oauth/register` answers 201, which needs the KV. Not seen: the namespace itself (needs wrangler).
 - The per-request env copy works on the deployed Worker (proven only in the Vitest Workers pool). Seen 2026-11-15: register, discovery, authorize and token routes answer repeatedly without error. Not seen: a full grant (the passphrase POST was not run).
 - claude.ai accepts the connector (registration, the 401 pointer on POST, 405 on GET, consent page, token) and "what's waiting for me?" lists the right items from claude.ai mobile.
 - A static bearer token with `public_origin` set and a different request host still gets through (check-2 finding 8).
 
 ### Slice 7: Stale detection ([slice](slices/07-stale-detection.md))
 
-- The cron trigger registers on deploy and fires (waits for the first deploy).
+- The cron trigger registers on deploy and fires. Seen 2026-11-16: `wrangler.jsonc` declares one cron, `*/15 * * * *`. Not seen: its registration on the live Worker, or a firing.
 - A killed session's item turns stale within the expiry and recovers on the next report, on the live board.
 - The account's free-plan limit of 5 cron triggers is not exceeded.
 
 ### Slice 2: Tile board page ([slice](slices/02-tile-board.md))
 
-- Seeded data shows correctly on the owner's phone, opened from the deployed URL through Access (drawer and waiting strip included); blocked until the owner has signed in once on the custom hostname. Not seen: the page after signing in.
-- The custom domain is attached to the Worker and a pipeline deploy leaves it attached. Seen 2026-11-15: attached, resolves. Not seen: still attached after a later pipeline deploy.
+- Seeded data shows correctly on the owner's phone, opened from the deployed URL through Access (drawer and waiting strip included). Seen 2026-11-15: the owner opened the page on the custom hostname from a phone, signed in through Access and said "it works on my phone"; what they saw was the leftover test items, not seeded data. Not seen: the seeded data, drawer and waiting strip on the phone.
+- The custom domain is attached to the Worker and a pipeline deploy leaves it attached. Seen 2026-11-15: attached, resolves. Latest deployment seen 2026-11-16T13:02:51Z; not read that day: whether it is still attached after it.
 - The first pipeline run of the new `deploy:ci` (`vite build`, then migrations, then deploy with `web/dist/agent_progress_board/wrangler.json`); locally `vite build` and `wrangler deploy --dry-run` passed. Seen 2026-11-15: the check "Workers Builds: agent-progress-board" on c1cc5de succeeded and the Worker is live with migrations applied. Not seen: the pipeline log.
-- Worker secrets (`ACCESS_*`, `BOARD_CONFIG`) survive a pipeline deploy. Seen 2026-11-15: `BOARD_WRITE`/`BOARD_READ` tokens and the `OWNER_PASSPHRASE` page work after the deploy. Seen 2026-11-15: `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` are set. Not seen: them or `BOARD_CONFIG` after a later pipeline deploy.
-- The seed script run against the deployed Worker.
+- Worker secrets (`ACCESS_*`, `BOARD_CONFIG`) survive a pipeline deploy. Seen 2026-11-15: `BOARD_WRITE`/`BOARD_READ` tokens and the `OWNER_PASSPHRASE` page work after the deploy. Seen 2026-11-15: `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` are set. Seen 2026-11-16: after the deployment of 13:02:51Z `wrangler secret list` shows `ACCESS_AUD`, `ACCESS_TEAM_DOMAIN`, `BOARD_READ_TOKEN`, `BOARD_WRITE_TOKEN` and `OWNER_PASSPHRASE`; `BOARD_CONFIG` is not set as a secret (it is optional).
+- The seed script run against the deployed Worker. Note 2026-11-16: the live board now holds real items, so a seed run there would break the rule in `plan.md` (a check that writes to the live board writes a handful of rows and removes them in the same run); it needs a decision first.
 - The Node version in `engines` (`>= 22.18.0`): the number comes from the review and the fixer's knowledge; context7 confirmed only that type stripping is default in Node 24.
-
-### Slice 4: Doc sync: `sync_snapshot` tool ([slice](slices/04-doc-sync.md))
-
-- Migration 0002 applied to the remote D1 by the pipeline. Seen 2026-11-15: `sync_snapshot` works against the remote D1. Not seen: the migration record itself.
 
 ### Slice 6: Reporting from Claude Code cloud sessions ([slice](slices/06-cloud-sessions.md))
 
@@ -40,8 +35,3 @@ owner confirms, is removed here and its slice marked `verified`.
 
 - A client written only from the guide reports a real run and its tiles move live (waits for the first deploy and for the client in the owner's config repo).
 
-### Slice 1: Worker + D1 items store behind an MCP endpoint ([slice](slices/01-items-api.md))
-
-- The Claude Code `claude mcp add --transport http` check against the deployed URL (the curl checks passed 2026-11-15).
-- That the Workers Builds build token can apply D1 migrations (`npm run deploy:ci`). Seen 2026-11-15: the tables exist after the pipeline deploy. Not seen: the pipeline log.
-- That `wrangler deploy` binds the existing database by name (no `database_id`). Seen 2026-11-15: the Worker reads and writes D1 after the pipeline deploy. Not seen: `wrangler.json` was not inspected.

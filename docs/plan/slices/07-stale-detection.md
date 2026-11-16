@@ -137,6 +137,6 @@ None beyond what the diff already wrote.
 
 #### Not yet verified
 
-- The cron trigger registers on deploy and fires (waits for the owner connecting Workers Builds).
+- The cron trigger registers on deploy and fires. Seen 2026-11-16: `wrangler.jsonc` declares one cron, `*/15 * * * *`. Not seen: its registration on the live Worker, or a firing.
 - A killed session's item turns stale within the expiry and recovers on the next report, on the live board.
 - The account's free-plan limit of 5 cron triggers is not exceeded.

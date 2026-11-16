@@ -7,7 +7,9 @@ job of the repos that want one (see [Slice 3](03-reporter.md)).
 
 *Built 2026-11-15, merged 2026-11-15 as PR #31. 33 tests; lint, typecheck and test green. Workers Builds is connected (2026-11-15) but the first deploy has not run yet; nothing is checked against a deployed Worker yet.* (Update 2026-11-15: deployed at c1cc5de; the curl checks passed, two pipeline checks have indirect evidence only, see *Not yet verified*.)
 
-*Park note (2026-11-15; the feedback loop moved the row back to `planned` so the next run retries): the code is built and merged (PR #31). What is left is the first deploy and the checks against the deployed Worker. Workers Builds is connected; no build had run at 16:39Z on 2026-11-15 (`wrangler deployments list`).*
+*Verified 2026-11-16 (read-only check run, about 14:15Z): all three open lines are settled, see *Not yet verified*.*
+
+*History (Park note of 2026-11-15, when the row went back to `planned`): the code was built and merged (PR #31); what was left was the first deploy and the checks against the deployed Worker. No build had run at 16:39Z on 2026-11-15 (`wrangler deployments list`); that has since run.*
 
 **Migrations:** 0001
 
@@ -218,9 +220,9 @@ None beyond the branch's own edits.
 
 #### Not yet verified
 
-- The Claude Code `claude mcp add --transport http` check against the deployed URL (the curl checks passed, see *Verified 2026-11-15*).
-- That the Workers Builds build token can apply D1 migrations (`npm run deploy:ci`). Seen 2026-11-15: the tables exist after the pipeline deploy. Not seen: the pipeline log.
-- That `wrangler deploy` binds the existing database by name (no `database_id`). Seen 2026-11-15: the Worker reads and writes D1 after the pipeline deploy. Not seen: `wrangler.json` was not inspected.
+- ~~The Claude Code `claude mcp add --transport http` check against the deployed URL.~~ Verified 2026-11-16: `claude mcp list` shows an HTTP MCP server for the board on its workers.dev address, Connected (the curl checks passed 2026-11-15, see *Verified 2026-11-15*).
+- ~~That the Workers Builds build token can apply D1 migrations (`npm run deploy:ci`).~~ Verified 2026-11-16: `wrangler d1 migrations list agent-progress-board --remote` prints "No migrations to apply!" after the pipeline deploys (the pipeline log itself is only in the Cloudflare dashboard and was not read).
+- ~~That `wrangler deploy` binds the existing database by name (no `database_id`).~~ Verified 2026-11-16: `wrangler.jsonc` binds D1 by `database_name` only and the deployed Worker reads D1 (a `SELECT count` on items answered).
 
 *Verified 2026-11-15* (Worker at c1cc5de, checks run by curl from the host; raw output not kept in the repo):
 the whole "Against the deployed Worker" list of Verification. `report_progress` created `a` (in_progress);

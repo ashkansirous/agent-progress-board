@@ -1,4 +1,14 @@
-import type { BoardFilter, ItemRepository, ItemWrite } from "../application/ports";
+import {
+  type BoardFilter,
+  type ItemRepository,
+  type ItemWrite,
+  type SeriesName,
+  SeriesKind,
+  type TaskInfo,
+  type UsageRepository,
+} from "../application/ports";
+import type { CapReading } from "../domain/cap";
+import type { UsageSample } from "../domain/usage";
 import { SYNC_LEFT_NOTE, type SyncRow, type SyncWrite } from "../domain/docSync";
 import {
   DOC_SYNC_SOURCE,
@@ -54,6 +64,7 @@ const CHANGEABLE_COLUMNS = [
   "details_md",
   "links",
   "source",
+  "environment",
 ] as const;
 type ChangeableColumn = (typeof CHANGEABLE_COLUMNS)[number];
 
@@ -99,10 +110,12 @@ const SOURCE_COLUMN = CHANGEABLE_COLUMNS.indexOf("source");
 const LIVE_STATUS_REPORT = `${flagParam(STATUS_COLUMN)} AND
   COALESCE(CASE WHEN ${flagParam(SOURCE_COLUMN)} THEN ${valueParam(SOURCE_COLUMN)} END, '') != '${DOC_SYNC_SOURCE}'`;
 
+const ENVIRONMENT_COLUMN = CHANGEABLE_COLUMNS.indexOf("environment");
+
 const UPSERT_ITEM = `INSERT INTO items (key, project, parent, type, priority, status, title, why,
-  details_md, links, source, heartbeat_at, created_at, updated_at, done_at, live_status_at)
+  details_md, links, source, heartbeat_at, created_at, updated_at, done_at, live_status_at, environment)
   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?12, ?12, ?13,
-    CASE WHEN ?11 IS '${DOC_SYNC_SOURCE}' THEN NULL ELSE ?12 END)
+    CASE WHEN ?11 IS '${DOC_SYNC_SOURCE}' THEN NULL ELSE ?12 END, ${valueParam(ENVIRONMENT_COLUMN)})
   ON CONFLICT (key) DO UPDATE SET ${SET_CHANGEABLE}, heartbeat_at = ?12,
   live_status_at = CASE WHEN ${LIVE_STATUS_REPORT} THEN ?12 ELSE live_status_at END,
   updated_at = CASE WHEN ${ANY_CHANGED} THEN ?12 ELSE updated_at END,
@@ -163,8 +176,148 @@ const BOARD_EVENTS = `SELECT item_key, at, status, source, note FROM (
   FROM events WHERE item_key IN (SELECT key FROM items WHERE ${BOARD_WHERE})
 ) WHERE rn <= ?4 ORDER BY item_key, at DESC, id DESC`;
 
-export class D1ItemRepository implements ItemRepository {
+const INSERT_SAMPLE = `INSERT OR IGNORE INTO usage_samples (agent_key, model, environment, record_at,
+  reported_at, input_tokens, cache_write_tokens, cache_read_tokens, output_tokens, task_key, agent_kind, step)
+  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)`;
+
+const INSERT_SERIES = "INSERT OR IGNORE INTO usage_series (kind, value, first_seen) VALUES (?1, ?2, ?3)";
+
+const INSERT_CAP_READING = `INSERT OR IGNORE INTO cap_readings (taken_at, plan, window_kind, percent, reset_at, source)
+  VALUES (?1, ?2, ?3, ?4, ?5, ?6)`;
+
+/**
+ * ?1 from: every sample since (time index), and, only for the series that have a sample since,
+ * the newest one before it: one seek per series into the identity index (newest first, LIMIT 1).
+ * A series with no sample in the range has no use in it and is not read. The two parts never
+ * overlap, so UNION ALL. Every stored time is UTC ISO (application/usage.ts), so text order is
+ * time order.
+ */
+export const SAMPLES_FROM =`SELECT * FROM (
+  SELECT * FROM usage_samples WHERE record_at >= ?1
+  UNION ALL
+  SELECT b.* FROM (
+    SELECT DISTINCT agent_key, model, COALESCE(environment, '') AS env
+    FROM usage_samples INDEXED BY idx_usage_samples_time WHERE record_at >= ?1
+  ) g JOIN usage_samples b ON b.id = (
+    SELECT p.id FROM usage_samples p
+    WHERE p.agent_key = g.agent_key AND p.model = g.model
+      AND COALESCE(p.environment, '') = g.env AND p.record_at < ?1
+    ORDER BY p.record_at DESC LIMIT 1)
+) ORDER BY agent_key, model, COALESCE(environment, ''), record_at, id`;
+
+/** Thinning looks this far back from the cutoff only; older samples were thinned by earlier runs. */
+const THIN_BAND_DAYS = 3;
+const MS_PER_DAY = 86_400_000;
+
+const SERIES_WINDOW = "PARTITION BY agent_key, model, COALESCE(environment, '') ORDER BY record_at, id";
+const WENT_DOWN = (column: string): string => `${column} < LAG(${column}) OVER (${SERIES_WINDOW})`;
+
+/**
+ * The rule of isRestart (domain/usage.ts) in SQL: a sample is a restart when any running total
+ * is lower than the one before it. ?1 cutoff, ?2 band start. Deleted: in the band (?2 up to
+ * ?1, time index), not the last of its hour, not a restart, not the sample just before a
+ * restart and not the sample just before the task key or agent kind of its series changes (so
+ * the use, per task and per agent kind too, stays the same). The first row of the band (its
+ * predecessor is unknown, so it may be a restart) and the last (its successor is not read) are
+ * kept for this run. The hour is the first 13 characters of a UTC ISO time.
+ */
+export const THIN_ROWS =`SELECT id FROM (
+  SELECT id, task_key, agent_kind, restart, hour_rank,
+    LAG(id) OVER (${SERIES_WINDOW}) AS prev_id, LEAD(id) OVER (${SERIES_WINDOW}) AS next_id,
+    LEAD(restart) OVER (${SERIES_WINDOW}) AS next_restart,
+    LEAD(task_key) OVER (${SERIES_WINDOW}) AS next_task,
+    LEAD(agent_kind) OVER (${SERIES_WINDOW}) AS next_kind FROM (
+    SELECT id, record_at, agent_key, model, environment, task_key, agent_kind,
+      ${["input_tokens", "cache_write_tokens", "cache_read_tokens", "output_tokens"].map(WENT_DOWN).join(" OR ")} AS restart,
+      ROW_NUMBER() OVER (PARTITION BY agent_key, model, COALESCE(environment, ''), substr(record_at, 1, 13)
+        ORDER BY record_at DESC, id DESC) AS hour_rank
+    FROM usage_samples WHERE record_at >= ?2 AND record_at < ?1
+  )
+) WHERE hour_rank > 1 AND restart IS NOT 1 AND prev_id IS NOT NULL AND next_id IS NOT NULL
+  AND next_restart IS NOT 1 AND next_task IS task_key AND next_kind IS agent_kind`;
+
+interface UsageSampleRow {
+  agent_key: string;
+  model: string;
+  environment: string | null;
+  record_at: string;
+  input_tokens: number;
+  cache_write_tokens: number;
+  cache_read_tokens: number;
+  output_tokens: number;
+  task_key: string | null;
+  agent_kind: string | null;
+  step: string | null;
+}
+
+interface CapReadingRow {
+  taken_at: string;
+  plan: string;
+  window_kind: string;
+  percent: number;
+  reset_at: string | null;
+  source: string | null;
+}
+
+export class D1ItemRepository implements ItemRepository, UsageRepository {
   constructor(private readonly db: D1Database) {}
+
+  async saveUsage(sample: UsageSample, now: string): Promise<boolean> {
+    const names: SeriesName[] = [
+      { kind: SeriesKind.Model, value: sample.model },
+      ...(sample.agentKind ? [{ kind: SeriesKind.AgentKind, value: sample.agentKind }] : []),
+      ...(sample.environment ? [{ kind: SeriesKind.Environment, value: sample.environment }] : []),
+    ];
+    const [stored] = await this.db.batch([
+      this.db.prepare(INSERT_SAMPLE).bind(...sampleParams(sample, now)),
+      ...names.map(({ kind, value }) => this.db.prepare(INSERT_SERIES).bind(kind, value, now)),
+    ]);
+    return (stored?.meta.changes ?? 0) > 0;
+  }
+
+  async saveCapReadings(readings: CapReading[]): Promise<number> {
+    const insert = this.db.prepare(INSERT_CAP_READING);
+    const results = await this.db.batch(
+      readings.map((r) => insert.bind(r.takenAt, r.plan, r.windowKind, r.percent, r.resetAt, r.source)),
+    );
+    return results.reduce((sum, result) => sum + (result.meta.changes ?? 0), 0);
+  }
+
+  async usageSamplesFrom(from: string): Promise<UsageSample[]> {
+    const { results } = await this.db.prepare(SAMPLES_FROM).bind(from).all<UsageSampleRow>();
+    return results.map(toUsageSample);
+  }
+
+  async capReadingsFrom(from: string): Promise<CapReading[]> {
+    const { results } = await this.db
+      .prepare("SELECT * FROM cap_readings WHERE taken_at >= ?1 ORDER BY taken_at, id")
+      .bind(from)
+      .all<CapReadingRow>();
+    return results.map(toCapReading);
+  }
+
+  async seriesNames(): Promise<SeriesName[]> {
+    const { results } = await this.db
+      .prepare("SELECT kind, value FROM usage_series ORDER BY first_seen, value")
+      .all<{ kind: string; value: string }>();
+    return results.map(({ kind, value }) => ({ kind: kind as SeriesKind, value }));
+  }
+
+  async taskInfo(keys: string[]): Promise<TaskInfo[]> {
+    const { results } = await this.db
+      .prepare("SELECT key, title, project FROM items WHERE key IN (SELECT value FROM json_each(?1))")
+      .bind(JSON.stringify(keys))
+      .all<TaskInfo>();
+    return results;
+  }
+
+  async thinUsage(cutoff: string): Promise<number> {
+    const result = await this.db
+      .prepare(`DELETE FROM usage_samples WHERE id IN (${THIN_ROWS})`)
+      .bind(cutoff, new Date(Date.parse(cutoff) - THIN_BAND_DAYS * MS_PER_DAY).toISOString())
+      .run();
+    return result.meta.changes ?? 0;
+  }
 
   async find(key: string): Promise<Item | null> {
     const row = await this.db.prepare("SELECT * FROM items WHERE key = ?1").bind(key).first<ItemRow>();
@@ -242,6 +395,42 @@ function upsertParams({ insert, input, now }: ItemWrite): (string | number | nul
     insert.why, insert.details_md, JSON.stringify(insert.links), insert.source, now, insert.done_at,
     ...CHANGEABLE_COLUMNS.flatMap((col) => givenParams(input, col)),
   ];
+}
+
+function sampleParams(s: UsageSample, now: string): (string | number | null)[] {
+  return [
+    s.agentKey, s.model, s.environment, s.recordAt, now, s.totals.input, s.totals.cache_write,
+    s.totals.cache_read, s.totals.output, s.taskKey, s.agentKind, s.step,
+  ];
+}
+
+function toUsageSample(row: UsageSampleRow): UsageSample {
+  return {
+    agentKey: row.agent_key,
+    model: row.model,
+    environment: row.environment,
+    recordAt: row.record_at,
+    totals: {
+      input: row.input_tokens,
+      cache_write: row.cache_write_tokens,
+      cache_read: row.cache_read_tokens,
+      output: row.output_tokens,
+    },
+    taskKey: row.task_key,
+    agentKind: row.agent_kind,
+    step: row.step,
+  };
+}
+
+function toCapReading(row: CapReadingRow): CapReading {
+  return {
+    takenAt: row.taken_at,
+    plan: row.plan,
+    windowKind: row.window_kind,
+    percent: row.percent,
+    resetAt: row.reset_at,
+    source: row.source,
+  };
 }
 
 function syncParams(i: SyncRow): (string | number | null)[] {

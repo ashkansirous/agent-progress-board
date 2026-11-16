@@ -111,11 +111,13 @@ Keys are stable and chosen by the reporter, for example `<project>/slice-58`.
 
 | Tool | Scope | Inputs | Returns |
 | --- | --- | --- | --- |
-| `report_progress` | write | `key`; for a new key also `project`, `type`, `title`; optional `status`, `priority`, `parent` (text), `why`, `details_md`, `links` (`[{label,url}]`), `source`, `note` | the item |
+| `report_progress` | write | `key`; for a new key also `project`, `type`, `title`; optional `status`, `priority`, `parent` (text), `why`, `details_md`, `links` (`[{label,url}]`), `source`, `environment`, `note` | the item |
 | `mark_done` | write | `key`, optional `source`, `note` | the item |
 | `ask_human` | write | `key`, `project`, `title`; optional `parent`, `priority`, `why`, `details_md`, `links`, `source`, `note` (creates or updates a `waiting_for_me` item, open) | the item |
 | `list_open` | read | optional `project`, `type`, `window_hours` (capped by config) | items not done, plus items done inside the window, each with its latest 20 events |
 | `get_item` | read | `key` | the item with all its events, newest first |
+| `report_usage` | write | `agent_key`, `model`, `record_at`, the four running token totals (`input_tokens`, `cache_write_tokens`, `cache_read_tokens`, `output_tokens`); optional `task_key`, `agent_kind`, `step`, `environment` | `{stored}`; the same report twice stores one sample |
+| `report_cap` | write | `taken_at`, `plan`, `windows[]` (`kind`, `percent`, optional `reset_at`), optional `source` | `{stored, windows}`; stale readings are worked out when read |
 | `sync_snapshot` | write | `project`, `items[]` (each `key`, `project`, `type`, `title`, `status`; optional `priority`, `parent`, `why`, `links`; at most 200) | `{project, created, updated, closed, unchanged}`; doc-sync items missing from the list become done |
 
 Optional fields on `report_progress` and `ask_human`: leave one out to keep the stored value, send
@@ -125,6 +127,10 @@ Optional fields on `report_progress` and `ask_human`: leave one out to keep the 
 An item has `key`, `project`, `parent`, `type`, `priority`, `status`, `title`, `why`,
 `details_md`, `links`, `source`, `heartbeat_at`, `created_at`, `updated_at`, `done_at`. A
 report that changes nothing but the heartbeat writes an event with the note `Heartbeat`.
+
+Usage (Slice 8): `report_usage` and `report_cap` store running token totals and raw cap readings;
+`GET /api/usage` (behind Access, like `/api/board`) works out use, windows and dropped readings
+when read. The same cron thins samples older than `usage.keepDays` (default 30) to one an hour.
 
 A Workers cron trigger (every 15 minutes, `triggers` in `wrangler.jsonc`) turns a live
 `in_progress` or `blocked` item whose heartbeat is older than `staleAfterMinutes` (config,

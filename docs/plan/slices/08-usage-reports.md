@@ -4,7 +4,7 @@ Source: the owner at the desk, 2026-11-16 ("I want to have an understanding of h
 is being consumed ... every few minutes, the agents would report to the dashboard, how much token
 they are consuming via which model and also report which task, which action").
 
-*In progress (wave 2026-11-16), draft PR.* Part A (server) can be built now. The design mock arrived on 2026-11-16 (in
+*Built 2026-11-16 (wave of that day), PR #53, not yet deployed (the night's batched release deploys it).* Parts A and B are built. The design mock arrived on 2026-11-16 (in
 `docs/design/`); part B (the page) is planned against it (see *Design* below).
 
 **Touches:** `migrations/0003_usage.sql`, `src/domain/usage.ts`, `src/domain/cap.ts`,
@@ -160,6 +160,27 @@ wins; none of it changes an owner decision.
   read route calls it on every request, over the readings of the asked range and never fewer
   than the keep-time's days, so a late older reading re-orders by itself. The "stored as
   dropped" line in *Verification* is checked on what the route returns.
+- **Two window rules added after review pass 1** (`reviews/pr-53-high.md` findings 3 and 4;
+  the wave coordinator's choice, the owner's rules above stay as they are): (a) a window whose
+  known reset time has passed is over, so a reading taken at or after the current window's
+  reset time starts a new window whatever its percent (a quiet week that resets from 5% to a
+  first reading of 6% is still a reset); (b) "its reset time differs" needs both reset times
+  known: when the current window has none, a lower reading that carries one is judged by the
+  low mark only, and the first accepted reading that carries a reset time gives it to the
+  window.
+- **How the two sample queries stay small** (after review pass 2, `reviews/pr-53-medium.md`
+  findings 1 to 4; both passes raised these queries, so this is the one design for them):
+  (a) every stored time (`record_at`, `taken_at`, reset times) is normalised to UTC ISO
+  (`toISOString`) in the application layer before the write, so text order is time order and
+  the hour is the first 13 characters; (b) the read query returns the samples in the range,
+  and a baseline (the newest sample before the range start) **only for series that have a
+  sample in the range**, looked up one series at a time through the identity index; a series
+  with no sample in the range has no use in it and is not read; (c) thinning looks only at a
+  band of samples between the cutoff minus 3 days and the cutoff, since earlier runs have
+  already thinned what is older (a cron that was down for more than 3 days leaves that stretch
+  unthinned, which costs rows, never correctness); (d) thinning also keeps the last sample
+  before the task key or the agent kind of a series changes, so what a task used is the same
+  before and after thinning, not only the total.
 - **Series order.** A small table `usage_series` (kind: model, agent kind or environment;
   value; first seen) gets an `INSERT OR IGNORE` row with every usage report. The colour index
   of a value is its place in that table by first seen, then by value. Thinning never touches it.
@@ -412,24 +433,24 @@ Phone.dc.html; series colours `#2a78d6` to `#3987e5`, `#eb6834` to `#d95926`, `#
 
 **A. Server (no design needed)**
 
-- [ ] **A1.** Migration 0003 with the two tables and their indexes (by time, by task key), an
+- [x] **A1.** Migration 0003 with the two tables and their indexes (by time, by task key), an
       `environment` text column on usage samples and a nullable `environment` column on `items`
       (this slice adds it for both tools; [Slice 10](10-task-steps.md) reuses it, and adds it
       in its own migration only if it is built first, in which case this migration leaves it
       out).
-- [ ] **A2.** `src/domain/usage.ts`: the use between two times from running totals, per model
+- [x] **A2.** `src/domain/usage.ts`: the use between two times from running totals, per model
       and kind, including the restart case. Pure, with tests.
-- [ ] **A3.** `src/domain/cap.ts`: the reading rules above (order by time taken, drop stale,
+- [x] **A3.** `src/domain/cap.ts`: the reading rules above (order by time taken, drop stale,
       detect a reset, split into windows, plan changes). Pure, with tests for: 98 to 1 with a
       new reset time, 60 to 55 with the same reset time, a late-arriving older reading, a reset
       with no reset time, a plan change mid-window.
-- [ ] **A4.** `report_usage` and `report_cap` tools with schemas and limits, calling the
+- [x] **A4.** `report_usage` and `report_cap` tools with schemas and limits, calling the
       application layer; the repository port and its D1 code. `report_usage` and
       `report_progress` (the `environment` field only; the rest of that tool is Slice 10) accept
       an optional `environment` (free text, 1 to 40 characters, as sent by the client, never
       checked against a list in code); the key of a usage sample includes it so one agent key in
       two environments never merges; a report with none stores null.
-- [ ] **A5.** The read route for the page (Usage.dc.html), for a time range (`24h`, `window`,
+- [x] **A5.** The read route for the page (Usage.dc.html), for a time range (`24h`, `window`,
       `30d`), a plan, an optional environment and the viewer's UTC offset: tokens per day (per
       hour for `24h`) split four ways (per model, per token kind, per agent kind, per
       environment); totals per model and per token kind; the top tasks by tokens (title,
@@ -441,31 +462,31 @@ Phone.dc.html; series colours `#2a78d6` to `#3987e5`, `#eb6834` to `#d95926`, `#
       model, kind, agent kind and environment (from config, in first-reported order); and the
       time of the answer. All behind the Access check. The cap tiles and the cap line ignore
       the environment.
-- [ ] **A5b.** `config/board.example.json`: `usage.series` (example: light `#2a78d6`,
+- [x] **A5b.** `config/board.example.json`: `usage.series` (example: light `#2a78d6`,
       `#eb6834`, `#1baf7a`; dark `#3987e5`, `#d95926`, `#199e70`), `usage.topTasks` (6),
       `usage.baseEnvironment` and `usage.environmentLabels` (see *Decided at the desk*; made-up
       example values). The page reads all of them from the route, never from code.
-- [ ] **A6.** `docs/clients.md`: both tools, the keys, "totals so far", what to send and how
+- [x] **A6.** `docs/clients.md`: both tools, the keys, "totals so far", what to send and how
       often, `environment`, the fail-open rule again. README line.
-- [ ] **A7.** Thinning of old samples in the cron, with a test.
+- [x] **A7.** Thinning of old samples in the cron, with a test.
 
 **B. Usage page (planned against the mock, 2026-11-16; values in *Design*)**
 
 - [x] **B1.** Copy the mock into `docs/design/` and rewrite this part to match it. (Done: the
       mock is in `docs/design/`, refreshed twice on 2026-11-16.)
-- [ ] **B2.** The shared view switcher and the usage view shell: view tabs (desktop,
+- [x] **B2.** The shared view switcher and the usage view shell: view tabs (desktop,
       Usage.dc.html line 21) and the bottom tab bar (phone, PhoneUsage.dc.html `nav`), with
       Board and Usage tabs now (Slice 10 adds Active work); header, time-range switch,
       environment filter, plan picker, the two cap tiles (Usage.dc.html section "Cap now";
       PhoneUsage.dc.html first card); a loading state for any wait over 500 ms, empty and
       failed states (StatesNew.dc.html).
-- [ ] **B3.** The charts and tables: the cap line with the reset marked and a dropped reading
+- [x] **B3.** The charts and tables: the cap line with the reset marked and a dropped reading
       shown (section "Weekly cap over this window", phone line 35), tokens per day with the
       split switch and the token kinds table (section "Tokens per day, by model", phone line
       39), the cost-per-task table with its Task, Project and Tokens columns (section "Cost
       per task"; the "Of the cap" column and the agent-kind list come with Slice 9); the
       phone cards.
-- [ ] **B4.** Browser tests against a faked read route, phone and desktop sizes: range switch,
+- [x] **B4.** Browser tests against a faked read route, phone and desktop sizes: range switch,
       environment filter and plan picker change the request; the split switch changes the
       legend and table; a dropped reading is drawn hollow with its label; the chart has a
       table equivalent; loading, empty and failed states.
@@ -485,3 +506,79 @@ Phone.dc.html; series colours `#2a78d6` to `#3987e5`, `#eb6834` to `#d95926`, `#
   model, plan, environment or project name from the mock appears in `web/` or `e2e/` fixtures
   beyond the made-up placeholders.
 - `npm run test:e2e` green for part B.
+
+#### Built (2026-11-16, PR #53)
+
+Checks green on the final code (the fixer's run): `npm run lint`, `npm run typecheck`, `npm test` 207 passed,
+`npm run test:e2e` 86 passed. A separate run-checks pass was still running when this was written; its result is not
+recorded here.
+
+*Measured thinning* (asked for in *Decided at the desk*): one agent and model reporting every 5 minutes for 40 days is
+11,520 rows. With `keepDays` 30 and daily thinning it runs at 8,883 rows: 8,640 inside the keep time, 240 hourly rows for
+the 10 older days, the restart rows and the oldest row. That is 288 rows per series per day inside the keep time and 24
+after it. A 30-day page load reads about 8.6k rows per series.
+
+*Decided while building* (where the slice was silent):
+
+- A sample belongs to the plan of the newest cap reading at or before it; before the first reading it takes the first
+  reading's plan; with no readings every plan counts.
+- `window_kind` is free text; the route shows `weekly` and `short`.
+- The task list follows the range and leaves out tokens with no task key. A task key with no item takes its project
+  from the part before the first `/`.
+- `/api/usage` returns the palettes and a colour index per series.
+- Eight new palette keys in config: `segmentBg`, `segmentText`, `segmentPressedBg`, `segmentPressedText`, `shadow`,
+  `track`, `barFill`, `rowLine`.
+- Hash routing: the page is `#/usage`.
+- Phone task rows show tokens with a bar against the biggest task and no "Everything else" row (as the mock).
+- A hidden screen-reader table sits beside the chart.
+- The EXPLAIN test asserts that both queries use `idx_usage_samples_time` / `idx_usage_samples_identity`.
+- The thinning band is 3 days.
+
+*Changed while building:* nothing else to the plan beyond the list above.
+
+*From review:* findings files read in full: `reviews/pr-53-high.md` (10 findings), `reviews/pr-53-medium.md` (8),
+`reviews/pr-53-check-medium.md` (2).
+
+- pr-53-high: applied #1, #2, #3, #4, #5, #6, #10.
+- Skipped #7 (`reviews/pr-53-high.md`): "readUsage is about 40 lines and does the whole job" - code shape only, no wrong
+  result or extra cost beyond the round trips.
+- Recorded #8 (`reviews/pr-53-high.md`): "no counts are recorded" - answered by the measured row counts above.
+- Skipped #9 (`reviews/pr-53-high.md`): "A range spanning a DST change buckets samples" - low; kept as a follow-up below.
+- pr-53-medium: applied #1, #2, #3, #4, #7.
+- Skipped #5 (`reviews/pr-53-medium.md`): "idx_usage_samples_task is used by no query" - work item A1 asks for the
+  task-key index.
+- Skipped #6 (`reviews/pr-53-medium.md`): "The final ORDER BY over the UNION ALL has no index" - low, no failure path
+  today; kept as a follow-up below.
+- Skipped #8 (`reviews/pr-53-medium.md`): "SERIES_WINDOW orders by record_at, id" - low, no failure path today; kept as a
+  follow-up below.
+- pr-53-check-medium: no confirmed defects; its two unconfirmed lows are follow-ups below.
+
+#### Follow-ups (open, not built)
+
+- DST: one UTC offset applied over a 30-day range (`reviews/pr-53-high.md` #9).
+- The final ORDER BY over the UNION ALL needs a temp sort and `usageDeltas` re-sorts in JS (`reviews/pr-53-medium.md` #6).
+- `SERIES_WINDOW` orders by `record_at, id` while `deltasOfSeries` sorts by `record_at` only; ties are impossible today
+  (`reviews/pr-53-medium.md` #8).
+- No bound on `record_at` or a window start, so a far-past date makes `bucketKeys` loop once per hour on a request
+  (`reviews/pr-53-check-medium.md` #1).
+- `splitByBucket` uses `buckets.indexOf` per delta, O(deltas x buckets), CPU only (`reviews/pr-53-check-medium.md` #2).
+
+#### For CLAUDE.md
+
+- Usage state is derived at read: the tables hold only what was reported; windows, verdicts and restarts come from
+  `src/domain/cap.ts` and `src/domain/usage.ts`; never store a derived value (Slice 8:
+  docs/plan/slices/08-usage-reports.md).
+- Every stored time is normalised to UTC ISO in the application layer; `SAMPLES_FROM` and `THIN_ROWS` rely on it and
+  `test/usageTools.test.ts` asserts their query plans (Slice 8: docs/plan/slices/08-usage-reports.md).
+
+#### For README.md
+
+None: the README diff in this worktree already describes the usage page and the two tools.
+
+#### Not yet verified
+
+- The deployed-board check in *Verification*: a real client run shows tokens for two models and the weekly percent
+  (waits for the deploy and the client in the owner's config repo).
+- Migration 0003 applied by the pipeline.
+- Thinning from the live cron.
+- The page on the owner's phone through Access, against the mock.

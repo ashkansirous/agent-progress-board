@@ -1,7 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { askHuman, type Clock, getItem, listOpen, markDone, reportProgress, syncSnapshot } from "../application/board";
-import type { ItemRepository } from "../application/ports";
+import type { ItemRepository, UsageRepository } from "../application/ports";
+import { reportCap, reportUsage } from "../application/usage";
 import { parseConfig } from "../config";
 import { DomainError } from "../domain/upsert";
 import { Scope } from "../domain/scope";
@@ -10,7 +11,9 @@ import {
   getItemShape,
   listOpenShape,
   markDoneShape,
+  reportCapShape,
   reportProgressShape,
+  reportUsageShape,
   syncSnapshotShape,
 } from "./schemas";
 
@@ -18,7 +21,7 @@ const INTERNAL_ERROR = "internal error: the board could not complete the request
 
 export interface ToolContext {
   scope: Scope;
-  repo: ItemRepository;
+  repo: ItemRepository & UsageRepository;
   /** Raw BOARD_CONFIG, parsed only by list_open. */
   rawConfig: string | undefined;
   clock: Clock;
@@ -31,6 +34,8 @@ export enum ToolName {
   ListOpen = "list_open",
   GetItem = "get_item",
   SyncSnapshot = "sync_snapshot",
+  ReportUsage = "report_usage",
+  ReportCap = "report_cap",
 }
 
 export function registerTools(server: McpServer, ctx: ToolContext): void {
@@ -40,6 +45,32 @@ export function registerTools(server: McpServer, ctx: ToolContext): void {
   registerListOpen(server, ctx);
   registerGetItem(server, ctx);
   registerSyncSnapshot(server, ctx);
+  registerReportUsage(server, ctx);
+  registerReportCap(server, ctx);
+}
+
+function registerReportUsage(server: McpServer, ctx: ToolContext): void {
+  server.registerTool(
+    ToolName.ReportUsage,
+    {
+      description:
+        "Report the running token totals of one agent on one model (idempotent). Send totals so far, never differences; the same report twice stores one sample.",
+      inputSchema: reportUsageShape,
+    },
+    (args) => run(ctx, Scope.Write, () => reportUsage(ctx.repo, args, ctx.clock)),
+  );
+}
+
+function registerReportCap(server: McpServer, ctx: ToolContext): void {
+  server.registerTool(
+    ToolName.ReportCap,
+    {
+      description:
+        "Report one cap reading: the time taken, the plan name and the percent used (with the reset time when known) of each window the client can read.",
+      inputSchema: reportCapShape,
+    },
+    (args) => run(ctx, Scope.Write, () => reportCap(ctx.repo, args)),
+  );
 }
 
 function registerSyncSnapshot(server: McpServer, ctx: ToolContext): void {

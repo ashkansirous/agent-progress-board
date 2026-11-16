@@ -6,6 +6,18 @@
     { "id": "garden-planner", "label": "Garden Planner" },
     { "id": "home-lab", "label": "Home Lab" }
   ],
+  "usage": {
+    "lowMarkPercent": 2,
+    "keepDays": 30,
+    "topTasks": 6,
+    "baseEnvironment": "laptop",
+    "environmentLabels": { "laptop": "Laptop", "cloud-vm": "Cloud VM" },
+    "series": [
+      { "light": "#2a78d6", "dark": "#3987e5" },
+      { "light": "#eb6834", "dark": "#d95926" },
+      { "light": "#1baf7a", "dark": "#199e70" }
+    ]
+  },
   "types": {
     "waiting_for_me": {
       "label": "Needs you",
@@ -89,7 +101,15 @@
       "primaryFg": "#FFFFFF",
       "skeletonBar": "#E9ECF0",
       "skeletonStrip": "#FBEFE2",
-      "skeletonTile": "#F0F2F5"
+      "skeletonTile": "#F0F2F5",
+      "segmentBg": "#E9ECF0",
+      "segmentText": "#3B424D",
+      "segmentPressedBg": "#FFFFFF",
+      "segmentPressedText": "#14171C",
+      "shadow": "rgba(20,23,28,0.08)",
+      "track": "#E9ECF0",
+      "barFill": "#14171C",
+      "rowLine": "#F0F2F5"
     },
     "dark": {
       "page": "#0E1014",
@@ -116,7 +136,15 @@
       "primaryFg": "#0E1014",
       "skeletonBar": "#262B35",
       "skeletonStrip": "#2A1C0E",
-      "skeletonTile": "#1F232C"
+      "skeletonTile": "#1F232C",
+      "segmentBg": "#232833",
+      "segmentText": "#C7CDD8",
+      "segmentPressedBg": "#3A4150",
+      "segmentPressedText": "#FFFFFF",
+      "shadow": "transparent",
+      "track": "#262B35",
+      "barFill": "#E8EAEE",
+      "rowLine": "#262B35"
     }
   }
 }

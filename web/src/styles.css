@@ -27,6 +27,14 @@
   --skeletonBar: color-mix(in srgb, CanvasText 10%, Canvas);
   --skeletonStrip: color-mix(in srgb, CanvasText 6%, Canvas);
   --skeletonTile: color-mix(in srgb, CanvasText 8%, Canvas);
+  --segmentBg: color-mix(in srgb, CanvasText 8%, Canvas);
+  --segmentText: GrayText;
+  --segmentPressedBg: Canvas;
+  --segmentPressedText: CanvasText;
+  --shadow: transparent;
+  --track: color-mix(in srgb, CanvasText 8%, Canvas);
+  --barFill: CanvasText;
+  --rowLine: color-mix(in srgb, CanvasText 6%, Canvas);
   --mono: "JetBrains Mono Variable", ui-monospace, monospace;
 }
 

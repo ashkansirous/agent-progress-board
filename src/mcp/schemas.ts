@@ -6,6 +6,9 @@ const MAX_KEY = 200;
 const MAX_LABEL = 300;
 const MAX_TEXT = 20_000;
 const MAX_LINKS = 20;
+const MAX_ENVIRONMENT = 40;
+const MAX_MODEL = 100;
+const MAX_CAP_WINDOWS = 20;
 
 const key = z.string().min(1).max(MAX_KEY).describe("Stable item key, e.g. demo-app/slice-58");
 const label = z.string().min(1).max(MAX_LABEL);
@@ -38,13 +41,59 @@ const detailShape = {
   note: text.optional().describe("History note for this report"),
 };
 
+const environment = z
+  .string()
+  .min(1)
+  .max(MAX_ENVIRONMENT)
+  .describe("Where the work ran, free text as the client names it (for example laptop or cloud-vm)");
+
 export const reportProgressShape = {
   key,
   project: label.optional().describe("Required when the key is new"),
   type: z.enum(ItemType).optional().describe("Required when the key is new"),
   title: label.optional().describe("Required when the key is new"),
   status: z.enum(ItemStatus).optional(),
+  environment: environment.nullable().optional().describe("Where the work ran; null clears it"),
   ...detailShape,
+};
+
+const isoTime = z.iso.datetime({ offset: true }).describe("ISO 8601 time, for example 2026-11-16T14:05:00Z");
+const tokenCount = z
+  .number()
+  .int()
+  .min(0)
+  .max(Number.MAX_SAFE_INTEGER)
+  .describe("A running total so far, not a difference");
+
+export const reportUsageShape = {
+  agent_key: key.describe("<project>/session-<id>, or <project>/session-<id>/agent-<id> for a helper"),
+  model: z.string().min(1).max(MAX_MODEL),
+  record_at: isoTime.describe("Time of the newest record these totals counted"),
+  input_tokens: tokenCount.describe("Fresh input tokens, running total"),
+  cache_write_tokens: tokenCount.describe("Tokens written to the cache, running total"),
+  cache_read_tokens: tokenCount.describe("Tokens read from the cache, running total"),
+  output_tokens: tokenCount.describe("Output tokens, running total"),
+  task_key: key.optional().describe("Item key of the task (a slice or a slice part) the tokens were for"),
+  agent_kind: z.string().min(1).max(MAX_MODEL).optional().describe("Kind of agent, for example reviewer"),
+  step: label.optional().describe("The step the agent was on, when known"),
+  environment: environment.optional(),
+};
+
+const capWindow = z.object({
+  kind: z
+    .string()
+    .min(1)
+    .max(MAX_MODEL)
+    .describe("weekly, short (any shorter window) or another name such as a per-model window"),
+  percent: z.number().min(0).max(100).describe("Percent used, decimals allowed"),
+  reset_at: isoTime.optional().describe("When this window resets, when known"),
+});
+
+export const reportCapShape = {
+  taken_at: isoTime.describe("When the client took the reading"),
+  plan: z.string().min(1).max(MAX_MODEL).describe("The subscription plan's name, as the client reads it"),
+  windows: z.array(capWindow).min(1).max(MAX_CAP_WINDOWS),
+  source: label.optional().describe("What took the reading, for example status-line"),
 };
 
 export const markDoneShape = {

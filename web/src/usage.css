@@ -1,0 +1,581 @@
+/* The usage page and the view tabs. Colours are the board config's palette (see theme.ts); nothing is hard-coded. */
+
+.phone.app {
+  display: flex;
+  flex-direction: column;
+}
+
+.phone .page {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+.usage-card {
+  min-width: 0;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* View tabs */
+
+.view-tabs {
+  display: flex;
+  align-self: flex-start;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--segmentBg);
+}
+
+.view-tab {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 9px;
+  color: var(--segmentText);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.view-tab[aria-current="page"] {
+  background: var(--segmentPressedBg);
+  color: var(--segmentPressedText);
+  font-weight: 600;
+  box-shadow: 0 1px 2px var(--shadow);
+}
+
+.view-tabs-phone {
+  position: sticky;
+  bottom: 0;
+  align-self: stretch;
+  gap: 0;
+  padding: 6px 8px 16px;
+  border-top: 1px solid var(--hairline);
+  border-radius: 0;
+  background: var(--page);
+}
+
+.view-tabs-phone .view-tab {
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  min-height: 52px;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.view-tabs-phone .view-tab[aria-current="page"] {
+  color: var(--text);
+}
+
+/* Page frame and controls */
+
+.usage-page {
+  max-width: 1180px;
+  gap: 24px;
+}
+
+.phone .usage-page {
+  max-width: none;
+  gap: 0;
+}
+
+.usage-header {
+  align-items: flex-end;
+}
+
+.phone .usage-header {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.usage-title-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.usage-title-row h1 {
+  flex: 1;
+}
+
+.usage-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.segmented {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--segmentBg);
+}
+
+.segmented button {
+  min-height: 38px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--segmentText);
+  cursor: pointer;
+}
+
+.segmented button[aria-pressed="true"] {
+  background: var(--segmentPressedBg);
+  color: var(--segmentPressedText);
+  font-weight: 600;
+  box-shadow: 0 1px 2px var(--shadow);
+}
+
+.segmented-small button {
+  min-height: 34px;
+  font-size: 13px;
+}
+
+.phone .segmented button {
+  flex: 1;
+  min-height: 36px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.plan-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.plan-field select {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.phone .plan-field {
+  gap: 6px;
+  font-size: 12px;
+}
+
+.phone .plan-field select {
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+.usage-body {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.phone .usage-body {
+  gap: 12px;
+  padding: 0 16px 16px;
+}
+
+.phone .usage-body .state-card {
+  margin: 0;
+}
+
+/* Cap tiles */
+
+.cap-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.phone .cap-tiles {
+  grid-template-columns: 1fr;
+}
+
+.cap-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 20px;
+  border: 1px solid var(--hairline);
+  border-radius: 14px;
+  background: var(--card);
+}
+
+.phone .cap-tile {
+  padding: 14px;
+}
+
+.cap-label,
+.cap-note {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.cap-value {
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.phone .cap-label,
+.phone .cap-note {
+  font-size: 12px;
+}
+
+.phone .cap-value {
+  font-size: 34px;
+}
+
+.cap-bar {
+  display: block;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--track);
+  overflow: hidden;
+}
+
+.cap-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--barFill);
+}
+
+/* Cards and charts */
+
+.usage-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 24px;
+  border: 1px solid var(--hairline);
+  border-radius: 14px;
+  background: var(--card);
+}
+
+.phone .usage-card {
+  gap: 10px;
+  padding: 14px;
+}
+
+.usage-card h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.phone .usage-card h2 {
+  font-size: 14px;
+}
+
+.card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.card-note {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.chart {
+  display: block;
+  font-family: inherit;
+}
+
+.grid-line {
+  stroke: var(--track);
+  stroke-width: 1;
+}
+
+.axis-text {
+  fill: var(--muted);
+}
+
+.strong-text,
+.now-text {
+  fill: var(--text);
+}
+
+.now-text {
+  font-weight: 700;
+}
+
+.reset-line {
+  stroke: var(--text);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+}
+
+.phone .reset-line {
+  stroke-dasharray: 3 3;
+}
+
+.reset-text {
+  fill: var(--text);
+  font-weight: 600;
+}
+
+.cap-path {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.cap-dot {
+  fill: var(--text);
+  stroke: var(--card);
+  stroke-width: 2;
+}
+
+.cap-dropped {
+  fill: var(--card);
+  stroke: var(--muted);
+  stroke-width: 2;
+  stroke-dasharray: 2 2;
+}
+
+.phone .cap-dropped {
+  stroke-width: 1.5;
+}
+
+.series-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 0 0 0 auto;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+.series-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.phone .card-head .segmented {
+  flex: 1 0 100%;
+}
+
+.phone .series-legend {
+  flex: 1 0 100%;
+  gap: 12px;
+  margin: 0;
+  font-size: 11px;
+}
+
+.phone .series-legend li {
+  gap: 5px;
+}
+
+.swatch {
+  display: inline-block;
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.phone .swatch,
+.swatch-small {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.mono {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.phone .mono {
+  font-size: inherit;
+}
+
+/* Tables */
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.usage-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-table caption {
+  padding: 8px 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.usage-table th,
+.usage-table td {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--rowLine);
+  text-align: right;
+}
+
+.usage-table thead th {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--hairline);
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.usage-table .left {
+  padding-left: 0;
+  text-align: left;
+}
+
+.usage-table .total {
+  padding-right: 0;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.usage-table tbody tr:last-child th,
+.usage-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.usage-table tbody th {
+  font-weight: inherit;
+}
+
+.model-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.task-title {
+  font-weight: 500;
+}
+
+.usage-table .muted {
+  color: var(--muted);
+}
+
+.cost-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.cost-card {
+  flex: 999 1 560px;
+  min-width: 0;
+}
+
+.phone .cost-card {
+  flex: 1 1 100%;
+}
+
+.task-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.task-rows li {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.task-row-top {
+  display: flex;
+  font-size: 13px;
+}
+
+.task-value {
+  margin-left: auto;
+  font-weight: 600;
+}
+
+.task-bar {
+  display: block;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--segmentBg);
+  overflow: hidden;
+}
+
+.task-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--segmentText);
+}
+
+/* Usage states */
+
+.usage-skeleton-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.skeleton-usage-tile {
+  height: 80px;
+  border-radius: 10px;
+  background: var(--skeletonTile);
+}
+
+.skeleton-usage-wide {
+  height: 150px;
+  border-radius: 10px;
+  background: var(--skeletonTile);
+}
+
+.skeleton-usage-short {
+  height: 110px;
+  border-radius: 10px;
+  background: var(--skeletonTile);
+}

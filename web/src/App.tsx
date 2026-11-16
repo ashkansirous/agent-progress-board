@@ -1,7 +1,10 @@
 import { useEffect, useMemo } from "react";
 import { BoardPage, type Environment } from "./BoardPage";
 import { DARK_QUERY, PHONE_QUERY, useBoard, useMediaQuery } from "./hooks";
+import { Route } from "./route";
 import { pickLocale, translator } from "./strings";
+import { UsagePage } from "./UsagePage";
+import { useRoute } from "./useRoute";
 
 /** The page's colour scheme, layout and language, read from the device. */
 function useEnvironment(): Environment {
@@ -11,11 +14,16 @@ function useEnvironment(): Environment {
   useEffect(() => {
     document.documentElement.lang = locale;
   }, [locale]);
-  return useMemo(() => ({ phone, scheme: dark ? "dark" : "light", t: translator(locale) }), [phone, dark, locale]);
+  return useMemo(() => ({ phone, scheme: dark ? "dark" : "light", locale, t: translator(locale) }), [phone, dark, locale]);
+}
+
+function BoardRoute({ env }: { env: Environment }) {
+  const { state, refresh } = useBoard();
+  return <BoardPage state={state} env={env} onRefresh={refresh} />;
 }
 
 export function App() {
-  const { state, refresh } = useBoard();
+  const route = useRoute();
   const env = useEnvironment();
-  return <BoardPage state={state} env={env} onRefresh={refresh} />;
+  return route === Route.Usage ? <UsagePage env={env} /> : <BoardRoute env={env} />;
 }

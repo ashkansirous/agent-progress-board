@@ -19,7 +19,6 @@ private Claude Code config repo; this repo hands them a tool reference and a cli
 
 | Slice | Title | Status | PR | Issue | File |
 | --- | --- | --- | --- | --- | --- |
-| 12 | The MCP endpoint on the board's own hostname | parked: feedback loop, waits for the user | | | [12](docs/plan/slices/12-mcp-own-hostname.md) |
 
 Notes:
 

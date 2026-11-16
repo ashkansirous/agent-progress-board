@@ -5,8 +5,8 @@ board's own hostname instead of the Worker's `workers.dev` address. Written by t
 of 2026-11-16 ([note](../notes/2026-11-16-1402-feedback-loop.md)); the session had answered with
 an offer to plan it and did not.
 
-*Parked: feedback loop, waits for the user. Not designed, nothing built. No run builds this before
-the owner has read it.*
+*Dropped by the owner on 2026-11-16 (choice 1 below). Nothing built; the connector keeps the
+address it has now.*
 
 **Touches:** not settled; at least `README.md`, `docs/clients.md` and the Access set-up notes in
 [Slice 2](02-tile-board.md). Whether any file under `src/**` changes depends on the decision below.
@@ -26,7 +26,12 @@ custom hostname. One address for both is easier to remember and to hand out.
   `src/api/access.ts`; a Bypass policy for `/mcp` is a second opening on the same hostname and
   must not weaken the page's check.
 
-#### The owner's decision (open)
+#### The owner's decision
+
+- 2026-11-16: the owner answered "no need for the connector address change. it was too much to
+  change." Choice 1 stands: the slice is dropped and `/mcp` stays on its current address.
+
+Choices as offered:
 
 1. Keep it as it is: `/mcp` stays on `workers.dev`. Nothing to build; this slice is dropped.
 2. Move it: an Access Bypass policy for `/mcp` and the OAuth paths on the custom hostname, the

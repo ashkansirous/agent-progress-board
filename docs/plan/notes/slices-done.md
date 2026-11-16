@@ -15,3 +15,4 @@ Rows moved out of `plan.md`'s status table once built.
 | 9 | What 1% of the cap costs, per model | built | #57 | | [09](../slices/09-cap-cost-estimate.md) |
 | 10 | Task steps and the active work page | built | #60 | | [10](../slices/10-task-steps.md) |
 | 11 | Slice parts: progress bar on the slice, click through to the active part | built | #66 | | [11](../slices/11-slice-parts.md) |
+| 12 | The MCP endpoint on the board's own hostname | dropped (owner, 2026-11-16) | | | [12](../slices/12-mcp-own-hostname.md) |

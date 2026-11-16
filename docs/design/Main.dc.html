@@ -65,7 +65,8 @@ button{font:inherit;color:inherit}
 <h3 style="margin: 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #5B6370">{{ s.label }}</h3>
 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px">
 <sc-for list="{{ s.items }}" as="it" hint-placeholder-count="3">
-<button onClick="{{ it.open }}" style="text-align: left; cursor: pointer; background: {{ it.tileBg }}; border: 1px {{ it.borderStyle }} {{ it.borderColor }}; border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; opacity: {{ it.opacity }}">
+<div style="display: flex; flex-direction: column; background: {{ it.tileBg }}; border: 1px {{ it.borderStyle }} {{ it.borderColor }}; border-radius: 12px; opacity: {{ it.opacity }}">
+<button onClick="{{ it.open }}" style="text-align: left; cursor: pointer; background: transparent; border: 0; border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px">
 <span style="display: flex; align-items: center; gap: 8px">
 <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: {{ it.typeFg }}"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{ it.typeFg }}"></span>{{ it.typeLabel }}</span>
 <span style="margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 1px 6px; border-radius: 6px; background: {{ it.prioBg }}; color: {{ it.prioFg }}; border: 1px solid {{ it.prioBorder }}">{{ it.priority }}</span>
@@ -78,11 +79,21 @@ button{font:inherit;color:inherit}
 <span aria-hidden="true" style="display: block; height: 6px; border-radius: 3px; background: #FFFFFF; overflow: hidden"><span style="display: block; height: 100%; width: {{ it.pct }}; background: {{ it.typeFg }}; border-radius: 3px"></span></span>
 </span>
 </sc-if>
+<sc-if value="{{ it.hasSteps }}" hint-placeholder-val="{{ false }}">
+<span style="display: flex; flex-direction: column; gap: 5px; margin-top: 4px">
+<span style="display: flex; align-items: baseline; gap: 8px; font-size: 12px; color: #3B424D"><span style="font-weight: 600">{{ it.stepNow }}</span><span style="margin-left: auto; font-variant-numeric: tabular-nums">{{ it.stepsLabel }}</span></span>
+<span aria-hidden="true" style="display: flex; gap: 2px; height: 6px"><sc-for list="{{ it.stepSegs }}" as="sg" hint-placeholder-count="4"><span style="flex: 1; border-radius: 2px; background: {{ sg.bg }}"></span></sc-for></span>
+</span>
+</sc-if>
 <span style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #5B6370; margin-top: 2px">
 <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap">↳ {{ it.parent }}</span>
 <span style="margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-weight: 600; color: {{ it.statusFg }}; white-space: nowrap"><span style="width: 7px; height: 7px; border-radius: 50%; background: {{ it.statusDot }}; border: 1.5px solid {{ it.statusFg }}; box-sizing: border-box"></span>{{ it.statusLabel }}</span>
 </span>
 </button>
+<sc-if value="{{ it.hasActivePart }}" hint-placeholder-val="{{ false }}">
+<a href="Active.dc.html" style="align-self: flex-start; min-height: 44px; margin: -8px 0 4px 8px; padding: 0 8px; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: #14171C; text-decoration: none">Follow part {{ it.activeLetter }} <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#14171C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></a>
+</sc-if>
+</div>
 </sc-for>
 </div>
 </div>
@@ -130,6 +141,25 @@ button{font:inherit;color:inherit}
 <sc-if value="{{ sel.hasActivePart }}" hint-placeholder-val="{{ true }}">
 <a href="Active.dc.html" style="align-self: flex-start; min-height: 44px; padding: 0 16px; display: inline-flex; align-items: center; gap: 8px; border-radius: 10px; background: #14171C; color: #FFFFFF; font-weight: 600; text-decoration: none">Follow part {{ sel.activeLetter }} on Active work <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></a>
 </sc-if>
+</div>
+</sc-if>
+<sc-if value="{{ sel.hasSteps }}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: baseline; gap: 8px">
+<h3 style="margin: 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #5B6370">Steps</h3>
+<span style="font-size: 13px; color: #5B6370">{{ sel.agentLine }}</span>
+<span style="margin-left: auto; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums">{{ sel.stepsLabel }}</span>
+</div>
+<span aria-hidden="true" style="display: flex; gap: 3px; height: 8px"><sc-for list="{{ sel.stepSegs }}" as="sg" hint-placeholder-count="4"><span style="flex: 1; border-radius: 3px; background: {{ sg.bg }}"></span></sc-for></span>
+<ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px">
+<sc-for list="{{ sel.stepList }}" as="st" hint-placeholder-count="4">
+<li style="display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; background: {{ st.rowBg }}">
+<span style="width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; background: {{ st.markBg }}; color: {{ st.markFg }}; border: 1.5px solid {{ st.markBorder }}; box-sizing: border-box">{{ st.n }}</span>
+<span style="font-size: 14px; color: {{ st.textColor }}">{{ st.label }}</span>
+<span style="font-size: 12px; font-weight: 600; color: {{ st.stateFg }}">{{ st.stateLabel }}</span>
+</li>
+</sc-for>
+</ol>
 </div>
 </sc-if>
 <div style="display: flex; flex-direction: column; gap: 8px">
@@ -185,7 +215,7 @@ var ITEMS = [
     events: [{ at: '10:52', status: 'Open', note: 'Asked during planning' }] },
   { key: 'recipe-box/slice-4', project: 'Recipe Box', type: 'slice', priority: 'P1', status: 'in_progress', title: 'Slice 4 · Tag search', why: 'Find recipes by ingredient or tag', parent: 'Plan · Search',
     details: ['Search box, tag chips and a join table for tags.', 'Part A is merged; part B is in its first review.'], links: ['Slice file', 'Pull request #41'],
-    parts: [{ l: 'A', t: 'Tag table and migration', s: 'done' }, { l: 'B', t: 'Search box', s: 'active', step: 'Reviewing' }, { l: 'C', t: 'Tag chips', s: 'pending' }, { l: 'D', t: 'Ingredient search', s: 'pending' }, { l: 'E', t: 'Empty results page', s: 'pending' }],
+    parts: [{ l: 'A', t: 'Tag table and migration', s: 'done' }, { l: 'B', t: 'Search box', s: 'active', step: 'Review 1', stepsOf: '1 of 5 steps' }, { l: 'C', t: 'Tag chips', s: 'pending' }, { l: 'D', t: 'Ingredient search', s: 'pending' }, { l: 'E', t: 'Empty results page', s: 'pending' }],
     events: [{ at: '13:23', status: 'In progress', note: 'Asked you to approve the migration' }, { at: '11:05', status: 'In progress', note: 'Session started' }, { at: '09:12', status: 'Open', note: 'Synced from plan docs' }] },
   { key: 'recipe-box/ci-main', project: 'Recipe Box', type: 'problem', priority: 'P0', status: 'blocked', title: 'CI failing on main', why: 'Lint step times out after 10 minutes', parent: 'Wave 3',
     details: ['Second failure in a row; the fix was retried once.', 'Wave 3 is paused until this passes.'], links: ['Failed run', 'Wave log'],
@@ -197,12 +227,12 @@ var ITEMS = [
     details: ['Merged and deployed.'], links: ['Pull request #38'],
     parts: [{ l: 'A', t: 'Share token', s: 'done' }, { l: 'B', t: 'Public recipe page', s: 'done' }, { l: 'C', t: 'Copy link button', s: 'done' }],
     events: [{ at: '11:44', status: 'Done', note: 'Merged to main' }, { at: '08:30', status: 'In progress', note: 'Session started' }] },
-  { key: 'garden-planner/crash-bed', project: 'Garden Planner', type: 'bug', priority: 'P1', status: 'open', title: 'Crash opening an empty bed', why: 'Null bed view; 14 crashes today', parent: 'Release 1.4.1',
+  { key: 'garden-planner/crash-bed', project: 'Garden Planner', type: 'bug', priority: 'P1', status: 'in_progress', title: 'Crash opening an empty bed', agent: 'Fixer', model: 'model-small', env: 'Laptop', steps: [['Reproduce', 'done'], ['Fix', 'active'], ['Phone test', 'pending'], ['Merging', 'pending']], why: 'Null bed view; 14 crashes today', parent: 'Release 1.4.1',
     details: ['Crash logs point at the bed view when a bed has no plants.'], links: ['Crash report'],
     events: [{ at: '09:40', status: 'Open', note: 'From crash logs' }] },
   { key: 'garden-planner/slice-9', project: 'Garden Planner', type: 'slice', priority: 'P2', status: 'in_progress', title: 'Slice 9 · Frost alerts', why: 'Warn the night before a frost', parent: 'Plan · Weather',
     details: ['Forecast fetch and the alert rule are merged; the notification channel is in its second review.'], links: ['Slice file'],
-    parts: [{ l: 'A', t: 'Forecast fetch', s: 'done' }, { l: 'B', t: 'Frost rule', s: 'done' }, { l: 'C', t: 'Notification channel', s: 'active', step: 'Second review' }, { l: 'D', t: 'Settings toggle', s: 'pending' }],
+    parts: [{ l: 'A', t: 'Forecast fetch', s: 'done' }, { l: 'B', t: 'Frost rule', s: 'done' }, { l: 'C', t: 'Notification channel', s: 'active', step: 'Review 2', stepsOf: '3 of 7 steps' }, { l: 'D', t: 'Settings toggle', s: 'pending' }],
     events: [{ at: '13:40', status: 'In progress', note: 'Heartbeat' }, { at: '12:00', status: 'In progress', note: 'Session started' }] },
   { key: 'garden-planner/slice-10', project: 'Garden Planner', type: 'slice', priority: 'P2', status: 'stale', title: 'Slice 10 · Seed inventory', why: 'Track seed packets and expiry', parent: 'Plan · Inventory', staleNote: 'No heartbeat for 3 h',
     details: ['The session stopped reporting. A new report on this key brings it back.'], links: ['Slice file'],
@@ -238,7 +268,32 @@ class Component extends DCLogic {
       opacity: it.status === 'done' ? '0.78' : '1',
       titleColor: it.status === 'stale' ? '#5B6370' : '#14171C',
       open: function () { self.setState({ sel: it.key }); }
-    }, this.partsInfo(it));
+    }, this.partsInfo(it), this.stepsInfo(it));
+  }
+  stepsInfo(it) {
+    if (!it.steps) return { hasSteps: false, stepSegs: [], stepList: [] };
+    var n = it.steps.length;
+    var done = it.steps.filter(function (s) { return s[1] === 'done'; }).length;
+    var act = it.steps.find(function (s) { return s[1] === 'active'; });
+    var SEG = { done: TYPES[it.type].fg, active: TYPES[it.type].border, pending: '#FFFFFF' };
+    var LOOK = {
+      done: { markBg: '#0B6B4B', markFg: '#FFFFFF', markBorder: '#0B6B4B', stateLabel: 'Done', stateFg: '#0B6B4B', rowBg: 'transparent', textColor: '#5B6370' },
+      active: { markBg: '#FFFFFF', markFg: '#1D4ED8', markBorder: '#1D4ED8', stateLabel: 'Now', stateFg: '#1D4ED8', rowBg: '#E6EEFC', textColor: '#14171C' },
+      pending: { markBg: '#FFFFFF', markFg: '#5B6370', markBorder: '#C9CED6', stateLabel: 'Next', stateFg: '#5B6370', rowBg: 'transparent', textColor: '#5B6370' }
+    };
+    var seen = false;
+    return {
+      hasSteps: true,
+      stepNow: act ? act[0] : 'Starting',
+      stepsLabel: done + ' of ' + n + ' steps · ' + Math.round(done / n * 100) + '%',
+      agentLine: it.agent + ' · ' + it.model + ' · ' + it.env,
+      stepSegs: it.steps.map(function (s) { return { bg: s[1] === 'pending' ? '#D5DAE1' : SEG[s[1]] }; }),
+      stepList: it.steps.map(function (s, i) {
+        var look = Object.assign({}, LOOK[s[1]]);
+        if (s[1] === 'pending') { if (seen) look.stateLabel = 'Later'; seen = true; }
+        return Object.assign({ n: String(i + 1), label: s[0] }, look);
+      })
+    };
   }
   partsInfo(it) {
     if (!it.parts) return { hasParts: false, partList: [], hasActivePart: false };
@@ -256,7 +311,7 @@ class Component extends DCLogic {
     };
     var partList = it.parts.map(function (p) {
       var look = Object.assign({}, LOOK[p.s]);
-      if (p.s === 'active') look.stateLabel = 'Active · ' + p.step;
+      if (p.s === 'active') look.stateLabel = 'Active · ' + p.step + ' · ' + p.stepsOf;
       if (p.s === 'stale') look.stateLabel = 'Stale · ' + p.step;
       if (p.s === 'pending' && next && p.l !== next.l) look.stateLabel = 'Later';
       return Object.assign({}, p, look);

@@ -46,6 +46,7 @@ button{font:inherit;color:inherit}
 <div style="display: flex; flex-wrap: wrap; gap: 6px">
 <span style="font-size: 12px; padding: 2px 8px; border-radius: 6px; background: #F0F2F5; color: #3B424D">{{ t.agent }}</span>
 <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 3px 8px; border-radius: 6px; background: #F0F2F5; color: #3B424D">{{ t.model }}</span>
+<span style="font-size: 12px; padding: 2px 8px; border-radius: 6px; background: #F0F2F5; color: #3B424D">{{ t.env }}</span>
 </div>
 </div>
 <div style="flex: 1 1 300px; display: flex; flex-direction: column; gap: 6px">
@@ -82,11 +83,11 @@ button{font:inherit;color:inherit}
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1100}}'>
 var TASKS = [
-  { key: 'garden-planner/slice-9/part-c', project: 'Garden Planner', typeLabel: 'Part', title: 'Part C · Notification channel', parent: 'Slice 9 · Frost alerts', agent: 'Implementer', model: 'model-mid', beat: '1 min ago',
+  { key: 'garden-planner/slice-9/part-c', project: 'Garden Planner', typeLabel: 'Part', title: 'Part C · Notification channel', parent: 'Slice 9 · Frost alerts', agent: 'Implementer', model: 'model-mid', env: 'Cloud VM', beat: '1 min ago',
     steps: [['Implementation', 'done', ''], ['Review 1', 'done', ''], ['Fixing', 'done', ''], ['Review 2', 'active', 'Two helper agents count under this step'], ['Phone test', 'pending', ''], ['Tablet test', 'pending', ''], ['Merging', 'pending', '']] },
-  { key: 'recipe-box/slice-4/part-b', project: 'Recipe Box', typeLabel: 'Part', title: 'Part B · Search box', parent: 'Slice 4 · Tag search', agent: 'Reviewer', model: 'model-large', beat: '2 min ago',
+  { key: 'recipe-box/slice-4/part-b', project: 'Recipe Box', typeLabel: 'Part', title: 'Part B · Search box', parent: 'Slice 4 · Tag search', agent: 'Reviewer', model: 'model-large', env: 'Laptop', beat: '2 min ago',
     steps: [['Implementation', 'done', ''], ['Review 1', 'active', ''], ['Fixing', 'pending', ''], ['Review 2', 'pending', ''], ['Merging', 'pending', '']] },
-  { key: 'garden-planner/crash-bed', project: 'Garden Planner', typeLabel: 'Bug', title: 'Crash opening an empty bed', parent: 'Release 1.4.1', agent: 'Fixer', model: 'model-small', beat: '4 min ago', typeFg: '#B42318', border: '#F3BDBA',
+  { key: 'garden-planner/crash-bed', project: 'Garden Planner', typeLabel: 'Bug', title: 'Crash opening an empty bed', parent: 'Release 1.4.1', agent: 'Fixer', model: 'model-small', env: 'Laptop', beat: '4 min ago', typeFg: '#B42318', border: '#F3BDBA',
     steps: [['Reproduce', 'done', ''], ['Fix', 'active', ''], ['Phone test', 'pending', 'No tablet test: no tablet code changed'], ['Merging', 'pending', '']] }
 ];
 var LOOK = {

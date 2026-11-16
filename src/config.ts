@@ -1,3 +1,4 @@
+import exampleConfig from "../config/board.example.json" with { type: "json" };
 import { ItemStatus, ItemType, Priority } from "./domain/item";
 import {
   DEFAULT_STALE_AFTER_MINUTES,
@@ -72,6 +73,14 @@ export const PALETTE_KEYS = [
   "track",
   "barFill",
   "rowLine",
+  "pillSureBg",
+  "pillSureFg",
+  "pillRoughBg",
+  "pillRoughFg",
+  "pillNoneBg",
+  "pillNoneFg",
+  "mergedCellBg",
+  "markInk",
 ] as const;
 
 export type Palette = Record<(typeof PALETTE_KEYS)[number], string>;
@@ -110,7 +119,39 @@ export interface UsageConfig {
   baseEnvironment: string | null;
   /** A sent environment value mapped to the text the page shows. */
   environmentLabels: Record<string, string>;
+  /** The cap-cost estimate (Slice 9), under `usage.capCost`. */
+  capCost: CapCostConfig;
 }
+
+export interface CapCostConfig {
+  /** Fewer stretches than this in the plan: the page shows "estimate not ready". */
+  minStretches: number;
+  /** An environment with fewer stretches holding its use is not estimated (counts as 1x). */
+  environmentMinStretches: number;
+  /** A model is fitted per token kind from this many stretches per unknown (four kinds each). */
+  fineFactor: number;
+  /** "Fairly sure" needs at least this many stretches and at most this share of growth left unexplained. */
+  sure: { minStretches: number; maxLeftoverShare: number };
+  /** How many unexplained stretches the route lists. */
+  unexplainedStretches: number;
+  /** A stretch is at least this long (the reporting interval). */
+  minStretchMinutes: number;
+  /** A stretch needs the cap to rise by at least this many points. */
+  minGrowthPoints: number;
+  /** The alternating fit stops when no multiplier moves by more than this. */
+  convergence: number;
+}
+
+export const DEFAULT_CAP_COST: CapCostConfig = {
+  minStretches: 3,
+  environmentMinStretches: 4,
+  fineFactor: 3,
+  sure: { minStretches: 8, maxLeftoverShare: 0.2 },
+  unexplainedStretches: 3,
+  minStretchMinutes: 10,
+  minGrowthPoints: 1,
+  convergence: 1e-7,
+};
 
 export const DEFAULT_LOW_MARK_PERCENT = 2;
 export const DEFAULT_KEEP_DAYS = 30;
@@ -141,7 +182,7 @@ export function configFromRecord(parsed: Record<string, unknown>): BoardConfig {
     types: readTypes(parsed.types),
     statuses: readNamed("statuses", parsed.statuses, Object.values(ItemStatus), isStatusEntry),
     priorities: readNamed("priorities", parsed.priorities, Object.values(Priority), isPriorityEntry),
-    palettes: readPalettes(parsed.palettes),
+    palettes: palettesWithDefaults(parsed.palettes),
     oauthRedirectUris: readRedirectUris(parsed.oauth_redirect_uris),
     publicOrigin: readPublicOrigin(parsed.public_origin),
     usage: readUsage(asRecord(parsed.usage)),
@@ -156,6 +197,27 @@ function readUsage(raw: Record<string, unknown>): UsageConfig {
     topTasks: readNumber("usage.topTasks", raw.topTasks, DEFAULT_TOP_TASKS, 1, MAX_TOP_TASKS, true),
     baseEnvironment: readBaseEnvironment(raw.baseEnvironment),
     environmentLabels: readEnvironmentLabels(raw.environmentLabels),
+    capCost: readCapCost(asRecord(raw.capCost)),
+  };
+}
+
+function readCapCost(raw: Record<string, unknown>): CapCostConfig {
+  const base = DEFAULT_CAP_COST;
+  const sure = asRecord(raw.sure);
+  const field = (name: string, value: unknown, fallback: number, min: number, max: number, whole: boolean): number =>
+    readNumber(`usage.capCost.${name}`, value, fallback, min, max, whole);
+  return {
+    minStretches: field("minStretches", raw.minStretches, base.minStretches, 1, 1000, true),
+    environmentMinStretches: field("environmentMinStretches", raw.environmentMinStretches, base.environmentMinStretches, 1, 1000, true),
+    fineFactor: field("fineFactor", raw.fineFactor, base.fineFactor, 1, 100, true),
+    sure: {
+      minStretches: field("sure.minStretches", sure.minStretches, base.sure.minStretches, 1, 1000, true),
+      maxLeftoverShare: field("sure.maxLeftoverShare", sure.maxLeftoverShare, base.sure.maxLeftoverShare, 0, 1, false),
+    },
+    unexplainedStretches: field("unexplainedStretches", raw.unexplainedStretches, base.unexplainedStretches, 1, 50, true),
+    minStretchMinutes: field("minStretchMinutes", raw.minStretchMinutes, base.minStretchMinutes, 0, 1440, false),
+    minGrowthPoints: field("minGrowthPoints", raw.minGrowthPoints, base.minGrowthPoints, 0, 100, false),
+    convergence: field("convergence", raw.convergence, base.convergence, 1e-12, 1, false),
   };
 }
 
@@ -236,6 +298,13 @@ function readNamed<K extends string, V>(
   if (ok) return record as Partial<Record<K, V>>;
   console.error(`BOARD_CONFIG ${field}: need known names mapped to colour entries; using none`);
   return {};
+}
+
+/** The configured palettes laid over the example config's, so a config written before a colour name existed still paints it. */
+function palettesWithDefaults(raw: unknown): BoardConfig["palettes"] {
+  const given = readPalettes(raw);
+  const defaults = readPalettes(exampleConfig.palettes);
+  return { light: { ...defaults.light, ...given.light }, dark: { ...defaults.dark, ...given.dark } };
 }
 
 function readPalettes(raw: unknown): BoardConfig["palettes"] {

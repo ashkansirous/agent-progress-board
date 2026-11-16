@@ -121,7 +121,9 @@ export function usageDeltas(samples: UsageSample[]): UsageDelta[] {
   const series = new Map<string, UsageSample[]>();
   for (const sample of samples) {
     const key = seriesKeyOf(sample);
-    series.set(key, [...(series.get(key) ?? []), sample]);
+    const list = series.get(key);
+    if (list === undefined) series.set(key, [sample]);
+    else list.push(sample);
   }
   return [...series.values()].flatMap(deltasOfSeries);
 }

@@ -12,6 +12,16 @@
     "topTasks": 6,
     "baseEnvironment": "laptop",
     "environmentLabels": { "laptop": "Laptop", "cloud-vm": "Cloud VM" },
+    "capCost": {
+      "minStretches": 3,
+      "environmentMinStretches": 4,
+      "fineFactor": 3,
+      "sure": { "minStretches": 8, "maxLeftoverShare": 0.2 },
+      "unexplainedStretches": 3,
+      "minStretchMinutes": 10,
+      "minGrowthPoints": 1,
+      "convergence": 1e-7
+    },
     "series": [
       { "light": "#2a78d6", "dark": "#3987e5" },
       { "light": "#eb6834", "dark": "#d95926" },
@@ -109,7 +119,15 @@
       "shadow": "rgba(20,23,28,0.08)",
       "track": "#E9ECF0",
       "barFill": "#14171C",
-      "rowLine": "#F0F2F5"
+      "rowLine": "#F0F2F5",
+      "pillSureBg": "#DDF3E9",
+      "pillSureFg": "#0B6B4B",
+      "pillRoughBg": "#FDEBD8",
+      "pillRoughFg": "#9A3F00",
+      "pillNoneBg": "#F0F2F5",
+      "pillNoneFg": "#3B424D",
+      "mergedCellBg": "#F7F8FA",
+      "markInk": "#3B424D"
     },
     "dark": {
       "page": "#0E1014",
@@ -144,7 +162,15 @@
       "shadow": "transparent",
       "track": "#262B35",
       "barFill": "#E8EAEE",
-      "rowLine": "#262B35"
+      "rowLine": "#262B35",
+      "pillSureBg": "#123628",
+      "pillSureFg": "#7FD8B4",
+      "pillRoughBg": "#3D2610",
+      "pillRoughFg": "#FFB672",
+      "pillNoneBg": "#262B35",
+      "pillNoneFg": "#C7CDD8",
+      "mergedCellBg": "#0E1014",
+      "markInk": "#C7CDD8"
     }
   }
 }

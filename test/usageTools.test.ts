@@ -160,7 +160,10 @@ describe("GET /api/usage", () => {
   it("carries the page palettes from config", async () => {
     const config = JSON.stringify({ palettes: { light: { page: "#f0f0f0" }, dark: { page: "#101010" } } });
     const usage = (await getUsage("", { ...baseEnv, BOARD_CONFIG: config })) as UsagePageResponse;
-    expect(usage.palettes).toEqual({ light: { page: "#f0f0f0" }, dark: { page: "#101010" } });
+    expect(usage.palettes.light?.page).toBe("#f0f0f0");
+    expect(usage.palettes.dark?.page).toBe("#101010");
+    expect(usage.palettes.light?.pillSureBg).toBeDefined();
+    expect(usage.palettes.dark?.markInk).toBeDefined();
   });
 
   it("answers 400 naming the field for a bad range or offset", async () => {
@@ -185,11 +188,12 @@ describe("GET /api/usage", () => {
       { value: "cloud-vm", label: "cloud-vm", tokens: 15, reports: 1 },
     ]);
     expect(usage.top_tasks).toEqual([
-      { key: "demo-app/slice-8", title: "Usage reports", project: "demo-app", tokens: 1925 },
-      { key: "other-app/slice-1", title: "other-app/slice-1", project: "other-app", tokens: 10 },
+      { key: "demo-app/slice-8", title: "Usage reports", project: "demo-app", tokens: 1925, cap_points: null },
+      { key: "other-app/slice-1", title: "other-app/slice-1", project: "other-app", tokens: 10, cap_points: null },
     ]);
     expect(usage.other_tasks).toBeNull();
-    expect(usage.agent_kinds).toEqual([{ name: "reviewer", color_index: 0, tokens: 1910 }]);
+    expect(usage.agent_kinds).toEqual([{ name: "reviewer", color_index: 0, tokens: 1910, cap_points: null }]);
+    expect(usage.cap_cost.ready).toBe(false);
     expect(usage.cap.weekly.windows).toHaveLength(1);
     expect(usage.cap.weekly.windows[0]?.readings.map((r) => r.percent)).toEqual([20, 40]);
     expect(usage.cap.weekly.dropped).toEqual([{ taken_at: "2026-11-15T12:00:00.000Z", percent: 35, stored_percent: 40 }]);
@@ -407,6 +411,10 @@ describe("the read query", () => {
     expect(read.join("\n")).toContain("idx_usage_samples_identity");
     expect(read.join("\n")).toContain("idx_usage_samples_time");
     expect(read.filter((line) => line.startsWith("SCAN usage_samples"))).toEqual([]);
+    // The route's one call now starts at the fit's history (30 days back), the same statement with a far earlier bind.
+    const history = await plan(SAMPLES_FROM, ["2026-10-17T12:00:00.000Z"]);
+    expect(history.join("\n")).toContain("idx_usage_samples_identity");
+    expect(history.filter((line) => line.startsWith("SCAN usage_samples"))).toEqual([]);
     expect(thin.join("\n")).toContain("idx_usage_samples_time");
   });
 });

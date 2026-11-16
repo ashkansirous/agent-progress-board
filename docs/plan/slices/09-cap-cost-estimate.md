@@ -4,8 +4,8 @@ Source: the owner at the desk, 2026-11-16 ("the dashboard should be able to gues
 rate ... 1 agent is using [one model], and it uses 2 million tokens, then the weekly usage goes
 up 5% ... each 400k token would then cost 1% of my plan").
 
-*In progress (wave 2026-11-16), draft PR.* Needs [Slice 8](08-usage-reports.md) part A (merged, PR #53). The design mock arrived on 2026-11-16
-(in `docs/design/`); part B (the numbers on the usage page) is planned against it (see
+*Built 2026-11-16, parts A and B, PR #57 (not yet merged, not yet deployed); not yet verified on the deployed board (see *Not yet verified* at the end).* Needs [Slice 8](08-usage-reports.md) part A (merged, PR #53). The design mock arrived on 2026-11-16
+(in `docs/design/`); part B (the numbers on the usage page) was planned against it (see
 *Design* below). The view tabs, the tab bar and the usage page shell belong to Slice 8; this
 slice only adds to that page.
 
@@ -63,7 +63,25 @@ kind and step cost in percent.
   up with cap readings by the nearest sample at or before the reading.
 - The fit runs in the Worker when the usage route is read, as a pure function in `src/domain`.
   If it takes too long on real data, store the result in the cron instead and write the timing
-  into this file.
+  into this file. **Measured (2026-11-16, review fix):** a worst-case sized input (400
+  stretches, three models with a weight per kind, three environments, near-collinear columns)
+  fits in about 170 ms in the Workers test pool (`test/capCost.test.ts`, "the fit stays
+  bounded"). The fit is bounded: at most 200 coordinate-descent rounds per solve and 25
+  alternations, step limit 1e-9, so the cost cannot run away on slowly converging columns; it
+  stays in the route, nothing derived is stored. **Whole derive path measured (2026-11-16,
+  second review fix):** 13,617 samples (30 days: hourly-thinned rows older than three days, a
+  raw row every five minutes since, three models in three environments), 241 readings, 236
+  stretches: deltas, stretches and fit take about 23 ms (`test/capCost.test.ts`, "the whole
+  derive path on a realistic month"). The route still reads the history on every call (same
+  `SAMPLES_FROM` statement, a far earlier bind; `test/usageTools.test.ts` asserts its plan).
+- **One base environment for the whole page (2026-11-16, review).** It is `usage.baseEnvironment`,
+  else the busiest environment over the fit's history (30 days at least), never over the
+  range. The multipliers and the environment list therefore do not move when the range
+  selector changes. This changes Slice 8's behaviour, which took the busiest of the range.
+- **The how-sure verdict judges net error, the shown unexplained share counts only growth the
+  reports could not explain (2026-11-16, review).** Residuals that offset each other (+3, -3)
+  do not lower the verdict.
+- A window's last short run joins the stretch before it, so its growth and use are in the fit.
 - **Added for the mock (2026-11-16):**
   - The "how sure" label has two drawn values, "Fairly sure" and "Rough guess". The label comes
     from the number of stretches and the size of the leftover; the limits are in config
@@ -284,14 +302,14 @@ repo. Dark desktop values: `docs/design/canvas.json` `notes.dark` (listed in Sli
 
 **A. Server**
 
-- [ ] **A1.** `src/domain/capCost.ts`: build the stretches of time from cap readings and usage
+- [x] **A1.** `src/domain/capCost.ts`: build the stretches of time from cap readings and usage
       samples (the rules above); pure, with tests for a reset inside a stretch, a plan change,
       a missing reading, joined short stretches. Each stretch keeps the tokens per environment.
-- [ ] **A2.** The non-negative best fit, coarse and fine, with the leftover figure and the
+- [x] **A2.** The non-negative best fit, coarse and fine, with the leftover figure and the
       "how sure" inputs (number of stretches, size of the leftover). Tests with made-up data
       where the true weights are known: one model alone (the owner's 2 million tokens and 5%
       case must give 400,000 tokens per 1%), three models at once, noise, unseen use.
-- [ ] **A2b.** The multiplier per environment (owner's decision 2). The base environment is 1×
+- [x] **A2b.** The multiplier per environment (owner's decision 2). The base environment is 1×
       (`usage.baseEnvironment`, else the most tokens, see Slice 8). The fit is
       growth = sum over environments of (multiplier x weighted tokens) + leftover, with every
       weight and multiplier at least 0, solved by alternating non-negative least squares
@@ -305,7 +323,7 @@ repo. Dark desktop values: `docs/design/canvas.json` `notes.dark` (listed in Sli
       0, the fit gives about 0 (within 0.1), no weight or multiplier is negative, and a
       cloud-only task costs about 0%. Both with stretches that mix the two environments so the
       multiplier can be told apart.
-- [ ] **A3.** The usage route returns, per plan: tokens per 1% for each model (and kind when
+- [x] **A3.** The usage route returns, per plan: tokens per 1% for each model (and kind when
       fine), the label (`sure` / `rough`), the stretch count and the number at which it gets
       finer, the per-kind weights relative to fresh input, the unexplained share and its points
       of the cap growth, the multiplier per environment with its label, stretch count and
@@ -316,21 +334,21 @@ repo. Dark desktop values: `docs/design/canvas.json` `notes.dark` (listed in Sli
       keys `capCost.sure`, `capCost.minStretches` and the environment minimum in
       `config/board.example.json`. The "which kinds weigh the most" share key is not needed
       (the mock supersedes it).
-- [ ] **A3b.** The usage route also returns the stretches with the most unexplained growth for
+- [x] **A3b.** The usage route also returns the stretches with the most unexplained growth for
       "When the unexplained growth happened" (owner's decision 3, no-way branch): per stretch
       the start and end time, the unexplained points (the leftover), the points of cap growth
       and how many of them the reports explained; the largest first, `capCost.unexplainedStretches`
       of them (3), and the largest one's span for the phone's "Biggest stretch" line. Pure
       function in `src/domain/capCost.ts`, with a test using made-up data with a known
       unexplained stretch.
-- [ ] **A4.** `docs/clients.md` and README: what the estimate needs from a client (regular cap
+- [x] **A4.** `docs/clients.md` and README: what the estimate needs from a client (regular cap
       readings with the plan name, the `environment` on every report) and what it cannot see.
 
 **B. On the usage page (planned against the mock, 2026-11-16; values in *Design*)**
 
 - [x] **B1.** Rewrite this part to match the mock once it is in `docs/design/`. (Done: the
       mock is in `docs/design/`, refreshed twice on 2026-11-16.)
-- [ ] **B2.** On Slice 8's usage page: the unexplained tile (Usage.dc.html "Cap now", third
+- [x] **B2.** On Slice 8's usage page: the unexplained tile (Usage.dc.html "Cap now", third
       tile), the "What 1% of the week costs on {plan}" section with its three blocks (line
       109) or the "estimate not ready" card, "Where the usage comes from" (line 137) with the
       sources table, "When the unexplained growth happened" (line 148), the "Of the cap"
@@ -338,7 +356,7 @@ repo. Dark desktop values: `docs/design/canvas.json` `notes.dark` (listed in Sli
       the phone the 1% list, the kinds card, the sources list and the percent per task
       (PhoneUsage.dc.html lines 44, 49, 59 and 68). Loading, empty and failed come from Slice
       8's page.
-- [ ] **B3.** Browser tests against a faked route, phone and desktop sizes: both pill labels,
+- [x] **B3.** Browser tests against a faked route, phone and desktop sizes: both pill labels,
       a model on one weight (merged row) and one fitted per kind, the comparison select
       changing the numbers, the "estimate not ready" card, the sources table with the base row
       and a measured row, the stretch list, the "Not explained" rows, number format.
@@ -355,3 +373,88 @@ repo. Dark desktop values: `docs/design/canvas.json` `notes.dark` (listed in Sli
 - The page matches Usage.dc.html, PhoneUsage.dc.html and StatesNew.dc.html in the values listed
   in *Design*; no model, plan or environment name from the mock is in `web/` or `e2e/`
   fixtures beyond made-up placeholders.
+
+#### Built (2026-11-16)
+
+Checks: `npm run lint`, `npm run typecheck`, `npm test` and `npm run test:e2e` green (counts in
+PR #57).
+
+Browser run (host, headless, Playwright env-flag page, faked `/api/usage`; evidence in
+`D:/agent-progress-board-worktrees/reviews/wave5-s9-browser/`, outside the repo): desktop 1440
+and phone 390, estimate ready and not ready, matched the *Design* section. Two bugs found and
+fixed there: the sentence shape of Block 3, and the percent printed with one decimal.
+
+*Changed while building:*
+
+- Config keys live at `usage.capCost.*`, not `capCost.*`: the router passes only `config.usage`
+  to the application layer.
+- 8 palette keys added (pill, merged-cell and mark colours) with defaults from
+  `config/board.example.json`, so an old deployed config renders like the mock.
+- The fit reads the full history (30 days, or `keepDays` when longer) on every usage read; the
+  timing is written under *Decided at the desk*, as is the base environment decision.
+- `cap_cost.steps` is served by the route; no UI is drawn for it.
+- A task, agent kind, environment or step whose use includes a model with no fitted weight shows
+  a dash (`cap_points` null), never 0%.
+- "How sure" judges net error; the shown unexplained share is one-sided (only growth the reports
+  could not explain).
+- A trailing short run joins the stretch before it.
+- Cost percents print one decimal (`costPercentText`); the cap tiles keep whole percents, as the
+  mock does.
+
+*From review:* read all five findings files in `D:/agent-progress-board-worktrees/reviews/`
+(they are outside the repo and get deleted).
+
+- Applied: `pr-57-high.md` 1-7, 9 and the key part of 8; `pr-57-medium.md` 1-7;
+  `pr-57-check-medium.md` 1, 2, 4; `pr-57-check-2-medium.md` 1.
+- Skipped #8 scope part (`reviews/pr-57-high.md`): "the bars are scaled against a figure that
+  does not compare" - low; rows are scaled against the whole-plan figure and no number is wrong.
+  The duplicate-key part was applied.
+- Skipped #10 (`reviews/pr-57-high.md`): "All implemented work items (A1-A4, B2, B3) are still
+  unticked" - the docs pass ticks the items after checking each against the diff.
+- Skipped #8 (`reviews/pr-57-medium.md`): "logX clamps above 1000x / below 0.001 to the edge" -
+  low; kept as is.
+- Skipped #9 (`reviews/pr-57-medium.md`): "costsBy repeats costByKey over all deltas 3 times" -
+  low; speed only, the whole derive path is already about 23 ms.
+- Skipped #10 (`reviews/pr-57-medium.md`): "growth <= 0 overlaps growth < minGrowthPoints" - low;
+  no wrong result.
+- Skipped #3 (`reviews/pr-57-check-medium.md`): "Environment multiplier fitted with plain
+  non-negative constraint can be exactly 0" - the owner's Decision "The estimate measures the
+  environment" asks for the case "one where it is free (about 0×, no negative value)", so a
+  multiplier of exactly 0 is the answer the fit must give there.
+- Skipped #5 (`reviews/pr-57-check-medium.md`): "joinTrailingRun extends last stretch to the
+  final reading even when extra growth is zero" - A1 joins flat runs.
+- Skipped #6-9 (`reviews/pr-57-check-medium.md`): "howSure per model/environment uses one
+  fit-wide net-error share" (6), "modelDto calls totalsByModel(known) per model" (7), "fitCapCost
+  (33 lines)" (8), "Three fixed source rows" (9) - all low.
+
+*Follow-ups from review* (not done; each is a follow-up in the findings file named):
+
+- `pr-57-check-2-medium.md` 2 (phone kinds card shows no "not split" note when no model has
+  per-kind ratios), 3 (every usage read refits the whole history, even for the day range, no
+  cache), 4 (an environment's cap points are null if any use in the plan history is of an unfitted
+  model), 5 (`palettesWithDefaults` bakes the example palettes into the stored config).
+- `pr-57-check-3-medium.md` 1-7 (all wording and rounding: `kindsSentence` second amount,
+  `kindsMultipleOf` EN/DE phrasing, `costPercentText` uses "." in German, negative `cap_points`
+  bar width, `KindsBlock` one sentence for all models, `ratioGroups` keyed on formatted strings,
+  `ratioAmount` rounding).
+- The German Block 3 sentence needs a native read.
+
+review read: `pr-57-high.md` 10/10, `pr-57-medium.md` 10/10, `pr-57-check-medium.md` 9/9,
+`pr-57-check-2-medium.md` 5/5, `pr-57-check-3-medium.md` 7/7.
+
+#### For CLAUDE.md
+
+- Cap cost is derived at read: the fit in `src/domain/capCost.ts` runs per request on the full
+  history and is bounded (round caps at the top of the file, timing test in
+  `test/capCost.test.ts`); never store weights or multipliers (Slice 9:
+  docs/plan/slices/09-cap-cost-estimate.md).
+- A cost that includes a model with no fitted weight is null (dash), never 0 (Slice 9:
+  docs/plan/slices/09-cap-cost-estimate.md).
+
+#### Not yet verified
+
+- On the deployed board after some days of real reports: the estimate for a model that ran alone matches a hand calculation from the page's own numbers.
+- Dark desktop values.
+- German locale on the page.
+- Pixel-level chart marks.
+- The page on the owner's phone.

@@ -1,4 +1,5 @@
 import type { BoardConfig, SeriesColor } from "../config";
+import type { FitMode, HowSure, MultiplierState } from "../domain/capCost";
 import type { BucketUnit, Split, TokenKind, UsageRange } from "../domain/usage";
 
 /** What `GET /api/usage` returns; the page and the Worker share these shapes (Slice 8). */
@@ -33,17 +34,92 @@ export interface TaskCostDto {
   title: string;
   project: string;
   tokens: number;
+  /** Points of the cap; null while the estimate is not ready (Slice 9). */
+  cap_points: number | null;
 }
 
 export interface OtherTasksDto {
   tokens: number;
   projects: number;
+  /** Points of the cap (percent) the tasks cost; null while the estimate is not ready (Slice 9). */
+  cap_points: number | null;
 }
 
 export interface AgentKindDto {
   name: string;
   color_index: number;
   tokens: number;
+  /** Points of the cap; null while the estimate is not ready. */
+  cap_points: number | null;
+}
+
+/** What 1% of the cap costs in one model (Slice 9). */
+export interface CapCostModelDto {
+  model: string;
+  color_index: number;
+  mode: FitMode;
+  /** Tokens that use 1% of the cap, per kind; the same number for every kind on one weight; null when the kind costs nothing. */
+  tokens_per_percent: Record<TokenKind, number | null>;
+  /** The same for this window's mix of kinds. */
+  all_kinds_tokens_per_percent: number | null;
+  /** Weight of each kind relative to fresh input; null when the model is on one weight. */
+  kind_ratios: Record<TokenKind, number | null> | null;
+  /** The kind the ratios are measured against: fresh input, or the heaviest kind when fresh input weighs nothing; null when on one weight. */
+  kind_ratio_reference: TokenKind | null;
+  how_sure: HowSure;
+  /** Stretches holding use of this model. */
+  stretches: number;
+  /** The stretch count at which the model gets a weight per kind. */
+  finer_at: number;
+}
+
+export interface CapCostEnvironmentDto {
+  value: string;
+  label: string;
+  tokens: number;
+  reports: number;
+  /** Points of the cap this environment's use cost, multiplier applied; null when some of the use is of a model with no fitted weight. */
+  cap_points: number | null;
+  multiplier: number;
+  state: MultiplierState;
+  /** null for the base and for an environment not measured yet. */
+  how_sure: HowSure | null;
+  stretches: number;
+}
+
+export interface UnexplainedDto {
+  /** Points of cap growth no report explains, of the growth in the range. */
+  points: number;
+  growth_points: number;
+  /** 0 to 1. */
+  share: number;
+}
+
+export interface UnexplainedStretchDto {
+  start: string;
+  end: string;
+  points: number;
+  growth_points: number;
+  explained_points: number;
+}
+
+export interface StepCostDto {
+  step: string;
+  /** null when some of the step's use is of a model with no fitted weight. */
+  cap_points: number | null;
+}
+
+/** The estimate of the chosen plan; models, environments and the lists are empty while it is not ready. */
+export interface CapCostDto {
+  ready: boolean;
+  /** Stretches inside one window on the plan. */
+  stretches: number;
+  min_stretches: number;
+  models: CapCostModelDto[];
+  environments: CapCostEnvironmentDto[];
+  unexplained: UnexplainedDto | null;
+  unexplained_stretches: UnexplainedStretchDto[];
+  steps: StepCostDto[];
 }
 
 export interface CapReadingDto {
@@ -96,6 +172,7 @@ export interface UsageResponse {
   other_tasks: OtherTasksDto | null;
   agent_kinds: AgentKindDto[];
   cap: { weekly: CapLineDto; short: CapLineDto };
+  cap_cost: CapCostDto;
 }
 
 /** What the route sends: the answer plus the page colours from config, so the page needs no second request. */

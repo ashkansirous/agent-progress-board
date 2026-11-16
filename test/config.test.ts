@@ -42,6 +42,17 @@ describe("parseConfig", () => {
     expect(config.palettes.dark?.page).toBe("#0E1014");
   });
 
+  it("fills palette colours a config lacks (the newer names too) from the example defaults, light and dark", () => {
+    const config = parseConfig('{"palettes":{"light":{"page":"#FFFFFF"}}}');
+    expect(config.palettes.light?.page).toBe("#FFFFFF");
+    for (const scheme of ["light", "dark"] as const) {
+      for (const key of ["pillSureBg", "pillRoughFg", "pillNoneBg", "mergedCellBg", "markInk"] as const) {
+        expect(config.palettes[scheme]?.[key]).toMatch(/^#|^rgba?\(/);
+      }
+    }
+    expect(config.palettes.dark?.page).toBe("#0E1014");
+  });
+
   it("drops colour maps with an unknown name, a bad colour or a missing field, and logs", () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
     expect(parseConfig('{"statuses":{"nope":{}}}').statuses).toEqual({});
@@ -50,9 +61,9 @@ describe("parseConfig", () => {
     expect(parseConfig('{"priorities":{"P0":{"light":{"bg":"#000"}}}}').priorities).toEqual({});
     expect(parseConfig('{"statuses":{"open":5}}').statuses).toEqual({});
     expect(parseConfig('{"priorities":{"P0":null}}').priorities).toEqual({});
-    expect(parseConfig('{"palettes":{"sepia":{}}}').palettes).toEqual({});
-    expect(parseConfig('{"palettes":{"light":{"page":"url(x)"}}}').palettes).toEqual({});
-    expect(parseConfig('{"palettes":{"light":{"nope":"#000"}}}').palettes).toEqual({});
+    for (const bad of ['{"sepia":{}}', '{"light":{"page":"url(x)"}}', '{"light":{"nope":"#000"}}']) {
+      expect(parseConfig(`{"palettes":${bad}}`).palettes).toEqual(parseConfig("{}").palettes);
+    }
     expect(parseConfig('{"types":{"bug":{"label":"B","color":"#000","light":{"bg":"#000"}}}}').types).toEqual({});
     expect(log).toHaveBeenCalled();
     log.mockRestore();

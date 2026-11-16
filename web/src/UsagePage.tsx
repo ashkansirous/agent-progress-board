@@ -1,10 +1,13 @@
 import { useMemo, useState } from "react";
 import type { UsagePageResponse } from "../../src/api/usageDto";
 import { UsageRange } from "../../src/domain/usage";
+import { AgentKindCost } from "./AgentKindCost";
 import type { Environment } from "./BoardPage";
+import { CapCostSection } from "./CapCostSection";
 import { CapLine } from "./CapLine";
 import { CapTiles, PhoneCapCard } from "./CapTiles";
 import { Route } from "./route";
+import { SourcesSection } from "./SourcesSection";
 import { TaskCost } from "./TaskCost";
 import { TokenChart } from "./TokenChart";
 import { paletteVars } from "./theme";
@@ -81,7 +84,12 @@ function Sections({ data }: { data: UsagePageResponse }) {
       {phone ? <PhoneCapCard data={data} /> : <CapTiles data={data} />}
       <CapLine data={data} />
       <TokenChart data={data} />
-      <TaskCost data={data} />
+      <CapCostSection data={data} />
+      <SourcesSection data={data} />
+      <div className="cost-row">
+        <TaskCost data={data} />
+        <AgentKindCost data={data} />
+      </div>
     </>
   );
 }

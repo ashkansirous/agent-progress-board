@@ -3,9 +3,9 @@
 Source: phone scope (2026-11-15), milestone 5 — see [Slice 1](01-items-api.md). The MCP
 endpoint and its tools ship in Slice 1; this slice adds what claude.ai needs.
 
-*Park note (2026-11-15; the feedback loop moved the row back to `planned` so the next run retries): built and merged (PR #42, 9951aa2); the claude.ai connector waits for the owner, after the first deploy. Built 2026-11-15. Not yet deployed: the first deploy has not run yet, so nothing is verified on a deployed Worker or on claude.ai.*
+*Parked (index pass 2026-11-16): built and merged (PR #42, 9951aa2) and deployed (first deploy 2026-11-15, c1cc5de); the row waits for the owner's claude.ai connector step. Nothing is verified on claude.ai yet.*
 
-**Waiting on the user:** after the first deploy, add the board as a custom connector in claude.ai ([https://claude.ai/settings/connectors](https://claude.ai/settings/connectors), "Add custom connector", the Worker's `/mcp` address on `workers.dev`, not the page's custom domain, which sits behind Access; see [Slice 2](02-tile-board.md) *Address*) and type the passphrase from the secrets store entry `OWNER_PASSPHRASE`. It blocks only the claude.ai check. (The link was not opened by the run that wrote it: it needs the owner's login.)
+**Waiting on the user:** add the board as a custom connector in claude.ai ([https://claude.ai/settings/connectors](https://claude.ai/settings/connectors), "Add custom connector", the Worker's `/mcp` address on `workers.dev`, not the page's custom domain, which sits behind Access; see [Slice 2](02-tile-board.md) *Address*) and type the passphrase from the secrets store entry `OWNER_PASSPHRASE`. It blocks only the claude.ai check. (The link was not opened by the run that wrote it: it needs the owner's login.)
 
 **Touches:** `src/**`, `wrangler.jsonc`, `vitest.config.ts`, `.dev.vars.example`, `package.json`,
 `package-lock.json`, `test/**`, `README.md`, `docs/clients.md`
@@ -143,7 +143,7 @@ Touches was widened: the Worker's entry (`src/index.ts`) and the test config mus
 
 The first deploy ran 2026-11-15 (c1cc5de); the open lines below were checked by curl against it, as far as stated.
 
-- wrangler provisions the `OAUTH_KV` namespace on the first `deploy:ci` run. Seen 2026-11-15: `POST /oauth/register` answers 201, which needs the KV. Not seen: the namespace itself (needs wrangler).
+- ~~wrangler provisions the `OAUTH_KV` namespace on the first `deploy:ci` run.~~ Verified 2026-11-16: `wrangler kv namespace list` shows the OAuth KV namespace (and `POST /oauth/register` answered 201 on 2026-11-15).
 - The per-request env copy works on the deployed Worker (proven only in the Vitest Workers pool). Seen 2026-11-15: register, discovery, authorize and token routes answer repeatedly without error. Not seen: a full grant (the passphrase POST was not run).
 - claude.ai accepts the connector (registration, the 401 pointer on POST, 405 on GET, consent page, token) and "what's waiting for me?" lists the right items from claude.ai mobile.
 - A static bearer token with `public_origin` set and a different request host still gets through (check-2 finding 8). Not run 2026-11-15: another Host cannot be sent to the workers.dev address; the bearer works on that host.

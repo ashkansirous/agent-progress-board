@@ -4,7 +4,7 @@ Source: phone scope (2026-11-15), milestone 2 — see [Slice 1](01-items-api.md)
 
 *Built 2026-11-15 (wave 2026-11-15), merged as PR #35 (be04d18). The Access-by-API item is parked; the Access checks and the first pipeline run are not yet verified (see the end of this file).*
 
-*Park note (2026-11-15; the feedback loop moved the row back to `planned` so the next run retries): the code is built and merged (PR #35). What is left is the Access application, which waits for the owner, and the checks behind it and behind the first deploy.*
+*History (Park note of 2026-11-15, when the row went back to `planned`): the code was built and merged (PR #35); what was left was the Access application and the checks behind it. The Access application exists and the owner signed in on 2026-11-15. Index pass 2026-11-16: row is `built` (nothing left that the waves can build); the open checks are in `docs/plan/unverified.md`.*
 
 **Touches:** `web/**`, `wrangler.jsonc`, `package.json`, `package-lock.json`, `src/api/**`,
 `src/config.ts`, `src/index.ts`, `e2e/**`, `playwright.config.ts`, `vite.config.ts`,
@@ -337,18 +337,17 @@ Nothing to lift: the README is updated in PR #35.
 #### Not yet verified
 
 - Seeded data shows correctly on the owner's phone, opened from the deployed URL through Access
-  (drawer and waiting strip included); blocked until the owner has signed in once on the custom
-  hostname (the Access application exists since 2026-11-15). Not seen: the page after signing in.
+  (drawer and waiting strip included). Seen 2026-11-15: the owner opened the page on the custom hostname from a phone, signed in through Access and said "it works on my phone"; what they saw was the leftover test items, not seeded data. Not seen: the seeded data, drawer and waiting strip on the phone.
 - ~~Opening the page without passing Access is refused, checked through Access itself.~~ Verified
   2026-11-15: a request to the custom hostname with no session answers 302 to the Access login
   (`POST /mcp` there also answers 302).
 - The custom domain is attached to the Worker and a pipeline deploy leaves it attached (the
   config keeps no `routes` key; read in the wrangler docs). Seen 2026-11-15: attached as a Custom
-  domain, resolves on a public resolver. Not seen: it still attached after a later pipeline deploy.
+  domain, resolves on a public resolver. Latest deployment seen 2026-11-16T13:02:51Z; not read that day: whether the custom domain is still attached after it.
 - The first pipeline run of the new `deploy:ci` (`vite build`, then migrations, then deploy with
   `web/dist/agent_progress_board/wrangler.json`); locally `vite build` and `wrangler deploy
   --dry-run` passed. Seen 2026-11-15: the check "Workers Builds: agent-progress-board" on c1cc5de succeeded and the Worker is live with migrations applied. Not seen: the pipeline log.
-- Worker secrets (`ACCESS_*`, `BOARD_CONFIG`) survive a pipeline deploy. Seen 2026-11-15: `BOARD_WRITE`/`BOARD_READ` tokens and the `OWNER_PASSPHRASE` page work after the deploy. Seen 2026-11-15: `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` are set (`wrangler secret list`). Not seen: them or `BOARD_CONFIG` after a later pipeline deploy.
-- The seed script run against the deployed Worker.
+- Worker secrets (`ACCESS_*`, `BOARD_CONFIG`) survive a pipeline deploy. Seen 2026-11-15: `BOARD_WRITE`/`BOARD_READ` tokens and the `OWNER_PASSPHRASE` page work after the deploy. Seen 2026-11-15: `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` are set (`wrangler secret list`). Seen 2026-11-16: after the deployment of 13:02:51Z `wrangler secret list` shows `ACCESS_AUD`, `ACCESS_TEAM_DOMAIN`, `BOARD_READ_TOKEN`, `BOARD_WRITE_TOKEN` and `OWNER_PASSPHRASE`; `BOARD_CONFIG` is not set as a secret (it is optional). Nothing left to see here unless the owner sets `BOARD_CONFIG`.
+- The seed script run against the deployed Worker. Note 2026-11-16: the live board now holds real items, so a seed run there would break the rule in `plan.md` (a check that writes to the live board writes a handful of rows and removes them in the same run); it needs a decision first.
 - The Node version in `engines` (`>= 22.18.0`): the number comes from the review and the fixer's
   knowledge; context7 confirmed only that type stripping is default in Node 24.

@@ -3,6 +3,13 @@
 Every open "Not yet verified" check, one block per slice. A check that passes, or that the
 owner confirms, is removed here and its slice marked `verified`.
 
+### Slice 11: Slice parts: progress bar on the slice, click through to the active part ([slice](slices/11-slice-parts.md))
+
+- On the deployed board after a real document sync and a real agent run, a slice shows its bar and the click lands on the part the agent holds (needs the deploy and a client that sends parts).
+- Migration 0005 applied on the deployed database by the pipeline.
+- The follow link row on the phone tile (44 px row, text #E8EAEE) was not measured in the browser run.
+- The 1.5 px circle border on a screen with pixel ratio 2 or more.
+
 ### Slice 10: Task steps and the active work page ([slice](slices/10-task-steps.md))
 
 - The phone tile bar gap reads 2 px where the slice says "4 gap" (ambiguous).

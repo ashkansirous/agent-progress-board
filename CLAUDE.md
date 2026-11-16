@@ -62,3 +62,8 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
   `src/domain/stale.ts`; never add another copy (Slice 10: docs/plan/slices/10-task-steps.md).
 - The open item's address is `#/open/<key>` and the drawer follows the address (Slice 10:
   docs/plan/slices/10-task-steps.md).
+- Parts come from the documents (`in_doc_sync`); only those count in a slice's list and bar. The rule is in
+  `src/domain/parts.ts` (Slice 11: docs/plan/slices/11-slice-parts.md).
+- The shown status of a slice with an active part is derived at read (`shownStatusOf`), never stored (Slice 11:
+  docs/plan/slices/11-slice-parts.md).
+- The Worker returns `parent_slice` as data; the page builds the text (Slice 11: docs/plan/slices/11-slice-parts.md).

@@ -5,7 +5,7 @@ finished sub A. An agent picks slice X sub B. Then the status of slice X is in f
 it is done that should be shown in a progress bar under it ... From the main page, where we have
 the slices, we should be able to click and follow to the sub task that is currently active").
 
-*Built 2026-11-16, parts A and B, PR #66, not merged; not yet verified on the deployed board.* Needs [Slice 10](10-task-steps.md). The design mock arrived on 2026-11-16 (in
+*Built 2026-11-16, parts A and B, merged as PR #66 (01ab3f6, skip-CI batch); not yet deployed (the pipeline's deploy applies migration 0005); not yet verified on the deployed board.* Needs [Slice 10](10-task-steps.md). The design mock arrived on 2026-11-16 (in
 `docs/design/`); part B (the page) is planned against it (see *Design* below). The view tabs and
 the tab bar are [Slice 8](08-usage-reports.md)'s and the Active work page is
 [Slice 10](10-task-steps.md)'s; this slice reuses both.
@@ -254,7 +254,7 @@ theme is in `docs/design/canvas.json` `notes.dark` (listed in
 
 *Checks on the final code:* lint clean, typecheck clean, `npm test` 25 files 342 passed, `npm run test:e2e` 177 passed, 3 skipped. Browser run (local Worker and D1, Access check on, headless): all 5 items pass; desktop 45 of 46 values, phone 41 of 42; the one miss on each is the part circle's 1.5 px border rendering as 1 px at pixel ratio 1.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-16)
 
 - Parts come from the documents (`in_doc_sync`); only those count in a slice's list and bar. The rule is in `src/domain/parts.ts` (Slice 11: docs/plan/slices/11-slice-parts.md).
 - The shown status of a slice with an active part is derived at read (`shownStatusOf`), never stored (Slice 11: docs/plan/slices/11-slice-parts.md).

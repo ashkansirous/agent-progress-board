@@ -5,7 +5,7 @@ the tasks that agents are working on ... if the agent is done with implementatio
 14% of the task is done and the progress bar should show that ... with an option to expand and see
 the work steps, what is done and what is active and what is next").
 
-*Built 2026-11-16, PR #60 merged (bb02c12), not yet verified on the deployed board.* Parts A and B are built. The design mock arrived on 2026-11-16 (in
+*Built 2026-11-16, PR #60 merged (bb02c12), deployed (deployment created 2026-11-16T17:15:11Z), not yet verified on the deployed board.* Parts A and B are built. The design mock arrived on 2026-11-16 (in
 `docs/design/`); part B (the page) was built against it (see *Design* below). The view tabs
 and the phone tab bar belong to [Slice 8](08-usage-reports.md) (the first to add a second view);
 this slice adds the Active work tab and its count to them. If this slice is built first, it
@@ -360,4 +360,4 @@ None: the README diff already carries the Active work view, the tile and drawer 
 - The loading blocks' colours and the failed card against the mock.
 - On the deployed board: three tasks from a real client run show on the active page with the right step (Verification section).
 - On the deployed board: a killed session leaves the page when it turns stale.
-- Migration 0004 applied by the pipeline.
+- Migration 0004 applied by the pipeline. Seen 2026-11-16: the pipeline deploy of f5bf489 (deployment created 17:15:11Z) applied it; `wrangler d1 migrations list DB --remote` at 17:15Z says no migrations to apply.

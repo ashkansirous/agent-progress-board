@@ -579,6 +579,6 @@ None: the README diff in this worktree already describes the usage page and the 
 
 - The deployed-board check in *Verification*: a real client run shows tokens for two models and the weekly percent
   (waits for the deploy and the client in the owner's config repo).
-- Migration 0003 applied by the pipeline. Seen 2026-11-16: `wrangler d1 migrations list DB --remote` at 17:18Z lists only 0004 as unapplied; the pipeline deploy of 6bbae7f at 16:24Z applied it.
+- Migration 0003 applied by the pipeline. Seen 2026-11-16: `wrangler d1 migrations list DB --remote` between 17:10Z and 17:13Z lists only 0004 as unapplied; the pipeline deploy of 6bbae7f at 16:24Z applied it.
 - Thinning from the live cron.
 - The page on the owner's phone through Access, against the mock.

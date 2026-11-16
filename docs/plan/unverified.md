@@ -10,7 +10,6 @@ owner confirms, is removed here and its slice marked `verified`.
 - The loading blocks' colours and the failed card against the mock.
 - On the deployed board: three tasks from a real client run show on the active page with the right step (Verification section).
 - On the deployed board: a killed session leaves the page when it turns stale.
-- Migration 0004 applied by the pipeline.
 
 ### Slice 9: What 1% of the cap costs, per model ([slice](slices/09-cap-cost-estimate.md))
 

@@ -4,7 +4,7 @@ Source: the owner at the desk, 2026-11-16 ("the dashboard should be able to gues
 rate ... 1 agent is using [one model], and it uses 2 million tokens, then the weekly usage goes
 up 5% ... each 400k token would then cost 1% of my plan").
 
-*Built 2026-11-16, parts A and B, PR #57 (not yet merged, not yet deployed); not yet verified on the deployed board (see *Not yet verified* at the end).* Needs [Slice 8](08-usage-reports.md) part A (merged, PR #53). The design mock arrived on 2026-11-16
+*Built 2026-11-16, parts A and B, merged as PR #57 (15a7073), not yet deployed; not yet verified on the deployed board (see *Not yet verified* at the end).* Needs [Slice 8](08-usage-reports.md) part A (merged, PR #53). The design mock arrived on 2026-11-16
 (in `docs/design/`); part B (the numbers on the usage page) was planned against it (see
 *Design* below). The view tabs, the tab bar and the usage page shell belong to Slice 8; this
 slice only adds to that page.
@@ -442,7 +442,7 @@ fixed there: the sentence shape of Block 3, and the percent printed with one dec
 review read: `pr-57-high.md` 10/10, `pr-57-medium.md` 10/10, `pr-57-check-medium.md` 9/9,
 `pr-57-check-2-medium.md` 5/5, `pr-57-check-3-medium.md` 7/7.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-16)
 
 - Cap cost is derived at read: the fit in `src/domain/capCost.ts` runs per request on the full
   history and is bounded (round caps at the top of the file, timing test in

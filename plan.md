@@ -22,12 +22,17 @@ private Claude Code config repo; this repo hands them a tool reference and a cli
 | 1 | Worker + D1 items store behind an MCP endpoint | planned | #31 | | [01](docs/plan/slices/01-items-api.md) |
 | 2 | Tile board page | planned | #35 | | [02](docs/plan/slices/02-tile-board.md) |
 | 5 | OAuth so claude.ai can use the MCP server | planned | #42 | | [05](docs/plan/slices/05-remote-mcp.md) |
+| 8 | Usage reports: tokens per model, cap readings, usage page | planned | | | [08](docs/plan/slices/08-usage-reports.md) |
+| 9 | What 1% of the cap costs, per model | planned | | | [09](docs/plan/slices/09-cap-cost-estimate.md) |
+| 10 | Task steps and the active work page | planned | | | [10](docs/plan/slices/10-task-steps.md) |
+| 11 | Slice parts: progress bar on the slice, click through to the active part | planned | | | [11](docs/plan/slices/11-slice-parts.md) |
 
 Notes:
 
 - [Finished slices](docs/plan/notes/slices-done.md): rows of built slices.
 - [Feedback loop 2026-11-15](docs/plan/notes/2026-11-15-1406-feedback-loop.md): what the end-of-run audit found.
 - Slices 1, 2 and 5 are built and merged; they are `planned` again so the next run retries what is left (each slice file has a *Park note*).
+- Slices 8 to 11 (owner, 2026-11-16) run in this order: 8, 9, 10, 11. They edit the same server files, so one at a time. In each, part A (server) can be built now and part B (the page) waits for the owner's design mock. The sending side is planned in the owner's private config repo.
 
 ## Decisions (from the phone scope, approved 2026-11-15)
 
@@ -84,6 +89,7 @@ Notes:
   [Slice 2](docs/plan/slices/02-tile-board.md) (the page after signing in, the phone check) and comes
   before the claude.ai connector step below.
 - **Waiting on the user:** after the first deploy, add the board as a custom connector in claude.ai ([https://claude.ai/settings/connectors](https://claude.ai/settings/connectors), "Add custom connector", the Worker's `/mcp` address on `workers.dev`, not the page's custom domain, which sits behind Access; see [Slice 2](docs/plan/slices/02-tile-board.md) *Address*) and type the passphrase from the secrets store entry `OWNER_PASSPHRASE`. It blocks only the claude.ai check. (The link was not opened by the run that wrote it: it needs the owner's login.)
+- **Waiting on the user:** a design mock for three new screens, added to the existing design canvas ([https://claude.ai/artifact/PZyqwkfjuwQkE4BE6UfeDd](https://claude.ai/artifact/PZyqwkfjuwQkE4BE6UfeDd)): the usage page with the cost of 1% per model ([Slice 8](docs/plan/slices/08-usage-reports.md), [Slice 9](docs/plan/slices/09-cap-cost-estimate.md)), the active work page with a task's bar and its steps ([Slice 10](docs/plan/slices/10-task-steps.md)), and the bar under a slice's tile with the way to its active part ([Slice 11](docs/plan/slices/11-slice-parts.md)). The owner chose "mock first" on 2026-11-16. It blocks only part B of each slice. (The link was not opened by the session that wrote it.)
 - `OWNER_PASSPHRASE` is in the secrets store and set as a Worker secret; the `OAUTH_KV` namespace is created by the first deploy ([Slice 5](docs/plan/slices/05-remote-mcp.md)).
 - Follow-up (Slice 5): the Worker has no way for the owner to end a grant; the README names the library calls only. See [Slice 5](docs/plan/slices/05-remote-mcp.md) *Not yet verified*.
 - Follow-up (Slice 7): the browser test `e2e/board.spec.ts:317` ("after a failure, Retry never leaves a blank page") failed once in a full run and is intermittent. See [Slice 7](docs/plan/slices/07-stale-detection.md) *Verification*; the likely cause (wall-clock timing windows) is the fifth follow-up in [Slice 2](docs/plan/slices/02-tile-board.md).
@@ -108,6 +114,8 @@ Notes:
 - Editing, assigning or planning work from the board; sprints, estimates, anything a PM tool does.
 - Work for the owner's employer.
 - Notifications in v1.
+- Usage (Slices 8 and 9): cost in money, stopping or slowing agents from the board when the cap
+  is close, and filling in weeks from before the first report.
 - Spin-offs for later: ntfy push for new waiting_for_me items (check pricing first), a daily
   overnight digest, a read-only share link per project, the board as the cloud-offload "done"
   signal instead of polling `gh pr checks`, a summary in `_STATUS.md`, a scheduled doc sync.

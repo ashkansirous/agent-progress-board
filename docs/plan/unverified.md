@@ -3,6 +3,14 @@
 Every open "Not yet verified" check, one block per slice. A check that passes, or that the
 owner confirms, is removed here and its slice marked `verified`.
 
+### Slice 9: What 1% of the cap costs, per model ([slice](slices/09-cap-cost-estimate.md))
+
+- On the deployed board after some days of real reports: the estimate for a model that ran alone matches a hand calculation from the page's own numbers.
+- Dark desktop values.
+- German locale on the page.
+- Pixel-level chart marks.
+- The page on the owner's phone.
+
 ### Slice 8: Usage reports: tokens per model, cap readings, usage page ([slice](slices/08-usage-reports.md))
 
 - The deployed-board check in *Verification*: a real client run shows tokens for two models and the weekly percent (waits for the deploy and the client in the owner's config repo).

@@ -52,3 +52,9 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
   docs/plan/slices/08-usage-reports.md).
 - Every stored time is normalised to UTC ISO in the application layer; `SAMPLES_FROM` and `THIN_ROWS` rely on it and
   `test/usageTools.test.ts` asserts their query plans (Slice 8: docs/plan/slices/08-usage-reports.md).
+- Cap cost is derived at read: the fit in `src/domain/capCost.ts` runs per request on the full
+  history and is bounded (round caps at the top of the file, timing test in
+  `test/capCost.test.ts`); never store weights or multipliers (Slice 9:
+  docs/plan/slices/09-cap-cost-estimate.md).
+- A cost that includes a model with no fitted weight is null (dash), never 0 (Slice 9:
+  docs/plan/slices/09-cap-cost-estimate.md).

@@ -4,7 +4,7 @@ Source: the owner at the desk, 2026-11-16 ("I want to have an understanding of h
 is being consumed ... every few minutes, the agents would report to the dashboard, how much token
 they are consuming via which model and also report which task, which action").
 
-*Planned.* Part A (server) can be built now. The design mock arrived on 2026-11-16 (in
+*In progress (wave 2026-11-16), draft PR.* Part A (server) can be built now. The design mock arrived on 2026-11-16 (in
 `docs/design/`); part B (the page) is planned against it (see *Design* below).
 
 **Touches:** `migrations/0003_usage.sql`, `src/domain/usage.ts`, `src/domain/cap.ts`,
@@ -12,7 +12,15 @@ they are consuming via which model and also report which task, which action").
 `src/domain/item.ts`, `src/domain/upsert.ts`, `src/mcp/schemas.ts`, `src/mcp/tools.ts`,
 `src/api/router.ts`, `src/api/usageDto.ts`,
 `src/config.ts`, `config/board.example.json`, `test/**`, `docs/clients.md`, `README.md`,
-`web/**`, `e2e/**`, `docs/design/**`
+`web/**`, `e2e/**`, `docs/design/**`, `src/index.ts`, `src/mcp/handler.ts`, `src/env.ts`,
+`.gitignore`
+
+Touches widened at the claim (2026-11-16, premise check against `origin/main`): the thinning
+(A7) runs from `scheduled` in `src/index.ts`; tools may register in `src/mcp/handler.ts`;
+`src/env.ts` only if a binding type changes; `.gitignore` gets `tmp/` (the open small item in
+`plan.md`, *Outstanding work*, which goes with the next code PR).
+
+**Migrations:** 0003
 
 #### Why
 
@@ -123,6 +131,48 @@ cap costs is [Slice 9](09-cap-cost-estimate.md).
   tabs (desktop) and the bottom tab bar (phone), the view switching, and the header pattern.
   Slices 9, 10 and 11 reuse them. This slice builds the bar with the tabs Board and Usage;
   [Slice 10](10-task-steps.md) adds the Active work tab and its count.
+
+#### Stored state: the design to build (wave coordinator, 2026-11-16, at the claim)
+
+The premise check found that the lines above leave the stored state open (what makes a report
+"the same", where a restart and a window live, what a late reading does). The builder builds
+this design and invents none. Where it differs from *Decided at the desk* above, this section
+wins; none of it changes an owner decision.
+
+- **One owner per fact: the tables hold only what was reported; everything else is worked out
+  when read**, by the pure functions in `src/domain/usage.ts` and `src/domain/cap.ts`. Nothing
+  derived (a restart offset, a window, accepted or dropped) is stored, so a retry, a late report
+  or a Worker restart cannot leave it wrong.
+- **Usage samples.** A sample is identified by agent key, model, environment (null counts as
+  the empty string) and the time of the newest record it counted. A unique index on those four
+  and `INSERT OR IGNORE`: the same report sent twice stores one row; a second report with the
+  same identity and other totals is ignored (the first stays). Rows are never updated.
+- **Use between two times** is worked out from the samples of one agent, model and environment
+  in time order: each sample adds its totals minus the previous sample's; when any of the four
+  totals is lower than in the previous sample, that sample is a restart and all four count from
+  zero. No offset is stored. A report that arrives late simply takes its place in the order.
+- **Cap readings.** The table stores the raw reading only: time taken, plan, window kind,
+  percent, reset time, source. It has **no** accepted/dropped columns (this replaces the
+  "accepted or dropped with the reason" columns above). Identity: time taken, plan, window
+  kind; unique index, `INSERT OR IGNORE`. `src/domain/cap.ts` takes the readings of one plan
+  and window kind in order of time taken and returns the windows, each reading's verdict
+  (accepted, or dropped with the reason and the percent it lost to) by the owner's rules. The
+  read route calls it on every request, over the readings of the asked range and never fewer
+  than the keep-time's days, so a late older reading re-orders by itself. The "stored as
+  dropped" line in *Verification* is checked on what the route returns.
+- **Series order.** A small table `usage_series` (kind: model, agent kind or environment;
+  value; first seen) gets an `INSERT OR IGNORE` row with every usage report. The colour index
+  of a value is its place in that table by first seen, then by value. Thinning never touches it.
+- **Thinning (A7).** After the keep-time, per agent, model and environment, the cron keeps the
+  last sample of each hour, and also every restart sample and the sample just before it, so the
+  use worked out afterwards is the same as before. Deleting twice deletes nothing more. Cap
+  readings are not thinned in this slice.
+- **Config keys** (all optional, in `usage`): `lowMarkPercent` (default 2), `keepDays` (default
+  30), next to `series`, `topTasks`, `baseEnvironment`, `environmentLabels`.
+- **Range `window` with no accepted weekly reading:** the token parts cover the last 7 days and
+  the cap parts are empty (the page shows its empty cap state).
+- Both tools still answer through the application layer; the unexplained stretches stay in
+  [Slice 9](09-cap-cost-estimate.md).
 
 #### Sources the board cannot see: what the official docs say (checked 2026-11-16)
 

@@ -87,6 +87,7 @@ export const PALETTE_KEYS = [
   "stepActive",
   "stepActiveRow",
   "stepPendingTile",
+  "partTrack",
 ] as const;
 
 export type Palette = Record<(typeof PALETTE_KEYS)[number], string>;

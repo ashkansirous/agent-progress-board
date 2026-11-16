@@ -39,7 +39,8 @@ page draws with (colours and labels from `BOARD_CONFIG`, filled from `config/boa
 
 An **Active work** view (`#/active`, a tab beside Board and Usage with a count) lists every task an
 agent is working on now: its step in words, `N of M steps · P%` over one bar segment per step, and
-the full list on a toggle. A task's tile and drawer on the board show the same bar when it has steps.
+the full list on a toggle. A task's tile and drawer on the board show the same bar when it has steps. A slice made of lettered parts (A, B, C) shows a bar of parts done
+over parts, the part being worked on now, and a link that opens that part's card on Active work.
 
 The page and `/api/board` are closed until Cloudflare Access is set up: the Worker refuses
 every request that has no valid Access JWT, and refuses all of them while the Worker secrets
@@ -115,14 +116,14 @@ Keys are stable and chosen by the reporter, for example `<project>/slice-58`.
 
 | Tool | Scope | Inputs | Returns |
 | --- | --- | --- | --- |
-| `report_progress` | write | `key`; for a new key also `project`, `type`, `title`; optional `status`, `priority`, `parent` (text), `why`, `details_md`, `links` (`[{label,url}]`), `source`, `environment`, `steps` (`[{label, state, note?}]`, the whole list each time), `agent`, `model`, `note` | the item |
+| `report_progress` | write | `key`; for a new key also `project`, `type`, `title`; optional `status`, `priority`, `parent` (text), `why`, `details_md`, `links` (`[{label,url}]`), `source`, `environment`, `steps` (`[{label, state, note?}]`, the whole list each time), `parent_key` (a part names its slice), `agent`, `model`, `note` | the item |
 | `mark_done` | write | `key`, optional `source`, `note` | the item |
 | `ask_human` | write | `key`, `project`, `title`; optional `parent`, `priority`, `why`, `details_md`, `links`, `source`, `note` (creates or updates a `waiting_for_me` item, open) | the item |
 | `list_open` | read | optional `project`, `type`, `window_hours` (capped by config) | items not done, plus items done inside the window, each with its latest 20 events |
 | `get_item` | read | `key` | the item with all its events, newest first |
 | `report_usage` | write | `agent_key`, `model`, `record_at`, the four running token totals (`input_tokens`, `cache_write_tokens`, `cache_read_tokens`, `output_tokens`); optional `task_key`, `agent_kind`, `step`, `environment` | `{stored}`; the same report twice stores one sample |
 | `report_cap` | write | `taken_at`, `plan`, `windows[]` (`kind`, `percent`, optional `reset_at`), optional `source` | `{stored, windows}`; stale readings are worked out when read |
-| `sync_snapshot` | write | `project`, `items[]` (each `key`, `project`, `type`, `title`, `status`; optional `priority`, `parent`, `why`, `links`; at most 200) | `{project, created, updated, closed, unchanged}`; doc-sync items missing from the list become done |
+| `sync_snapshot` | write | `project`, `items[]` (each `key`, `project`, `type`, `title`, `status`; optional `priority`, `parent`, `why`, `links`, and on a slice `parts` (`[{letter, title, done}]`); at most 200) | `{project, created, updated, closed, unchanged}`; doc-sync items missing from the list become done |
 
 Optional fields on `report_progress` and `ask_human`: leave one out to keep the stored value, send
 `null` to clear `parent`, `why`, `details_md`, `links`, `source`, `environment`, `steps`, `agent` or `model`. An empty string for `note`,

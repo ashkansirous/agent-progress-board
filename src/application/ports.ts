@@ -1,6 +1,6 @@
 import type { CapReading } from "../domain/cap";
 import type { SyncRow, SyncWrite } from "../domain/docSync";
-import type { Item, ItemEvent, ItemType, ItemWithEvents } from "../domain/item";
+import type { Item, ItemEvent, ItemStatus, ItemType, ItemWithEvents } from "../domain/item";
 import type { ExpiryRow } from "../domain/stale";
 import type { ReportInput } from "../domain/upsert";
 import type { UsageSample } from "../domain/usage";
@@ -18,6 +18,8 @@ export interface BoardFilter {
 /** A board item plus the two stored times the expiry rule needs, which an Item does not carry (Slice 10). */
 export interface BoardRow extends ItemWithEvents {
   expiry: Pick<ExpiryRow, "doc_status_at" | "live_status_at">;
+  /** Whether the last doc sync listed the item and the status it gave; a part that left the documents is told by these (Slice 11). */
+  docSync: { in_doc_sync: boolean; doc_status: ItemStatus | null };
 }
 
 export interface ItemWrite {

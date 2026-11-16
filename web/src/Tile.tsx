@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import type { BoardItemDto } from "../../src/api/boardDto";
 import { ItemStatus } from "../../src/domain/item";
+import { FollowLink, TileParts } from "./PartsView";
 import { PriorityBadge } from "./PriorityBadge";
 import { currentStepText, progressText } from "./stepsText";
 import { StepBar } from "./stepsView";
@@ -45,23 +46,27 @@ export function Tile({ item, onOpen }: TileProps) {
   const type = looks.type(item.type);
   const stale = item.status === ItemStatus.Stale;
   const style: CSSProperties = stale ? {} : { background: type.bg, borderColor: type.border };
-  const classes = ["tile", stale && "tile-stale", item.status === ItemStatus.Done && "tile-done"];
+  const classes = ["tile-box", stale && "tile-stale", item.status === ItemStatus.Done && "tile-done"];
   return (
-    <button type="button" className={classes.filter(Boolean).join(" ")} style={style} onClick={() => onOpen(item.key)}>
-      <span className="tile-top">
-        <span className="type-label" style={{ color: type.fg }}>
-          <span className="type-dot" style={{ background: type.fg }} />
-          {type.label}
+    <div className={classes.filter(Boolean).join(" ")} style={style}>
+      <button type="button" className="tile" onClick={() => onOpen(item.key)}>
+        <span className="tile-top">
+          <span className="type-label" style={{ color: type.fg }}>
+            <span className="type-dot" style={{ background: type.fg }} />
+            {type.label}
+          </span>
+          <PriorityBadge priority={item.priority} />
         </span>
-        <PriorityBadge priority={item.priority} />
-      </span>
-      <span className="tile-title">{item.title}</span>
-      {item.why && <span className="tile-why">{item.why}</span>}
-      <TileSteps item={item} />
-      <span className="tile-foot">
-        {item.parent && <span className="tile-parent">↳ {item.parent}</span>}
-        <StatusText item={item} />
-      </span>
-    </button>
+        <span className="tile-title">{item.title}</span>
+        {item.why && <span className="tile-why">{item.why}</span>}
+        <TileParts item={item} />
+        <TileSteps item={item} />
+        <span className="tile-foot">
+          {item.parent && <span className="tile-parent">↳ {item.parent}</span>}
+          <StatusText item={item} />
+        </span>
+      </button>
+      <FollowLink item={item} />
+    </div>
   );
 }

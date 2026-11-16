@@ -6,6 +6,8 @@ export enum ItemType {
   WaitingForMe = "waiting_for_me",
   Bug = "bug",
   Unplanned = "unplanned",
+  /** One lettered part of a slice (Slice 11); it has no tile, and its `parent_key` names the slice. */
+  Part = "part",
 }
 
 export enum ItemStatus {
@@ -36,6 +38,8 @@ export interface Item {
   key: string;
   project: string;
   parent: string | null;
+  /** The key of the item this one belongs to (a part names its slice); optional like environment (Slice 11). */
+  parent_key?: string | null;
   type: ItemType;
   priority: Priority;
   status: ItemStatus;

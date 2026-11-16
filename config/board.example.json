@@ -58,6 +58,12 @@
       "color": "#0B6B60",
       "light": { "bg": "#DDF3F0", "fg": "#0B6B60", "border": "#A9DDD5" },
       "dark": { "bg": "#123631", "fg": "#6FD8C9", "border": "#1F5249" }
+    },
+    "part": {
+      "label": "Part",
+      "color": "#1D4ED8",
+      "light": { "bg": "#E6EEFC", "fg": "#1D4ED8", "border": "#BFD0F5" },
+      "dark": { "bg": "#1C2B4A", "fg": "#9DBDFF", "border": "#2E4473" }
     }
   },
   "statuses": {
@@ -133,7 +139,8 @@
       "stepDoneText": "#0B6B4B",
       "stepActive": "#9DBDFF",
       "stepActiveRow": "#E6EEFC",
-      "stepPendingTile": "#D5DAE1"
+      "stepPendingTile": "#D5DAE1",
+      "partTrack": "#FFFFFF"
     },
     "dark": {
       "page": "#0E1014",
@@ -182,7 +189,8 @@
       "stepDoneText": "#7FD8B4",
       "stepActive": "#3B5A94",
       "stepActiveRow": "#1C2B4A",
-      "stepPendingTile": "#0E1014"
+      "stepPendingTile": "#0E1014",
+      "partTrack": "#0E1014"
     }
   }
 }

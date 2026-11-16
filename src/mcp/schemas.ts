@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { MAX_SNAPSHOT_ITEMS } from "../domain/docSync";
 import { ItemStatus, ItemType, Priority } from "../domain/item";
+import { MAX_PARTS } from "../domain/parts";
 import { MAX_STEP_LABEL, MAX_STEP_NOTE, MAX_STEPS } from "../domain/steps";
 import { StepState } from "../domain/stepTypes";
 
@@ -70,6 +71,10 @@ export const reportProgressShape = {
   status: z.enum(ItemStatus).optional(),
   environment: environment.nullable().optional().describe("Where the work ran; null clears it"),
   steps: stepsField,
+  parent_key: key
+    .nullable()
+    .optional()
+    .describe("Key of the item this one belongs to; a part's key is <slice key>/part-<letter> and names its slice; null clears it"),
   agent: z.string().min(1).max(MAX_MODEL).nullable().optional().describe("Kind of agent holding the task; null clears it"),
   model: z.string().min(1).max(MAX_MODEL).nullable().optional().describe("The agent's model; null clears it"),
   ...detailShape,
@@ -135,6 +140,12 @@ export const listOpenShape = {
 
 export const getItemShape = { key };
 
+const snapshotPart = z.object({
+  letter: z.string().regex(/^[A-Z]$/, "one capital letter A to Z"),
+  title: label.describe("The group's title as the document gives it"),
+  done: z.boolean().describe("True when all the group's checkboxes are ticked"),
+});
+
 const snapshotItem = z.object({
   key,
   project: label.describe("Must equal the call's project"),
@@ -145,6 +156,11 @@ const snapshotItem = z.object({
   parent: detailShape.parent,
   why: detailShape.why,
   links: z.array(link).max(MAX_LINKS).optional(),
+  parts: z
+    .array(snapshotPart)
+    .max(MAX_PARTS)
+    .optional()
+    .describe("The slice's lettered work groups; each becomes the item <key>/part-<letter>; a part left out is closed"),
 });
 
 export const syncSnapshotShape = {

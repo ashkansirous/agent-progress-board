@@ -7,8 +7,8 @@ import { callTool, countRows, resetBoard } from "./helpers";
 beforeEach(resetBoard);
 
 describe("seed data", () => {
-  it("has 14 made-up items in three projects covering every type and status", () => {
-    expect(SEED_ITEMS).toHaveLength(14);
+  it("has 15 made-up items in three projects covering every type and status", () => {
+    expect(SEED_ITEMS).toHaveLength(15);
     expect(new Set(SEED_ITEMS.map((i) => i.project))).toEqual(new Set(["recipe-box", "garden-planner", "home-lab"]));
     expect(new Set(SEED_ITEMS.map((i) => i.type))).toEqual(new Set(Object.values(ItemType)));
     expect(new Set(SEED_ITEMS.map((i) => i.status))).toEqual(new Set(Object.values(ItemStatus)));
@@ -24,7 +24,7 @@ describe("seed data", () => {
   it("asks a human for waiting items and reports the rest", () => {
     const names = seedCalls().map((c) => c.name);
     expect(names.filter((n) => n === "ask_human")).toHaveLength(3);
-    expect(names.filter((n) => n === "report_progress")).toHaveLength(11);
+    expect(names.filter((n) => n === "report_progress")).toHaveLength(12);
     const waiting = SEED_ITEMS.find((i) => i.type === ItemType.WaitingForMe)!;
     expect(callFor(waiting).arguments).not.toHaveProperty("type");
   });

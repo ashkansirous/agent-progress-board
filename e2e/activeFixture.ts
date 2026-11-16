@@ -40,6 +40,8 @@ function taskOf(spec: TaskSpec): BoardItemDto {
     key: spec.key,
     project: spec.project,
     parent: spec.parent,
+    parent_slice: null,
+    parent_key: null,
     type: spec.type,
     priority: Priority.P2,
     status,
@@ -57,6 +59,9 @@ function taskOf(spec: TaskSpec): BoardItemDto {
     steps,
     progress: stepProgress(steps, status),
     working: spec.working ?? status === ItemStatus.InProgress,
+    parts: null,
+    parts_progress: null,
+    active_part_key: null,
     events: [],
   };
 }

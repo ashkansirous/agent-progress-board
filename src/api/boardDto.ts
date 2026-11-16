@@ -1,5 +1,6 @@
 import type { ColorSet, Palette, ProjectConfig, Schemes, StatusColors, TypeConfig } from "../config";
 import type { ItemLink, ItemStatus, ItemType, Priority } from "../domain/item";
+import type { PartsProgress, PartState } from "../domain/parts";
 import type { Step, StepProgress } from "../domain/stepTypes";
 
 /** What `GET /api/board` returns; the page and the Worker share these shapes. */
@@ -9,10 +10,36 @@ export interface BoardEventDto {
   note: string | null;
 }
 
+/** One lettered part of a slice, as the slice's tile and drawer list it (Slice 11). */
+export interface BoardPartDto {
+  key: string;
+  letter: string;
+  title: string;
+  state: PartState;
+  /** The label of the step the part is on (an active or a stale part); null when none is active or it has no list. */
+  step: string | null;
+  /** The part's finished steps over its steps, for "{n} of {m} steps"; null when it has no list. */
+  steps_done: number | null;
+  steps_total: number | null;
+}
+
+/** The slice a part belongs to, as data; the page builds "Slice N · title" from it in the reader's language. */
+export interface ParentSliceDto {
+  key: string;
+  /** The N of a key ending in `slice-N`; null for any other key shape. */
+  number: number | null;
+  title: string;
+}
+
 export interface BoardItemDto {
   key: string;
   project: string;
+  /** The free text stored on the item, shown on the tile. */
   parent: string | null;
+  /** For a part whose slice is on the board: that slice; null otherwise. */
+  parent_slice: ParentSliceDto | null;
+  /** The key of the item this one belongs to; a part names its slice. */
+  parent_key: string | null;
   type: ItemType;
   priority: Priority;
   status: ItemStatus;
@@ -35,6 +62,12 @@ export interface BoardItemDto {
   progress: StepProgress | null;
   /** An agent is working on it now (the Active work rule); the page lists exactly these. */
   working: boolean;
+  /** A slice's parts in letter order, worked out at read; null when it has none (no bar). */
+  parts: BoardPartDto[] | null;
+  /** Parts done over parts; null with `parts`. */
+  parts_progress: PartsProgress | null;
+  /** The key of the part an agent is working on now; null when none (a stale part does not count). */
+  active_part_key: string | null;
   /** Newest first, at most the latest 20. */
   events: BoardEventDto[];
 }

@@ -19,14 +19,13 @@ private Claude Code config repo; this repo hands them a tool reference and a cli
 
 | Slice | Title | Status | PR | Issue | File |
 | --- | --- | --- | --- | --- | --- |
-| 11 | Slice parts: progress bar on the slice, click through to the active part | planned | | | [11](docs/plan/slices/11-slice-parts.md) |
 
 Notes:
 
 - [Finished slices](docs/plan/notes/slices-done.md): rows of built slices.
 - [Feedback loop 2026-11-15](docs/plan/notes/2026-11-15-1406-feedback-loop.md): what the end-of-run audit found.
 - Slices 1 to 7 are built and merged and deployed; 1 is verified, 5 works in claude.ai (owner, 2026-11-16; the phone check is open), and the open checks of the rest are in `docs/plan/unverified.md` (2026-11-16).
-- Slices 8 to 11 (owner, 2026-11-16) run in this order: 8, 9, 10, 11. Slices 8, 9 and 10 are built (PRs #53, #57, #60); all three are deployed (8 and 9 by the deployment created 2026-11-16T16:24:39Z, 10 by the one created 17:15:11Z); 11 remains. They edit the same server files, so one at a time. In each, part A (server) can be built now and part B (the page) is planned against the design mock the owner added on 2026-11-16 (`docs/design/`). The sending side is planned in the owner's private config repo.
+- Slices 8 to 11 (owner, 2026-11-16) run in this order: 8, 9, 10, 11. Slices 8, 9, 10 and 11 are built (PRs #53, #57, #60, #66); 8, 9 and 10 are deployed (8 and 9 by the deployment created 2026-11-16T16:24:39Z, 10 by the one created 17:15:11Z); 11 is merged (2026-11-16, skip-CI batch) and not yet deployed, and the pipeline's deploy applies its migration 0005. They edit the same server files, so one at a time. In each, part A (server) can be built now and part B (the page) is planned against the design mock the owner added on 2026-11-16 (`docs/design/`). The sending side is planned in the owner's private config repo.
 
 ## Decisions (from the phone scope, approved 2026-11-15)
 
@@ -51,7 +50,7 @@ Notes:
 
 ## Outstanding work
 
-- **Not yet tried on a device:** 27 checks across 8 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
+- **Not yet tried on a device:** 31 checks across 9 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
 - The D1 database and the Worker secrets exist.
 - The client guide (`docs/clients.md`) is ready (Slice 3); the owner's config repo can start its
   client.

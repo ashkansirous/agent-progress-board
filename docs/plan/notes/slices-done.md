@@ -14,3 +14,4 @@ Rows moved out of `plan.md`'s status table once built.
 | 8 | Usage reports: tokens per model, cap readings, usage page | built | #53 | | [08](../slices/08-usage-reports.md) |
 | 9 | What 1% of the cap costs, per model | built | #57 | | [09](../slices/09-cap-cost-estimate.md) |
 | 10 | Task steps and the active work page | built | #60 | | [10](../slices/10-task-steps.md) |
+| 11 | Slice parts: progress bar on the slice, click through to the active part | built | #66 | | [11](../slices/11-slice-parts.md) |

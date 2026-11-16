@@ -119,6 +119,12 @@ seen; `src/infrastructure/d1Repository.ts:77`), check 4 (index for `EXPIRED_ROWS
 `src/infrastructure/d1Repository.ts:90`), check 5 (cron parses only `staleAfterMinutes`,
 `src/index.ts:12`).
 
+*Follow-up (feedback loop 2026-11-16, not built):* a tile in status `waiting_for_me` never expires
+(`EXPIRING_STATUSES` in `src/domain/stale.ts` leaves it out), so a session that asked a question
+and was then abandoned stays on the board until someone closes it; four such tiles were closed by
+hand on 2026-11-16. Whether a waiting tile should age out, and after how long, is the owner's
+choice. To verify a fix: a waiting item with an old heartbeat is shown as stale after the chosen time.
+
 *Follow-up (intermittent browser test, not from this slice's diff):* in the wave's full check run
 `e2e/board.spec.ts:317` ("after a failure, Retry never leaves a blank page") failed once in the
 `phone` project (loading card not visible within 1000 ms), then passed 10 of 10 repeats and a

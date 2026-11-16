@@ -19,13 +19,15 @@ private Claude Code config repo; this repo hands them a tool reference and a cli
 
 | Slice | Title | Status | PR | Issue | File |
 | --- | --- | --- | --- | --- | --- |
+| 12 | The MCP endpoint on the board's own hostname | parked: feedback loop, waits for the user | | | [12](docs/plan/slices/12-mcp-own-hostname.md) |
 
 Notes:
 
 - [Finished slices](docs/plan/notes/slices-done.md): rows of built slices.
 - [Feedback loop 2026-11-15](docs/plan/notes/2026-11-15-1406-feedback-loop.md): what the end-of-run audit found.
+- [Feedback loop 2026-11-16](docs/plan/notes/2026-11-16-1402-feedback-loop.md): what the audit of the second night found.
 - Slices 1 to 7 are built and merged and deployed; 1 is verified, 5 works in claude.ai (owner, 2026-11-16; the phone check is open), and the open checks of the rest are in `docs/plan/unverified.md` (2026-11-16).
-- Slices 8 to 11 (owner, 2026-11-16) run in this order: 8, 9, 10, 11. Slices 8, 9, 10 and 11 are built (PRs #53, #57, #60, #66); 8, 9 and 10 are deployed (8 and 9 by the deployment created 2026-11-16T16:24:39Z, 10 by the one created 17:15:11Z); 11 is merged (2026-11-16, skip-CI batch) and not yet deployed, and the pipeline's deploy applies its migration 0005. They edit the same server files, so one at a time. In each, part A (server) can be built now and part B (the page) is planned against the design mock the owner added on 2026-11-16 (`docs/design/`). The sending side is planned in the owner's private config repo.
+- Slices 8 to 11 (owner, 2026-11-16) run in this order: 8, 9, 10, 11. Slices 8, 9, 10 and 11 are built (PRs #53, #57, #60, #66); 8, 9 and 10 are deployed (8 and 9 by the deployment created 2026-11-16T16:24:39Z, 10 by the one created 17:15:11Z); 11 is deployed too (PR #68 merged without the skip-CI marker at 18:24:55Z; deployment created 2026-11-16T18:25:23Z, and the migrations list read at about 18:32Z shows none left, so migration 0005 is applied). They edit the same server files, so one at a time. In each, part A (server) can be built now and part B (the page) is planned against the design mock the owner added on 2026-11-16 (`docs/design/`). The sending side is planned in the owner's private config repo.
 
 ## Decisions (from the phone scope, approved 2026-11-15)
 
@@ -50,7 +52,7 @@ Notes:
 
 ## Outstanding work
 
-- **Not yet tried on a device:** 31 checks across 9 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
+- **Not yet tried on a device:** 30 checks across 9 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
 - The D1 database and the Worker secrets exist.
 - The client guide (`docs/clients.md`) is ready (Slice 3); the owner's config repo can start its
   client.
@@ -85,6 +87,9 @@ Notes:
 - Follow-ups (Slice 8): open, not built, in [Slice 8](docs/plan/slices/08-usage-reports.md) *Follow-ups (open, not built)* (DST over a 30-day range, an unbounded `record_at` that makes `bucketKeys` loop, and three smaller query and sort items).
 - Follow-ups (Slice 9): open, not built, in [Slice 9](docs/plan/slices/09-cap-cost-estimate.md) *Follow-ups from review* (under *Built*): an environment's cap points are null if any use in the plan history is of a model with no fitted weight (the one that gives a wrong result), plus every usage read refits the whole history with no cache, the phone kinds card has no "not split" note, example palettes baked into the stored config, seven wording and rounding items, and the German sentence needs a native read.
 - Follow-ups (Slice 10): open, not built, in [Slice 10](docs/plan/slices/10-task-steps.md) *Follow-ups*: `dataDropped` stays true through the error state, so an open-item address set during an outage is cleared and not reopened after Retry (the one medium item, check pass 2 #1), plus 15 smaller items (lows from the review and check passes).
+- Follow-ups (Slice 11): open, not built, in [Slice 11](docs/plan/slices/11-slice-parts.md) *Follow-ups (not built)*: a valid snapshot of more than 1000 expanded items (100 slices with 10 parts each) is refused and the schema text does not say so (the one that gives a wrong result), a blocked part reads as Next or Later, plus the lows (parent cycle, part key length, a card remount on navigation).
+- Feedback loop of 2026-11-16: [note](docs/plan/notes/2026-11-16-1402-feedback-loop.md), with what waits on the owner and the open tooling findings.
+- **Deploy trigger, the owner's step:** create the deploy hook in the Build section of the [Worker's settings](https://dash.cloudflare.com/?to=/:account/workers/services/view/agent-progress-board/production/settings); the rest of this task follows.
 - **Deploy trigger, open tooling task:** add `.claude/merge-gate.json` with `workerPaths` (`src/**`, `web/**`, `migrations/**`, `wrangler.jsonc`, `package.json`) and a Workers Builds deploy hook URL in the secrets store, so a batch release starts the build. Creating the hook needs the Cloudflare dashboard (the machine's wrangler login has no Workers Builds scope). PR #61 was merged without the skip-CI marker, and Workers Builds deployed `main` at 6bbae7f (check success at 16:24:44Z, deployment created 16:24:39Z on 2026-11-16), so the work of PRs #53 and #57 (Slices 8 and 9) is live and migration 0003 is applied (the migrations list read between 17:10Z and 17:13Z shows only 0004 left). PR #60 (Slice 10) merged after that with the skip-CI marker and its check read `skipped`. The docs PR #63 was then merged without the marker (a mistake of housekeeping 3: its merge was meant to carry it), so Workers Builds deployed `main` at f5bf489 (check success at 17:15:24Z, deployment created 17:15:11Z): Slice 10 is live and migration 0004 is applied (the migrations list read at 17:15Z shows none left). A batch release run by hand at 16:21Z started nothing (no runs, no hook), which is why this task is still open. Until the hook exists, a merge to `main` without the skip-CI marker is what deploys.
 - Feedback loop of 2026-11-15: [note](docs/plan/notes/2026-11-15-1406-feedback-loop.md), with the open tooling findings it could not fix in its time.
 

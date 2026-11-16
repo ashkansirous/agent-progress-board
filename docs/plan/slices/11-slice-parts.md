@@ -5,7 +5,7 @@ finished sub A. An agent picks slice X sub B. Then the status of slice X is in f
 it is done that should be shown in a progress bar under it ... From the main page, where we have
 the slices, we should be able to click and follow to the sub task that is currently active").
 
-*Built 2026-11-16, parts A and B, merged as PR #66 (01ab3f6, skip-CI batch); not yet deployed (the pipeline's deploy applies migration 0005); not yet verified on the deployed board.* Needs [Slice 10](10-task-steps.md). The design mock arrived on 2026-11-16 (in
+*Built 2026-11-16, parts A and B, merged as PR #66 (01ab3f6, skip-CI batch); deployed 2026-11-16 (deployment created 18:25:23Z after PR #68 merged without the marker; `wrangler d1 migrations list DB --remote` at about 18:32Z: none to apply, so migration 0005 is applied, seen); not yet verified on the deployed board.* Needs [Slice 10](10-task-steps.md). The design mock arrived on 2026-11-16 (in
 `docs/design/`); part B (the page) is planned against it (see *Design* below). The view tabs and
 the tab bar are [Slice 8](08-usage-reports.md)'s and the Active work page is
 [Slice 10](10-task-steps.md)'s; this slice reuses both.
@@ -263,6 +263,5 @@ theme is in `docs/design/canvas.json` `notes.dark` (listed in
 #### Not yet verified
 
 - On the deployed board after a real document sync and a real agent run, a slice shows its bar and the click lands on the part the agent holds (needs the deploy and a client that sends parts).
-- Migration 0005 applied on the deployed database by the pipeline.
 - The follow link row on the phone tile (44 px row, text #E8EAEE) was not measured in the browser run.
 - The 1.5 px circle border on a screen with pixel ratio 2 or more.

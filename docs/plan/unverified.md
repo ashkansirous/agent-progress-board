@@ -23,7 +23,6 @@ owner confirms, is removed here and its slice marked `verified`.
 ### Slice 8: Usage reports: tokens per model, cap readings, usage page ([slice](slices/08-usage-reports.md))
 
 - The deployed-board check in *Verification*: a real client run shows tokens for two models and the weekly percent (waits for the deploy and the client in the owner's config repo).
-- Migration 0003 applied by the pipeline.
 - Thinning from the live cron.
 - The page on the owner's phone through Access, against the mock.
 

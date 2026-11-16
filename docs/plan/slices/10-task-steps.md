@@ -5,8 +5,8 @@ the tasks that agents are working on ... if the agent is done with implementatio
 14% of the task is done and the progress bar should show that ... with an option to expand and see
 the work steps, what is done and what is active and what is next").
 
-*In progress (wave 2026-11-16), draft PR.* Part A (server) can be built now. The design mock arrived on 2026-11-16 (in
-`docs/design/`); part B (the page) is planned against it (see *Design* below). The view tabs
+*Built 2026-11-16, PR #60 (merge pending), not yet verified on the deployed board.* Parts A and B are built. The design mock arrived on 2026-11-16 (in
+`docs/design/`); part B (the page) was built against it (see *Design* below). The view tabs
 and the phone tab bar belong to [Slice 8](08-usage-reports.md) (the first to add a second view);
 this slice adds the Active work tab and its count to them. If this slice is built first, it
 builds the tabs itself, with Board and Active work, from the values in Slice 8's *Design*.
@@ -16,6 +16,7 @@ builds the tabs itself, with Board and Active work, from the values in Slice 8's
 `src/infrastructure/d1Repository.ts`, `src/mcp/schemas.ts`, `src/mcp/tools.ts`,
 `src/api/boardDto.ts`, `src/api/board.ts`, `src/domain/stale.ts`, `scripts/seed.ts`,
 `scripts/seed-data.ts`, `src/config.ts`, `config/board.example.json`, `test/**`,
+`src/domain/stepTypes.ts`, `src/domain/errors.ts` (leaf modules added by review fix high #4),
 `docs/clients.md`, `README.md`, `web/**`, `e2e/**`, `docs/design/**`
 
 **Migrations:** 0004
@@ -228,36 +229,36 @@ in Slice 8 *Design*; this slice fills the count in the Active work tab (the numb
 
 **A. Server (no design needed)**
 
-- [ ] **A1.** Migration and domain: the steps list on an item, its validation (one active step
+- [x] **A1.** Migration and domain: the steps list on an item, its validation (one active step
       at most, labels 1 to 80 characters, an optional note 0 to 120), progress as done over
       total. Pure, with tests for 1 of 7, an empty list, a list that shrinks, a done item, a
       note. The migration adds only the steps, agent and model columns: `environment` comes
       from [Slice 8](08-usage-reports.md) A1 (if this slice is built first, this migration adds
       it and Slice 8's leaves it out).
-- [ ] **A2.** `report_progress` accepts and stores `steps` (with notes), `agent`, `model`, and
+- [x] **A2.** `report_progress` accepts and stores `steps` (with notes), `agent`, `model`, and
       `environment` (the field, its limits and its storage are Slice 8 A1 and A4; this slice
       only passes it through and returns it); `get_item` and `list_open` return them;
       `/api/board` carries them with the worked-out progress, the time of the last report, the
       item's environment value and its label from `usage.environmentLabels`, and the number of
       working tasks (the tab count).
-- [ ] **A3.** `docs/clients.md`: the fields, "send the whole list each time", how a client
+- [x] **A3.** `docs/clients.md`: the fields, "send the whole list each time", how a client
       trims the list, helpers count under their parent's step. README line.
 
 **B. Page (planned against the mock, 2026-11-16; values in *Design*)**
 
 - [x] **B1.** Copy the mock into `docs/design/` and rewrite this part to match it. (Done: the
       mock is in `docs/design/`, refreshed twice on 2026-11-16.)
-- [ ] **B2.** The Active work view (Active.dc.html, PhoneActive.dc.html): the tab with its
+- [x] **B2.** The Active work view (Active.dc.html, PhoneActive.dc.html): the tab with its
       count in Slice 8's tabs and tab bar, the header, one card per working task (project,
       type, parent, last report, title, agent kind, model, environment, current step, "N of M
       steps · P%", the one-segment-per-step bar), the "Show all {n} steps" toggle with the
       list (Done, Now, Next, Later, notes) and the "Back to {parent} on the board" link; a
       loading state for any wait over 500 ms, empty (drawn) and failed states (StatesNew.dc.html).
-- [ ] **B3.** The bar and current step on the task's tile and in its detail drawer (old B3,
+- [x] **B3.** The bar and current step on the task's tile and in its detail drawer (old B3,
       restored): the tile block (Main.dc.html line 82) and the drawer's "Steps" section (line
       146), desktop; the same on the phone tile and the phone drawer (not drawn, values carried
       over, see *Design*). Slice 11 draws the parts bar above it on a slice's tile.
-- [ ] **B4.** Browser tests against a faked `/api/board`, phone and desktop sizes: three cards,
+- [x] **B4.** Browser tests against a faked `/api/board`, phone and desktop sizes: three cards,
       toggle open and closed, a bug card with its type border, notes shown, the environment
       chip (and its absence), the count, a stale task absent, the link back, the steps bar and
       current step on a tile and in a drawer, loading and empty states.
@@ -274,3 +275,89 @@ in Slice 8 *Design*; this slice fills the count in the Active work tab (the numb
 - The page matches Active.dc.html, PhoneActive.dc.html and the Steps blocks of Main.dc.html in
   the values listed in *Design*.
 - `npm run test:e2e` green for part B.
+
+#### Built
+
+Migration `0004_steps.sql` (steps, agent, model). `src/domain/steps.ts` holds validation, trim,
+progress, `isWorkingNow` and `parseStoredSteps`; `isHeartbeatExpired` in `src/domain/stale.ts` is
+used by both `isExpired` and `isWorkingNow`. `/api/board` items carry `environment`,
+`environment_label`, `agent`, `model`, `steps`, `progress`, `heartbeat_at` and `working`, and the
+response carries `working_count`. The Active work view is at `#/active`, with a tab and a count
+pill (also on Usage). The steps bar shows on the tile and in the drawer. `#/open/<key>` is the
+address of the open item. Six palette keys for step colours are in config. The seed has a task
+with steps.
+
+*Changed while building:*
+- A changed steps list counts as a change (`updated_at` moves); the same list resent is a heartbeat.
+- A stored steps value that does not parse reads as no steps.
+- origin/main's behaviour is kept: a failed refresh closes the detail and it stays closed after
+  Retry (`boardState` `dataDropped`); a failed first load keeps the address.
+- A card with no parent says "Back to {project label} on the board".
+- String `activeRunningOne` added.
+
+*From review:* findings files are in `D:/agent-progress-board-worktrees/reviews/` (outside the repo).
+- `reviews/pr-60-high.md`: applied 1, 2, 3, 4, 6.
+- Skipped #5 (`reviews/pr-60-high.md`): "Steps are normalized/validated up to three times per report" - low-value refactor, no failure a user meets; kept as a follow-up.
+- Skipped #7 (`reviews/pr-60-high.md`): "flag computed at fetch time" - timing edge of under a minute with no failure a user meets; follow-up.
+- Skipped #8 (`reviews/pr-60-high.md`): "activeTasks (filter plus sort) runs twice per render" - low-value refactor; follow-up.
+- `reviews/pr-60-medium.md`: applied 3, 4, 8, 9.
+- Skipped #1 (`reviews/pr-60-medium.md`): "`working` ignores showsLiveStatus" - the slice's own rule decides it: *Decided at the desk* says `"Working on now" means: status in progress, a steps list or an agent set, and a heartbeat that is not stale`.
+- Skipped #2 (`reviews/pr-60-medium.md`): "Usage page calls useBoard(), second fetch and poll loop only for the tab count" - low-value refactor; follow-up.
+- Skipped #5 (`reviews/pr-60-medium.md`): "normalizeSteps run twice (reportProgress and newItem)" - low-value refactor; follow-up.
+- Skipped #6 (`reviews/pr-60-medium.md`): "close() uses location.replace to board route" - low-value edge, no failure a user meets; follow-up.
+- Skipped #7 (`reviews/pr-60-medium.md`): "ANY_CHANGED compares steps JSON text" - low-value edge, no failure a user meets; follow-up.
+- `reviews/pr-60-check-medium.md`: applied 1, 2, 4.
+- Skipped #3 (`reviews/pr-60-check-medium.md`): "stepProgress.current is null with no active step" - the slice line decides it: `A task with no active step reads "Starting" as its current step`.
+- Skipped #5 (`reviews/pr-60-check-medium.md`): "Steps change detection compares JSON text byte-for-byte" - low-value edge; follow-up.
+- Skipped #6 (`reviews/pr-60-check-medium.md`): "isWorkingNow ignores live_status_at vs doc_status_at" - the slice's own rule decides it: `"Working on now" means: status in progress, a steps list or an agent set, and a heartbeat that is not stale`.
+- Skipped #7 (`reviews/pr-60-check-medium.md`): "close() does location.replace('#/')" - low-value edge; follow-up.
+- Skipped #8 (`reviews/pr-60-check-medium.md`): "working computed at fetch time and recounted separately from working_count" - timing edge of under a minute; follow-up.
+- Skipped #9 (`reviews/pr-60-check-medium.md`): "listOpen copies each row then deletes expiry via Partial cast" - low-value refactor; follow-up.
+- `reviews/pr-60-check-2-medium.md`: findings 1 to 5 all become follow-ups under the check-passes-converge rule (none is a crash, data-loss, security, privacy or loading-state finding); see Follow-ups.
+- `reviews/pr-60-check-3-medium.md`: no blocking findings; both lows (1, 2) left open as follow-ups (neither is a crash, data-loss, security, privacy or loading-state finding).
+
+*Checks:* `run-checks` on the final code before the gap fix: lint and typecheck clean, `npm test` 284 passed (21 files), `npm run test:e2e` 155 passed. After the gap fix the fixer reports the same counts.
+
+*Browser run* (headless, E2E page mode; desktop 1440x1100 light, phone 390x844 dark; evidence in `D:/agent-progress-board-worktrees/reviews/wave6-s10-browser/results.txt`): 225 values checked, 216 matched. 7 misses were the script's own expectations and 2 were real: the empty card gap was 12 where the mock has 14 (fixed; the e2e asserts 14), and the phone tile bar gap reads 2 px where the slice says "4 gap" (ambiguous, left; see *Not yet verified*).
+
+#### Follow-ups
+
+Skipped lows, from the review notes above:
+- `reviews/pr-60-high.md` #5: normalize steps once, in `reportProgress`.
+- `reviews/pr-60-high.md` #7: recompute `working` on the client against `heartbeat_at`.
+- `reviews/pr-60-high.md` #8: `activeTasks` runs twice per render; use `working_count`.
+- `reviews/pr-60-medium.md` #2: Usage runs its own `useBoard()` for the tab count; share board state.
+- `reviews/pr-60-medium.md` #5: `normalizeSteps` runs in both `reportProgress` and `newItem`.
+- `reviews/pr-60-medium.md` #6 and `reviews/pr-60-check-medium.md` #7: `close()` in `web/src/useRoute.ts` replaces the hash with the board route.
+- `reviews/pr-60-medium.md` #7 and `reviews/pr-60-check-medium.md` #5: steps change detection compares JSON text.
+- `reviews/pr-60-check-medium.md` #8: `working` computed at fetch time and recounted apart from `working_count`.
+- `reviews/pr-60-check-medium.md` #9: `listOpen` removes expiry fields through a `Partial` cast; destructure like `itemDto`.
+
+From `reviews/pr-60-check-2-medium.md` (all five):
+- #1 (medium): `dataDropped` stays true through the error state, so a `#/open/<key>` set during an outage is cleared at once and not reopened after Retry (`web/src/BoardPage.tsx`).
+- #2 (low): label and note length are checked on untrimmed text but stored trimmed (`src/domain/steps.ts`).
+- #3 (low): `blankToNull` returns the untrimmed value, unlike `normalizeSteps`.
+- #4 (low): `e2e/board.spec.ts` asserts the URL with a non-retrying `expect(page.url())`; use `await expect(page).not.toHaveURL(...)`.
+- #5 (low, unconfirmed): an item opened from Active closes to `#/`, not `#/active`.
+
+From `reviews/pr-60-check-3-medium.md`:
+- #1 (low): `.state-gap-14` in `web/src/styles.css` only restores `.state-card`'s 14 px gap that `.state-center` cancels; other centred cards stay 12 px.
+- #2 (low): the row-gap assertion in `e2e/active.spec.ts` hard-codes 14 px for the empty card only; the error card's 12 px is untested.
+
+#### For CLAUDE.md
+
+- "Working now" is one rule, `isWorkingNow` in `src/domain/steps.ts`, which uses `isHeartbeatExpired` from `src/domain/stale.ts`; never add another copy (Slice 10: docs/plan/slices/10-task-steps.md).
+- The open item's address is `#/open/<key>` and the drawer follows the address (Slice 10: docs/plan/slices/10-task-steps.md).
+
+#### For README.md
+
+None: the README diff already carries the Active work view, the tile and drawer bar and the new `report_progress` fields.
+
+#### Not yet verified
+
+- The phone tile bar gap reads 2 px where the slice says "4 gap" (ambiguous).
+- Dark desktop (no artboard).
+- The loading blocks' colours and the failed card against the mock.
+- On the deployed board: three tasks from a real client run show on the active page with the right step (Verification section).
+- On the deployed board: a killed session leaves the page when it turns stale.
+- Migration 0004 applied by the pipeline.

@@ -7,9 +7,9 @@ import {
 } from "../domain/docSync";
 import { type Item, ItemStatus, ItemType, type ItemWithEvents } from "../domain/item";
 import { staleCutoff } from "../domain/stale";
-import { DomainError, newItem, type ReportInput } from "../domain/upsert";
+import { checkReport, DomainError, newItem, type ReportInput } from "../domain/upsert";
 import { resolveWindowHours, type WindowConfig, windowCutoff } from "../domain/window";
-import { type ItemRepository, LIST_EVENT_LIMIT } from "./ports";
+import { type BoardRow, type ItemRepository, LIST_EVENT_LIMIT } from "./ports";
 
 export type AskHumanInput = Omit<ReportInput, "type" | "status">;
 
@@ -36,7 +36,8 @@ export async function reportProgress(
 ): Promise<Item> {
   const existing = await repo.find(input.key);
   const now = clock.now().toISOString();
-  return repo.save({ insert: existing ?? newItem(input, now), input, now });
+  const checked = checkReport(input);
+  return repo.save({ insert: existing ?? newItem(checked, now), input: checked, now });
 }
 
 export async function markDone(
@@ -103,12 +104,13 @@ export async function syncSnapshot(
   };
 }
 
-export async function listOpen(
+/** The board window with each item's expiry times, for the page's working-now rule. */
+export async function listBoardRows(
   repo: ItemRepository,
   input: ListOpenInput,
   window: WindowConfig,
   clock: Clock,
-): Promise<ItemWithEvents[]> {
+): Promise<BoardRow[]> {
   const hours = resolveWindowHours(input.window_hours, window);
   return repo.listBoard({
     project: input.project,
@@ -116,6 +118,22 @@ export async function listOpen(
     cutoff: windowCutoff(clock.now(), hours),
     eventLimit: LIST_EVENT_LIMIT,
   });
+}
+
+export async function listOpen(
+  repo: ItemRepository,
+  input: ListOpenInput,
+  window: WindowConfig,
+  clock: Clock,
+): Promise<ItemWithEvents[]> {
+  const rows = await listBoardRows(repo, input, window, clock);
+  return rows.map(withoutExpiry);
+}
+
+function withoutExpiry(row: BoardRow): ItemWithEvents {
+  const item: Partial<BoardRow> = { ...row };
+  delete item.expiry;
+  return item as ItemWithEvents;
 }
 
 /** The cron's one job: turn live items without a recent heartbeat stale; returns how many. */

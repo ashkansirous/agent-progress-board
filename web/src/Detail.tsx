@@ -3,8 +3,11 @@ import type { BoardEventDto, BoardItemDto } from "../../src/api/boardDto";
 import { CloseIcon } from "./icons";
 import { Markdown } from "./Markdown";
 import { projectLabel } from "./model";
+import { ItemStatus } from "../../src/domain/item";
 import { PriorityBadge } from "./PriorityBadge";
 import { isSafeHttpUrl } from "./safeUrl";
+import { progressText } from "./stepsText";
+import { StepBar, StepRows } from "./stepsView";
 import { clockTime } from "./time";
 import { statusLabel, statusName, useView } from "./view";
 
@@ -24,6 +27,29 @@ function Fields({ item }: { item: BoardItemDto }) {
       <dt>{t("fieldKey")}</dt>
       <dd className="field-key">{item.key}</dd>
     </dl>
+  );
+}
+
+/** "{agent} · {model} · {environment}", leaving out what the task does not carry. */
+function whoLine(item: BoardItemDto): string {
+  return [item.agent, item.model, item.environment_label ?? item.environment].filter(Boolean).join(" · ");
+}
+
+/** The task's steps: who holds it, "{done} of {total} steps · {pct}%", the bar and the numbered list (no notes). */
+function StepsSection({ item }: { item: BoardItemDto }) {
+  const { t, looks } = useView();
+  if (!item.progress || !item.steps) return null;
+  const finished = item.status === ItemStatus.Done;
+  return (
+    <div className="steps-section">
+      <h3>{t("stepsHeading")}</h3>
+      <div className="steps-section-line">
+        <span className="steps-who">{whoLine(item)}</span>
+        <span className="steps-count">{progressText(item, t)}</span>
+      </div>
+      <StepBar steps={item.steps} variant="drawer" finished={finished} type={looks.type(item.type)} />
+      <StepRows steps={item.steps} finished={finished} t={t} notes={false} label={t("stepsHeading")} />
+    </div>
   );
 }
 
@@ -162,6 +188,7 @@ export function Detail({ item, onClose }: DetailProps) {
           {item.why && <span className="detail-why">{item.why}</span>}
         </div>
         <Fields item={item} />
+        <StepsSection item={item} />
         <DetailsBody item={item} />
         <Links item={item} />
         <History item={item} />

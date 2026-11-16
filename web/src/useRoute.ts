@@ -1,11 +1,29 @@
 import { useCallback, useSyncExternalStore } from "react";
-import { type Route, routeOf } from "./route";
+import { openItemHash, openKeyOf, Route, ROUTE_HASH, routeOf } from "./route";
+
+function subscribeToHash(notify: () => void): () => void {
+  window.addEventListener("hashchange", notify);
+  return () => window.removeEventListener("hashchange", notify);
+}
+
+const currentHash = (): string => window.location.hash;
 
 /** The view the address hash names; follows the browser's back and forward buttons and the tab links. */
 export function useRoute(): Route {
-  const subscribe = useCallback((notify: () => void) => {
-    window.addEventListener("hashchange", notify);
-    return () => window.removeEventListener("hashchange", notify);
+  return routeOf(useSyncExternalStore(subscribeToHash, currentHash));
+}
+
+/**
+ * The item whose detail is open. The address hash is the only source of truth: opening sets it, closing
+ * puts the board's own hash in its place (no history entry left behind), and back or forward moves the drawer.
+ */
+export function useOpenItem(): { openKey: string | null; open: (key: string) => void; close: () => void } {
+  const openKey = openKeyOf(useSyncExternalStore(subscribeToHash, currentHash));
+  const open = useCallback((key: string) => {
+    window.location.hash = openItemHash(key);
   }, []);
-  return routeOf(useSyncExternalStore(subscribe, () => window.location.hash));
+  const close = useCallback(() => {
+    window.location.replace(ROUTE_HASH[Route.Board]);
+  }, []);
+  return { openKey, open, close };
 }

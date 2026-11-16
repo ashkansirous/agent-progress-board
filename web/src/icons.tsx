@@ -67,6 +67,22 @@ export function UsageIcon(props: IconProps) {
   );
 }
 
+export function ActiveIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M3 12h4l3-8 4 16 3-8h4" />
+    </Icon>
+  );
+}
+
+export function ChevronIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M9 6l6 6-6 6" />
+    </Icon>
+  );
+}
+
 export function ClockIcon(props: IconProps) {
   return (
     <Icon {...props}>

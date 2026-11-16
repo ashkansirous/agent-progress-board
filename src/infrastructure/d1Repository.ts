@@ -1,5 +1,6 @@
 import {
   type BoardFilter,
+  type BoardRow,
   type ItemRepository,
   type ItemWrite,
   type SeriesName,
@@ -17,14 +18,15 @@ import {
   type ItemEvent,
   ItemStatus,
   type ItemType,
-  type ItemWithEvents,
   type Priority,
 } from "../domain/item";
 import { EXPIRING_STATUSES, STALE_NOTE } from "../domain/stale";
+import { parseStoredSteps } from "../domain/steps";
 import type { ReportInput } from "../domain/upsert";
 
-interface ItemRow extends Omit<Item, "links" | "type" | "priority" | "status"> {
+interface ItemRow extends Omit<Item, "links" | "type" | "priority" | "status" | "steps"> {
   links: string;
+  steps: string | null;
   type: string;
   priority: string;
   status: string;
@@ -65,6 +67,9 @@ const CHANGEABLE_COLUMNS = [
   "links",
   "source",
   "environment",
+  "steps",
+  "agent",
+  "model",
 ] as const;
 type ChangeableColumn = (typeof CHANGEABLE_COLUMNS)[number];
 
@@ -87,6 +92,7 @@ const LAST_LIVE_STATUS = `COALESCE((SELECT e.status FROM events e WHERE e.item_k
     ORDER BY n.at DESC, n.id DESC LIMIT 1)), '${ItemStatus.InProgress}')`;
 const NEXT_STATUS = `CASE WHEN ${flagParam(STATUS_COLUMN)} THEN ${valueParam(STATUS_COLUMN)}
   WHEN status = '${ItemStatus.Stale}' THEN ${LAST_LIVE_STATUS} ELSE status END`;
+/** A given column that differs from the stored one is a change; steps compare as their stored JSON text, so the same list resent is not. */
 const ANY_CHANGED = CHANGEABLE_COLUMNS.map((col, i) =>
   i === STATUS_COLUMN ? `${NEXT_STATUS} IS NOT status` : `(${flagParam(i)} AND ${valueParam(i)} IS NOT ${col})`,
 ).join(" OR ");
@@ -110,12 +116,14 @@ const SOURCE_COLUMN = CHANGEABLE_COLUMNS.indexOf("source");
 const LIVE_STATUS_REPORT = `${flagParam(STATUS_COLUMN)} AND
   COALESCE(CASE WHEN ${flagParam(SOURCE_COLUMN)} THEN ${valueParam(SOURCE_COLUMN)} END, '') != '${DOC_SYNC_SOURCE}'`;
 
-const ENVIRONMENT_COLUMN = CHANGEABLE_COLUMNS.indexOf("environment");
+const valueOf = (column: ChangeableColumn): string => valueParam(CHANGEABLE_COLUMNS.indexOf(column));
 
 const UPSERT_ITEM = `INSERT INTO items (key, project, parent, type, priority, status, title, why,
-  details_md, links, source, heartbeat_at, created_at, updated_at, done_at, live_status_at, environment)
+  details_md, links, source, heartbeat_at, created_at, updated_at, done_at, live_status_at, environment,
+  steps, agent, model)
   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?12, ?12, ?13,
-    CASE WHEN ?11 IS '${DOC_SYNC_SOURCE}' THEN NULL ELSE ?12 END, ${valueParam(ENVIRONMENT_COLUMN)})
+    CASE WHEN ?11 IS '${DOC_SYNC_SOURCE}' THEN NULL ELSE ?12 END, ${valueOf("environment")},
+    ${valueOf("steps")}, ${valueOf("agent")}, ${valueOf("model")})
   ON CONFLICT (key) DO UPDATE SET ${SET_CHANGEABLE}, heartbeat_at = ?12,
   live_status_at = CASE WHEN ${LIVE_STATUS_REPORT} THEN ?12 ELSE live_status_at END,
   updated_at = CASE WHEN ${ANY_CHANGED} THEN ?12 ELSE updated_at END,
@@ -369,7 +377,7 @@ export class D1ItemRepository implements ItemRepository, UsageRepository {
     return items?.meta.changes ?? 0;
   }
 
-  async listBoard(filter: BoardFilter): Promise<ItemWithEvents[]> {
+  async listBoard(filter: BoardFilter): Promise<BoardRow[]> {
     const where = [filter.cutoff, filter.project ?? null, filter.type ?? null] as const;
     const [items, events] = await this.db.batch([
       this.db
@@ -377,7 +385,7 @@ export class D1ItemRepository implements ItemRepository, UsageRepository {
         .bind(...where),
       this.db.prepare(BOARD_EVENTS).bind(...where, filter.eventLimit),
     ]);
-    return attachEvents((items?.results ?? []) as ItemRow[], (events?.results ?? []) as EventRow[]);
+    return attachEvents((items?.results ?? []) as SyncItemRow[], (events?.results ?? []) as EventRow[]);
   }
 
   async eventsFor(key: string): Promise<ItemEvent[]> {
@@ -446,6 +454,7 @@ function givenParams(input: ReportInput, col: ChangeableColumn): [number, string
   const value = input[col];
   if (value === undefined) return [0, null];
   if (col === "links") return [1, JSON.stringify(value ?? [])];
+  if (col === "steps") return [1, value === null ? null : JSON.stringify(value)];
   return [1, value as string | null];
 }
 
@@ -459,6 +468,7 @@ function toItem(row: ItemRow): Item {
     priority: row.priority as Priority,
     status: row.status as ItemStatus,
     links: JSON.parse(row.links) as Item["links"],
+    steps: parseStoredSteps(row.steps),
   };
 }
 
@@ -472,10 +482,14 @@ function toSyncRow(row: SyncItemRow): SyncRow {
   };
 }
 
-function attachEvents(items: ItemRow[], events: EventRow[]): ItemWithEvents[] {
+function attachEvents(items: SyncItemRow[], events: EventRow[]): BoardRow[] {
   const byKey = new Map<string, ItemEvent[]>();
   for (const { item_key, ...event } of events) {
     byKey.set(item_key, [...(byKey.get(item_key) ?? []), event]);
   }
-  return items.map((row) => ({ ...toItem(row), events: byKey.get(row.key) ?? [] }));
+  return items.map((row) => ({
+    ...toItem(row),
+    events: byKey.get(row.key) ?? [],
+    expiry: { doc_status_at: row.doc_status_at, live_status_at: row.live_status_at },
+  }));
 }

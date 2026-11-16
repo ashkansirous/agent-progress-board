@@ -1,6 +1,7 @@
 import type { CapReading } from "../domain/cap";
 import type { SyncRow, SyncWrite } from "../domain/docSync";
 import type { Item, ItemEvent, ItemType, ItemWithEvents } from "../domain/item";
+import type { ExpiryRow } from "../domain/stale";
 import type { ReportInput } from "../domain/upsert";
 import type { UsageSample } from "../domain/usage";
 
@@ -12,6 +13,11 @@ export interface BoardFilter {
   /** Done items count only when done_at is later than this ISO time. */
   cutoff: string;
   eventLimit: number;
+}
+
+/** A board item plus the two stored times the expiry rule needs, which an Item does not carry (Slice 10). */
+export interface BoardRow extends ItemWithEvents {
+  expiry: Pick<ExpiryRow, "doc_status_at" | "live_status_at">;
 }
 
 export interface ItemWrite {
@@ -45,7 +51,7 @@ export interface ItemRepository {
    * already stale no longer match, so a second run writes nothing. Returns how many turned stale.
    */
   markStale(cutoff: string, now: string): Promise<number>;
-  listBoard(filter: BoardFilter): Promise<ItemWithEvents[]>;
+  listBoard(filter: BoardFilter): Promise<BoardRow[]>;
   /** Newest first, all events. */
   eventsFor(key: string): Promise<ItemEvent[]>;
 }

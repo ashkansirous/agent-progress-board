@@ -2,6 +2,8 @@ import type { CSSProperties } from "react";
 import type { BoardItemDto } from "../../src/api/boardDto";
 import { ItemStatus } from "../../src/domain/item";
 import { PriorityBadge } from "./PriorityBadge";
+import { currentStepText, progressText } from "./stepsText";
+import { StepBar } from "./stepsView";
 import { statusLabel, useView } from "./view";
 
 export interface TileProps {
@@ -21,7 +23,23 @@ function StatusText({ item }: { item: BoardItemDto }) {
   );
 }
 
-/** One item: type label and priority, title, why, and its parent with the status. */
+/** The step now and "{done} of {total} steps · {pct}%" over one bar segment per step; nothing for a task with no list. */
+function TileSteps({ item }: { item: BoardItemDto }) {
+  const { t, looks } = useView();
+  if (!item.progress || !item.steps) return null;
+  const type = looks.type(item.type);
+  return (
+    <span className="tile-steps">
+      <span className="tile-steps-line">
+        <span className="tile-steps-now">{currentStepText(item, t)}</span>
+        <span className="tile-steps-count">{progressText(item, t)}</span>
+      </span>
+      <StepBar steps={item.steps} variant="tile" finished={item.status === ItemStatus.Done} type={type} />
+    </span>
+  );
+}
+
+/** One item: type label and priority, title, why, its steps bar, and its parent with the status. */
 export function Tile({ item, onOpen }: TileProps) {
   const { looks } = useView();
   const type = looks.type(item.type);
@@ -39,6 +57,7 @@ export function Tile({ item, onOpen }: TileProps) {
       </span>
       <span className="tile-title">{item.title}</span>
       {item.why && <span className="tile-why">{item.why}</span>}
+      <TileSteps item={item} />
       <span className="tile-foot">
         {item.parent && <span className="tile-parent">↳ {item.parent}</span>}
         <StatusText item={item} />

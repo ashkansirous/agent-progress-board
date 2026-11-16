@@ -1,8 +1,8 @@
 import defaultConfigFile from "../../config/board.example.json";
-import { type Clock, listOpen } from "../application/board";
-import type { ItemRepository } from "../application/ports";
+import { type Clock, listBoardRows } from "../application/board";
+import type { BoardRow, ItemRepository } from "../application/ports";
 import { type BoardConfig, configFromRecord } from "../config";
-import type { ItemWithEvents } from "../domain/item";
+import { isWorkingNow, stepProgress } from "../domain/steps";
 import { resolveWindowHours } from "../domain/window";
 import type { BoardItemDto, BoardPageConfig, BoardResponse } from "./boardDto";
 
@@ -30,7 +30,9 @@ export function pageConfigOf(config: BoardConfig): BoardPageConfig {
   };
 }
 
-function itemDto(item: ItemWithEvents): BoardItemDto {
+function itemDto(row: BoardRow, config: BoardConfig, now: Date): BoardItemDto {
+  const { expiry, ...item } = row;
+  const environment = item.environment ?? null;
   return {
     key: item.key,
     project: item.project,
@@ -45,6 +47,13 @@ function itemDto(item: ItemWithEvents): BoardItemDto {
     heartbeat_at: item.heartbeat_at,
     created_at: item.created_at,
     done_at: item.done_at,
+    environment,
+    environment_label: environment === null ? null : (config.usage.environmentLabels[environment] ?? environment),
+    agent: item.agent ?? null,
+    model: item.model ?? null,
+    steps: item.steps ?? null,
+    progress: stepProgress(item.steps, item.status),
+    working: isWorkingNow({ ...item, ...expiry }, config.staleAfterMinutes, now),
     events: item.events.map(({ at, status, note }) => ({ at, status, note })),
   };
 }
@@ -55,12 +64,15 @@ export async function boardResponse(
   config: BoardConfig,
   clock: Clock,
 ): Promise<Response> {
-  const items = await listOpen(repo, {}, config.window, clock);
+  const rows = await listBoardRows(repo, {}, config.window, clock);
+  const now = clock.now();
+  const items = rows.map((row) => itemDto(row, config, now));
   const body: BoardResponse = {
-    server_time: clock.now().toISOString(),
+    server_time: now.toISOString(),
     window_hours: resolveWindowHours(undefined, config.window),
     config: pageConfigOf(config),
-    items: items.map(itemDto),
+    working_count: items.filter((item) => item.working).length,
+    items,
   };
   return Response.json(body, { headers: { "Cache-Control": "no-store" } });
 }

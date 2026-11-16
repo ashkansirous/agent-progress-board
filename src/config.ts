@@ -81,6 +81,12 @@ export const PALETTE_KEYS = [
   "pillNoneFg",
   "mergedCellBg",
   "markInk",
+  "chipBg",
+  "stepDone",
+  "stepDoneText",
+  "stepActive",
+  "stepActiveRow",
+  "stepPendingTile",
 ] as const;
 
 export type Palette = Record<(typeof PALETTE_KEYS)[number], string>;

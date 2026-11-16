@@ -35,6 +35,12 @@
   --track: color-mix(in srgb, CanvasText 8%, Canvas);
   --barFill: CanvasText;
   --rowLine: color-mix(in srgb, CanvasText 6%, Canvas);
+  --chipBg: color-mix(in srgb, CanvasText 6%, Canvas);
+  --stepDone: CanvasText;
+  --stepDoneText: CanvasText;
+  --stepActive: GrayText;
+  --stepActiveRow: color-mix(in srgb, CanvasText 8%, Canvas);
+  --stepPendingTile: color-mix(in srgb, CanvasText 12%, Canvas);
   --mono: "JetBrains Mono Variable", ui-monospace, monospace;
 }
 
@@ -413,6 +419,7 @@ h1 {
 .section h3,
 .details h3,
 .links h3,
+.steps-section h3,
 .history h3 {
   margin: 0;
   font-size: 12px;
@@ -767,6 +774,10 @@ h1 {
   justify-content: center;
   gap: 12px;
   text-align: center;
+}
+
+.state-center.state-gap-14 {
+  gap: 14px;
 }
 
 .state-title {

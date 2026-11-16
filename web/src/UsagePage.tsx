@@ -19,6 +19,7 @@ import type { UsageParams } from "./usageQuery";
 import type { UsageControls } from "./usageState";
 import { useUsageView, UsageViewProvider, type UsageView } from "./usageView";
 import { useUsage } from "./useUsage";
+import { useBoard } from "./hooks";
 import { ViewTabs } from "./ViewTabs";
 
 interface HeaderProps {
@@ -110,6 +111,8 @@ function Body({ state, retry }: BodyProps) {
 export function UsagePage({ env }: { env: Environment }) {
   const [params, setParams] = useState<UsageParams>({ range: UsageRange.Window, plan: null, environment: null });
   const { state, retry } = useUsage(params);
+  // The tab bar's Active work count comes from the board read; a failed read just leaves the pill out.
+  const activeCount = useBoard().state.data?.working_count;
   const view: UsageView = useMemo(
     () => ({ t: env.t, phone: env.phone, scheme: env.scheme, locale: env.locale, offsetMinutes: state.data?.utc_offset_minutes ?? viewerOffsetMinutes() }),
     [env, state.data?.utc_offset_minutes],
@@ -118,7 +121,7 @@ export function UsagePage({ env }: { env: Environment }) {
     <UsageViewProvider value={view}>
       <div className={env.phone ? "app phone" : "app"} style={paletteVars(state.controls, env.scheme)}>
         <div className="page usage-page">
-          {!env.phone && <ViewTabs current={Route.Usage} phone={false} t={env.t} />}
+          {!env.phone && <ViewTabs current={Route.Usage} phone={false} t={env.t} activeCount={activeCount} />}
           <UsageHeader
             controls={state.controls}
             params={params}
@@ -130,7 +133,7 @@ export function UsagePage({ env }: { env: Environment }) {
             <Body state={state} retry={retry} />
           </div>
         </div>
-        {env.phone && <ViewTabs current={Route.Usage} phone t={env.t} />}
+        {env.phone && <ViewTabs current={Route.Usage} phone t={env.t} activeCount={activeCount} />}
       </div>
     </UsageViewProvider>
   );

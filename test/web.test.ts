@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import type { BoardItemDto, BoardResponse } from "../src/api/boardDto";
 import { ItemStatus, ItemType, Priority } from "../src/domain/item";
 import { boardReducer, INITIAL_STATE } from "../web/src/boardState";
-import { groupByProject, projectLabel, waitingItems } from "../web/src/model";
+import type { StepState } from "../src/domain/stepTypes";
+import { activeTasks, groupByProject, projectLabel, waitingItems } from "../web/src/model";
+import { openItemHash, openKeyOf, Route, routeOf } from "../web/src/route";
+import { currentStepText, progressText, stepWords } from "../web/src/stepsText";
 import { LOCALES, pickLocale, translator } from "../web/src/strings";
 import { looksFor, paletteVars } from "../web/src/theme";
 import { ageText, clockTime, hoursSince } from "../web/src/time";
@@ -13,7 +16,8 @@ function item(over: Partial<BoardItemDto>): BoardItemDto {
   return {
     key: "p/x", project: "p", parent: null, type: ItemType.Slice, priority: Priority.P2, status: ItemStatus.Open,
     title: "T", why: null, details_md: null, links: [], heartbeat_at: "2026-11-15T10:00:00.000Z",
-    created_at: "2026-11-15T09:00:00.000Z", done_at: null, events: [], ...over,
+    created_at: "2026-11-15T09:00:00.000Z", done_at: null, environment: null, environment_label: null,
+    agent: null, model: null, steps: null, progress: null, working: false, events: [], ...over,
   };
 }
 
@@ -123,5 +127,53 @@ describe("theme", () => {
   it("turns the palette into custom properties", () => {
     expect(paletteVars(config, "dark")).toMatchObject({ "--page": "#000", "--text": "#E8EAEE" });
     expect(paletteVars(null, "light")).toMatchObject({ "--page": "#F5F6F8", "--primaryBg": "#14171C" });
+  });
+
+  it("paints the step colours of the mock for both schemes", () => {
+    expect(paletteVars(null, "light")).toMatchObject({ "--stepDone": "#0B6B4B", "--stepActive": "#9DBDFF", "--stepActiveRow": "#E6EEFC" });
+    expect(paletteVars(null, "dark")).toMatchObject({ "--stepDone": "#2E8F6A", "--stepActive": "#3B5A94", "--stepPendingTile": "#0E1014" });
+  });
+});
+
+describe("active work", () => {
+  const working = (key: string, heartbeat: string) => item({ key, working: true, heartbeat_at: heartbeat });
+
+  it("lists only the working tasks, the newest report first", () => {
+    const items = [
+      working("a/old", "2026-11-15T13:44:00.000Z"),
+      item({ key: "a/idle" }),
+      working("a/new", "2026-11-15T13:47:00.000Z"),
+      working("a/mid", "2026-11-15T13:46:00.000Z"),
+    ];
+    expect(activeTasks(items).map((i) => i.key)).toEqual(["a/new", "a/mid", "a/old"]);
+  });
+
+  it("reads the view from the address hash and the open item from its own hash form", () => {
+    expect(routeOf("#/active")).toBe(Route.Active);
+    expect(routeOf("#/usage")).toBe(Route.Usage);
+    expect(routeOf("#/")).toBe(Route.Board);
+    expect(routeOf("#/open/a%2Fb")).toBe(Route.Board);
+    expect(openKeyOf(openItemHash("demo/slice 7/part-a"))).toBe("demo/slice 7/part-a");
+    expect(openKeyOf("#/active")).toBeNull();
+    expect(openKeyOf("#/open/%E0%A4%A")).toBeNull();
+  });
+
+  it("names the steps Done, Now, Next and Later, and a finished task all Done", () => {
+    const steps = ["done", "done", "active", "pending", "pending", "pending"].map((state, i) => ({
+      label: `S${i}`,
+      state: state as StepState,
+      note: null,
+    }));
+    expect(stepWords(steps, false).map((w) => w.key)).toEqual(["stepDone", "stepDone", "stepNow", "stepNext", "stepLater", "stepLater"]);
+    expect(new Set(stepWords(steps, true).map((w) => w.key))).toEqual(new Set(["stepDone"]));
+  });
+
+  it("reads Starting with no active step, the label while one is active and Done once finished", () => {
+    const t = translator("en");
+    const progress = { done: 1, total: 4, percent: 25, current: null };
+    expect(currentStepText(item({ progress }), t)).toBe("Starting");
+    expect(currentStepText(item({ progress: { ...progress, current: "Review 1" } }), t)).toBe("Review 1");
+    expect(currentStepText(item({ progress, status: ItemStatus.Done }), t)).toBe("Done");
+    expect(progressText(item({ progress }), t)).toBe("1 of 4 steps · 25%");
   });
 });

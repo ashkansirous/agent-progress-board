@@ -36,6 +36,11 @@ export function staleCutoff(now: Date, staleAfterMinutes: number): string {
   return new Date(now.getTime() - staleAfterMinutes * MS_PER_MINUTE).toISOString();
 }
 
+/** The one heartbeat-age rule: older than the expiry. Used by `isExpired` and the working-now rule. */
+export function isHeartbeatExpired(heartbeatAt: string, staleAfterMinutes: number, now: Date): boolean {
+  return heartbeatAt < staleCutoff(now, staleAfterMinutes);
+}
+
 /**
  * Whether the cron turns this row stale: its shown status is a live one (in progress or blocked,
  * set by a report newer than the docs' last change, so an item only the docs set never expires)
@@ -45,6 +50,6 @@ export function isExpired(row: ExpiryRow, staleAfterMinutes: number, now: Date):
   return (
     EXPIRING_STATUSES.includes(row.status) &&
     showsLiveStatus(row.live_status_at, row.doc_status_at) &&
-    row.heartbeat_at < staleCutoff(now, staleAfterMinutes)
+    isHeartbeatExpired(row.heartbeat_at, staleAfterMinutes, now)
   );
 }

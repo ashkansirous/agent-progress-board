@@ -3,9 +3,7 @@
 Source: phone scope (2026-11-15), milestone 5 — see [Slice 1](01-items-api.md). The MCP
 endpoint and its tools ship in Slice 1; this slice adds what claude.ai needs.
 
-*Parked (index pass 2026-11-16): built and merged (PR #42, 9951aa2) and deployed (first deploy 2026-11-15, c1cc5de); the row waits for the owner's claude.ai connector step. Nothing is verified on claude.ai yet.*
-
-**Waiting on the user:** add the board as a custom connector in claude.ai ([https://claude.ai/settings/connectors](https://claude.ai/settings/connectors), "Add custom connector", the Worker's `/mcp` address on `workers.dev`, not the page's custom domain, which sits behind Access; see [Slice 2](02-tile-board.md) *Address*) and type the passphrase from the secrets store entry `OWNER_PASSPHRASE`. It blocks only the claude.ai check. (The link was not opened by the run that wrote it: it needs the owner's login.)
+*Built, merged (PR #42, 9951aa2) and deployed (first deploy 2026-11-15, c1cc5de). The owner added the board as a custom connector in claude.ai, signed in with the passphrase, asked "what's waiting for me on the agent progress board?" in a claude.ai chat and reported "it worked" (owner, 2026-11-16). The device was not said, so the claude.ai phone check is still open.*
 
 **Touches:** `src/**`, `wrangler.jsonc`, `vitest.config.ts`, `.dev.vars.example`, `package.json`,
 `package-lock.json`, `test/**`, `README.md`, `docs/clients.md`
@@ -144,8 +142,8 @@ Touches was widened: the Worker's entry (`src/index.ts`) and the test config mus
 The first deploy ran 2026-11-15 (c1cc5de); the open lines below were checked by curl against it, as far as stated.
 
 - ~~wrangler provisions the `OAUTH_KV` namespace on the first `deploy:ci` run.~~ Verified 2026-11-16: `wrangler kv namespace list` shows the OAuth KV namespace (and `POST /oauth/register` answered 201 on 2026-11-15).
-- The per-request env copy works on the deployed Worker (proven only in the Vitest Workers pool). Seen 2026-11-15: register, discovery, authorize and token routes answer repeatedly without error. Not seen: a full grant (the passphrase POST was not run).
-- claude.ai accepts the connector (registration, the 401 pointer on POST, 405 on GET, consent page, token) and "what's waiting for me?" lists the right items from claude.ai mobile.
+- ~~The per-request env copy works on the deployed Worker (proven only in the Vitest Workers pool).~~ Seen 2026-11-15: register, discovery, authorize and token routes answer repeatedly without error. Seen 2026-11-16: the owner completed a full grant (passphrase) from claude.ai.
+- ~~claude.ai accepts the connector (registration, the 401 pointer on POST, 405 on GET, consent page, token) and "what's waiting for me?" lists the right items.~~ Seen by the owner 2026-11-16: added the connector in claude.ai, signed in with the passphrase, asked "what's waiting for me on the agent progress board?" in a claude.ai chat and reported "it worked". Still open: the same question from the claude.ai app on a phone (the device was not said).
 - A static bearer token with `public_origin` set and a different request host still gets through (check-2 finding 8). Not run 2026-11-15: another Host cannot be sent to the workers.dev address; the bearer works on that host.
 
 *Verified 2026-11-15* (Worker at c1cc5de, by curl): a bearer token works against the deployed `/mcp` (write token tool calls 200, read token `list_open` 200, wrong token 401).

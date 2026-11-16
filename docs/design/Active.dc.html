@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Active work, desktop</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F6F8}
+a{color:#1D4ED8}a:hover{color:#1E3A8A}
+button{font:inherit;color:inherit}
+</style>
+</helmet>
+<div style="min-height: 1100px; background: #F5F6F8; font-family: Inter, system-ui, sans-serif; color: #14171C; font-size: 14px; line-height: 1.45">
+<div style="max-width: 1080px; margin: 0 auto; padding: 32px 32px 64px; display: flex; flex-direction: column; gap: 24px">
+
+<nav aria-label="Views" style="display: flex; gap: 4px; padding: 4px; background: #E9ECF0; border-radius: 12px; align-self: flex-start">
+<a href="Main.dc.html" style="min-height: 40px; padding: 0 16px; display: inline-flex; align-items: center; border-radius: 9px; color: #3B424D; font-weight: 500; text-decoration: none">Board</a>
+<a href="Active.dc.html" aria-current="page" style="min-height: 40px; padding: 0 16px; display: inline-flex; align-items: center; gap: 8px; border-radius: 9px; background: #FFFFFF; color: #14171C; font-weight: 600; text-decoration: none; box-shadow: 0 1px 2px rgba(20,23,28,0.08)">Active work <span style="font-size: 12px; font-weight: 600; padding: 0 7px; border-radius: 999px; background: #14171C; color: #FFFFFF">3</span></a>
+<a href="Usage.dc.html" style="min-height: 40px; padding: 0 16px; display: inline-flex; align-items: center; border-radius: 9px; color: #3B424D; font-weight: 500; text-decoration: none">Usage</a>
+</nav>
+
+<header style="display: flex; flex-direction: column; gap: 2px">
+<h1 style="margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.02em">Active work</h1>
+<p style="margin: 0; color: #5B6370; font-size: 13px">Tasks an agent is working on now, across projects · updated 13:48 · a task that stops reporting turns stale and leaves this page</p>
+</header>
+
+<ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 14px">
+<sc-for list="{{ tasks }}" as="t" hint-placeholder-count="3">
+<li style="background: #FFFFFF; border: 1px solid {{ t.border }}; border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; color: #5B6370">
+<span style="font-weight: 600; color: #14171C">{{ t.project }}</span>
+<span aria-hidden="true">·</span>
+<span style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: {{ t.typeFg }}">{{ t.typeLabel }}</span>
+<span aria-hidden="true">·</span>
+<span>{{ t.parent }}</span>
+<span style="margin-left: auto">Last report {{ t.beat }}</span>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: flex-start; gap: 16px">
+<div style="flex: 999 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 6px">
+<h2 style="margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -0.01em">{{ t.title }}</h2>
+<div style="display: flex; flex-wrap: wrap; gap: 6px">
+<span style="font-size: 12px; padding: 2px 8px; border-radius: 6px; background: #F0F2F5; color: #3B424D">{{ t.agent }}</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 3px 8px; border-radius: 6px; background: #F0F2F5; color: #3B424D">{{ t.model }}</span>
+</div>
+</div>
+<div style="flex: 1 1 300px; display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; align-items: baseline; gap: 8px">
+<span style="font-size: 15px; font-weight: 600; color: #1D4ED8">{{ t.stepNow }}</span>
+<span style="margin-left: auto; font-size: 13px; color: #3B424D; font-variant-numeric: tabular-nums">{{ t.progressLabel }}</span>
+</div>
+<div aria-hidden="true" style="display: flex; gap: 3px; height: 10px">
+<sc-for list="{{ t.segments }}" as="seg" hint-placeholder-count="5">
+<span style="flex: 1; border-radius: 3px; background: {{ seg.bg }}"></span>
+</sc-for>
+</div>
+</div>
+</div>
+<button onClick="{{ t.toggle }}" aria-expanded="{{ t.open }}" style="align-self: flex-start; min-height: 44px; padding: 0 14px 0 10px; display: inline-flex; align-items: center; gap: 6px; border-radius: 10px; border: 1px solid #E3E6EB; background: #FFFFFF; cursor: pointer; font-size: 13px; font-weight: 600"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#14171C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transform: rotate({{ t.chevron }})"><path d="M9 6l6 6-6 6"></path></svg>{{ t.toggleLabel }}</button>
+<sc-if value="{{ t.open }}" hint-placeholder-val="{{ false }}">
+<ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; border-top: 1px solid #E3E6EB; padding-top: 12px">
+<sc-for list="{{ t.steps }}" as="st" hint-placeholder-count="5">
+<li style="display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; background: {{ st.rowBg }}">
+<span style="width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; background: {{ st.markBg }}; color: {{ st.markFg }}; border: 1.5px solid {{ st.markBorder }}; box-sizing: border-box">{{ st.n }}</span>
+<span style="display: flex; flex-direction: column"><span style="font-size: 14px; font-weight: {{ st.weight }}; color: {{ st.textColor }}">{{ st.label }}</span><span style="font-size: 12px; color: #5B6370">{{ st.note }}</span></span>
+<span style="font-size: 12px; font-weight: 600; color: {{ st.stateFg }}">{{ st.stateLabel }}</span>
+</li>
+</sc-for>
+</ol>
+<a href="Main.dc.html" style="align-self: flex-start; font-size: 13px; font-weight: 600">Back to {{ t.parent }} on the board</a>
+</sc-if>
+</li>
+</sc-for>
+</ul>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1100}}'>
+var TASKS = [
+  { key: 'garden-planner/slice-9/part-c', project: 'Garden Planner', typeLabel: 'Part', title: 'Part C · Notification channel', parent: 'Slice 9 · Frost alerts', agent: 'Implementer', model: 'model-mid', beat: '1 min ago',
+    steps: [['Implementation', 'done', ''], ['Review 1', 'done', ''], ['Fixing', 'done', ''], ['Review 2', 'active', 'Two helper agents count under this step'], ['Phone test', 'pending', ''], ['Tablet test', 'pending', ''], ['Merging', 'pending', '']] },
+  { key: 'recipe-box/slice-4/part-b', project: 'Recipe Box', typeLabel: 'Part', title: 'Part B · Search box', parent: 'Slice 4 · Tag search', agent: 'Reviewer', model: 'model-large', beat: '2 min ago',
+    steps: [['Implementation', 'done', ''], ['Review 1', 'active', ''], ['Fixing', 'pending', ''], ['Review 2', 'pending', ''], ['Merging', 'pending', '']] },
+  { key: 'garden-planner/crash-bed', project: 'Garden Planner', typeLabel: 'Bug', title: 'Crash opening an empty bed', parent: 'Release 1.4.1', agent: 'Fixer', model: 'model-small', beat: '4 min ago', typeFg: '#B42318', border: '#F3BDBA',
+    steps: [['Reproduce', 'done', ''], ['Fix', 'active', ''], ['Phone test', 'pending', 'No tablet test: no tablet code changed'], ['Merging', 'pending', '']] }
+];
+var LOOK = {
+  done: { markBg: '#0B6B4B', markFg: '#FFFFFF', markBorder: '#0B6B4B', stateLabel: 'Done', stateFg: '#0B6B4B', rowBg: 'transparent', textColor: '#5B6370', weight: '400', seg: '#1D4ED8' },
+  active: { markBg: '#FFFFFF', markFg: '#1D4ED8', markBorder: '#1D4ED8', stateLabel: 'Now', stateFg: '#1D4ED8', rowBg: '#E6EEFC', textColor: '#14171C', weight: '600', seg: '#9DBDFF' },
+  pending: { markBg: '#FFFFFF', markFg: '#5B6370', markBorder: '#C9CED6', stateLabel: 'Next', stateFg: '#5B6370', rowBg: 'transparent', textColor: '#5B6370', weight: '400', seg: '#E3E6EB' }
+};
+class Component extends DCLogic {
+  renderVals() {
+    var self = this;
+    var st = this.state || {};
+    var openMap = st.open || { 'garden-planner/slice-9/part-c': true };
+    var tasks = TASKS.map(function (t) {
+      var n = t.steps.length;
+      var done = t.steps.filter(function (s) { return s[1] === 'done'; }).length;
+      var act = t.steps.find(function (s) { return s[1] === 'active'; });
+      var seenNext = false;
+      var steps = t.steps.map(function (s, i) {
+        var look = Object.assign({}, LOOK[s[1]]);
+        if (s[1] === 'pending') { if (seenNext) look.stateLabel = 'Later'; seenNext = true; }
+        return Object.assign({ n: String(i + 1), label: s[0], note: s[2] }, look);
+      });
+      var isOpen = !!openMap[t.key];
+      return Object.assign({}, t, {
+        typeFg: t.typeFg || '#1D4ED8', border: t.border || '#E3E6EB',
+        stepNow: act ? act[0] : 'Starting',
+        progressLabel: done + ' of ' + n + ' steps · ' + Math.round(done / n * 100) + '%',
+        segments: t.steps.map(function (s) { return { bg: LOOK[s[1]].seg }; }),
+        steps: steps, open: isOpen,
+        chevron: isOpen ? '90deg' : '0deg',
+        toggleLabel: isOpen ? 'Hide steps' : 'Show all ' + n + ' steps',
+        toggle: function () { var m = Object.assign({}, openMap); m[t.key] = !isOpen; self.setState({ open: m }); }
+      });
+    });
+    return { tasks: tasks };
+  }
+}
+</script>
+</body>
+</html>

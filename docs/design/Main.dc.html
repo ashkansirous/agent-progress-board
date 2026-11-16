@@ -19,6 +19,11 @@ button{font:inherit;color:inherit}
 <div style="position: relative; min-height: 1500px; background: #F5F6F8; font-family: Inter, system-ui, sans-serif; color: #14171C; font-size: 14px; line-height: 1.45">
 <div style="max-width: 1280px; margin: 0 auto; padding: 32px 32px 64px; display: flex; flex-direction: column; gap: 28px">
 
+<nav aria-label="Views" style="display: flex; gap: 4px; padding: 4px; background: #E9ECF0; border-radius: 12px; align-self: flex-start">
+<a href="Main.dc.html" aria-current="page" style="min-height: 40px; padding: 0 16px; display: inline-flex; align-items: center; border-radius: 9px; background: #FFFFFF; color: #14171C; font-weight: 600; text-decoration: none; box-shadow: 0 1px 2px rgba(20,23,28,0.08)">Board</a>
+<a href="Active.dc.html" style="min-height: 40px; padding: 0 16px; display: inline-flex; align-items: center; gap: 8px; border-radius: 9px; color: #3B424D; font-weight: 500; text-decoration: none">Active work <span style="font-size: 12px; font-weight: 600; padding: 0 7px; border-radius: 999px; background: #14171C; color: #FFFFFF">3</span></a>
+<a href="Usage.dc.html" style="min-height: 40px; padding: 0 16px; display: inline-flex; align-items: center; border-radius: 9px; color: #3B424D; font-weight: 500; text-decoration: none">Usage</a>
+</nav>
 <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px; justify-content: space-between">
 <div style="display: flex; flex-direction: column; gap: 2px">
 <h1 style="margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.02em">Progress</h1>
@@ -67,6 +72,12 @@ button{font:inherit;color:inherit}
 </span>
 <span style="font-size: 15px; font-weight: 600; color: {{ it.titleColor }}">{{ it.title }}</span>
 <span style="font-size: 13px; color: #5B6370">{{ it.why }}</span>
+<sc-if value="{{ it.hasParts }}" hint-placeholder-val="{{ false }}">
+<span style="display: flex; flex-direction: column; gap: 5px; margin-top: 4px">
+<span style="display: flex; align-items: baseline; gap: 8px; font-size: 12px; color: #3B424D"><span style="font-weight: 600">{{ it.partNow }}</span><span style="margin-left: auto; font-variant-numeric: tabular-nums">{{ it.partsLabel }}</span></span>
+<span aria-hidden="true" style="display: block; height: 6px; border-radius: 3px; background: #FFFFFF; overflow: hidden"><span style="display: block; height: 100%; width: {{ it.pct }}; background: {{ it.typeFg }}; border-radius: 3px"></span></span>
+</span>
+</sc-if>
 <span style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #5B6370; margin-top: 2px">
 <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap">↳ {{ it.parent }}</span>
 <span style="margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-weight: 600; color: {{ it.statusFg }}; white-space: nowrap"><span style="width: 7px; height: 7px; border-radius: 50%; background: {{ it.statusDot }}; border: 1.5px solid {{ it.statusFg }}; box-sizing: border-box"></span>{{ it.statusLabel }}</span>
@@ -100,6 +111,27 @@ button{font:inherit;color:inherit}
 <dt style="color: #5B6370">Parent</dt><dd style="margin: 0">{{ sel.parent }}</dd>
 <dt style="color: #5B6370">Key</dt><dd style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 12px">{{ sel.key }}</dd>
 </dl>
+<sc-if value="{{ sel.hasParts }}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: baseline; gap: 8px">
+<h3 style="margin: 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #5B6370">Parts</h3>
+<span style="margin-left: auto; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums">{{ sel.partsLabel }}</span>
+</div>
+<span aria-hidden="true" style="display: block; height: 8px; border-radius: 4px; background: #E9ECF0; overflow: hidden"><span style="display: block; height: 100%; width: {{ sel.pct }}; background: {{ sel.typeFg }}; border-radius: 4px"></span></span>
+<ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px">
+<sc-for list="{{ sel.partList }}" as="pt" hint-placeholder-count="4">
+<li style="display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; background: {{ pt.rowBg }}">
+<span style="width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; background: {{ pt.markBg }}; color: {{ pt.markFg }}; border: 1.5px solid {{ pt.markBorder }}; box-sizing: border-box">{{ pt.l }}</span>
+<span style="font-size: 14px; color: {{ pt.textColor }}">{{ pt.t }}</span>
+<span style="font-size: 12px; font-weight: 600; color: {{ pt.stateFg }}">{{ pt.stateLabel }}</span>
+</li>
+</sc-for>
+</ol>
+<sc-if value="{{ sel.hasActivePart }}" hint-placeholder-val="{{ true }}">
+<a href="Active.dc.html" style="align-self: flex-start; min-height: 44px; padding: 0 16px; display: inline-flex; align-items: center; gap: 8px; border-radius: 10px; background: #14171C; color: #FFFFFF; font-weight: 600; text-decoration: none">Follow part {{ sel.activeLetter }} on Active work <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></a>
+</sc-if>
+</div>
+</sc-if>
 <div style="display: flex; flex-direction: column; gap: 8px">
 <h3 style="margin: 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #5B6370">Details</h3>
 <div style="background: #F5F6F8; border-radius: 10px; padding: 14px 16px; font-size: 14px; display: flex; flex-direction: column; gap: 8px">
@@ -152,7 +184,8 @@ var ITEMS = [
     details: ['Three icon options are attached. Any one unblocks the store listing slice.'], links: ['Issue #77'],
     events: [{ at: '10:52', status: 'Open', note: 'Asked during planning' }] },
   { key: 'recipe-box/slice-4', project: 'Recipe Box', type: 'slice', priority: 'P1', status: 'in_progress', title: 'Slice 4 · Tag search', why: 'Find recipes by ingredient or tag', parent: 'Plan · Search',
-    details: ['Search box, tag chips and a join table for tags.', '3 of 5 work items done; waiting on the migration approval.'], links: ['Slice file', 'Pull request #41'],
+    details: ['Search box, tag chips and a join table for tags.', 'Part A is merged; part B is in its first review.'], links: ['Slice file', 'Pull request #41'],
+    parts: [{ l: 'A', t: 'Tag table and migration', s: 'done' }, { l: 'B', t: 'Search box', s: 'active', step: 'Reviewing' }, { l: 'C', t: 'Tag chips', s: 'pending' }, { l: 'D', t: 'Ingredient search', s: 'pending' }, { l: 'E', t: 'Empty results page', s: 'pending' }],
     events: [{ at: '13:23', status: 'In progress', note: 'Asked you to approve the migration' }, { at: '11:05', status: 'In progress', note: 'Session started' }, { at: '09:12', status: 'Open', note: 'Synced from plan docs' }] },
   { key: 'recipe-box/ci-main', project: 'Recipe Box', type: 'problem', priority: 'P0', status: 'blocked', title: 'CI failing on main', why: 'Lint step times out after 10 minutes', parent: 'Wave 3',
     details: ['Second failure in a row; the fix was retried once.', 'Wave 3 is paused until this passes.'], links: ['Failed run', 'Wave log'],
@@ -162,22 +195,25 @@ var ITEMS = [
     events: [{ at: '12:10', status: 'Open', note: 'Found during a run' }] },
   { key: 'recipe-box/slice-3', project: 'Recipe Box', type: 'slice', priority: 'P2', status: 'done', title: 'Slice 3 · Share links', why: 'Send a recipe to anyone with a link', parent: 'Plan · Sharing', doneAge: '2 h ago',
     details: ['Merged and deployed.'], links: ['Pull request #38'],
+    parts: [{ l: 'A', t: 'Share token', s: 'done' }, { l: 'B', t: 'Public recipe page', s: 'done' }, { l: 'C', t: 'Copy link button', s: 'done' }],
     events: [{ at: '11:44', status: 'Done', note: 'Merged to main' }, { at: '08:30', status: 'In progress', note: 'Session started' }] },
   { key: 'garden-planner/crash-bed', project: 'Garden Planner', type: 'bug', priority: 'P1', status: 'open', title: 'Crash opening an empty bed', why: 'Null bed view; 14 crashes today', parent: 'Release 1.4.1',
     details: ['Crash logs point at the bed view when a bed has no plants.'], links: ['Crash report'],
     events: [{ at: '09:40', status: 'Open', note: 'From crash logs' }] },
   { key: 'garden-planner/slice-9', project: 'Garden Planner', type: 'slice', priority: 'P2', status: 'in_progress', title: 'Slice 9 · Frost alerts', why: 'Warn the night before a frost', parent: 'Plan · Weather',
-    details: ['Forecast fetch done; notification channel next.'], links: ['Slice file'],
+    details: ['Forecast fetch and the alert rule are merged; the notification channel is in its second review.'], links: ['Slice file'],
+    parts: [{ l: 'A', t: 'Forecast fetch', s: 'done' }, { l: 'B', t: 'Frost rule', s: 'done' }, { l: 'C', t: 'Notification channel', s: 'active', step: 'Second review' }, { l: 'D', t: 'Settings toggle', s: 'pending' }],
     events: [{ at: '13:40', status: 'In progress', note: 'Heartbeat' }, { at: '12:00', status: 'In progress', note: 'Session started' }] },
   { key: 'garden-planner/slice-10', project: 'Garden Planner', type: 'slice', priority: 'P2', status: 'stale', title: 'Slice 10 · Seed inventory', why: 'Track seed packets and expiry', parent: 'Plan · Inventory', staleNote: 'No heartbeat for 3 h',
     details: ['The session stopped reporting. A new report on this key brings it back.'], links: ['Slice file'],
+    parts: [{ l: 'A', t: 'Inventory table', s: 'done' }, { l: 'B', t: 'Add a packet', s: 'stale', step: 'Implementing' }, { l: 'C', t: 'Expiry warnings', s: 'pending' }],
     events: [{ at: '13:00', status: 'Stale', note: 'Heartbeat expired' }, { at: '10:48', status: 'In progress', note: 'Last heartbeat' }] },
   { key: 'garden-planner/slice-8', project: 'Garden Planner', type: 'slice', priority: 'P2', status: 'done', title: 'Slice 8 · Watering log', why: 'One-tap log per bed', parent: 'Plan · Care', doneAge: '6 h ago',
     details: ['Merged and released in 1.4.1.'], links: ['Pull request #70'], events: [{ at: '07:50', status: 'Done', note: 'Merged to main' }] },
   { key: 'garden-planner/flaky-test', project: 'Garden Planner', type: 'problem', priority: 'P3', status: 'done', title: 'Flaky emulator test', why: 'Retried with a longer boot wait', parent: 'Wave 2', doneAge: '9 h ago',
     details: ['Fixed by waiting for the emulator to finish booting.'], links: ['Fix commit'], events: [{ at: '04:55', status: 'Done', note: 'Fix merged' }] },
   { key: 'home-lab/slice-2', project: 'Home Lab', type: 'slice', priority: 'P3', status: 'open', title: 'Slice 2 · Backup rotation', why: 'Keep 7 daily and 4 weekly backups', parent: 'Plan · Backups',
-    details: ['Not started.'], links: ['Slice file'], events: [{ at: '09:12', status: 'Open', note: 'Synced from plan docs' }] },
+    details: ['Not started. The slice file has no lettered parts, so no bar is shown.'], links: ['Slice file'], events: [{ at: '09:12', status: 'Open', note: 'Synced from plan docs' }] },
   { key: 'home-lab/cert', project: 'Home Lab', type: 'unplanned', priority: 'P3', status: 'open', title: 'Renew the expiring certificate', why: 'Expires in 9 days', parent: 'Slice 1 · Reverse proxy',
     details: ['Spotted while checking the proxy config.'], links: ['Session notes'], events: [{ at: '08:20', status: 'Open', note: 'Found during a run' }] }
 ];
@@ -202,7 +238,31 @@ class Component extends DCLogic {
       opacity: it.status === 'done' ? '0.78' : '1',
       titleColor: it.status === 'stale' ? '#5B6370' : '#14171C',
       open: function () { self.setState({ sel: it.key }); }
+    }, this.partsInfo(it));
+  }
+  partsInfo(it) {
+    if (!it.parts) return { hasParts: false, partList: [], hasActivePart: false };
+    var n = it.parts.length;
+    var done = it.parts.filter(function (p) { return p.s === 'done'; }).length;
+    var pct = Math.round(done / n * 100) + '%';
+    var act = it.parts.find(function (p) { return p.s === 'active' || p.s === 'stale'; });
+    var next = it.parts.find(function (p) { return p.s === 'pending'; });
+    var partNow = act ? 'Part ' + act.l + ' · ' + act.step + (act.s === 'stale' ? ' (stale)' : '') : (done === n ? 'All parts done' : 'Next: part ' + next.l);
+    var LOOK = {
+      done: { markBg: '#0B6B4B', markFg: '#FFFFFF', markBorder: '#0B6B4B', stateLabel: 'Done', stateFg: '#0B6B4B', rowBg: 'transparent', textColor: '#5B6370' },
+      active: { markBg: '#FFFFFF', markFg: '#1D4ED8', markBorder: '#1D4ED8', stateLabel: '', stateFg: '#1D4ED8', rowBg: '#E6EEFC', textColor: '#14171C' },
+      stale: { markBg: '#FFFFFF', markFg: '#5B6370', markBorder: '#9AA3B2', stateLabel: '', stateFg: '#5B6370', rowBg: '#F5F6F8', textColor: '#14171C' },
+      pending: { markBg: '#FFFFFF', markFg: '#5B6370', markBorder: '#C9CED6', stateLabel: 'Next', stateFg: '#5B6370', rowBg: 'transparent', textColor: '#5B6370' }
+    };
+    var partList = it.parts.map(function (p) {
+      var look = Object.assign({}, LOOK[p.s]);
+      if (p.s === 'active') look.stateLabel = 'Active · ' + p.step;
+      if (p.s === 'stale') look.stateLabel = 'Stale · ' + p.step;
+      if (p.s === 'pending' && next && p.l !== next.l) look.stateLabel = 'Later';
+      return Object.assign({}, p, look);
     });
+    return { hasParts: true, partsLabel: done + ' of ' + n + ' parts · ' + pct, pct: pct, partNow: partNow, partList: partList,
+      hasActivePart: !!(act && act.s === 'active'), activeLetter: act ? act.l : '' };
   }
   renderVals() {
     var self = this;

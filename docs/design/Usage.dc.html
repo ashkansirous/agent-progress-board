@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Usage and cap cost, desktop</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F6F8}
+a{color:#1D4ED8}a:hover{color:#1E3A8A}
+button,select{font:inherit;color:inherit}
+</style>
+</helmet>
+<div style="min-height: 1900px; background: #F5F6F8; font-family: Inter, system-ui, sans-serif; color: #14171C; font-size: 14px; line-height: 1.45">
+<div style="max-width: 1180px; margin: 0 auto; padding: 32px 32px 64px; display: flex; flex-direction: column; gap: 24px">
+
+<nav aria-label="Views" style="display: flex; gap: 4px; padding: 4px; background: #E9ECF0; border-radius: 12px; align-self: flex-start">
+<a href="Main.dc.html" style="min-height: 40px; padding: 0 16px; display: inline-flex; align-items: center; border-radius: 9px; color: #3B424D; font-weight: 500; text-decoration: none">Board</a>
+<a href="Active.dc.html" style="min-height: 40px; padding: 0 16px; display: inline-flex; align-items: center; gap: 8px; border-radius: 9px; color: #3B424D; font-weight: 500; text-decoration: none">Active work <span style="font-size: 12px; font-weight: 600; padding: 0 7px; border-radius: 999px; background: #14171C; color: #FFFFFF">3</span></a>
+<a href="Usage.dc.html" aria-current="page" style="min-height: 40px; padding: 0 16px; display: inline-flex; align-items: center; border-radius: 9px; background: #FFFFFF; color: #14171C; font-weight: 600; text-decoration: none; box-shadow: 0 1px 2px rgba(20,23,28,0.08)">Usage</a>
+</nav>
+
+<header style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px; justify-content: space-between">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<h1 style="margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.02em">Usage</h1>
+<p style="margin: 0; color: #5B6370; font-size: 13px">Tokens your agents reported, the cap readings, and what each model costs of the cap · updated 13:48</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+<div role="group" aria-label="Time range" style="display: flex; gap: 2px; padding: 3px; background: #E9ECF0; border-radius: 10px">
+<button style="min-height: 38px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; color: #3B424D; cursor: pointer">24 h</button>
+<button aria-pressed="true" style="min-height: 38px; padding: 0 12px; border: 0; border-radius: 8px; background: #FFFFFF; font-weight: 600; cursor: pointer; box-shadow: 0 1px 2px rgba(20,23,28,0.08)">This window</button>
+<button style="min-height: 38px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; color: #3B424D; cursor: pointer">30 days</button>
+</div>
+<label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: #5B6370">Plan
+<select style="min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid #E3E6EB; background: #FFFFFF; font-weight: 600"><option>[PLAN NAME]</option></select>
+</label>
+</div>
+</header>
+
+<section aria-label="Cap now" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px">
+<div style="background: #FFFFFF; border: 1px solid #E3E6EB; border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 13px; color: #5B6370">Weekly cap used</span>
+<span style="font-size: 40px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1.1">34.2%</span>
+<span aria-hidden="true" style="display: block; height: 8px; border-radius: 4px; background: #E9ECF0; overflow: hidden"><span style="display: block; width: 34.2%; height: 100%; background: #14171C; border-radius: 4px"></span></span>
+<span style="font-size: 13px; color: #5B6370">Resets Tue 17 Nov, 08:00 · reading taken 13:46</span>
+</div>
+<div style="background: #FFFFFF; border: 1px solid #E3E6EB; border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 13px; color: #5B6370">Shorter window used</span>
+<span style="font-size: 40px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1.1">41%</span>
+<span aria-hidden="true" style="display: block; height: 8px; border-radius: 4px; background: #E9ECF0; overflow: hidden"><span style="display: block; width: 41%; height: 100%; background: #14171C; border-radius: 4px"></span></span>
+<span style="font-size: 13px; color: #5B6370">Resets in 2 h 10 min</span>
+</div>
+<div style="background: #FFFFFF; border: 1px solid #E3E6EB; border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 13px; color: #5B6370">Cap growth the board can’t explain</span>
+<span style="font-size: 40px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1.1">8%</span>
+<span style="font-size: 13px; color: #5B6370">2.8 of the 34.2 points. Use the board can’t see: the chat app, a phone, or a machine without the client.</span>
+</div>
+</section>
+
+<section aria-labelledby="cap-h" style="background: #FFFFFF; border: 1px solid #E3E6EB; border-radius: 14px; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px">
+<h2 id="cap-h" style="margin: 0; font-size: 16px; font-weight: 700">Weekly cap over this window</h2>
+<span style="font-size: 13px; color: #5B6370">Each dot is an accepted reading. A reading older and lower than one already stored is dropped and never pulls the line down.</span>
+</div>
+<svg viewBox="0 0 1000 280" width="100%" role="img" aria-label="Weekly cap used rose from 0% at the reset on Tuesday 08:00 to 34.2% now. One stale reading on Friday was dropped." style="display: block; font-family: Inter, system-ui, sans-serif"><line x1="48" x2="976" y1="240.0" y2="240.0" stroke="#E9ECF0" stroke-width="1"></line><text x="38" y="244.0" text-anchor="end" font-size="12" fill="#5B6370">0%</text><line x1="48" x2="976" y1="185.0" y2="185.0" stroke="#E9ECF0" stroke-width="1"></line><text x="38" y="189.0" text-anchor="end" font-size="12" fill="#5B6370">25%</text><line x1="48" x2="976" y1="130.0" y2="130.0" stroke="#E9ECF0" stroke-width="1"></line><text x="38" y="134.0" text-anchor="end" font-size="12" fill="#5B6370">50%</text><line x1="48" x2="976" y1="75.0" y2="75.0" stroke="#E9ECF0" stroke-width="1"></line><text x="38" y="79.0" text-anchor="end" font-size="12" fill="#5B6370">75%</text><line x1="48" x2="976" y1="20.0" y2="20.0" stroke="#E9ECF0" stroke-width="1"></line><text x="38" y="24.0" text-anchor="end" font-size="12" fill="#5B6370">100%</text><text x="114.3" y="266" text-anchor="middle" font-size="12" fill="#5B6370">Tue 10</text><text x="246.9" y="266" text-anchor="middle" font-size="12" fill="#5B6370">Wed 11</text><text x="379.4" y="266" text-anchor="middle" font-size="12" fill="#5B6370">Thu 12</text><text x="512.0" y="266" text-anchor="middle" font-size="12" fill="#5B6370">Fri 13</text><text x="644.6" y="266" text-anchor="middle" font-size="12" fill="#5B6370">Sat 14</text><text x="777.1" y="266" text-anchor="middle" font-size="12" fill="#5B6370">Sun 15</text><text x="909.7" y="266" text-anchor="middle" font-size="12" fill="#5B6370">Mon 16</text><line x1="48.0" x2="48.0" y1="20" y2="240" stroke="#14171C" stroke-width="1.5" stroke-dasharray="4 4"></line><text x="56.0" y="34" font-size="12" font-weight="600" fill="#14171C">Reset · Tue 08:00</text><polyline points="48.0,240.0 180.6,233.4 313.1,218.4 445.7,211.2 578.3,191.6 710.9,183.0 843.4,181.5 875.2,164.8" fill="none" stroke="#14171C" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"></polyline><circle cx="180.6" cy="233.4" r="5" fill="#14171C" stroke="#FFFFFF" stroke-width="2"><title>3.0% at reading</title></circle><circle cx="313.1" cy="218.4" r="5" fill="#14171C" stroke="#FFFFFF" stroke-width="2"><title>9.8% at reading</title></circle><circle cx="445.7" cy="211.2" r="5" fill="#14171C" stroke="#FFFFFF" stroke-width="2"><title>13.1% at reading</title></circle><circle cx="578.3" cy="191.6" r="5" fill="#14171C" stroke="#FFFFFF" stroke-width="2"><title>22.0% at reading</title></circle><circle cx="710.9" cy="183.0" r="5" fill="#14171C" stroke="#FFFFFF" stroke-width="2"><title>25.9% at reading</title></circle><circle cx="843.4" cy="181.5" r="5" fill="#14171C" stroke="#FFFFFF" stroke-width="2"><title>26.6% at reading</title></circle><circle cx="875.2" cy="164.8" r="5" fill="#14171C" stroke="#FFFFFF" stroke-width="2"><title>34.2% at reading</title></circle><circle cx="677.7" cy="197.1" r="5" fill="#FFFFFF" stroke="#5B6370" stroke-width="2" stroke-dasharray="2 2"><title>19.5%, older than a stored 22.0% reading: dropped</title></circle><text x="687.7" y="215.1" font-size="12" fill="#5B6370">Dropped: stale reading (19.5%)</text><text x="867.2" y="152.8" text-anchor="end" font-size="13" font-weight="700" fill="#14171C">34.2% now</text></svg>
+</section>
+
+<section aria-labelledby="tok-h" style="background: #FFFFFF; border: 1px solid #E3E6EB; border-radius: 14px; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px">
+<h2 id="tok-h" style="margin: 0; font-size: 16px; font-weight: 700">Tokens per day, by model</h2>
+<div style="display: flex; flex-wrap: wrap; gap: 16px; margin-left: auto; font-size: 13px">
+<span style="display: inline-flex; align-items: center; gap: 6px"><span style="width: 12px; height: 12px; border-radius: 3px; background: #2a78d6"></span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px">model-large</span></span>
+<span style="display: inline-flex; align-items: center; gap: 6px"><span style="width: 12px; height: 12px; border-radius: 3px; background: #eb6834"></span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px">model-mid</span></span>
+<span style="display: inline-flex; align-items: center; gap: 6px"><span style="width: 12px; height: 12px; border-radius: 3px; background: #1baf7a"></span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px">model-small</span></span>
+</div>
+</div>
+<svg viewBox="0 0 1000 300" width="100%" role="img" aria-label="Tokens per day by model, Tuesday to Monday. The mid model used the most every day; the table below has the numbers." style="display: block; font-family: Inter, system-ui, sans-serif"><line x1="48" x2="890" y1="260.0" y2="260.0" stroke="#E9ECF0" stroke-width="1"></line><text x="38" y="264.0" text-anchor="end" font-size="12" fill="#5B6370">0</text><line x1="48" x2="890" y1="199.0" y2="199.0" stroke="#E9ECF0" stroke-width="1"></line><text x="38" y="203.0" text-anchor="end" font-size="12" fill="#5B6370">2.5 M</text><line x1="48" x2="890" y1="138.0" y2="138.0" stroke="#E9ECF0" stroke-width="1"></line><text x="38" y="142.0" text-anchor="end" font-size="12" fill="#5B6370">5 M</text><line x1="48" x2="890" y1="77.0" y2="77.0" stroke="#E9ECF0" stroke-width="1"></line><text x="38" y="81.0" text-anchor="end" font-size="12" fill="#5B6370">7.5 M</text><line x1="48" x2="890" y1="16.0" y2="16.0" stroke="#E9ECF0" stroke-width="1"></line><text x="38" y="20.0" text-anchor="end" font-size="12" fill="#5B6370">10 M</text><rect x="80.5" y="230.7" width="55.3" height="27.3" fill="#2a78d6"><title>Tue 10 · model-large: 1.2 M tokens</title></rect><rect x="80.5" y="155.1" width="55.3" height="73.6" fill="#eb6834"><title>Tue 10 · model-mid: 3.1 M tokens</title></rect><path d="M80.5,153.1 V139.6 Q80.5,135.6 84.5,135.6 H131.8 Q135.8,135.6 135.8,139.6 V153.1 Z" fill="#1baf7a"><title>Tue 10 · model-small: 0.8 M tokens</title></path><text x="108.1" y="127.6" text-anchor="middle" font-size="12" fill="#14171C">5.1 M</text><text x="108.1" y="286" text-anchor="middle" font-size="12" fill="#5B6370">Tue 10</text><rect x="200.8" y="211.2" width="55.3" height="46.8" fill="#2a78d6"><title>Wed 11 · model-large: 2.0 M tokens</title></rect><rect x="200.8" y="108.7" width="55.3" height="100.5" fill="#eb6834"><title>Wed 11 · model-mid: 4.2 M tokens</title></rect><path d="M200.8,106.7 V85.9 Q200.8,81.9 204.8,81.9 H252.1 Q256.1,81.9 256.1,85.9 V106.7 Z" fill="#1baf7a"><title>Wed 11 · model-small: 1.1 M tokens</title></path><text x="228.4" y="73.9" text-anchor="middle" font-size="12" fill="#14171C">7.3 M</text><text x="228.4" y="286" text-anchor="middle" font-size="12" fill="#5B6370">Wed 11</text><rect x="321.0" y="245.4" width="55.3" height="12.6" fill="#2a78d6"><title>Thu 12 · model-large: 0.6 M tokens</title></rect><rect x="321.0" y="184.4" width="55.3" height="59.0" fill="#eb6834"><title>Thu 12 · model-mid: 2.5 M tokens</title></rect><path d="M321.0,182.4 V176.2 Q321.0,172.2 325.0,172.2 H372.4 Q376.4,172.2 376.4,176.2 V182.4 Z" fill="#1baf7a"><title>Thu 12 · model-small: 0.5 M tokens</title></path><text x="348.7" y="164.2" text-anchor="middle" font-size="12" fill="#14171C">3.6 M</text><text x="348.7" y="286" text-anchor="middle" font-size="12" fill="#5B6370">Thu 12</text><rect x="441.3" y="191.7" width="55.3" height="66.3" fill="#2a78d6"><title>Fri 13 · model-large: 2.8 M tokens</title></rect><rect x="441.3" y="69.7" width="55.3" height="120.0" fill="#eb6834"><title>Fri 13 · model-mid: 5.0 M tokens</title></rect><path d="M441.3,67.7 V39.5 Q441.3,35.5 445.3,35.5 H492.7 Q496.7,35.5 496.7,39.5 V67.7 Z" fill="#1baf7a"><title>Fri 13 · model-small: 1.4 M tokens</title></path><text x="469.0" y="27.5" text-anchor="middle" font-size="12" fill="#14171C">9.2 M</text><text x="469.0" y="286" text-anchor="middle" font-size="12" fill="#5B6370">Fri 13</text><rect x="561.6" y="213.6" width="55.3" height="44.4" fill="#2a78d6"><title>Sat 14 · model-large: 1.9 M tokens</title></rect><rect x="561.6" y="120.9" width="55.3" height="90.7" fill="#eb6834"><title>Sat 14 · model-mid: 3.8 M tokens</title></rect><path d="M561.6,118.9 V103.0 Q561.6,99.0 565.6,99.0 H613.0 Q617.0,99.0 617.0,103.0 V118.9 Z" fill="#1baf7a"><title>Sat 14 · model-small: 0.9 M tokens</title></path><text x="589.3" y="91.0" text-anchor="middle" font-size="12" fill="#14171C">6.6 M</text><text x="589.3" y="286" text-anchor="middle" font-size="12" fill="#5B6370">Sat 14</text><rect x="681.9" y="250.2" width="55.3" height="7.8" fill="#2a78d6"><title>Sun 15 · model-large: 0.4 M tokens</title></rect><rect x="681.9" y="221.0" width="55.3" height="27.3" fill="#eb6834"><title>Sun 15 · model-mid: 1.2 M tokens</title></rect><path d="M681.9,219.0 V217.6 Q681.9,213.6 685.9,213.6 H733.2 Q737.2,213.6 737.2,217.6 V219.0 Z" fill="#1baf7a"><title>Sun 15 · model-small: 0.3 M tokens</title></path><text x="709.6" y="205.6" text-anchor="middle" font-size="12" fill="#14171C">1.9 M</text><text x="709.6" y="286" text-anchor="middle" font-size="12" fill="#5B6370">Sun 15</text><rect x="802.2" y="223.4" width="55.3" height="34.6" fill="#2a78d6"><title>Mon 16 · model-large: 1.5 M tokens</title></rect><rect x="802.2" y="152.6" width="55.3" height="68.8" fill="#eb6834"><title>Mon 16 · model-mid: 2.9 M tokens</title></rect><path d="M802.2,150.6 V139.6 Q802.2,135.6 806.2,135.6 H853.5 Q857.5,135.6 857.5,139.6 V150.6 Z" fill="#1baf7a"><title>Mon 16 · model-small: 0.7 M tokens</title></path><text x="829.9" y="127.6" text-anchor="middle" font-size="12" fill="#14171C">5.1 M</text><text x="829.9" y="286" text-anchor="middle" font-size="12" fill="#5B6370">Mon 16</text><text x="867.5" y="245.7" font-size="12" fill="#14171C">model-large</text><text x="867.5" y="192.0" font-size="12" fill="#14171C">model-mid</text><text x="867.5" y="148.1" font-size="12" fill="#14171C">model-small</text></svg>
+<div style="overflow-x: auto">
+<table style="width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums">
+<caption style="text-align: left; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #5B6370; padding: 8px 0">Token kinds this window, millions</caption>
+<thead><tr style="color: #5B6370; text-align: right">
+<th scope="col" style="text-align: left; font-weight: 500; padding: 8px 12px 8px 0; border-bottom: 1px solid #E3E6EB">Model</th>
+<th scope="col" style="font-weight: 500; padding: 8px 12px; border-bottom: 1px solid #E3E6EB">Fresh input</th>
+<th scope="col" style="font-weight: 500; padding: 8px 12px; border-bottom: 1px solid #E3E6EB">Cache write</th>
+<th scope="col" style="font-weight: 500; padding: 8px 12px; border-bottom: 1px solid #E3E6EB">Cache read</th>
+<th scope="col" style="font-weight: 500; padding: 8px 12px; border-bottom: 1px solid #E3E6EB">Output</th>
+<th scope="col" style="font-weight: 600; padding: 8px 0 8px 12px; border-bottom: 1px solid #E3E6EB; color: #14171C">Total</th>
+</tr></thead>
+<tbody style="text-align: right">
+<tr><th scope="row" style="text-align: left; padding: 9px 12px 9px 0; border-bottom: 1px solid #F0F2F5"><span style="display: inline-flex; align-items: center; gap: 8px; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 500"><span style="width: 10px; height: 10px; border-radius: 2px; background: #2a78d6"></span>model-large</span></th><td style="padding: 9px 12px; border-bottom: 1px solid #F0F2F5">0.02</td><td style="padding: 9px 12px; border-bottom: 1px solid #F0F2F5">0.61</td><td style="padding: 9px 12px; border-bottom: 1px solid #F0F2F5">9.60</td><td style="padding: 9px 12px; border-bottom: 1px solid #F0F2F5">0.17</td><td style="padding: 9px 0 9px 12px; border-bottom: 1px solid #F0F2F5; font-weight: 600">10.4</td></tr>
+<tr><th scope="row" style="text-align: left; padding: 9px 12px 9px 0; border-bottom: 1px solid #F0F2F5"><span style="display: inline-flex; align-items: center; gap: 8px; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 500"><span style="width: 10px; height: 10px; border-radius: 2px; background: #eb6834"></span>model-mid</span></th><td style="padding: 9px 12px; border-bottom: 1px solid #F0F2F5">0.05</td><td style="padding: 9px 12px; border-bottom: 1px solid #F0F2F5">1.30</td><td style="padding: 9px 12px; border-bottom: 1px solid #F0F2F5">21.00</td><td style="padding: 9px 12px; border-bottom: 1px solid #F0F2F5">0.35</td><td style="padding: 9px 0 9px 12px; border-bottom: 1px solid #F0F2F5; font-weight: 600">22.7</td></tr>
+<tr><th scope="row" style="text-align: left; padding: 9px 12px 9px 0"><span style="display: inline-flex; align-items: center; gap: 8px; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 500"><span style="width: 10px; height: 10px; border-radius: 2px; background: #1baf7a"></span>model-small</span></th><td style="padding: 9px 12px">0.03</td><td style="padding: 9px 12px">0.40</td><td style="padding: 9px 12px">5.15</td><td style="padding: 9px 12px">0.12</td><td style="padding: 9px 0 9px 12px; font-weight: 600">5.7</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<section aria-labelledby="cost-h" style="display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px">
+<h2 id="cost-h" style="margin: 0; font-size: 16px; font-weight: 700">What 1% of the week costs on [PLAN NAME]</h2>
+<span style="font-size: 13px; color: #5B6370">Best fit over many stretches of time inside one window on this plan. Stretches with a reset or a plan change are left out.</span>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px">
+<sc-for list="{{ costs }}" as="c" hint-placeholder-count="3">
+<div style="background: #FFFFFF; border: 1px solid #E3E6EB; border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px">
+<span style="display: inline-flex; align-items: center; gap: 8px"><span style="width: 12px; height: 12px; border-radius: 3px; background: {{ c.color }}"></span><span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 500">{{ c.model }}</span></span>
+<span style="font-size: 13px; color: #5B6370">1% of the week is about</span>
+<span style="font-size: 30px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; font-variant-numeric: tabular-nums">{{ c.tokens }} <span style="font-size: 15px; font-weight: 500; color: #5B6370">tokens</span></span>
+<span style="align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: {{ c.sureBg }}; color: {{ c.sureFg }}"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="5" fill="none" stroke="{{ c.sureFg }}" stroke-width="1.5"></circle><path d="{{ c.sureArc }}" fill="{{ c.sureFg }}"></path></svg>{{ c.sure }}</span>
+<span style="font-size: 12px; color: #5B6370">{{ c.basis }}</span>
+</div>
+</sc-for>
+</div>
+</section>
+
+<div style="display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start">
+<section aria-labelledby="task-h" style="flex: 999 1 560px; min-width: 0; background: #FFFFFF; border: 1px solid #E3E6EB; border-radius: 14px; padding: 20px 24px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: baseline; gap: 12px"><h2 id="task-h" style="margin: 0; font-size: 16px; font-weight: 700">Cost per task</h2><span style="font-size: 13px; color: #5B6370">Kept across resets and plan changes</span></div>
+<div style="overflow-x: auto">
+<table style="width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums">
+<thead><tr style="color: #5B6370">
+<th scope="col" style="text-align: left; font-weight: 500; padding: 8px 12px 8px 0; border-bottom: 1px solid #E3E6EB">Task</th>
+<th scope="col" style="text-align: left; font-weight: 500; padding: 8px 12px; border-bottom: 1px solid #E3E6EB">Project</th>
+<th scope="col" style="text-align: right; font-weight: 500; padding: 8px 12px; border-bottom: 1px solid #E3E6EB">Tokens</th>
+<th scope="col" style="text-align: right; font-weight: 600; color: #14171C; padding: 8px 0 8px 12px; border-bottom: 1px solid #E3E6EB; width: 200px">Of the cap</th>
+</tr></thead>
+<tbody>
+<sc-for list="{{ tasks }}" as="t" hint-placeholder-count="6">
+<tr>
+<td style="padding: 9px 12px 9px 0; border-bottom: 1px solid #F0F2F5; font-weight: 500">{{ t.task }}</td>
+<td style="padding: 9px 12px; border-bottom: 1px solid #F0F2F5; color: #5B6370">{{ t.project }}</td>
+<td style="padding: 9px 12px; border-bottom: 1px solid #F0F2F5; text-align: right">{{ t.tokens }}</td>
+<td style="padding: 9px 0 9px 12px; border-bottom: 1px solid #F0F2F5"><span style="display: flex; align-items: center; gap: 10px; justify-content: flex-end"><span aria-hidden="true" style="flex: 1; max-width: 120px; height: 6px; border-radius: 3px; background: #F0F2F5; overflow: hidden; display: flex; justify-content: flex-end"><span style="display: block; height: 100%; width: {{ t.w }}; background: #3B424D; border-radius: 3px"></span></span><span style="font-weight: 600; min-width: 44px; text-align: right">{{ t.pct }}</span></span></td>
+</tr>
+</sc-for>
+</tbody>
+</table>
+</div>
+</section>
+
+<section aria-labelledby="kind-h" style="flex: 1 1 340px; background: #FFFFFF; border: 1px solid #E3E6EB; border-radius: 14px; padding: 20px 24px; display: flex; flex-direction: column; gap: 14px">
+<h2 id="kind-h" style="margin: 0; font-size: 16px; font-weight: 700">Cost per agent kind</h2>
+<ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px">
+<sc-for list="{{ kinds }}" as="k" hint-placeholder-count="5">
+<li style="display: flex; flex-direction: column; gap: 4px">
+<span style="display: flex; font-size: 13px"><span style="font-weight: 500">{{ k.kind }}</span><span style="margin-left: auto; font-weight: 600; font-variant-numeric: tabular-nums">{{ k.pct }}</span></span>
+<span aria-hidden="true" style="display: block; height: 8px; border-radius: 4px; background: #F0F2F5; overflow: hidden"><span style="display: block; height: 100%; width: {{ k.w }}; background: {{ k.fill }}; border-radius: 4px"></span></span>
+</li>
+</sc-for>
+</ul>
+<p style="margin: 0; font-size: 12px; color: #5B6370">Work a helper agent does counts under the agent that started it.</p>
+</section>
+</div>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1900}}'>
+function arc(f) {
+  var a = f * 2 * Math.PI - Math.PI / 2;
+  var x = 6 + 3.5 * Math.cos(a), y = 6 + 3.5 * Math.sin(a);
+  return 'M6,6 L6,2.5 A3.5,3.5 0 ' + (f > 0.5 ? 1 : 0) + ',1 ' + x.toFixed(2) + ',' + y.toFixed(2) + ' Z';
+}
+class Component extends DCLogic {
+  renderVals() {
+    var sure = { bg: '#DDF3E9', fg: '#0B6B4B' }, rough = { bg: '#FDEBD8', fg: '#9A3F00' };
+    return {
+      costs: [
+        { model: 'model-large', color: '#2a78d6', tokens: '700,000', sure: 'Fairly sure', sureBg: sure.bg, sureFg: sure.fg, sureArc: arc(0.75), basis: 'Weighted per token kind · 46 stretches · output and cache writes weigh the most' },
+        { model: 'model-mid', color: '#eb6834', tokens: '1.4 million', sure: 'Fairly sure', sureBg: sure.bg, sureFg: sure.fg, sureArc: arc(0.75), basis: 'Weighted per token kind · 41 stretches' },
+        { model: 'model-small', color: '#1baf7a', tokens: '19 million', sure: 'Rough guess', sureBg: rough.bg, sureFg: rough.fg, sureArc: arc(0.3), basis: 'One weight for all tokens · 7 stretches · gets finer at 12' }
+      ],
+      tasks: [
+        { task: 'Slice 9 · Part C · Notification channel', project: 'Garden Planner', tokens: '7.1 M', pct: '8.6%', w: '100%' },
+        { task: 'Slice 4 · Part B · Search box', project: 'Recipe Box', tokens: '5.9 M', pct: '6.9%', w: '80%' },
+        { task: 'Slice 8 · Watering log', project: 'Garden Planner', tokens: '4.4 M', pct: '5.2%', w: '60%' },
+        { task: 'CI failing on main', project: 'Recipe Box', tokens: '2.6 M', pct: '3.1%', w: '36%' },
+        { task: 'Crash opening an empty bed', project: 'Garden Planner', tokens: '3.0 M', pct: '2.4%', w: '28%' },
+        { task: 'Slice 10 · Part B · Add a packet', project: 'Garden Planner', tokens: '2.1 M', pct: '1.9%', w: '22%' },
+        { task: 'Everything else', project: '3 projects', tokens: '13.7 M', pct: '3.3%', w: '38%' }
+      ],
+      kinds: [
+        { kind: 'Implementer', pct: '14.1%', w: '100%', fill: '#3B424D' },
+        { kind: 'Reviewer', pct: '9.8%', w: '70%', fill: '#3B424D' },
+        { kind: 'Fixer', pct: '4.0%', w: '28%', fill: '#3B424D' },
+        { kind: 'Tester', pct: '2.3%', w: '16%', fill: '#3B424D' },
+        { kind: 'Planner', pct: '1.2%', w: '9%', fill: '#3B424D' },
+        { kind: 'Not explained', pct: '2.8%', w: '20%', fill: '#C9CED6' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

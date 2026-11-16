@@ -5,7 +5,7 @@ the tasks that agents are working on ... if the agent is done with implementatio
 14% of the task is done and the progress bar should show that ... with an option to expand and see
 the work steps, what is done and what is active and what is next").
 
-*Planned.* Part A (server) can be built now. The design mock arrived on 2026-11-16 (in
+*In progress (wave 2026-11-16), draft PR.* Part A (server) can be built now. The design mock arrived on 2026-11-16 (in
 `docs/design/`); part B (the page) is planned against it (see *Design* below). The view tabs
 and the phone tab bar belong to [Slice 8](08-usage-reports.md) (the first to add a second view);
 this slice adds the Active work tab and its count to them. If this slice is built first, it
@@ -14,8 +14,11 @@ builds the tabs itself, with Board and Active work, from the values in Slice 8's
 **Touches:** `migrations/0004_steps.sql`, `src/domain/steps.ts`, `src/domain/item.ts`,
 `src/domain/upsert.ts`, `src/application/board.ts`, `src/application/ports.ts`,
 `src/infrastructure/d1Repository.ts`, `src/mcp/schemas.ts`, `src/mcp/tools.ts`,
-`src/api/boardDto.ts`, `src/config.ts`, `config/board.example.json`, `test/**`,
+`src/api/boardDto.ts`, `src/api/board.ts`, `src/domain/stale.ts`, `scripts/seed.ts`,
+`scripts/seed-data.ts`, `src/config.ts`, `config/board.example.json`, `test/**`,
 `docs/clients.md`, `README.md`, `web/**`, `e2e/**`, `docs/design/**`
+
+**Migrations:** 0004
 
 #### Why
 
@@ -207,6 +210,19 @@ in Slice 8 *Design*; this slice fills the count in the Active work tab (the numb
   line show it as a chip or a part of the line.
 - Loading and empty states are drawn (StatesNew.dc.html); the earlier "not drawn, carry over
   States.dc.html" note is removed for them and kept, narrower, for failed.
+
+#### Decided at the claim (wave 2026-11-16, from a check of the code on `main`)
+
+- Slice 8 merged first: `items.environment` exists (migration 0003). Migration 0004 adds only the
+  steps, agent and model columns.
+- The board response is built in `src/api/board.ts` (`itemDto`, `pageConfigOf`, `boardResponse`):
+  the new item fields, the item's environment and its label, and the working count are added
+  there, so that file is in Touches. The seed scripts get a few tasks with steps.
+- "A heartbeat that is not stale" is decided at read with the existing `isExpired` in
+  `src/domain/stale.ts` (the cron sweeps only every 15 minutes, so the stored status alone would
+  keep a dead task on the page until the next sweep). One pure function says whether an item is
+  working now; the page list and the tab count both use it. No third copy of the stale rule: the
+  function calls `isExpired`, and the `EXPIRED_ROWS` SQL stays as it is.
 
 #### Work
 

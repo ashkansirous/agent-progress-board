@@ -1,6 +1,7 @@
-import type { BoardItemDto, BoardResponse } from "../src/api/boardDto";
+import type { BoardItemDto, BoardPartDto, BoardResponse } from "../src/api/boardDto";
 import { configFromRecord } from "../src/config";
 import type { ItemStatus, ItemType, Priority } from "../src/domain/item";
+import { partLetterOf, PartState, partsProgress } from "../src/domain/parts";
 import { isWorkingNow, normalizeSteps, stepProgress } from "../src/domain/steps";
 import type { Step, StepState } from "../src/domain/stepTypes";
 import exampleConfig from "../config/board.example.json" with { type: "json" };
@@ -27,7 +28,27 @@ function stepsOf(seed: SeedItem): Step[] | null {
   return normalizeSteps(seed.steps?.map((s) => ({ ...s, state: s.state as StepState })));
 }
 
+const SLICE_TYPE = "slice";
+
+/** The seed parts of a slice as the server would list them: letter order, state read with the same rule. */
+function seedParts(slice: SeedItem): BoardPartDto[] | null {
+  const mine = SEED_ITEMS.filter((seed) => seed.parentKey === slice.key && partLetterOf(seed.key) !== null);
+  if (slice.type !== SLICE_TYPE || mine.length === 0) return null;
+  return mine
+    .map((seed) => ({
+      key: seed.key,
+      letter: partLetterOf(seed.key)!,
+      title: seed.title,
+      state: seed.status === "done" ? PartState.Done : PartState.Pending,
+      step: null,
+      steps_done: null,
+      steps_total: null,
+    }))
+    .sort((a, b) => a.letter.localeCompare(b.letter));
+}
+
 function itemOf(seed: SeedItem): BoardItemDto {
+  const parts = seedParts(seed);
   const oldest = seed.events.at(-1)?.at ?? "08:00";
   const steps = stepsOf(seed);
   const environment = seed.environment ?? null;
@@ -38,6 +59,8 @@ function itemOf(seed: SeedItem): BoardItemDto {
     key: seed.key,
     project: seed.project,
     parent: seed.parent,
+    parent_slice: null,
+    parent_key: seed.parentKey ?? null,
     type: seed.type as ItemType,
     priority: seed.priority as Priority,
     status: seed.status as ItemStatus,
@@ -59,11 +82,14 @@ function itemOf(seed: SeedItem): BoardItemDto {
       example.staleAfterMinutes,
       new Date(SERVER_TIME),
     ),
+    parts,
+    parts_progress: parts ? partsProgress(parts.map((part) => part.state)) : null,
+    active_part_key: null,
     events: seed.events.map((e) => ({ at: atClock(e.at), status: e.status as ItemStatus, note: e.note })),
   };
 }
 
-/** What GET /api/board answers for the demo board: 14 items, the example config's colours. */
+/** What GET /api/board answers for the demo board: 15 items, the example config's colours. */
 export function demoBoard(items: BoardItemDto[] = SEED_ITEMS.map(itemOf)): BoardResponse {
   const { projects, types, statuses, priorities, palettes } = example;
   const config = { projects, types, statuses, priorities, palettes };

@@ -3,6 +3,8 @@ import type { BoardEventDto, BoardItemDto } from "../../src/api/boardDto";
 import { CloseIcon } from "./icons";
 import { Markdown } from "./Markdown";
 import { projectLabel } from "./model";
+import { parentText } from "./partsText";
+import { PartsSection } from "./PartsView";
 import { ItemStatus } from "../../src/domain/item";
 import { PriorityBadge } from "./PriorityBadge";
 import { isSafeHttpUrl } from "./safeUrl";
@@ -23,7 +25,7 @@ function Fields({ item }: { item: BoardItemDto }) {
       <dt>{t("fieldProject")}</dt>
       <dd>{projectLabel(item.project, projects)}</dd>
       <dt>{t("fieldParent")}</dt>
-      <dd>{item.parent ?? "–"}</dd>
+      <dd>{parentText(item, t) ?? "–"}</dd>
       <dt>{t("fieldKey")}</dt>
       <dd className="field-key">{item.key}</dd>
     </dl>
@@ -188,6 +190,7 @@ export function Detail({ item, onClose }: DetailProps) {
           {item.why && <span className="detail-why">{item.why}</span>}
         </div>
         <Fields item={item} />
+        <PartsSection item={item} />
         <StepsSection item={item} />
         <DetailsBody item={item} />
         <Links item={item} />

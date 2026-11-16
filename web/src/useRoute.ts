@@ -1,5 +1,5 @@
 import { useCallback, useSyncExternalStore } from "react";
-import { openItemHash, openKeyOf, Route, ROUTE_HASH, routeOf } from "./route";
+import { activeKeyOf, openItemHash, openKeyOf, Route, ROUTE_HASH, routeOf } from "./route";
 
 function subscribeToHash(notify: () => void): () => void {
   window.addEventListener("hashchange", notify);
@@ -11,6 +11,11 @@ const currentHash = (): string => window.location.hash;
 /** The view the address hash names; follows the browser's back and forward buttons and the tab links. */
 export function useRoute(): Route {
   return routeOf(useSyncExternalStore(subscribeToHash, currentHash));
+}
+
+/** The item whose Active work card the address asks to show expanded (`#/active/<key>`), or null. */
+export function useActiveKey(): string | null {
+  return activeKeyOf(useSyncExternalStore(subscribeToHash, currentHash));
 }
 
 /**

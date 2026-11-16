@@ -46,7 +46,12 @@ interface EventRow extends ItemEvent {
   item_key: string;
 }
 
-const BOARD_WHERE = `(status != 'done' OR done_at > ?1)
+/**
+ * What the board lists: open items and those done inside the window, plus the parts of a slice that is
+ * itself listed, however long ago a part was done (a slice's bar counts every part; Slice 11).
+ */
+const BOARD_WHERE = `(status != 'done' OR done_at > ?1 OR (parent_key IS NOT NULL AND parent_key IN (
+    SELECT p.key FROM items p WHERE p.status != 'done' OR p.done_at > ?1)))
   AND (?2 IS NULL OR project = ?2) AND (?3 IS NULL OR type = ?3)`;
 
 /**
@@ -70,6 +75,7 @@ const CHANGEABLE_COLUMNS = [
   "steps",
   "agent",
   "model",
+  "parent_key",
 ] as const;
 type ChangeableColumn = (typeof CHANGEABLE_COLUMNS)[number];
 
@@ -120,10 +126,10 @@ const valueOf = (column: ChangeableColumn): string => valueParam(CHANGEABLE_COLU
 
 const UPSERT_ITEM = `INSERT INTO items (key, project, parent, type, priority, status, title, why,
   details_md, links, source, heartbeat_at, created_at, updated_at, done_at, live_status_at, environment,
-  steps, agent, model)
+  steps, agent, model, parent_key)
   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?12, ?12, ?13,
     CASE WHEN ?11 IS '${DOC_SYNC_SOURCE}' THEN NULL ELSE ?12 END, ${valueOf("environment")},
-    ${valueOf("steps")}, ${valueOf("agent")}, ${valueOf("model")})
+    ${valueOf("steps")}, ${valueOf("agent")}, ${valueOf("model")}, ${valueOf("parent_key")})
   ON CONFLICT (key) DO UPDATE SET ${SET_CHANGEABLE}, heartbeat_at = ?12,
   live_status_at = CASE WHEN ${LIVE_STATUS_REPORT} THEN ?12 ELSE live_status_at END,
   updated_at = CASE WHEN ${ANY_CHANGED} THEN ?12 ELSE updated_at END,
@@ -135,17 +141,19 @@ const UPSERT_ITEM = `INSERT INTO items (key, project, parent, type, priority, st
 /**
  * A doc-sync write: the row is computed in the domain from one read, so only the columns sync
  * owns are set on an existing key; type, priority, details, heartbeat and created_at stay.
- * ?19 and ?20 are the updated_at and live_status_at the sync read (null for a new key): the
+ * ?20 and ?21 are the updated_at and live_status_at the sync read (null for a new key): the
  * update applies only while the row still has them, so it never acts on a stale read.
  */
 const SYNC_UPSERT = `INSERT INTO items (key, project, parent, type, priority, status, title, why, links,
-  source, heartbeat_at, created_at, updated_at, done_at, in_doc_sync, doc_status, doc_status_at, live_status_at)
-  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)
-  ON CONFLICT (key) DO UPDATE SET parent = excluded.parent, status = excluded.status,
+  source, heartbeat_at, created_at, updated_at, done_at, in_doc_sync, doc_status, doc_status_at, live_status_at,
+  parent_key)
+  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)
+  ON CONFLICT (key) DO UPDATE SET parent = excluded.parent, parent_key = excluded.parent_key,
+  status = excluded.status,
   title = excluded.title, why = excluded.why, links = excluded.links, source = excluded.source,
   updated_at = excluded.updated_at, done_at = excluded.done_at, in_doc_sync = excluded.in_doc_sync,
   doc_status = excluded.doc_status, doc_status_at = excluded.doc_status_at
-  WHERE items.updated_at IS ?19 AND items.live_status_at IS ?20`;
+  WHERE items.updated_at IS ?20 AND items.live_status_at IS ?21`;
 
 /** Written only when the write above took effect (the row now has this updated_at and status). */
 const SYNC_EVENT = `INSERT INTO events (item_key, at, status, source, note)
@@ -445,7 +453,7 @@ function syncParams(i: SyncRow): (string | number | null)[] {
   return [
     i.key, i.project, i.parent, i.type, i.priority, i.status, i.title, i.why, JSON.stringify(i.links),
     i.source, i.heartbeat_at, i.created_at, i.updated_at, i.done_at, i.in_doc_sync ? 1 : 0,
-    i.doc_status, i.doc_status_at, i.live_status_at,
+    i.doc_status, i.doc_status_at, i.live_status_at, i.parent_key ?? null,
   ];
 }
 
@@ -491,5 +499,6 @@ function attachEvents(items: SyncItemRow[], events: EventRow[]): BoardRow[] {
     ...toItem(row),
     events: byKey.get(row.key) ?? [],
     expiry: { doc_status_at: row.doc_status_at, live_status_at: row.live_status_at },
+    docSync: { in_doc_sync: row.in_doc_sync === 1, doc_status: row.doc_status as ItemStatus | null },
   }));
 }

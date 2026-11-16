@@ -1,5 +1,5 @@
 /**
- * Made-up demo board: three projects, 14 items covering every type and status, including a stale
+ * Made-up demo board: three projects, 15 items covering every type and status, including a stale
  * and three done items. Plain data and pure functions, so the seed CLI and the E2E fixture share it.
  * Types, statuses and priorities are the MCP wire values (see README), kept as plain strings so
  * node can run this file without a TypeScript transform.
@@ -41,6 +41,8 @@ export interface SeedItem {
   model?: string;
   environment?: string;
   steps?: { label: string; state: string; note?: string }[];
+  /** The key of the item this one belongs to: a part names its slice (Slice 11). */
+  parentKey?: string;
 }
 
 export interface ToolCall {
@@ -144,6 +146,12 @@ export const SEED_ITEMS: SeedItem[] = [
     ],
   },
   {
+    key: "garden-planner/slice-9/part-C", project: "garden-planner", type: "part", priority: "P2", status: "open",
+    title: "Notification channel", why: "Channel setup and quiet hours", parent: "Slice 9 · Frost alerts", parentKey: "garden-planner/slice-9",
+    details: ["The channel setup and the quiet hours."], links: [link("Slice file", "garden-planner/slice-9")],
+    events: [{ at: "09:12", status: "open", note: "Synced from plan docs" }],
+  },
+  {
     key: "garden-planner/slice-10", project: "garden-planner", type: "slice", priority: "P2", status: "stale",
     title: "Slice 10 · Seed inventory", why: "Track seed packets and expiry", parent: "Plan · Inventory",
     details: ["The session stopped reporting. A new report on this key brings it back."],
@@ -191,6 +199,7 @@ export function callFor(item: SeedItem): ToolCall {
     title: item.title,
     why: item.why,
     parent: item.parent,
+    parent_key: item.parentKey,
     priority: item.priority,
     details_md: item.details.join("\n\n"),
     links: item.links,

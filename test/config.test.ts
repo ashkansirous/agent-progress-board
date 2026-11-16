@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { pageConfigOf } from "../src/api/board";
 import { DEFAULT_WINDOW, parseConfig } from "../src/config";
 
 describe("parseConfig", () => {
@@ -99,5 +100,27 @@ describe("parseConfig", () => {
     expect(parseConfig('{"types":[1]}').types).toEqual({});
     expect(log).toHaveBeenCalled();
     log.mockRestore();
+  });
+});
+
+describe("a config written before Slice 11", () => {
+  const OLD = JSON.stringify({
+    types: { slice: { label: "Slice", color: "#112233", light: { bg: "#111111", fg: "#222222", border: "#333333" } } },
+    palettes: { light: { page: "#FFFFFF" } },
+  });
+
+  it("parses with no partTrack and no part type, and the page config still paints parts", () => {
+    const config = pageConfigOf(parseConfig(OLD));
+    expect(parseConfig(OLD).types.part).toBeUndefined();
+    expect(config.palettes.light?.partTrack).toBe("#FFFFFF");
+    expect(config.palettes.dark?.partTrack).toBe("#0E1014");
+    expect(config.types.part).toMatchObject({ label: "Part", light: { bg: "#111111", fg: "#222222", border: "#333333" } });
+    expect(config.types.part?.dark).toEqual(config.types.slice?.dark);
+  });
+
+  it("keeps a configured part type as it is", () => {
+    const own = { label: "Chunk", color: "#010101", light: { bg: "#010101", fg: "#020202", border: "#030303" } };
+    const config = pageConfigOf(parseConfig(JSON.stringify({ types: { part: own } })));
+    expect(config.types.part?.label).toBe("Chunk");
   });
 });

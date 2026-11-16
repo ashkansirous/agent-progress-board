@@ -37,6 +37,11 @@ function tileTitled(page: Page, title: string): Locator {
   return page.locator("button.tile").filter({ has: page.locator(".tile-title").getByText(title, { exact: true }) });
 }
 
+/** The card that holds a tile button (its colours, border and fade) and, for a slice with an active part, the follow link. */
+function cardOf(tile: Locator): Locator {
+  return tile.locator("xpath=..");
+}
+
 async function css(locator: Locator, property: string): Promise<string> {
   return locator.evaluate((el, prop) => getComputedStyle(el).getPropertyValue(prop), property);
 }
@@ -101,11 +106,11 @@ test.describe("board", () => {
     await openBoard(page);
     const stale = tileTitled(page, "Slice 10 · Seed inventory");
     await expect(stale).toContainText("Stale · No heartbeat for 3 h");
-    expect(await css(stale, "border-top-style")).toBe("dashed");
+    expect(await css(cardOf(stale), "border-top-style")).toBe("dashed");
     const done = tileTitled(page, "Slice 3 · Share links");
     await expect(done).toContainText("Done 2 h ago");
-    expect(await css(done, "opacity")).toBe("0.78");
-    expect(await css(tileTitled(page, "CI failing on main"), "opacity")).toBe("1");
+    expect(await css(cardOf(done), "opacity")).toBe("0.78");
+    expect(await css(cardOf(tileTitled(page, "CI failing on main")), "opacity")).toBe("1");
   });
 
   test("tiles carry the type label, priority, why, parent and status", async ({ page }) => {
@@ -137,9 +142,9 @@ test.describe("design values", () => {
     expect([box?.width, box?.height]).toEqual([44, 44]);
     expect(await css(refresh, "background-color")).toBe(phone ? "rgb(23, 26, 33)" : "rgb(255, 255, 255)");
     const tile = tileTitled(page, "CI failing on main");
-    expect(await css(tile, "border-radius")).toBe("12px");
+    expect(await css(cardOf(tile), "border-radius")).toBe("12px");
     expect(await css(tile, "padding")).toBe(phone ? "12px 14px" : "14px 16px");
-    expect(await css(tile, "background-color")).toBe(phone ? "rgb(44, 31, 69)" : "rgb(239, 231, 251)");
+    expect(await css(cardOf(tile), "background-color")).toBe(phone ? "rgb(44, 31, 69)" : "rgb(239, 231, 251)");
     expect(await css(tile.locator(".tile-title"), "font-size")).toBe("15px");
     expect(await css(tile.locator(".badge"), "font-family")).toContain("JetBrains Mono Variable");
     expect(await css(page.locator(".app"), "font-family")).toContain("Inter Variable");
@@ -458,13 +463,13 @@ test.describe("stale tile colours", () => {
     await openBoard(page);
     const stale = tileTitled(page, "Slice 10 · Seed inventory");
     const palette = examplePalette();
-    expect(await css(stale, "background-color")).toBe(palette.staleBg);
-    expect(await css(stale, "border-top-color")).toBe(palette.staleBorder);
+    expect(await css(cardOf(stale), "background-color")).toBe(palette.staleBg);
+    expect(await css(cardOf(stale), "border-top-color")).toBe(palette.staleBorder);
     expect(await css(stale.locator(".tile-title"), "color")).toBe(palette.muted);
     // The mock: light bg #F5F6F8 and border #9AA3B2; dark bg #171A21 and border #4A5262.
     const dark = isPhone();
-    expect(await css(stale, "background-color")).toBe(dark ? "rgb(23, 26, 33)" : "rgb(245, 246, 248)");
-    expect(await css(stale, "border-top-color")).toBe(dark ? "rgb(74, 82, 98)" : "rgb(154, 163, 178)");
+    expect(await css(cardOf(stale), "background-color")).toBe(dark ? "rgb(23, 26, 33)" : "rgb(245, 246, 248)");
+    expect(await css(cardOf(stale), "border-top-color")).toBe(dark ? "rgb(74, 82, 98)" : "rgb(154, 163, 178)");
   });
 });
 

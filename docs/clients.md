@@ -129,7 +129,8 @@ An event is `{at, status, source, note}`.
 
 **Allowed values**
 
-- `type`: `slice`, `problem`, `waiting_for_me`, `bug`, `unplanned`
+- `type`: `slice`, `problem`, `waiting_for_me`, `bug`, `unplanned`, `part` (one lettered part of a
+  slice, see *Slice parts* below)
 - `status`: `open`, `in_progress`, `blocked`, `done`, `stale`
 - `priority`: `P0`, `P1`, `P2`, `P3` (a new item defaults to `P2`)
 
@@ -162,6 +163,7 @@ required; for an existing key they are optional.
 | `source` | no | who reported: `hook`, `agent`, `human`; null clears |
 | `environment` | no | where the work ran, as the client names it (free text, 1 to 40 characters, for example `laptop` or `cloud-vm`); null clears |
 | `steps` | no | the task's whole steps list, in order (see *Steps* below); null or an empty list clears |
+| `parent_key` | no | the key of the item this one belongs to; a part names its slice (see *Slice parts* below); not its own key; null clears |
 | `agent` | no | the kind of agent holding the task, free text (1 to 100 characters, for example `Implementer`); null clears |
 | `model` | no | the agent's model, free text (1 to 100 characters); null clears |
 | `note` | no | history note for this report |
@@ -243,6 +245,10 @@ Inputs:
     `project`, and a key may appear only once in the call.
   - `priority`, `parent` (display text, for example `Plan · Search`), `why`, `links`: optional.
     The limits and the allowed values are the ones in *The item*.
+  - `parts` (optional, on a slice): its lettered work groups, `[{letter, title, done}]`, `letter`
+    one capital letter A to Z, at most 26, only on an item of type `slice` (see *Slice parts*
+    below). The 200 limit counts the items you send; the slices and their parts together may not
+    pass 1000.
 
 Output (a counts summary, not items): `{project, created, updated, closed, unchanged}`.
 `created` counts keys the board had not seen, `updated` counts existing items the sync
@@ -403,6 +409,42 @@ only outside any stretch has no weight, so its tasks show 0%. Config keys under
 (`minStretches`, `maxLeftoverShare`), `unexplainedStretches`, `minStretchMinutes`,
 `minGrowthPoints`, `convergence`.
 
+## Slice parts (Slice 11)
+
+A slice's work list is often lettered groups (A, B, C and so on) built one after another, sometimes
+by different agents. The board shows how many are done and leads from the slice to the one an agent
+holds now.
+
+- **The documents say which parts exist and which are done.** A client that parses a slice's work
+  list sends the groups with `sync_snapshot`, in the slice's item: `parts: [{letter: "A", title:
+  "Server", done: true}, ...]`. A part is done when all its checkboxes are ticked. Each part
+  becomes an item of type `part` with the key `<slice key>/part-<letter>` (for example
+  `demo-app/slice-58/part-B`), `parent_key` the slice's key, its title and its done state owned by
+  the documents. A part that is not in the next snapshot of its slice is closed, the same as a
+  slice that left the table. A snapshot item with no `parts` field leaves the slice's stored parts
+  alone; an explicit empty array (`parts: []`) closes them all. A slice that never had parts has no
+  bar.
+- **Live reports say which part is active.** An agent that works on a part reports on the part's
+  key with `report_progress`: `status` `in_progress`, its `steps`, `agent` and `model` (the same as
+  for any task, see *Steps*), and `parent_key` set to the slice's key (needed only when the
+  snapshot has not created the part yet; the parent, when it exists, must be in the same project).
+  The part is active while the working-now rule holds
+  for it; when its report stops past the stale expiry it reads stale, and its slice's tile and
+  drawer say so. The slice's own status is never changed by a part: the board shows the slice as
+  in flight while a part is active, and its stored status stays as reported.
+- **Progress** is parts done over parts, worked out when the board is read (one of five done is
+  20%); the part in progress adds nothing until it is done.
+- The board's `parts` field on a slice lists each part (`key`, `letter`, `title`, `state` of
+  `done`, `active`, `stale` or `pending`, and for an active or stale one its current `step` and
+  `steps_done` of `steps_total`), with `parts_progress` and `active_part_key`. A part's own item
+  carries its slice as `parent_key` and, as `parent_slice`, the slice as data (`key`, `number` from
+  a key ending in `slice-N` or null, `title`); the page words it. Only parts the documents list
+  count in a slice's `parts` and progress; a part only a live report named shows on the Active
+  work view while it works and is never in the slice's list.
+- Parts have no tile on the board page. An active part is a card on the Active work view, and the
+  slice's tile and drawer link to it (`#/active/<key>` opens the view with that card expanded).
+- Send a part's usage with `task_key` set to the part's key.
+
 ## Keys
 
 A key is chosen by the reporter and must be the same every time the same thing is reported:
@@ -410,6 +452,8 @@ A key is chosen by the reporter and must be the same every time the same thing i
 - `<project>/slice-<N>`: a planned slice, for example `demo-app/slice-58`
 - `<project>/slice-<N>/check-<hash>`: one verification check of a slice (`<hash>` is whatever stable hash
   the client derives from the check's text)
+- `<project>/slice-<N>/part-<letter>`: one lettered part of a slice, `<letter>` a capital A to Z (see
+  *Slice parts*)
 - `<project>/session-<id>`: one coding-agent session
 
 Document sync (`sync_snapshot`, above) uses the same keys for slices read from plan documents,
@@ -493,4 +537,5 @@ described above are unchanged.
   and environment (see *What 1% of the cap costs* under *Reading usage*).
 - Built in [Slice 10](plan/slices/10-task-steps.md): task steps, `agent` and `model` (see *Steps*
   under `report_progress`).
-- Still to come: [Slice 11](plan/slices/11-slice-parts.md) (slice parts).
+- Built in [Slice 11](plan/slices/11-slice-parts.md): slice parts, `parts` in the snapshot and
+  `parent_key` (see *Slice parts*).

@@ -1,11 +1,13 @@
 import {
   assertSameProject,
   closeTargets,
+  MAX_EXPANDED_ITEMS,
   planItem,
   type SnapshotItem,
   validateSnapshot,
 } from "../domain/docSync";
 import { type Item, ItemStatus, ItemType, type ItemWithEvents } from "../domain/item";
+import { expandParts } from "../domain/parts";
 import { staleCutoff } from "../domain/stale";
 import { checkReport, DomainError, newItem, type ReportInput } from "../domain/upsert";
 import { resolveWindowHours, type WindowConfig, windowCutoff } from "../domain/window";
@@ -37,7 +39,24 @@ export async function reportProgress(
   const existing = await repo.find(input.key);
   const now = clock.now().toISOString();
   const checked = checkReport(input);
+  await assertParentSameProject(repo, checked, existing);
   return repo.save({ insert: existing ?? newItem(checked, now), input: checked, now });
+}
+
+/**
+ * A parent_key names an item of the same project. A parent that does not exist yet is allowed (a
+ * live report may arrive before the document snapshot lists the slice).
+ */
+async function assertParentSameProject(repo: ItemRepository, input: ReportInput, existing: Item | null): Promise<void> {
+  if (!input.parent_key) return;
+  const project = input.project ?? existing?.project;
+  const parent = await repo.find(input.parent_key);
+  if (parent && project !== undefined && parent.project !== project) {
+    throw new DomainError(
+      "parent_key",
+      `field parent_key: ${input.parent_key} belongs to project ${parent.project}, not ${project}`,
+    );
+  }
 }
 
 export async function markDone(
@@ -83,15 +102,18 @@ export async function syncSnapshot(
   clock: Clock,
 ): Promise<SyncSummary> {
   validateSnapshot(input.project, input.items);
+  const items = expandParts(input.items);
+  validateSnapshot(input.project, items, MAX_EXPANDED_ITEMS);
   const now = clock.now().toISOString();
-  const stored = await repo.loadForSync(input.project, input.items.map((item) => item.key));
+  const stored = await repo.loadForSync(input.project, items.map((item) => item.key));
   const byKey = new Map(stored.map((item) => [item.key, item]));
-  const merges = input.items.map((snap) => {
+  const merges = items.map((snap) => {
     assertSameProject(byKey.get(snap.key), input.project);
     return { existed: byKey.has(snap.key), write: planItem(byKey.get(snap.key), snap, input.project, now) };
   });
-  const listed = new Set(input.items.map((item) => item.key));
-  const closes = closeTargets(stored, input.project, listed);
+  const listed = new Set(items.map((item) => item.key));
+  const partless = new Set(input.items.filter((item) => item.parts === undefined).map((item) => item.key));
+  const closes = closeTargets(stored, input.project, listed, partless);
   const changed = merges.flatMap((m) => (m.write ? [m.write] : []));
   if (changed.length > 0 || closes.length > 0) await repo.applySync(changed, closes, now);
   const created = merges.filter((m) => !m.existed).length;
@@ -133,6 +155,7 @@ export async function listOpen(
 function withoutExpiry(row: BoardRow): ItemWithEvents {
   const item: Partial<BoardRow> = { ...row };
   delete item.expiry;
+  delete item.docSync;
   return item as ItemWithEvents;
 }
 

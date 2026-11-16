@@ -2,6 +2,15 @@ import { DEFAULT_PRIORITY, DOC_SYNC_SOURCE, type Item, type ItemLink, ItemStatus
 import { DomainError } from "./upsert";
 
 export const MAX_SNAPSHOT_ITEMS = 200;
+/**
+ * Slices and their parts together, after the parts are expanded into items (Slice 11); bounds the write batch.
+ * Cloudflare D1 documents no cap on statements in one `batch()`: the batch counts as one query against the
+ * per-invocation limit (50 free, 1000 paid), and a sync issues two (the read and the batch). The
+ * limits that bind are per statement (100 KB, 100 bound parameters; an upsert binds 19), which a
+ * larger batch does not change. 1000 items (2000 statements at most) stays under every documented limit,
+ * and the batch stays one atomic write.
+ */
+export const MAX_EXPANDED_ITEMS = 1000;
 export const SYNC_ADDED_NOTE = "Added by doc sync";
 export const SYNC_CHANGED_NOTE = "Docs changed the status";
 export const SYNC_LEFT_NOTE = "Left the plan";
@@ -17,6 +26,17 @@ export interface SnapshotItem {
   parent?: string | null;
   why?: string | null;
   links?: ItemLink[];
+  /** The slice's lettered parts as the documents list them (Slice 11). */
+  parts?: SnapshotPart[];
+  /** Set only by `expandParts` on a part's own item; a client's snapshot never carries it. */
+  parent_key?: string;
+}
+
+/** One lettered group of a slice's work list: the document owns its title and whether it is done. */
+export interface SnapshotPart {
+  letter: string;
+  title: string;
+  done: boolean;
 }
 
 /** The history row a sync writes; the source is always doc-sync. */
@@ -52,9 +72,9 @@ export interface SyncWrite {
 }
 
 /** Rejects a snapshot that is too big, names another project, or repeats a key. */
-export function validateSnapshot(project: string, items: SnapshotItem[]): void {
-  if (items.length > MAX_SNAPSHOT_ITEMS) {
-    throw new DomainError("items", `field items: at most ${MAX_SNAPSHOT_ITEMS} items per snapshot, got ${items.length}`);
+export function validateSnapshot(project: string, items: SnapshotItem[], max: number = MAX_SNAPSHOT_ITEMS): void {
+  if (items.length > max) {
+    throw new DomainError("items", `field items: at most ${max} items per snapshot, got ${items.length}`);
   }
   const seen = new Set<string>();
   for (const item of items) {
@@ -88,6 +108,7 @@ function newRow(snap: SnapshotItem, project: string, now: string): SyncRow {
     key: snap.key,
     project,
     parent: snap.parent ?? null,
+    parent_key: snap.parent_key ?? null,
     type: snap.type,
     priority: snap.priority ?? DEFAULT_PRIORITY,
     status: snap.status,
@@ -117,6 +138,7 @@ function docFieldsDiffer(stored: SyncRow, next: SyncRow): boolean {
     stored.title !== next.title ||
     stored.why !== next.why ||
     stored.parent !== next.parent ||
+    (stored.parent_key ?? null) !== (next.parent_key ?? null) ||
     !sameLinks(stored.links, next.links) ||
     stored.in_doc_sync !== next.in_doc_sync ||
     stored.doc_status !== next.doc_status ||
@@ -142,6 +164,7 @@ export function planItem(stored: SyncRow | undefined, snap: SnapshotItem, projec
     title: snap.title,
     why: snap.why ?? null,
     parent: snap.parent ?? null,
+    parent_key: snap.parent_key ?? stored.parent_key ?? null,
     links: snap.links ?? [],
     status,
     in_doc_sync: true,
@@ -172,6 +195,18 @@ function nextDocStatusAt(stored: SyncRow, snap: SnapshotItem, now: string): stri
 }
 
 /** The stored doc-sync items of the project that the snapshot no longer lists. */
-export function closeTargets(stored: SyncRow[], project: string, listed: Set<string>): SyncRow[] {
-  return stored.filter((item) => item.project === project && item.in_doc_sync && !listed.has(item.key));
+export function closeTargets(
+  stored: SyncRow[],
+  project: string,
+  listed: Set<string>,
+  /** Slices whose snapshot item sent no `parts`: their stored parts are left as they are (Slice 11). */
+  keepPartsOf: Set<string> = new Set(),
+): SyncRow[] {
+  return stored.filter(
+    (item) =>
+      item.project === project &&
+      item.in_doc_sync &&
+      !listed.has(item.key) &&
+      !(item.parent_key && keepPartsOf.has(item.parent_key)),
+  );
 }

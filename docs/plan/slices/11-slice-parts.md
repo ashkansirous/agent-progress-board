@@ -5,7 +5,7 @@ finished sub A. An agent picks slice X sub B. Then the status of slice X is in f
 it is done that should be shown in a progress bar under it ... From the main page, where we have
 the slices, we should be able to click and follow to the sub task that is currently active").
 
-*Planned.* Needs [Slice 10](10-task-steps.md). The design mock arrived on 2026-11-16 (in
+*Built 2026-11-16, parts A and B, PR #66, not merged; not yet verified on the deployed board.* Needs [Slice 10](10-task-steps.md). The design mock arrived on 2026-11-16 (in
 `docs/design/`); part B (the page) is planned against it (see *Design* below). The view tabs and
 the tab bar are [Slice 8](08-usage-reports.md)'s and the Active work page is
 [Slice 10](10-task-steps.md)'s; this slice reuses both.
@@ -14,7 +14,10 @@ the tab bar are [Slice 8](08-usage-reports.md)'s and the Active work page is
 `src/domain/docSync.ts`, `src/domain/upsert.ts`, `src/application/board.ts`,
 `src/application/ports.ts`, `src/infrastructure/d1Repository.ts`, `src/mcp/schemas.ts`,
 `src/mcp/tools.ts`, `src/api/boardDto.ts`, `src/config.ts`, `config/board.example.json`, `test/**`, `docs/clients.md`, `README.md`,
-`web/**`, `e2e/**`, `docs/design/**`
+`web/**`, `e2e/**`, `docs/design/**`, `src/api/board.ts`, `src/domain/steps.ts`,
+`src/domain/stepTypes.ts`, `src/domain/stale.ts`, `scripts/seed.ts`, `scripts/seed-data.ts`
+
+**Migrations:** 0005
 
 #### Why
 
@@ -48,6 +51,13 @@ and to get from the slice to the part someone is working on.
 - A part that left the documents is closed by the next snapshot, like a slice that left the
   table.
 - Migration 0005, or the next free number from `parallel-check` when it is built.
+- **Decided at the claim (2026-11-16, premise check):** the Active work view has no address for
+  one expanded card today (`web/src/route.ts` knows `#/`, `#/active`, `#/usage` and
+  `#/open/<key>`). B3 adds `#/active/<key>`: the Active work view with that item's card
+  expanded, the card following the address the same way the drawer follows `#/open/<key>`. A key
+  with no card on the page shows the page with nothing expanded.
+- The "working now" and stale tests for a part reuse `isWorkingNow` and `isHeartbeatExpired`;
+  no new copy of either rule.
 - **Added for the mock (2026-11-16):**
   - A part has a third live state, stale: its steps report stopped. The slice's tile and drawer
     show it ("Part B · Implementing (stale)", "Stale · Implementing"); it leaves the Active work
@@ -158,35 +168,36 @@ theme is in `docs/design/canvas.json` `notes.dark` (listed in
 
 **A. Server (no design needed)**
 
-- [ ] **A1.** Migration and domain: `parent_key`, the `part` type, slice progress as parts done
+- [x] **A1.** Migration and domain: `parent_key`, the `part` type, slice progress as parts done
       over parts. Pure, with tests for 1 of 5, no parts, all done, a part removed.
-- [ ] **A2.** `sync_snapshot` accepts `parts` per slice and upserts them as items with
+- [x] **A2.** `sync_snapshot` accepts `parts` per slice and upserts them as items with
       `parent_key`; the document owns a part's title and done state.
-- [ ] **A3.** `report_progress` accepts `parent_key`; a part in progress makes its slice read as
+- [x] **A3.** `report_progress` accepts `parent_key`; a part in progress makes its slice read as
       in flight on the board without changing the slice's stored status.
-- [ ] **A4.** `/api/board` returns, for each slice, its parts (letter, title, done, active or
+- [x] **A4.** `/api/board` returns, for each slice, its parts (letter, title, done, active or
       stale, the current step label of the active or stale one and its "{n} of {m} steps") and the worked-out
       progress, and the key of the active part when there is one. For a part's entry on the
-      active work page it returns the slice's "Slice N · title" as the parent text.
-- [ ] **A4b.** `config/board.example.json`: the `part` type with the slice's colour pairs, light
+      active work page it returns the slice as data (`parent_slice`: key, number, title); the page
+      builds "Slice N · title" from its string table (review pass 1, finding 5).
+- [x] **A4b.** `config/board.example.json`: the `part` type with the slice's colour pairs, light
       and dark, and the label "Part".
-- [ ] **A5.** `docs/clients.md`: parts in the snapshot, part keys, `parent_key`. README line.
+- [x] **A5.** `docs/clients.md`: parts in the snapshot, part keys, `parent_key`. README line.
 
 **B. Page (planned against the mock, 2026-11-16; values in *Design*)**
 
 - [x] **B1.** Copy the mock into `docs/design/` and rewrite this part to match it. (Done: the
       mock is in `docs/design/`, refreshed twice on 2026-11-16.)
-- [ ] **B2.** The parts bar with the part now and "{done} of {total} parts · {pct}%" on the
+- [x] **B2.** The parts bar with the part now and "{done} of {total} parts · {pct}%" on the
       slice tile, desktop (Main.dc.html line 76) and phone (Phone.dc.html line 54); the Parts
       section in the detail drawer with its bar and rows, desktop (Main.dc.html h3 "Parts",
       line 128) and phone (PhoneDrawer.dc.html h3 "Parts", line 44). None when the slice has
       no lettered parts.
-- [ ] **B3.** The click from a slice to Slice 10's Active work view with that part's card
+- [x] **B3.** The click from a slice to Slice 10's Active work view with that part's card
       expanded: the "Follow part {L}" link under the tile (Main.dc.html line 93; phone tile
       not drawn, values carried over) and the "Follow part {L} on Active work" button in the
       drawer (Main.dc.html line 141, PhoneDrawer.dc.html line 47); and the way back (the link
       on that card). Only for an active part, not a stale one.
-- [ ] **B4.** Browser tests against a faked `/api/board`, phone and desktop sizes: five parts
+- [x] **B4.** Browser tests against a faked `/api/board`, phone and desktop sizes: five parts
       with one done and one active (bar 20%, "Part B · Reviewing"), a stale part, all done, no
       parts (no bar), the follow link and button present only for an active part, the click
       from the tile and from the drawer lands on the expanded card, the phone drawer list.
@@ -201,3 +212,57 @@ theme is in `docs/design/canvas.json` `notes.dark` (listed in
 - The tile bar, the tile link, the drawer list and the button match Main.dc.html, Phone.dc.html
   and PhoneDrawer.dc.html in the values listed in *Design*.
 - `npm run test:e2e` green for part B.
+
+#### Decisions taken at the desk (while building, for the owner to confirm)
+
+- The Active work address is `#/active/<key>`.
+- A snapshot with no `parts` field leaves a slice's stored parts alone; an explicit empty list closes them.
+- `parent_key` must name an item in the same project.
+
+*Changed while building:*
+
+- Migration 0005 rebuilds `items` and `events` (with `defer_foreign_keys`); `test/migration0005.test.ts` seeds a database at 0004, checks the rollback and every row and event id.
+- `.tile` became a wrapper `.tile-box` plus the button, so the follow link sits outside the button. New palette key `partTrack`. A config with no `part` type gets the slice type's colours and the label "Part".
+- The Worker returns `parent_slice` as data; the page builds the "Slice N · title" text. The shown status of a slice with an active part is derived at read (`shownStatusOf`), never stored. The seed script has a part.
+
+*From review:* three findings files, all read to their last finding (high 10/10, medium 10/10, check-medium 5/5).
+
+- High (`reviews/pr-66-high.md`): applied 1-6.
+- Skipped #7 (`reviews/pr-66-high.md`): "BOARD_WHERE pulls every part of a listed slice into list_open and the board" - low severity; kept as a follow-up.
+- Skipped #8 (`reviews/pr-66-high.md`): "FollowLink and FollowButton duplicate the active-part lookup" - low severity, no user-visible failure.
+- Skipped #9 (`reviews/pr-66-high.md`): "Usage and task titles read the bare items.title" - low severity; kept as a follow-up.
+- Skipped #10 (`reviews/pr-66-high.md`): "A feature branch edits README.md" - work item A5 asks for the README line and no other branch is live.
+- Medium (`reviews/pr-66-medium.md`): applied 1, 2, 6. #10 was answered from the D1 limits docs with no value change; the reasoning is in the `MAX_EXPANDED_ITEMS` comment in `src/domain/docSync.ts`.
+- Skipped #3 (`reviews/pr-66-medium.md`): "the bar jumps when the doc sync later lists it" - this is the Decision "The plan documents say which parts exist and which are done; live reports say which is active".
+- Skipped #4 (`reviews/pr-66-medium.md`): "does not check the parent is a slice or that the item is a part" - low; no failure a user meets.
+- Skipped #5 (`reviews/pr-66-medium.md`): "a sync can never clear a stored parent_key" - low; follow-up.
+- Skipped #7 (`reviews/pr-66-medium.md`): "no test asserts its query plan" - low; follow-up.
+- Skipped #8 (`reviews/pr-66-medium.md`): "Changing the rule in parts.ts leaves the schema rejecting it" - low; no failure a user meets.
+- Skipped #9 (`reviews/pr-66-medium.md`): "resets sqlite_sequence to the highest surviving id" - low; no failure a user meets.
+- Check pass (`reviews/pr-66-check-medium.md`): none applied; all 5 are follow-ups (below).
+
+*Known behaviour:* a part reported live that the documents do not list shows on Active work but not in its slice's list or bar until a snapshot names it. A part with no steps list has no toggle on Active work.
+
+*Follow-ups (not built):*
+
+- `reviews/pr-66-check-medium.md` 1: a blocked part reads as Next or Later.
+- `reviews/pr-66-check-medium.md` 2: `parent_key` cycle, non-slice parent, or key prefix that disagrees with `parent_key`.
+- `reviews/pr-66-check-medium.md` 3: a part key built from a max-length slice key may exceed the MCP key schema.
+- `reviews/pr-66-check-medium.md` 4: the 1000 expanded-items bound is not in the schema text.
+- `reviews/pr-66-check-medium.md` 5: a hash change remounts an Active work card and drops its expand state.
+- `reviews/pr-66-high.md` 7 and 9; `reviews/pr-66-medium.md` 5 and 7.
+
+*Checks on the final code:* lint clean, typecheck clean, `npm test` 25 files 342 passed, `npm run test:e2e` 177 passed, 3 skipped. Browser run (local Worker and D1, Access check on, headless): all 5 items pass; desktop 45 of 46 values, phone 41 of 42; the one miss on each is the part circle's 1.5 px border rendering as 1 px at pixel ratio 1.
+
+#### For CLAUDE.md
+
+- Parts come from the documents (`in_doc_sync`); only those count in a slice's list and bar. The rule is in `src/domain/parts.ts` (Slice 11: docs/plan/slices/11-slice-parts.md).
+- The shown status of a slice with an active part is derived at read (`shownStatusOf`), never stored (Slice 11: docs/plan/slices/11-slice-parts.md).
+- The Worker returns `parent_slice` as data; the page builds the text (Slice 11: docs/plan/slices/11-slice-parts.md).
+
+#### Not yet verified
+
+- On the deployed board after a real document sync and a real agent run, a slice shows its bar and the click lands on the part the agent holds (needs the deploy and a client that sends parts).
+- Migration 0005 applied on the deployed database by the pipeline.
+- The follow link row on the phone tile (44 px row, text #E8EAEE) was not measured in the browser run.
+- The 1.5 px circle border on a screen with pixel ratio 2 or more.

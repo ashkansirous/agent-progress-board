@@ -62,7 +62,7 @@ export function groupByProject(items: BoardItemDto[], projects: ProjectConfig[])
   const extra = [...new Set(items.map((i) => i.project))].filter((id) => !known.has(id)).sort();
   const order = [...projects, ...extra.map((id) => ({ id, label: id }))];
   return order
-    .map((p) => groupOf(p.id, p.label, items.filter((i) => i.project === p.id)))
+    .map((p) => groupOf(p.id, p.label, items.filter((i) => i.project === p.id && i.type !== ItemType.Part)))
     .filter((g) => g.waiting.length + g.inFlight.length + g.done.length > 0);
 }
 

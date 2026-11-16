@@ -1,8 +1,11 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { BoardItemDto } from "../../src/api/boardDto";
 import { ItemStatus, ItemType } from "../../src/domain/item";
+import { partLetterOf } from "../../src/domain/parts";
+import type { Translate } from "./strings";
 import { ChevronIcon } from "./icons";
 import { projectLabel } from "./model";
+import { parentText } from "./partsText";
 import { openItemHash } from "./route";
 import { currentStepText, progressText } from "./stepsText";
 import { StepBar, StepRows } from "./stepsView";
@@ -27,15 +30,16 @@ function Chips({ item }: { item: BoardItemDto }) {
 function MetaRow({ item }: { item: BoardItemDto }) {
   const { t, looks, projects, nowMs } = useView();
   const type = looks.type(item.type);
+  const parent = parentText(item, t);
   return (
     <div className="active-meta">
       <span className="active-project">{projectLabel(item.project, projects)}</span>
       <span aria-hidden="true">·</span>
       <span className="active-type" style={{ color: type.fg }}>{type.label}</span>
-      {item.parent && (
+      {parent && (
         <>
           <span aria-hidden="true">·</span>
-          <span>{item.parent}</span>
+          <span>{parent}</span>
         </>
       )}
       <span className="active-beat">{t("lastReport", { age: ageText(item.heartbeat_at, nowMs, t) })}</span>
@@ -43,9 +47,24 @@ function MetaRow({ item }: { item: BoardItemDto }) {
   );
 }
 
-/** The Slice types draw the plain hairline; any other type (a bug, a problem) takes its own border colour. */
+/** The Slice and Part types draw the plain hairline (a part wears its slice's colours); any other type (a bug, a problem) takes its own border colour. */
 function cardBorder(item: BoardItemDto, border: string): string | undefined {
-  return item.type === ItemType.Slice ? undefined : border;
+  return item.type === ItemType.Slice || item.type === ItemType.Part ? undefined : border;
+}
+
+/** "Part B · Search box" for a part (its letter is the end of its key), the plain title for anything else. */
+function cardTitle(item: BoardItemDto, t: Translate): string {
+  const letter = item.type === ItemType.Part ? partLetterOf(item.key) : null;
+  return letter ? t("partTitle", { letter, title: item.title }) : item.title;
+}
+
+/** A card the address asked for scrolls into view once it is open. */
+function useScrollIntoView(wanted: boolean) {
+  const ref = useRef<HTMLLIElement | null>(null);
+  useEffect(() => {
+    if (wanted) ref.current?.scrollIntoView?.({ block: "nearest" });
+  }, [wanted]);
+  return ref;
 }
 
 /** One task an agent is working on: where it is, the step now, the bar and a way to open the whole list. */
@@ -56,12 +75,13 @@ export function ActiveCard({ item, initiallyOpen = false }: CardProps) {
   const steps = item.steps ?? [];
   const finished = item.status === ItemStatus.Done;
   const border = cardBorder(item, type.border);
+  const ref = useScrollIntoView(initiallyOpen);
   return (
-    <li className="active-card" style={border ? { borderColor: border } : undefined}>
+    <li className="active-card" style={border ? { borderColor: border } : undefined} ref={ref}>
       <MetaRow item={item} />
       <div className="active-main">
         <div className="active-head">
-          <h2>{item.title}</h2>
+          <h2>{cardTitle(item, t)}</h2>
           <Chips item={item} />
         </div>
         {item.progress && (
@@ -85,8 +105,8 @@ export function ActiveCard({ item, initiallyOpen = false }: CardProps) {
           {open && (
             <div className="steps-open">
               <StepRows steps={steps} finished={finished} t={t} notes label={t("stepsHeading")} />
-              <a className="back-link" href={openItemHash(item.key)}>
-                {t("backToBoard", { parent: item.parent ?? projectLabel(item.project, projects) })}
+              <a className="back-link" href={openItemHash(item.parent_slice ? item.parent_slice.key : item.key)}>
+                {t("backToBoard", { parent: parentText(item, t) ?? projectLabel(item.project, projects) })}
               </a>
             </div>
           )}

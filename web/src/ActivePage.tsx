@@ -8,6 +8,7 @@ import { activeTasks } from "./model";
 import { Route } from "./route";
 import { paletteVars } from "./theme";
 import { clockTime } from "./time";
+import { useActiveKey } from "./useRoute";
 import { useView, ViewProvider } from "./view";
 import { ViewTabs } from "./ViewTabs";
 
@@ -21,11 +22,13 @@ function Subtitle({ count, updatedAt }: { count: number; updatedAt: Date | null 
 
 function Cards({ data }: { data: BoardResponse }) {
   const tasks = activeTasks(data.items);
+  const openKey = useActiveKey();
   if (tasks.length === 0) return <ActiveEmptyCard />;
   return (
     <ul className="active-list">
       {tasks.map((item) => (
-        <ActiveCard key={item.key} item={item} />
+        // The address decides which card is expanded: the key changes with it, so a card follows a new address.
+        <ActiveCard key={`${item.key}|${item.key === openKey}`} item={item} initiallyOpen={item.key === openKey} />
       ))}
     </ul>
   );

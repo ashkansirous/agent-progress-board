@@ -20,6 +20,8 @@ export interface ReportInput {
   key: string;
   project?: string;
   parent?: string | null;
+  /** The key of the item this one belongs to (a part names its slice); null clears it (Slice 11). */
+  parent_key?: string | null;
   type?: ItemType;
   priority?: Priority;
   status?: ItemStatus;
@@ -41,6 +43,7 @@ const CREATE_REQUIRED = ["project", "title", "type"] as const;
 /** The report with its steps validated and a whitespace-only agent or model made absent (null); fields not sent stay unsent. */
 export function checkReport(input: ReportInput): ReportInput {
   const checked = { ...input };
+  if (input.parent_key === input.key) throw new DomainError("parent_key", "field parent_key: an item cannot be its own parent");
   if (input.steps !== undefined) checked.steps = normalizeSteps(input.steps);
   if (input.agent !== undefined) checked.agent = blankToNull(input.agent);
   if (input.model !== undefined) checked.model = blankToNull(input.model);
@@ -59,6 +62,7 @@ export function newItem(input: ReportInput, now: string): Item {
     key: input.key,
     project: input.project!,
     parent: input.parent ?? null,
+    parent_key: input.parent_key ?? null,
     type: input.type!,
     priority: input.priority ?? DEFAULT_PRIORITY,
     status,

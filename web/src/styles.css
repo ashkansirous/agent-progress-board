@@ -41,6 +41,7 @@
   --stepActive: GrayText;
   --stepActiveRow: color-mix(in srgb, CanvasText 8%, Canvas);
   --stepPendingTile: color-mix(in srgb, CanvasText 12%, Canvas);
+  --partTrack: Canvas;
   --mono: "JetBrains Mono Variable", ui-monospace, monospace;
 }
 
@@ -445,13 +446,22 @@ h1 {
   gap: 10px;
 }
 
+/* The card (colours, border, fade) holds the tile button and, under it, the follow link (Slice 11) */
+.tile-box {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid;
+  border-radius: 12px;
+}
+
 .tile {
   display: flex;
   flex-direction: column;
   gap: 6px;
   padding: 14px 16px;
-  border: 1px solid;
+  border: 0;
   border-radius: 12px;
+  background: transparent;
   text-align: left;
   cursor: pointer;
 }

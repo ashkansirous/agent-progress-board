@@ -4,7 +4,7 @@ Source: the owner at the desk, 2026-11-16 ("the dashboard should be able to gues
 rate ... 1 agent is using [one model], and it uses 2 million tokens, then the weekly usage goes
 up 5% ... each 400k token would then cost 1% of my plan").
 
-*Planned.* Needs [Slice 8](08-usage-reports.md) part A. The design mock arrived on 2026-11-16
+*Planned.* Needs [Slice 8](08-usage-reports.md) part A (merged, PR #53). The design mock arrived on 2026-11-16
 (in `docs/design/`); part B (the numbers on the usage page) is planned against it (see
 *Design* below). The view tabs, the tab bar and the usage page shell belong to Slice 8; this
 slice only adds to that page.

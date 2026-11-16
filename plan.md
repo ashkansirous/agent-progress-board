@@ -19,7 +19,6 @@ private Claude Code config repo; this repo hands them a tool reference and a cli
 
 | Slice | Title | Status | PR | Issue | File |
 | --- | --- | --- | --- | --- | --- |
-| 8 | Usage reports: tokens per model, cap readings, usage page | in progress | #53 | | [08](docs/plan/slices/08-usage-reports.md) |
 | 9 | What 1% of the cap costs, per model | planned | | | [09](docs/plan/slices/09-cap-cost-estimate.md) |
 | 10 | Task steps and the active work page | planned | | | [10](docs/plan/slices/10-task-steps.md) |
 | 11 | Slice parts: progress bar on the slice, click through to the active part | planned | | | [11](docs/plan/slices/11-slice-parts.md) |
@@ -29,7 +28,7 @@ Notes:
 - [Finished slices](docs/plan/notes/slices-done.md): rows of built slices.
 - [Feedback loop 2026-11-15](docs/plan/notes/2026-11-15-1406-feedback-loop.md): what the end-of-run audit found.
 - Slices 1 to 7 are built and merged and deployed; 1 is verified, 5 works in claude.ai (owner, 2026-11-16; the phone check is open), and the open checks of the rest are in `docs/plan/unverified.md` (2026-11-16).
-- Slices 8 to 11 (owner, 2026-11-16) run in this order: 8, 9, 10, 11. They edit the same server files, so one at a time. In each, part A (server) can be built now and part B (the page) is planned against the design mock the owner added on 2026-11-16 (`docs/design/`). The sending side is planned in the owner's private config repo.
+- Slices 8 to 11 (owner, 2026-11-16) run in this order: 8, 9, 10, 11. Slice 8 is built (PR #53); 9, 10, 11 remain, in that order. They edit the same server files, so one at a time. In each, part A (server) can be built now and part B (the page) is planned against the design mock the owner added on 2026-11-16 (`docs/design/`). The sending side is planned in the owner's private config repo.
 
 ## Decisions (from the phone scope, approved 2026-11-15)
 
@@ -54,7 +53,7 @@ Notes:
 
 ## Outstanding work
 
-- **Not yet tried on a device:** 14 checks across 5 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
+- **Not yet tried on a device:** 18 checks across 6 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
 - The D1 database and the Worker secrets exist.
 - The client guide (`docs/clients.md`) is ready (Slice 3); the owner's config repo can start its
   client.
@@ -86,7 +85,7 @@ Notes:
 - Follow-up (Slice 5): the Worker has no way for the owner to end a grant; the README names the library calls only. See [Slice 5](docs/plan/slices/05-remote-mcp.md) *Not yet verified*.
 - Follow-up (Slice 7): the browser test `e2e/board.spec.ts:317` ("after a failure, Retry never leaves a blank page") failed once in a full run and is intermittent. See [Slice 7](docs/plan/slices/07-stale-detection.md) *Verification*; the likely cause (wall-clock timing windows) is the fifth follow-up in [Slice 2](docs/plan/slices/02-tile-board.md).
 - Follow-ups of built slices whose rows are in the finished list stay open in their slice files: [Slice 4](docs/plan/slices/04-doc-sync.md) *Follow-ups (open, not built)* (the summary counts include writes the stale-read guard skipped; a very large close fails the whole batch) and [Slice 7](docs/plan/slices/07-stale-detection.md) *Follow-ups*.
-- Open, small: add `tmp/` to `.gitignore` (check agents write logs with local paths there; a review of Slice 1 found them untracked in this public repo). Goes with the next code PR, since the merge gate reviews that file as code.
+- Follow-ups (Slice 8): open, not built, in [Slice 8](docs/plan/slices/08-usage-reports.md) *Follow-ups (open, not built)* (DST over a 30-day range, an unbounded `record_at` that makes `bucketKeys` loop, and three smaller query and sort items).
 - **Deploy trigger, open tooling task:** add `.claude/merge-gate.json` with `workerPaths` (`src/**`, `web/**`, `migrations/**`, `wrangler.jsonc`, `package.json`) and a Workers Builds deploy hook URL in the secrets store, so a batch release starts the build. Creating the hook needs the Cloudflare dashboard (the machine's wrangler login has no Workers Builds scope).
 - Feedback loop of 2026-11-15: [note](docs/plan/notes/2026-11-15-1406-feedback-loop.md), with the open tooling findings it could not fix in its time.
 

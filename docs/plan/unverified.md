@@ -3,6 +3,13 @@
 Every open "Not yet verified" check, one block per slice. A check that passes, or that the
 owner confirms, is removed here and its slice marked `verified`.
 
+### Slice 8: Usage reports: tokens per model, cap readings, usage page ([slice](slices/08-usage-reports.md))
+
+- The deployed-board check in *Verification*: a real client run shows tokens for two models and the weekly percent (waits for the deploy and the client in the owner's config repo).
+- Migration 0003 applied by the pipeline.
+- Thinning from the live cron.
+- The page on the owner's phone through Access, against the mock.
+
 ### Slice 5: OAuth so claude.ai can use the MCP server ([slice](slices/05-remote-mcp.md))
 
 - The same question ("what's waiting for me on the agent progress board?") from the claude.ai app on a phone. Seen by the owner 2026-11-16: the connector added and the question answered in a claude.ai chat; the device was not said.

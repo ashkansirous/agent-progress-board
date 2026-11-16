@@ -47,3 +47,8 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
 - The stale rule exists twice: `isExpired` in `src/domain/stale.ts` and the `EXPIRED_ROWS` SQL in
   `src/infrastructure/d1Repository.ts`. `test/stale.test.ts` holds them equal; change both
   (Slice 7: docs/plan/slices/07-stale-detection.md).
+- Usage state is derived at read: the tables hold only what was reported; windows, verdicts and restarts come from
+  `src/domain/cap.ts` and `src/domain/usage.ts`; never store a derived value (Slice 8:
+  docs/plan/slices/08-usage-reports.md).
+- Every stored time is normalised to UTC ISO in the application layer; `SAMPLES_FROM` and `THIN_ROWS` rely on it and
+  `test/usageTools.test.ts` asserts their query plans (Slice 8: docs/plan/slices/08-usage-reports.md).

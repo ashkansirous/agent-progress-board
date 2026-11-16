@@ -4,7 +4,7 @@ Source: the owner at the desk, 2026-11-16 ("I want to have an understanding of h
 is being consumed ... every few minutes, the agents would report to the dashboard, how much token
 they are consuming via which model and also report which task, which action").
 
-*Built 2026-11-16 (wave of that day), PR #53, not yet deployed (the night's batched release deploys it).* Parts A and B are built. The design mock arrived on 2026-11-16 (in
+*Built 2026-11-16 (wave of that day), merged as PR #53 (ebc074a), not yet deployed (the night's batched release deploys it).* Parts A and B are built. The design mock arrived on 2026-11-16 (in
 `docs/design/`); part B (the page) is planned against it (see *Design* below).
 
 **Touches:** `migrations/0003_usage.sql`, `src/domain/usage.ts`, `src/domain/cap.ts`,
@@ -563,7 +563,7 @@ after it. A 30-day page load reads about 8.6k rows per series.
   (`reviews/pr-53-check-medium.md` #1).
 - `splitByBucket` uses `buckets.indexOf` per delta, O(deltas x buckets), CPU only (`reviews/pr-53-check-medium.md` #2).
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-16)
 
 - Usage state is derived at read: the tables hold only what was reported; windows, verdicts and restarts come from
   `src/domain/cap.ts` and `src/domain/usage.ts`; never store a derived value (Slice 8:
@@ -571,7 +571,7 @@ after it. A 30-day page load reads about 8.6k rows per series.
 - Every stored time is normalised to UTC ISO in the application layer; `SAMPLES_FROM` and `THIN_ROWS` rely on it and
   `test/usageTools.test.ts` asserts their query plans (Slice 8: docs/plan/slices/08-usage-reports.md).
 
-#### For README.md
+#### For README.md (lifted 2026-11-16)
 
 None: the README diff in this worktree already describes the usage page and the two tools.
 

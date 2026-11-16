@@ -579,3 +579,414 @@
   border-radius: 10px;
   background: var(--skeletonTile);
 }
+
+/* What 1% of the cap costs (Slice 9). Colours are the config palette's. */
+
+.cap-cost-card {
+  gap: 22px;
+}
+
+.card-head-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cost-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cost-block h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.block-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.block-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.phone .block-note {
+  font-size: 12px;
+}
+
+.usage-table .strong-col {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.usage-table .strong {
+  font-weight: 700;
+}
+
+.usage-table .soft {
+  color: var(--segmentText);
+}
+
+.usage-table .source-name {
+  font-weight: 600;
+}
+
+.usage-table .merged-cell {
+  background: var(--mergedCellBg);
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.cap-cost-card .usage-table th,
+.cap-cost-card .usage-table td,
+.sources-table th,
+.sources-table td {
+  padding: 10px 12px;
+}
+
+.cap-cost-card .usage-table .left,
+.sources-table .left {
+  padding-left: 0;
+}
+
+.pill {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.phone .pill {
+  padding: 1px 8px;
+  font-size: 11px;
+}
+
+.pill-sure {
+  background: var(--pillSureBg);
+  color: var(--pillSureFg);
+}
+
+.pill-rough {
+  background: var(--pillRoughBg);
+  color: var(--pillRoughFg);
+}
+
+.pill-none {
+  background: var(--pillNoneBg);
+  color: var(--pillNoneFg);
+}
+
+.pill-count {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.base-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.base-field select {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+}
+
+.mark-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--segmentText);
+  font-size: 12px;
+}
+
+.mark-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.compare-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.compare-chart .grid-line {
+  stroke: var(--track);
+}
+
+.chart-model {
+  fill: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.chart-hairline {
+  stroke: var(--rowLine);
+}
+
+.chart-label {
+  fill: var(--muted);
+  font-size: 11px;
+}
+
+.chart-mix {
+  stroke: var(--text);
+  stroke-width: 2;
+}
+
+.stretch-list {
+  display: flex;
+  flex-direction: column;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stretch-row {
+  display: grid;
+  grid-template-columns: 200px 110px 1fr;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--rowLine);
+  font-size: 13px;
+}
+
+.stretch-span,
+.stretch-points {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.stretch-row .soft {
+  color: var(--segmentText);
+}
+
+.cap-col {
+  width: 200px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.cap-cell-inner {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.cap-cell-bar {
+  display: block;
+  flex: 1 1 auto;
+  max-width: 120px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--rowLine);
+  overflow: hidden;
+}
+
+.cap-cell-bar span {
+  display: block;
+  height: 100%;
+  background: var(--segmentText);
+}
+
+.cap-cell-value {
+  min-width: 44px;
+  font-weight: 600;
+  text-align: right;
+}
+
+.usage-table .cap-cell-value.muted {
+  font-weight: 400;
+}
+
+.kind-cost-card {
+  flex: 1 1 340px;
+  min-width: 0;
+}
+
+.kind-cost-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.kind-cost-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 4px 12px;
+  align-items: baseline;
+  font-size: 13px;
+}
+
+.kind-cost-name {
+  font-weight: 500;
+}
+
+.kind-cost-tokens {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.kind-cost-percent {
+  min-width: 44px;
+  font-weight: 600;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.kind-cost-bar {
+  grid-column: 1 / -1;
+  display: block;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--rowLine);
+  overflow: hidden;
+}
+
+.kind-cost-fill {
+  display: block;
+  height: 100%;
+  background: var(--segmentText);
+}
+
+.kind-cost-fill-open {
+  background: var(--grab);
+}
+
+.phone-models,
+.source-rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.phone-model {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 0;
+  border-top: 1px solid var(--rowLine);
+  font-size: 13px;
+}
+
+.phone-model-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.phone-model-note {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.kind-cells,
+.kind-ratio-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.kind-ratio-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.kind-ratio-group + .kind-ratio-group {
+  margin-top: 12px;
+}
+
+.kind-cell,
+.kind-ratio-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--well);
+}
+
+.kind-ratio-cell {
+  align-items: center;
+  padding: 8px 4px;
+}
+
+.kind-cell-label {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.kind-cell-value {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.kind-cell-multiple {
+  color: var(--segmentText);
+  font-size: 11px;
+}
+
+.source-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 8px;
+  padding: 8px 0;
+  border-top: 1px solid var(--rowLine);
+}
+
+.source-main {
+  font-weight: 600;
+}
+
+.source-value {
+  font-weight: 700;
+  text-align: right;
+}
+
+.source-sub {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.source-tokens {
+  text-align: right;
+}
+
+.source-wide {
+  grid-column: 1 / -1;
+}

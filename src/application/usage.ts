@@ -1,5 +1,8 @@
 import type {
   AgentKindDto,
+  CapCostDto,
+  CapCostEnvironmentDto,
+  CapCostModelDto,
   CapLineDto,
   ModelTotalsDto,
   OtherTasksDto,
@@ -19,8 +22,21 @@ import {
   SHORT_WINDOW,
   WEEKLY_WINDOW,
 } from "../domain/cap";
+import {
+  buildStretches,
+  type CapCostFit,
+  costByKey,
+  FitMode,
+  fitCapCost,
+  MultiplierState,
+  tokensPerPercent,
+  totalCost,
+  unexplainedStretches,
+  unexplainedTotals,
+} from "../domain/capCost";
 import { DomainError } from "../domain/upsert";
 import {
+  addTotals,
   BucketUnit,
   bucketKey,
   bucketKeys,
@@ -31,7 +47,8 @@ import {
   Split,
   splitByBucket,
   TOKEN_KINDS,
-  type TokenKind,
+  TokenKind,
+  type TokenTotals,
   tokensByKey,
   totalOf,
   totalsByModel,
@@ -41,6 +58,7 @@ import {
   useBetween,
   usageDeltas,
   withBaseEnvironment,
+  zeroTotals,
 } from "../domain/usage";
 import type { Clock } from "./board";
 import { SeriesKind, type SeriesName, type UsageRepository } from "./ports";
@@ -167,12 +185,15 @@ export async function readUsage(
   const now = clock.now();
   const cap = await loadCap(repo, query, config, now);
   const from = rangeStart(query.range, now, cap);
-  const deltas = rangeDeltas(await repo.usageSamplesFrom(from), cap, from, now.toISOString());
-  const base = config.baseEnvironment ?? busiestEnvironment(deltas);
-  const known = withBaseEnvironment(deltas, base);
+  const history = usageDeltas(await repo.usageSamplesFrom(historyStart(from, now, config)));
+  // One base for the page and the fit: the busiest environment of the whole history, never of the range.
+  const base = config.baseEnvironment ?? busiestEnvironment(history);
+  const knownHistory = withBaseEnvironment(history, base);
+  const known = rangeDeltas(knownHistory, cap, from, now.toISOString());
   const shown = query.environment === null ? known : known.filter(({ sample }) => sample.environment === query.environment);
   const order = await repo.seriesNames();
-  const tasks = await taskCosts(repo, shown, config.topTasks);
+  const costing = fitFor(cap, knownHistory, config, base);
+  const tasks = await taskCosts(repo, shown, config.topTasks, costing);
   const unit = query.range === UsageRange.Day ? BucketUnit.Hour : BucketUnit.Day;
   const buckets = bucketKeys(from, now.toISOString(), query.utcOffsetMinutes, unit);
   return {
@@ -193,9 +214,16 @@ export async function readUsage(
     totals_by_token_kind: kindTotals(shown, now.toISOString()),
     top_tasks: tasks.top,
     other_tasks: tasks.other,
-    agent_kinds: agentKinds(shown, order),
+    agent_kinds: agentKinds(shown, order, costing),
     cap: { weekly: capLine(cap, WEEKLY_WINDOW, from), short: capLine(cap, SHORT_WINDOW, from) },
+    cap_cost: capCostDto(costing, { known, shown, order, config, from }),
   };
+}
+
+/** The history the fit reads: as far back as the cap readings are, and never later than the range. */
+function historyStart(from: string, now: Date, config: UsageConfig): string {
+  const earliest = daysBefore(now, Math.max(MIN_READING_DAYS, config.keepDays));
+  return from < earliest ? from : earliest;
 }
 
 async function loadCap(repo: UsageRepository, query: UsageQuery, config: UsageConfig, now: Date): Promise<CapState> {
@@ -215,8 +243,8 @@ function rangeStart(range: UsageRange, now: Date, cap: CapState): string {
 }
 
 /** Deltas of the range, only those that fall in the chosen plan's time (no readings: every plan). */
-function rangeDeltas(samples: UsageSample[], cap: CapState, from: string, to: string): UsageDelta[] {
-  return usageDeltas(samples).filter(({ sample }) => {
+function rangeDeltas(history: UsageDelta[], cap: CapState, from: string, to: string): UsageDelta[] {
+  return history.filter(({ sample }) => {
     if (sample.recordAt < from || sample.recordAt > to) return false;
     return cap.plan === null || planAt(cap.readings, sample.recordAt) === cap.plan;
   });
@@ -279,10 +307,11 @@ function kindTotals(deltas: UsageDelta[], to: string): UsageResponse["totals_by_
   return { ...used, total: totalOf(used) };
 }
 
-function agentKinds(deltas: UsageDelta[], order: SeriesName[]): AgentKindDto[] {
+function agentKinds(deltas: UsageDelta[], order: SeriesName[], costing: Costing): AgentKindDto[] {
   const indexOf = colorIndexer(order, SeriesKind.AgentKind);
+  const points = costsBy(deltas, costing, ({ sample }) => sample.agentKind);
   return [...tokensByKey(deltas, ({ sample }) => sample.agentKind).entries()]
-    .map(([name, tokens]) => ({ name, color_index: indexOf(name), tokens }))
+    .map(([name, tokens]) => ({ name, color_index: indexOf(name), tokens, cap_points: points?.get(name) ?? null }))
     .sort((a, b) => b.tokens - a.tokens || a.name.localeCompare(b.name));
 }
 
@@ -290,7 +319,10 @@ async function taskCosts(
   repo: UsageRepository,
   deltas: UsageDelta[],
   limit: number,
+  costing: Costing,
 ): Promise<{ top: TaskCostDto[]; other: OtherTasksDto | null }> {
+  const points = costsBy(deltas, costing, ({ sample }) => sample.taskKey);
+  const pointsOf = (key: string): number | null => points?.get(key) ?? null;
   const ranked = rankTasks(tokensByKey(deltas, ({ sample }) => sample.taskKey), limit);
   const infos = new Map((await repo.taskInfo([...ranked.top, ...ranked.rest].map(([key]) => key))).map((i) => [i.key, i]));
   const describe = ([key, tokens]: [string, number]): TaskCostDto => ({
@@ -298,9 +330,17 @@ async function taskCosts(
     title: infos.get(key)?.title ?? key,
     project: infos.get(key)?.project ?? projectOfKey(key),
     tokens,
+    cap_points: pointsOf(key),
   });
   const rest = ranked.rest.map(describe);
-  const other = rest.length === 0 ? null : { tokens: rest.reduce((sum, t) => sum + t.tokens, 0), projects: new Set(rest.map((t) => t.project)).size };
+  const other =
+    rest.length === 0
+      ? null
+      : {
+          tokens: rest.reduce((sum, t) => sum + t.tokens, 0),
+          projects: new Set(rest.map((t) => t.project)).size,
+          cap_points: rest.some((t) => t.cap_points === null) ? null : rest.reduce((sum, t) => sum + (t.cap_points ?? 0), 0),
+        };
   return { top: ranked.top.map(describe), other };
 }
 
@@ -330,4 +370,125 @@ function capLine(cap: CapState, kind: string, from: string): CapLineDto {
     dropped: dropped.map((v) => ({ taken_at: v.reading.takenAt, percent: v.reading.percent, stored_percent: v.lostTo ?? 0 })),
     latest: last ? { taken_at: last.takenAt, percent: last.percent, reset_at: newest?.resetAt ?? null } : null,
   };
+}
+
+/** The fit of the chosen plan, or none while it has too few stretches; the count is kept either way. */
+interface Costing {
+  fit: CapCostFit | null;
+  stretches: number;
+  base: string | null;
+  minStretches: number;
+}
+
+function fitFor(cap: CapState, history: UsageDelta[], config: UsageConfig, base: string | null): Costing {
+  const stretches = cap.plan === null ? [] : buildStretches(cap.evaluation.windows, cap.plan, history, config.capCost, base);
+  const fit = stretches.length >= config.capCost.minStretches ? fitCapCost(stretches, base, config.capCost) : null;
+  return { fit, stretches: stretches.length, base, minStretches: config.capCost.minStretches };
+}
+
+/** Points of the cap per key; null while the estimate is not ready. */
+function costsBy(deltas: UsageDelta[], costing: Costing, keyOf: (delta: UsageDelta) => string | null): Map<string, number | null> | null {
+  return costing.fit ? costByKey(deltas, costing.fit, costing.base, keyOf) : null;
+}
+
+interface CapCostContext {
+  known: UsageDelta[];
+  shown: UsageDelta[];
+  order: SeriesName[];
+  config: UsageConfig;
+  from: string;
+}
+
+function capCostDto(costing: Costing, context: CapCostContext): CapCostDto {
+  const { fit } = costing;
+  const head = { ready: false, stretches: costing.stretches, min_stretches: costing.minStretches };
+  if (fit === null) {
+    return { ...head, models: [], environments: [], unexplained: null, unexplained_stretches: [], steps: [] };
+  }
+  const { known, shown, order, config, from } = context;
+  const totals = unexplainedTotals(fit, from);
+  const modelIndex = colorIndexer(order, SeriesKind.Model);
+  return {
+    ...head,
+    ready: true,
+    models: fit.models.map((model) => modelDto(fit, model.model, known, modelIndex)),
+    environments: environmentCosts(costing, fit, known, order, config),
+    unexplained: { points: totals.points, growth_points: totals.growthPoints, share: totals.share },
+    unexplained_stretches: unexplainedStretches(fit, from, config.capCost.unexplainedStretches).map((s) => ({
+      start: s.start,
+      end: s.end,
+      points: s.points,
+      growth_points: s.growthPoints,
+      explained_points: s.explainedPoints,
+    })),
+    steps: stepCosts(shown, costing),
+  };
+}
+
+function stepCosts(deltas: UsageDelta[], costing: Costing): { step: string; cap_points: number | null }[] {
+  const points = costsBy(deltas, costing, ({ sample }) => sample.step) ?? new Map<string, number | null>();
+  return [...points.entries()]
+    .map(([step, cap_points]) => ({ step, cap_points }))
+    .sort((a, b) => (b.cap_points ?? -1) - (a.cap_points ?? -1) || a.step.localeCompare(b.step));
+}
+
+const UNIT_MIX: TokenTotals = { input: 1, cache_write: 1, cache_read: 1, output: 1 };
+
+function perKindValues(make: (kind: TokenKind) => number | null): Record<TokenKind, number | null> {
+  return {
+    input: make(TokenKind.Input),
+    cache_write: make(TokenKind.CacheWrite),
+    cache_read: make(TokenKind.CacheRead),
+    output: make(TokenKind.Output),
+  };
+}
+
+/** Fresh input, unless the fit gave it no weight (it is never negative); then the kind that weighs the most. */
+function ratioReference(perToken: TokenTotals): TokenKind | null {
+  if (perToken.input > 0) return TokenKind.Input;
+  const heaviest = TOKEN_KINDS.reduce((best, kind) => (perToken[kind] > perToken[best] ? kind : best), TokenKind.Input);
+  return perToken[heaviest] > 0 ? heaviest : null;
+}
+
+function modelDto(fit: CapCostFit, name: string, known: UsageDelta[], indexOf: (value: string | null) => number): CapCostModelDto {
+  const model = fit.models.find((m) => m.model === name) as CapCostFit["models"][number];
+  const own = totalsByModel(known).get(name);
+  const mix = own && totalOf(own) > 0 ? own : stretchMix(fit, name);
+  const reference = ratioReference(model.perToken);
+  const ratio = (kind: TokenKind): number | null => (reference === null ? null : model.perToken[kind] / model.perToken[reference]);
+  return {
+    model: name,
+    color_index: indexOf(name),
+    mode: model.mode,
+    tokens_per_percent: perKindValues((kind) => (model.perToken[kind] > 0 ? 1 / model.perToken[kind] : null)),
+    all_kinds_tokens_per_percent: tokensPerPercent(model.perToken, mix),
+    kind_ratios: model.mode === FitMode.PerKind ? perKindValues(ratio) : null,
+    kind_ratio_reference: model.mode === FitMode.PerKind ? reference : null,
+    how_sure: model.howSure,
+    stretches: model.stretches,
+    finer_at: model.finerAt,
+  };
+}
+
+/** The model's use inside the stretches, summed: the mix when the range holds none of it. */
+function stretchMix(fit: CapCostFit, name: string): TokenTotals {
+  const uses = fit.stretches.flatMap((s) => s.uses).filter((use) => use.model === name);
+  const mix = uses.reduce((sum, use) => addTotals(sum, use.totals), zeroTotals());
+  return totalOf(mix) > 0 ? mix : UNIT_MIX;
+}
+
+function environmentCosts(costing: Costing, fit: CapCostFit, known: UsageDelta[], order: SeriesName[], config: UsageConfig): CapCostEnvironmentDto[] {
+  const weighted = new Set(fit.models.map((m) => m.model));
+  return environmentList(known, order, config).map((environment) => {
+    const fitted = fit.environments.find((e) => e.environment === environment.value);
+    const own = known.filter(({ sample }) => sample.environment === environment.value);
+    return {
+      ...environment,
+      cap_points: own.some(({ sample }) => !weighted.has(sample.model)) ? null : totalCost(own, fit, costing.base),
+      multiplier: fitted?.multiplier ?? 1,
+      state: fitted?.state ?? (environment.value === costing.base ? MultiplierState.Base : MultiplierState.NotEnough),
+      how_sure: fitted?.howSure ?? null,
+      stretches: fitted?.stretches ?? 0,
+    };
+  });
 }

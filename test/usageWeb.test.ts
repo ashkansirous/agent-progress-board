@@ -4,7 +4,7 @@ import { capAxisTop, capTicks, labelEvery, roundedTopPath, stackSegments, xForRe
 import { Route, routeOf } from "../web/src/route";
 import { usageQuery } from "../web/src/usageQuery";
 import {
-  bucketLabel, bucketLetter, clockAt, longReset, millionsText, niceScale, percentText, shortTaskTitle, timeUntil, tokenText, weekdayClock,
+  bucketLabel, bucketLetter, clockAt, longReset, millionsText, niceScale, costPercentText, percentText, shortTaskTitle, timeUntil, tokenText, weekdayClock,
 } from "../web/src/usageFormat";
 import { INITIAL_USAGE_STATE, usageReducer } from "../web/src/usageState";
 import { demoUsage } from "../e2e/usageFixture";
@@ -13,6 +13,12 @@ const FRAME = { x0: 48, x1: 976, yTop: 20, yBottom: 240 };
 const DAYS = ["2026-11-10", "2026-11-11", "2026-11-12", "2026-11-13", "2026-11-14", "2026-11-15", "2026-11-16"];
 
 describe("number and time text", () => {
+  it("shows a cost-page cap percent with one decimal", () => {
+    expect(costPercentText(4)).toBe("4.0%");
+    expect(costPercentText(8.6)).toBe("8.6%");
+    expect(costPercentText(0)).toBe("0.0%");
+  });
+
   it("shows a whole percent without a decimal and others with one", () => {
     expect(percentText(41)).toBe("41%");
     expect(percentText(34.2)).toBe("34.2%");

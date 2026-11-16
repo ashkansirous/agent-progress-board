@@ -1,8 +1,9 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import type { UsagePageResponse } from "../src/api/usageDto";
 import exampleConfig from "../config/board.example.json" with { type: "json" };
+import { TokenKind } from "../src/domain/usage";
 import { demoBoard } from "./fixture";
-import { demoUsage, emptyUsage, ENV_ONE, ENV_TWO, PLANS, USAGE_SERVER_TIME } from "./usageFixture";
+import { demoUsage, emptyUsage, ENV_ONE, ENV_TWO, PLANS, readyUsage, USAGE_SERVER_TIME } from "./usageFixture";
 
 const USAGE_ROUTE = "**/api/usage?*";
 const BOARD_ROUTE = "**/api/board";
@@ -160,9 +161,9 @@ test.describe("usage page", () => {
       return;
     }
     const rows = page.locator(".usage-table-tasks tbody tr");
-    expect(await rows.first().locator("td").allTextContents()).toEqual(["Slice 9 · Part C · Notification channel", "demo-app", "7.1 M"]);
-    expect(await rows.last().locator("td").allTextContents()).toEqual(["Everything else", "3 projects", "3.3 M"]);
-    expect(await page.locator(".usage-table-tasks thead th").allTextContents()).toEqual(["Task", "Project", "Tokens"]);
+    expect(await rows.first().locator("td").allTextContents()).toEqual(["Slice 9 · Part C · Notification channel", "demo-app", "7.1 M", "–"]);
+    expect(await rows.last().locator("td").allTextContents()).toEqual(["Everything else", "3 projects", "3.3 M", "–"]);
+    expect(await page.locator(".usage-table-tasks thead th").allTextContents()).toEqual(["Task", "Project", "Tokens", "Of the cap"]);
   });
 
   test("the view tabs switch between the usage page and the board", async ({ page }) => {
@@ -240,5 +241,158 @@ test.describe("usage page", () => {
     await pressed(page, ENV_TWO.label, "Environment").click();
     await expect(page.getByRole("heading", { level: 2, name: "Cost per task" })).toHaveCount(0);
     await expect(page.locator(".usage-table tbody tr")).toHaveCount(0);
+  });
+});
+
+test.describe("what 1% of the cap costs", () => {
+  const openReady = (page: Page, over: Partial<UsagePageResponse> = {}) => openUsage(page, () => readyUsage(over));
+  const modelRow = (page: Page, model: string) => page.locator(".cap-cost-card .usage-table tbody tr", { hasText: model }).first();
+
+  test("shows the unexplained tile, and its share on the phone's cap card", async ({ page }) => {
+    await openReady(page);
+    if (isPhone()) {
+      await expect(page.locator(".cap-note").first()).toContainText("8% of growth not explained");
+      return;
+    }
+    const unexplained = tile(page, "Cap growth the board can’t explain");
+    await expect(unexplained.locator(".cap-value")).toHaveText("8%");
+    await expect(unexplained.locator(".cap-bar")).toHaveCount(0);
+    await expect(unexplained.locator(".cap-note")).toHaveText("2.8 of the 34.2 points. Use no client reports: Claude chat on desktop or phone, Claude Design, or a machine without the client.");
+  });
+
+  test("writes tokens per 1% in full below a million and as millions from there, with both pills", async ({ page }) => {
+    await openReady(page);
+    if (isPhone()) {
+      const phoneModel = (name: string) => page.locator(".phone-model").filter({ has: page.locator(".model-name", { hasText: new RegExp(`^${name}$`) }) });
+      const alpha = phoneModel("model-alpha");
+      await expect(alpha.locator(".phone-model-line")).toHaveText("1% ≈ 700,000 tokens · 1 token = 27.1× model-gamma");
+      await expect(alpha.locator(".pill")).toHaveText("Fairly sure");
+      await expect(alpha.locator(".kind-cell-value")).toHaveText(["174,000", "140,000", "1.74 M", "35,000"]);
+      const gamma = phoneModel("model-gamma");
+      await expect(gamma.locator(".phone-model-line")).toHaveText("1% ≈ 19 million tokens · the comparison base (1×)");
+      await expect(gamma.locator(".phone-model-note")).toHaveText("One weight for every kind until 12 stretches (7 so far)");
+      await expect(gamma.locator(".pill")).toHaveText("Rough guess");
+      return;
+    }
+    await expect(page.getByRole("heading", { level: 2, name: "What 1% of the week costs on Plan One" })).toBeVisible();
+    const alpha = modelRow(page, "model-alpha");
+    const cells = await alpha.locator("td").allTextContents();
+    expect(cells.slice(0, 5)).toEqual(["174,000", "140,000", "1.74 million", "35,000", "700,000"]);
+    expect(cells[5]).toBe("Fairly sure14 stretches");
+    const gamma = modelRow(page, "model-gamma");
+    await expect(gamma.locator(".merged-cell")).toHaveText("One weight for every kind until 12 stretches (19 million each)");
+    await expect(gamma.locator(".strong-col")).toHaveText("19 million");
+    await expect(gamma.locator(".pill")).toHaveText("Rough guess");
+    expect(await css(alpha.locator(".pill"), "background-color")).toBe(rgbOf(palette().pillSureBg));
+    expect(await css(gamma.locator(".pill"), "background-color")).toBe(rgbOf(palette().pillRoughBg));
+  });
+
+  test("the comparison base select changes the numbers and the sentence", async ({ page }) => {
+    if (isPhone()) test.skip(true, "the phone carries the default base only");
+    await openReady(page);
+    const select = page.getByLabel("Measured in");
+    await expect(select).toHaveValue("model-gamma");
+    const sentence = page.locator(".block-note", { hasText: "Log scale." });
+    await expect(sentence).toHaveText("One model-alpha token uses as much of the week as 27.1 model-gamma tokens; one model-beta token as much as 13.6. Log scale.");
+    await select.selectOption("model-alpha");
+    await expect(sentence).toHaveText("One model-beta token uses as much of the week as 0.5 model-alpha tokens; one model-gamma token as much as 0.04. Log scale.");
+    const betaRow = page.locator(".cost-block", { hasText: "What one token is worth, compared" }).locator("table tbody tr", { hasText: "model-beta" });
+    await expect(betaRow.locator("td").last()).toHaveText("0.5×");
+    await expect(betaRow.locator("td").first()).toHaveText("2×");
+  });
+
+  test("lists the kinds against fresh input, and says which model is not split", async ({ page }) => {
+    await openReady(page);
+    if (isPhone()) {
+      await expect(page.locator(".kind-ratio-cell b")).toHaveText(["1×", "1.24×", "0.1×", "5×"]);
+      await expect(page.getByText("Same for model-alpha and model-beta; model-gamma is not split by kind yet.")).toBeVisible();
+      return;
+    }
+    const rows = page.locator(".cost-block", { hasText: "Token kinds within each model" }).locator("tbody tr");
+    expect(await rows.first().locator("td").allTextContents()).toEqual(["1.0×", "1.2×", "0.10×", "5.0×"]);
+    await expect(rows.last().locator("td")).toHaveText("Not split by kind yet");
+    await expect(page.getByText("A cache read costs a tenth of a fresh input token; output costs five times as much.")).toBeVisible();
+  });
+
+  test("phone kinds card never says same for models whose ratios differ", async ({ page }) => {
+    test.skip(!isPhone(), "the kinds card is the phone layout");
+    const ready = readyUsage();
+    const models = ready.cap_cost.models.map((m) =>
+      m.model === "model-beta" && m.kind_ratios ? { ...m, kind_ratios: { ...m.kind_ratios, cache_read: 0.3 } } : m,
+    );
+    await openUsage(page, () => ({ ...ready, cap_cost: { ...ready.cap_cost, models } }));
+    const card = page.locator(".usage-card", { hasText: "Kinds compared with fresh input" });
+    await expect(card.locator(".kind-ratio-group")).toHaveCount(2);
+    await expect(card.getByText("Same for model-alpha.")).toBeVisible();
+    await expect(card.getByText("Same for model-beta; model-gamma is not split by kind yet.")).toBeVisible();
+  });
+
+  test("phone kinds card keeps models with equal cells but a different reference apart", async ({ page }) => {
+    test.skip(!isPhone(), "the kinds card is the phone layout");
+    const ready = readyUsage();
+    const models = ready.cap_cost.models.map((m) =>
+      m.model === "model-beta" && m.kind_ratios ? { ...m, kind_ratio_reference: TokenKind.CacheRead } : m,
+    );
+    await openUsage(page, () => ({ ...ready, cap_cost: { ...ready.cap_cost, models } }));
+    const card = page.locator(".usage-card", { hasText: "Kinds compared with fresh input" });
+    await expect(card.locator(".kind-ratio-group")).toHaveCount(2);
+  });
+
+  test("shows the estimate-not-ready card in place of the section, with dashes for the cap figures", async ({ page }) => {
+    await openUsage(page);
+    await expect(page.getByText("Not enough data for an estimate yet")).toBeVisible();
+    await expect(page.getByText("Only 2 stretches so far inside one window on Plan One. Tokens and cap readings still show above.")).toBeVisible();
+    await expect(page.getByRole("heading", { level: 2, name: /What 1% of the week costs/ })).toHaveCount(0);
+    await expect(page.getByRole("heading", { level: 2, name: "Where the usage comes from" })).toHaveCount(0);
+    if (!isPhone()) await expect(page.locator(".cap-cell-value").first()).toHaveText("–");
+    expect(await css(page.locator(".state-card svg").first(), "stroke")).toBe(rgbOf(palette().pillRoughFg));
+  });
+
+  test("the sources table has a base row, a measured row, the fixed rows and the not-explained row", async ({ page }) => {
+    await openReady(page);
+    if (isPhone()) {
+      const rows = page.locator(".source-row");
+      await expect(rows.nth(0).locator(".source-main")).toHaveText("Claude Code · Box One");
+      await expect(rows.nth(0).locator(".source-sub").first()).toHaveText("Reported · the base, 1×");
+      await expect(rows.nth(1).locator(".source-sub").first()).toHaveText("Reported · 0.98× Box One · fairly sure");
+      await expect(rows.last().locator(".source-value")).toHaveText("2.8%");
+      await expect(rows.last()).toContainText("Biggest stretch: Sat 14, 10:05–12:40, +1.6 points.");
+      await expect(page.locator(".stretch-row")).toHaveCount(0);
+      return;
+    }
+    const rows = page.locator(".sources-table tbody tr");
+    await expect(rows).toHaveCount(6);
+    await expect(page.locator(".sources-table thead th").last()).toHaveText("Cost per token vs Box One");
+    expect(await rows.nth(0).locator("td").allTextContents()).toEqual(["Box One", "Reported", "24.1 M", "19.6%", "The base: 1×"]);
+    expect(await rows.nth(1).locator("td").last().textContent()).toBe("0.98× Box One · fairly sure, 18 stretches");
+    await expect(rows.nth(2)).toContainText("Not reported");
+    await expect(rows.nth(2)).toContainText("in “not explained”");
+    expect(await rows.last().locator("td").allTextContents()).toEqual(["Cap growth that no report accounts for", "2.8%", "8% of this window’s growth"]);
+  });
+
+  test("lists the stretches with the most unexplained growth, largest first", async ({ page }) => {
+    await openReady(page);
+    if (isPhone()) return;
+    const rows = page.locator(".stretch-row");
+    await expect(rows).toHaveCount(3);
+    await expect(rows.nth(0).locator("span")).toHaveText(["Sat 14, 10:05–12:40", "+1.6 points", "No agent reported in this stretch"]);
+    await expect(rows.nth(1).locator("span").last()).toHaveText("Agents reported 1.4 points of it");
+  });
+
+  test("the task table and the agent kind card show the share of the cap", async ({ page }) => {
+    await openReady(page);
+    if (isPhone()) {
+      await expect(page.locator(".task-row-top .task-value").first()).toHaveText("8.6%");
+      await expect(page.getByRole("heading", { level: 2, name: "Cost per agent kind" })).toHaveCount(0);
+      return;
+    }
+    const rows = page.locator(".usage-table-tasks tbody tr");
+    expect(await rows.first().locator("td").last().textContent()).toBe("8.6%");
+    expect(await rows.last().locator("td").last().textContent()).toBe("4.0%");
+    const kinds = page.locator(".kind-cost-row");
+    await expect(kinds).toHaveCount(3);
+    await expect(kinds.last().locator(".kind-cost-tokens")).toHaveText("not reported");
+    await expect(kinds.last().locator(".kind-cost-percent")).toHaveText("2.8%");
+    await expect(page.getByText("Work a helper agent does counts under the agent that started it.")).toBeVisible();
   });
 });

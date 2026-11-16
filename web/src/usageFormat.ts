@@ -27,7 +27,7 @@ function part(locale: string, date: Date, options: Intl.DateTimeFormatOptions): 
 }
 
 /** "Tue 10" for a viewer-time date. */
-function dayText(locale: string, date: Date): string {
+export function dayText(locale: string, date: Date): string {
   return `${part(locale, date, { weekday: "short" })} ${date.getUTCDate()}`;
 }
 
@@ -66,6 +66,11 @@ export function bucketLetter(locale: string, bucket: string): string {
 export function percentText(percent: number): string {
   const rounded = Math.round(percent * 10) / 10;
   return `${Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1)}%`;
+}
+
+/** A share of the cap on the cost page: always one decimal, "4.0%". */
+export function costPercentText(percent: number): string {
+  return `${(Math.round(percent * 10) / 10).toFixed(1)}%`;
 }
 
 function trimmed(n: number, locale: string): string {

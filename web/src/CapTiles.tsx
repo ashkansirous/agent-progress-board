@@ -1,4 +1,5 @@
 import type { CapLineDto, UsageResponse } from "../../src/api/usageDto";
+import { shareText } from "./capCostFormat";
 import { clockAt, longReset, percentText, timeUntil, weekdayClock } from "./usageFormat";
 import { useUsageView, type UsageView } from "./usageView";
 
@@ -9,19 +10,40 @@ interface TileProps {
   label: string;
   percent: number | null;
   note: string;
+  /** Text shown instead of the percent (the unexplained share), with no bar. */
+  valueText?: string;
 }
 
-function CapTile({ label, percent, note }: TileProps) {
+function CapTile({ label, percent, note, valueText }: TileProps) {
   const width = Math.min(MAX_PERCENT, Math.max(0, percent ?? 0));
+  const shown = valueText ?? (percent === null ? NO_VALUE : percentText(percent));
   return (
     <div className="cap-tile">
       <span className="cap-label">{label}</span>
-      <span className="cap-value">{percent === null ? NO_VALUE : percentText(percent)}</span>
-      <span className="cap-bar" aria-hidden="true">
-        <span style={{ width: `${width}%` }} />
-      </span>
+      <span className="cap-value">{shown}</span>
+      {valueText === undefined && (
+        <span className="cap-bar" aria-hidden="true">
+          <span style={{ width: `${width}%` }} />
+        </span>
+      )}
       <span className="cap-note">{note}</span>
     </div>
+  );
+}
+
+/** The third tile: the share of the cap's growth no report explains (Slice 9); none while the estimate is not ready. */
+function UnexplainedTile({ data }: { data: UsageResponse }) {
+  const { t, locale } = useUsageView();
+  const unexplained = data.cap_cost.unexplained;
+  if (!unexplained) return null;
+  const points = (n: number) => new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(n);
+  return (
+    <CapTile
+      label={t("unexplainedLabel")}
+      percent={null}
+      valueText={shareText(unexplained.share)}
+      note={t("unexplainedNote", { a: points(unexplained.points), b: points(unexplained.growth_points) })}
+    />
   );
 }
 
@@ -51,6 +73,7 @@ export function CapTiles({ data }: { data: UsageResponse }) {
     <section className="cap-tiles" aria-label={t("capSection")}>
       <CapTile label={t("capWeekly")} percent={data.cap.weekly.latest?.percent ?? null} note={weeklyNote(data.cap.weekly, view)} />
       {short && <CapTile label={t("capShort")} percent={short.percent} note={shortNote(data.cap.short, data.server_time, view)} />}
+      <UnexplainedTile data={data} />
     </section>
   );
 }
@@ -63,6 +86,7 @@ export function PhoneCapCard({ data }: { data: UsageResponse }) {
   const parts = [
     weekly?.reset_at ? t("resetsAt", { when: weekdayClock(locale, weekly.reset_at, offsetMinutes) }) : null,
     short ? t("shorterWindow", { pct: percentText(short.percent) }) : null,
+    data.cap_cost.unexplained ? t("unexplainedPhone", { pct: shareText(data.cap_cost.unexplained.share) }) : null,
   ].filter(Boolean);
   const note = parts.length > 0 ? parts.join(" · ") : t("noReading");
   return (

@@ -131,6 +131,11 @@ report that changes nothing but the heartbeat writes an event with the note `Hea
 Usage (Slice 8): `report_usage` and `report_cap` store running token totals and raw cap readings;
 `GET /api/usage` (behind Access, like `/api/board`) works out use, windows and dropped readings
 when read. The same cron thins samples older than `usage.keepDays` (default 30) to one an hour.
+Slice 9 adds `cap_cost` to that route: a best fit of how many tokens of each model use 1% of the
+cap, a multiplier per environment, the share of cap growth no report explains, and the cost of
+each task and agent kind in percent of the cap. It needs regular cap readings with the plan
+name and the `environment` on every usage report; it cannot see chat, Claude Design or machines
+without the client (see [docs/clients.md](docs/clients.md)).
 
 A Workers cron trigger (every 15 minutes, `triggers` in `wrangler.jsonc`) turns a live
 `in_progress` or `blocked` item whose heartbeat is older than `staleAfterMinutes` (config,

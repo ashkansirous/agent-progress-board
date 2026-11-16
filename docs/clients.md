@@ -344,8 +344,38 @@ viewer's days). It answers with tokens per day (per hour for `24h`) split by mod
 agent kind and environment, totals, the top tasks, the environments and plans seen, the cap
 readings by window with the dropped ones and the percent each lost to, and the series colours
 from config. Config keys, all optional, under `usage` in `BOARD_CONFIG`: `series`, `topTasks`,
-`baseEnvironment`, `environmentLabels`, `lowMarkPercent`, `keepDays` (see
+`baseEnvironment`, `environmentLabels`, `lowMarkPercent`, `keepDays`, `capCost` (see
 `config/board.example.json`).
+
+#### What 1% of the cap costs (Slice 9)
+
+The same route returns `cap_cost`: per plan, how many tokens of each model use 1% of the cap,
+how sure that is, the multiplier per environment, the cap growth no report explains, and
+`cap_points` (percent of the cap) per task, agent kind and step. It is a best fit worked out on
+every read: the board takes stretches of time inside one window on one plan, each with an
+accepted weekly cap reading at both ends, and finds the non-negative weights (per model, and
+per token kind once a model has three times four stretches) that explain the growth best.
+A reset or a plan change never lies inside a stretch, so no cost is negative.
+
+What a client must send for it to work:
+
+- **Regular cap readings with the plan name** (`report_cap`, every few minutes while it
+  works). A stretch needs a reading at each end, at least `capCost.minStretchMinutes` apart with
+  the cap risen by `capCost.minGrowthPoints`; with fewer than `capCost.minStretches` stretches
+  the page says the estimate is not ready.
+- **The `environment` on every `report_usage`.** Without it a report counts as the main
+  machine, so cloud use is mistaken for main-machine use. An environment gets its own
+  multiplier only with `capCost.environmentMinStretches` stretches that hold its use and a
+  different mix of environments between stretches.
+- **Usage reports for every model and token kind**, from every machine that spends the cap.
+
+What it cannot see: Claude chat on desktop or phone, Claude Design, and machines without the
+client. Their use raises the cap with no report; the board shows it as "not explained" (a share
+of the growth, and the stretches where it was largest) instead of blaming a model. A model seen
+only outside any stretch has no weight, so its tasks show 0%. Config keys under
+`usage.capCost`: `minStretches`, `environmentMinStretches`, `fineFactor`, `sure`
+(`minStretches`, `maxLeftoverShare`), `unexplainedStretches`, `minStretchMinutes`,
+`minGrowthPoints`, `convergence`.
 
 ## Keys
 
@@ -433,6 +463,7 @@ described above are unchanged.
   it comes from the client's own config and is never hard-coded in a client or on the board:
   the board shows the value as sent (or a label the board's owner maps to it) and treats the
   environment named in its config (else the busiest one) as the main machine.
-- Still to come: [Slice 9](plan/slices/09-cap-cost-estimate.md) (what 1% of the cap costs, per
-  environment), [Slice 10](plan/slices/10-task-steps.md) (task steps) and
+- Built in [Slice 9](plan/slices/09-cap-cost-estimate.md): what 1% of the cap costs, per model
+  and environment (see *What 1% of the cap costs* under *Reading usage*).
+- Still to come: [Slice 10](plan/slices/10-task-steps.md) (task steps) and
   [Slice 11](plan/slices/11-slice-parts.md) (slice parts).

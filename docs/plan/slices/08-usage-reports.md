@@ -4,7 +4,7 @@ Source: the owner at the desk, 2026-11-16 ("I want to have an understanding of h
 is being consumed ... every few minutes, the agents would report to the dashboard, how much token
 they are consuming via which model and also report which task, which action").
 
-*Built 2026-11-16 (wave of that day), merged as PR #53 (ebc074a), not yet deployed (the night's batched release deploys it).* Parts A and B are built. The design mock arrived on 2026-11-16 (in
+*Built 2026-11-16 (wave of that day), merged as PR #53 (ebc074a), deployed by the pipeline run on 6bbae7f (deployment created 2026-11-16T16:24:39Z).* Parts A and B are built. The design mock arrived on 2026-11-16 (in
 `docs/design/`); part B (the page) is planned against it (see *Design* below).
 
 **Touches:** `migrations/0003_usage.sql`, `src/domain/usage.ts`, `src/domain/cap.ts`,
@@ -579,6 +579,6 @@ None: the README diff in this worktree already describes the usage page and the 
 
 - The deployed-board check in *Verification*: a real client run shows tokens for two models and the weekly percent
   (waits for the deploy and the client in the owner's config repo).
-- Migration 0003 applied by the pipeline.
+- Migration 0003 applied by the pipeline. Seen 2026-11-16: `wrangler d1 migrations list DB --remote` at 17:18Z lists only 0004 as unapplied; the pipeline deploy of 6bbae7f at 16:24Z applied it.
 - Thinning from the live cron.
 - The page on the owner's phone through Access, against the mock.

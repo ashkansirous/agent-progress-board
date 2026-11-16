@@ -5,7 +5,7 @@ finished sub A. An agent picks slice X sub B. Then the status of slice X is in f
 it is done that should be shown in a progress bar under it ... From the main page, where we have
 the slices, we should be able to click and follow to the sub task that is currently active").
 
-*Planned.* Needs [Slice 10](10-task-steps.md). The design mock arrived on 2026-11-16 (in
+*In progress (wave 2026-11-16), draft PR.* Needs [Slice 10](10-task-steps.md). The design mock arrived on 2026-11-16 (in
 `docs/design/`); part B (the page) is planned against it (see *Design* below). The view tabs and
 the tab bar are [Slice 8](08-usage-reports.md)'s and the Active work page is
 [Slice 10](10-task-steps.md)'s; this slice reuses both.
@@ -14,7 +14,10 @@ the tab bar are [Slice 8](08-usage-reports.md)'s and the Active work page is
 `src/domain/docSync.ts`, `src/domain/upsert.ts`, `src/application/board.ts`,
 `src/application/ports.ts`, `src/infrastructure/d1Repository.ts`, `src/mcp/schemas.ts`,
 `src/mcp/tools.ts`, `src/api/boardDto.ts`, `src/config.ts`, `config/board.example.json`, `test/**`, `docs/clients.md`, `README.md`,
-`web/**`, `e2e/**`, `docs/design/**`
+`web/**`, `e2e/**`, `docs/design/**`, `src/api/board.ts`, `src/domain/steps.ts`,
+`src/domain/stepTypes.ts`, `src/domain/stale.ts`, `scripts/seed.ts`, `scripts/seed-data.ts`
+
+**Migrations:** 0005
 
 #### Why
 
@@ -48,6 +51,13 @@ and to get from the slice to the part someone is working on.
 - A part that left the documents is closed by the next snapshot, like a slice that left the
   table.
 - Migration 0005, or the next free number from `parallel-check` when it is built.
+- **Decided at the claim (2026-11-16, premise check):** the Active work view has no address for
+  one expanded card today (`web/src/route.ts` knows `#/`, `#/active`, `#/usage` and
+  `#/open/<key>`). B3 adds `#/active/<key>`: the Active work view with that item's card
+  expanded, the card following the address the same way the drawer follows `#/open/<key>`. A key
+  with no card on the page shows the page with nothing expanded.
+- The "working now" and stale tests for a part reuse `isWorkingNow` and `isHeartbeatExpired`;
+  no new copy of either rule.
 - **Added for the mock (2026-11-16):**
   - A part has a third live state, stale: its steps report stopped. The slice's tile and drawer
     show it ("Part B · Implementing (stale)", "Stale · Implementing"); it leaves the Active work

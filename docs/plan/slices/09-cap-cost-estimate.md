@@ -4,12 +4,12 @@ Source: the owner at the desk, 2026-11-16 ("the dashboard should be able to gues
 rate ... 1 agent is using [one model], and it uses 2 million tokens, then the weekly usage goes
 up 5% ... each 400k token would then cost 1% of my plan").
 
-*Planned.* Needs [Slice 8](08-usage-reports.md) part A (merged, PR #53). The design mock arrived on 2026-11-16
+*In progress (wave 2026-11-16), draft PR.* Needs [Slice 8](08-usage-reports.md) part A (merged, PR #53). The design mock arrived on 2026-11-16
 (in `docs/design/`); part B (the numbers on the usage page) is planned against it (see
 *Design* below). The view tabs, the tab bar and the usage page shell belong to Slice 8; this
 slice only adds to that page.
 
-**Touches:** `src/domain/capCost.ts`, `src/application/usage.ts`, `src/api/usageDto.ts`,
+**Touches:** `src/domain/capCost.ts`, `src/domain/cap.ts`, `src/domain/usage.ts`, `src/application/ports.ts`, `src/application/usage.ts`, `src/api/usageDto.ts`,
 `src/config.ts`, `config/board.example.json`, `test/**`, `docs/clients.md`, `README.md`,
 `web/**`, `e2e/**`, `docs/design/**`. It reads the `environment` that
 [Slice 8](08-usage-reports.md) adds to usage samples and items.

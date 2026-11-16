@@ -5,7 +5,7 @@ the tasks that agents are working on ... if the agent is done with implementatio
 14% of the task is done and the progress bar should show that ... with an option to expand and see
 the work steps, what is done and what is active and what is next").
 
-*Built 2026-11-16, PR #60 (merge pending), not yet verified on the deployed board.* Parts A and B are built. The design mock arrived on 2026-11-16 (in
+*Built 2026-11-16, PR #60 merged (bb02c12), not yet verified on the deployed board.* Parts A and B are built. The design mock arrived on 2026-11-16 (in
 `docs/design/`); part B (the page) was built against it (see *Design* below). The view tabs
 and the phone tab bar belong to [Slice 8](08-usage-reports.md) (the first to add a second view);
 this slice adds the Active work tab and its count to them. If this slice is built first, it
@@ -344,12 +344,12 @@ From `reviews/pr-60-check-3-medium.md`:
 - #1 (low): `.state-gap-14` in `web/src/styles.css` only restores `.state-card`'s 14 px gap that `.state-center` cancels; other centred cards stay 12 px.
 - #2 (low): the row-gap assertion in `e2e/active.spec.ts` hard-codes 14 px for the empty card only; the error card's 12 px is untested.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-16)
 
 - "Working now" is one rule, `isWorkingNow` in `src/domain/steps.ts`, which uses `isHeartbeatExpired` from `src/domain/stale.ts`; never add another copy (Slice 10: docs/plan/slices/10-task-steps.md).
 - The open item's address is `#/open/<key>` and the drawer follows the address (Slice 10: docs/plan/slices/10-task-steps.md).
 
-#### For README.md
+#### For README.md (lifted 2026-11-16)
 
 None: the README diff already carries the Active work view, the tile and drawer bar and the new `report_progress` fields.
 

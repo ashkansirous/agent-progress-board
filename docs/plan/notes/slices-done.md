@@ -13,3 +13,4 @@ Rows moved out of `plan.md`'s status table once built.
 | 5 | OAuth so claude.ai can use the MCP server | built | #42 | | [05](../slices/05-remote-mcp.md) |
 | 8 | Usage reports: tokens per model, cap readings, usage page | built | #53 | | [08](../slices/08-usage-reports.md) |
 | 9 | What 1% of the cap costs, per model | built | #57 | | [09](../slices/09-cap-cost-estimate.md) |
+| 10 | Task steps and the active work page | built | #60 | | [10](../slices/10-task-steps.md) |

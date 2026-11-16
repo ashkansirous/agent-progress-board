@@ -19,7 +19,6 @@ private Claude Code config repo; this repo hands them a tool reference and a cli
 
 | Slice | Title | Status | PR | Issue | File |
 | --- | --- | --- | --- | --- | --- |
-| 10 | Task steps and the active work page | planned | | | [10](docs/plan/slices/10-task-steps.md) |
 | 11 | Slice parts: progress bar on the slice, click through to the active part | planned | | | [11](docs/plan/slices/11-slice-parts.md) |
 
 Notes:
@@ -27,7 +26,7 @@ Notes:
 - [Finished slices](docs/plan/notes/slices-done.md): rows of built slices.
 - [Feedback loop 2026-11-15](docs/plan/notes/2026-11-15-1406-feedback-loop.md): what the end-of-run audit found.
 - Slices 1 to 7 are built and merged and deployed; 1 is verified, 5 works in claude.ai (owner, 2026-11-16; the phone check is open), and the open checks of the rest are in `docs/plan/unverified.md` (2026-11-16).
-- Slices 8 to 11 (owner, 2026-11-16) run in this order: 8, 9, 10, 11. Slices 8 and 9 are built (PRs #53, #57) and not deployed yet; 10, 11 remain, in that order. They edit the same server files, so one at a time. In each, part A (server) can be built now and part B (the page) is planned against the design mock the owner added on 2026-11-16 (`docs/design/`). The sending side is planned in the owner's private config repo.
+- Slices 8 to 11 (owner, 2026-11-16) run in this order: 8, 9, 10, 11. Slices 8, 9 and 10 are built (PRs #53, #57, #60) and not deployed yet; 11 remains. They edit the same server files, so one at a time. In each, part A (server) can be built now and part B (the page) is planned against the design mock the owner added on 2026-11-16 (`docs/design/`). The sending side is planned in the owner's private config repo.
 
 ## Decisions (from the phone scope, approved 2026-11-15)
 
@@ -52,7 +51,7 @@ Notes:
 
 ## Outstanding work
 
-- **Not yet tried on a device:** 23 checks across 7 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
+- **Not yet tried on a device:** 29 checks across 8 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
 - The D1 database and the Worker secrets exist.
 - The client guide (`docs/clients.md`) is ready (Slice 3); the owner's config repo can start its
   client.
@@ -86,7 +85,7 @@ Notes:
 - Follow-ups of built slices whose rows are in the finished list stay open in their slice files: [Slice 4](docs/plan/slices/04-doc-sync.md) *Follow-ups (open, not built)* (the summary counts include writes the stale-read guard skipped; a very large close fails the whole batch) and [Slice 7](docs/plan/slices/07-stale-detection.md) *Follow-ups*.
 - Follow-ups (Slice 8): open, not built, in [Slice 8](docs/plan/slices/08-usage-reports.md) *Follow-ups (open, not built)* (DST over a 30-day range, an unbounded `record_at` that makes `bucketKeys` loop, and three smaller query and sort items).
 - Follow-ups (Slice 9): open, not built, in [Slice 9](docs/plan/slices/09-cap-cost-estimate.md) *Follow-ups from review* (under *Built*): an environment's cap points are null if any use in the plan history is of a model with no fitted weight (the one that gives a wrong result), plus every usage read refits the whole history with no cache, the phone kinds card has no "not split" note, example palettes baked into the stored config, seven wording and rounding items, and the German sentence needs a native read.
-- **Deploy trigger, open tooling task:** add `.claude/merge-gate.json` with `workerPaths` (`src/**`, `web/**`, `migrations/**`, `wrangler.jsonc`, `package.json`) and a Workers Builds deploy hook URL in the secrets store, so a batch release starts the build. Creating the hook needs the Cloudflare dashboard (the machine's wrangler login has no Workers Builds scope). Slices 8 and 9 (PRs #53, #57) are merged but not deployed: the Worker's newest deployment was created 2026-11-16T13:02:51Z (read from `wrangler deployments list` at 16:10Z on 2026-11-16), before both merges, so migration 0003 is not applied on the live database yet. A batch release run by hand at 16:21Z on 2026-11-16 started nothing (its output: no runs, no hook), and the check "Workers Builds: agent-progress-board" on the newest commit of `main` at that time read `skipped`. The PR that adds this sentence is merged without the skip-CI marker, on the owner's question why the new tabs do not show, so that Workers Builds deploys `main` as it then stands.
+- **Deploy trigger, open tooling task:** add `.claude/merge-gate.json` with `workerPaths` (`src/**`, `web/**`, `migrations/**`, `wrangler.jsonc`, `package.json`) and a Workers Builds deploy hook URL in the secrets store, so a batch release starts the build. Creating the hook needs the Cloudflare dashboard (the machine's wrangler login has no Workers Builds scope). Slices 8 and 9 (PRs #53, #57) are merged but not deployed: the Worker's newest deployment was created 2026-11-16T13:02:51Z (read from `wrangler deployments list` at 16:10Z on 2026-11-16), before both merges, so migration 0003 is not applied on the live database yet. Slice 10 (PR #60) is merged but not deployed either, so migration 0004 is not applied on the live database (same cause). A batch release run by hand at 16:21Z on 2026-11-16 started nothing (its output: no runs, no hook), and the check "Workers Builds: agent-progress-board" on the newest commit of `main` at that time read `skipped`. The PR that adds this sentence is merged without the skip-CI marker, on the owner's question why the new tabs do not show, so that Workers Builds deploys `main` as it then stands.
 - Feedback loop of 2026-11-15: [note](docs/plan/notes/2026-11-15-1406-feedback-loop.md), with the open tooling findings it could not fix in its time.
 
 ## Risks / kill criteria

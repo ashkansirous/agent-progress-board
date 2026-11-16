@@ -58,3 +58,7 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
   docs/plan/slices/09-cap-cost-estimate.md).
 - A cost that includes a model with no fitted weight is null (dash), never 0 (Slice 9:
   docs/plan/slices/09-cap-cost-estimate.md).
+- "Working now" is one rule, `isWorkingNow` in `src/domain/steps.ts`, which uses `isHeartbeatExpired` from
+  `src/domain/stale.ts`; never add another copy (Slice 10: docs/plan/slices/10-task-steps.md).
+- The open item's address is `#/open/<key>` and the drawer follows the address (Slice 10:
+  docs/plan/slices/10-task-steps.md).

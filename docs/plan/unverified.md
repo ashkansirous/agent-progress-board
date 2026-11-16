@@ -5,8 +5,7 @@ owner confirms, is removed here and its slice marked `verified`.
 
 ### Slice 5: OAuth so claude.ai can use the MCP server ([slice](slices/05-remote-mcp.md))
 
-- The per-request env copy works on the deployed Worker (proven only in the Vitest Workers pool). Seen 2026-11-15: register, discovery, authorize and token routes answer repeatedly without error. Not seen: a full grant (the passphrase POST was not run).
-- claude.ai accepts the connector (registration, the 401 pointer on POST, 405 on GET, consent page, token) and "what's waiting for me?" lists the right items from claude.ai mobile.
+- The same question ("what's waiting for me on the agent progress board?") from the claude.ai app on a phone. Seen by the owner 2026-11-16: the connector added and the question answered in a claude.ai chat; the device was not said.
 - A static bearer token with `public_origin` set and a different request host still gets through (check-2 finding 8).
 
 ### Slice 7: Stale detection ([slice](slices/07-stale-detection.md))

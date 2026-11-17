@@ -3,6 +3,10 @@
 Every open "Not yet verified" check, one block per slice. A check that passes, or that the
 owner confirms, is removed here and its slice marked `verified`.
 
+### Slice 27: Every "Needs you" card says what is needed, for which work, and why ([slice](slices/27-needs-you-cards.md))
+
+- In a real Claude Code session with the plugin: an idle prompt after a status line opens no card; one after a question opens a card with that question; a permission prompt card names the tool and command.
+
 ### Slice 22: Token usage and cap readings from the plugin ([slice](slices/22-plugin-usage.md))
 
 - In a real Claude Code session with the plugin installed, tokens reach the board and join the session card.

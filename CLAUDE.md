@@ -106,3 +106,9 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
 - The park-reason rule (which `parked:` reasons give a blocked slice and no waiting card) lives only in
   `waitsOnlyOnWork` in `plugin/scripts/sync-docs.mjs`; `plugin/skills/agent-board/SKILL.md` describes it in words,
   so change the function and the words together (Slice 23: docs/plan/slices/23-plugin-plan-sync.md).
+- The chat instruction text reaches the owner only through `GET /api/chat-text` behind the Access check
+  (`src/api/chatText.ts`), read from `SERVER_INSTRUCTIONS` and `CHAT_PREFACE`; never a hand copy in `web/` or docs
+  (Slice 19: docs/plan/slices/19-chat-text.md).
+- A waiting card from the plugin's Notification hook opens only when something is asked (permission, elicitation, or an
+  idle prompt after a question); its text is masked by `maskSecrets` in `plugin/scripts/hooks/waiting-card.mjs` before it
+  leaves the machine; never send transcript text unmasked (Slice 27: docs/plan/slices/27-needs-you-cards.md).

@@ -38,6 +38,10 @@ collapse anywhere (`web/src`).
 - The collapsed state is a per-viewer convenience kept in `localStorage`, read and written inside
   `try`/`catch`; the page renders every project expanded when storage fails (a quiet one too; e2e checks it). A project with something
   under "Needs you" opens expanded on load whatever was stored, so a question is never hidden.
+  **As built (decision recorded by the feedback loop of 2026-11-17):** a click is stored with the question keys
+  the block showed then (`resolveOpen`, `web/src/foldRules.ts:41-45`); a block opens on load only for a question
+  key that click did not see. A block the owner folded while it already showed that question stays folded. This
+  keeps the mock's rule ("after that it folds like any other") and never hides a new question.
   (Not in the mock: the mock keeps the state in memory only. The rule is the mock's own, "a project
   with a question opens on load; after that it folds like any other", plus the storage.)
 - **The default for a project with no stored state** (from the mock, `renderVals` line 346 to 348):

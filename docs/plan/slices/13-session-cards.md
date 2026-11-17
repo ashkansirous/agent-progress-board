@@ -301,3 +301,4 @@ The doubled seed history note was fixed after the run and not re-run in a browse
 - The owner's comparison of the deployed page with the mocks.
 - The drawer history of a working card with several events, in a browser.
 - The 1.5px border (renders as 1px in the browser run).
+- The seeded question's drawer history shows each event once (the doubled row was fixed after the browser run and not re-run).

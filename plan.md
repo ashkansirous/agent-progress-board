@@ -19,8 +19,11 @@ private Claude Code config repo; this repo hands them a tool reference and a cli
 
 | Slice | Title | Status | PR | Issue | File |
 | --- | --- | --- | --- | --- | --- |
+| 17 | Parallel worktrees do not share an e2e server; scratch scripts do not fail lint | parked: feedback loop, waits for the user | | | [slice](docs/plan/slices/17-test-isolation.md) |
 
 Notes:
+
+- [Feedback loop 2026-11-17](docs/plan/notes/2026-11-17-1216-feedback-loop.md): what the audit of the third night found.
 
 - [Finished slices](docs/plan/notes/slices-done.md): rows of built slices.
 - [Feedback loop 2026-11-15](docs/plan/notes/2026-11-15-1406-feedback-loop.md): what the end-of-run audit found.
@@ -52,10 +55,11 @@ Notes:
 
 ## Outstanding work
 
-- **Not yet tried on a device:** 45 checks across 13 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
+- **Not yet tried on a device:** 46 checks across 13 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
 - **Waiting on the user (Slice 16):** add the instruction text from `docs/clients.md` at [claude.ai settings, Your Claude, Instructions](https://claude.ai/settings), so chats and Claude Design sessions report to the board.
-- Slices 13 and 14 are live: deployment created 2026-11-17T15:07:11Z, and `wrangler d1 migrations list --remote` read at about 16:20Z shows none left, so 0006 and 0007 are applied. Slices 15 and 16 merged after it (16:05Z and 15:57Z, skip-CI marker); they go live when the driver's batched release posts the Workers Builds deploy hook.
-- Tooling, for the feedback loop: merge-gate's skip check resolves cited `reviews/...` paths only from the session folder, its top level and parent, not `<repo>-worktrees`; Slice 14's file cites them as `../agent-progress-board-worktrees/reviews/...` to pass.
+- Slices 1 to 16 are live: the night's batched release called the deploy hook at 16:17:54Z and `wrangler deployments list` (read 16:25Z) shows a deployment created 2026-11-17T16:19:30Z, after Slices 15 and 16 merged; 0006 and 0007 were already applied (read about 16:20Z).
+- Follow-ups (Slice 13): open, not built, in [Slice 13](docs/plan/slices/13-session-cards.md) *Follow-ups from check pass 2*: `working_count` drops an in-progress item with an open question, and `askOnItem` accepts part and doc-synced items while a blank `why` wipes an open question (the two mediums), plus seven lows.
+- Follow-ups (Slice 14): open, not built, in [Slice 14](docs/plan/slices/14-checks-in-slice.md) *Follow-ups*: a doc slice retypes a live bug, problem, part or check that shares its key; a doc-synced bug or problem the document dropped is never closed; checks holding a question leak into counts and Active; duplicate part letters are skipped quietly; a stale part looks like the working part (the mediums), plus the lows.
 - Done 2026-11-17: the owner added the board-by-project artboards to the [design canvas](https://claude.ai/artifact/PZyqwkfjuwQkE4BE6UfeDd); they are copied into `docs/design/` and part B of Slices 13 and 14 and all of 15 are rewritten to them.
 - [PR #73](https://github.com/ashkansirous/agent-progress-board/pull/73) merged without a review round (owner, 2026-11-17: "you dont need to wait for my fucking reviews! fucking merge them always"); its four open points stand as written in the slices unless the owner overrules one. The part B waves of Slices 13 to 15 can start.
 - The D1 database and the Worker secrets exist.

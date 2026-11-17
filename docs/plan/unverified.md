@@ -18,7 +18,7 @@ owner confirms, is removed here and its slice marked `verified`.
 ### Slice 14: Untested checks live inside their slice, and problems get their own list ([slice](slices/14-checks-in-slice.md))
 
 - On the deployed board after a real doc sync: no card per check, and the header total equals the count line in `plan.md` (needs the config repo's client to send `checks`).
-- Migration 0007 applied on the live D1 (it goes live only with a release; merges carry the skip-CI marker).
+- Migration 0007 is applied on the live D1 (`wrangler d1 migrations list --remote` showed none left at about 16:20Z on 2026-11-17); still to check: the `items` and `events` row counts survived its table rebuild (Slice 14 check pass #8, "confirm on real D1").
 - The owner compares the deployed page with `BoardV2.dc.html` and `BoardV2Dark.dc.html`.
 
 ### Slice 13: A session card says what it is doing and what it needs ([slice](slices/13-session-cards.md))
@@ -29,6 +29,7 @@ owner confirms, is removed here and its slice marked `verified`.
 - The owner's comparison of the deployed page with the mocks.
 - The drawer history of a working card with several events, in a browser.
 - The 1.5px border (renders as 1px in the browser run).
+- The seeded question's drawer history shows each event once (the doubled row was fixed after the browser run and not re-run).
 
 ### Slice 11: Slice parts: progress bar on the slice, click through to the active part ([slice](slices/11-slice-parts.md))
 

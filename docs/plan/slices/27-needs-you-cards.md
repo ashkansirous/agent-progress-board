@@ -15,7 +15,7 @@ description?! what the fuck do you need from me?").* Read live at 20:2x from `li
   "Waiting on you: <slice title>", `why` is empty or the park reason, no link to the slice, no description of what
   the step is for.
 
-**Touches:** `plugin/scripts/hooks/**`, `plugin/scripts/sync-docs.mjs`, `plugin/scripts/sync-docs.test.mjs`, `plugin/scripts/report-progress.mjs`, `plugin/skills/agent-board/SKILL.md`, `src/mcp/instructions.ts`, `src/domain/**`, `web/src/**`, `test/**`, `e2e/**`, `docs/clients.md`, `docs/plan/slices/27-needs-you-cards.md`
+**Touches:** `plugin/scripts/hooks/**`, `plugin/hooks/hooks.json`, `plugin/scripts/sync-docs.mjs`, `plugin/scripts/sync-docs.test.mjs`, `plugin/scripts/report-progress.mjs`, `plugin/skills/agent-board/SKILL.md`, `src/mcp/instructions.ts`, `src/domain/**`, `web/src/**`, `test/**`, `e2e/**`, `docs/clients.md`, `docs/plan/slices/27-needs-you-cards.md`
 
 **Migrations:** none
 

@@ -1,5 +1,7 @@
 ### Slice 20 — A Claude Code plugin and a setup guide: any Claude Code connects itself to a board
 
+*In progress (wave 2026-11-17), draft PR.*
+
 *Planned and accepted (owner, 2026-11-17, "/RefineScope this is a board. it is generic and is supposed to be plug and
 play and usabel by the ai agents ... a client tells its claude code to install it and on board it self ... If they
 need a skill or sub agent to use, write a skill and ask them to install it ... if we improve our innstructions,

@@ -1,5 +1,7 @@
 ### Slice 21 — Session cards report themselves from the plugin's hooks
 
+*In progress (wave 2026-11-17), draft PR.*
+
 *Planned and accepted with Slice 20 (owner, 2026-11-17; decisions in
 [Slice 20](20-plugin-connect.md)). Starts after Slice 20.* Moves the reporter CLI and the session hooks from the
 owner's config repo (`skills/report-progress/`: `report-progress.mjs`, `hooks/hook-input.mjs`,

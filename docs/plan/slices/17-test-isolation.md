@@ -1,5 +1,7 @@
 ### Slice 17 — Parallel worktrees do not share an e2e server, and scratch scripts do not fail lint
 
+*In progress (wave 2026-11-17), draft PR.*
+
 *Planned: the owner's go on 2026-11-17 ("yes put slice 17 to fix the fucking board"). Found by the feedback loop of
 night 2026-11-17-1216 ([note](../notes/2026-11-17-1216-feedback-loop.md)).* Test tooling only, no product change.
 Entry numbers are from that loop's digest.

@@ -5,9 +5,9 @@ owner confirms, is removed here and its slice marked `verified`.
 
 ### Slice 16: Claude chat and Claude Design report to the board, and their use counts ([slice](slices/16-chat-reports.md))
 
-- Claude Design calling the connector: unproven (see the first Work item). The owner tries the instruction text in a Design session once.
+- **You:** paste the instruction text from `docs/clients.md` (section "Claude chat") into https://claude.ai/settings, Your Claude, Instructions, and save; then a new chat that does some work shows a card under "my-chats" within a minute.
+- **You:** try the same instruction once in a Claude Design session and say whether a card appears (Claude Design calling the connector is unproven; see the first Work item).
 - A real claude.ai chat reporting through the connector and the usage page's "Claude chat" row.
-- The owner adds the instruction text from `docs/clients.md` at https://claude.ai/settings (Your Claude, Instructions).
 - Claude Design and custom connectors are unproven in the docs.
 
 ### Slice 15: One collapsible block per project, done work always folded ([slice](slices/15-project-blocks.md))

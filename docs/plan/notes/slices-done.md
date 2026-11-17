@@ -21,3 +21,4 @@ Rows moved out of `plan.md`'s status table once built.
 | 15 | One collapsible block per project, done work always folded | built | #82 | | [15](../slices/15-project-blocks.md) |
 | 16 | Claude chat and Claude Design report to the board, and their use counts | built | #83 | | [16](../slices/16-chat-reports.md) |
 | 17 | Parallel worktrees do not share an e2e server; scratch scripts do not fail lint | built | #90 | | [17](../slices/17-test-isolation.md) |
+| 18 | Every AI that connects to the board is told how to report (server instructions, setup guide) | built | #94 | | [18](../slices/18-agent-setup.md) |

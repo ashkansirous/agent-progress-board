@@ -19,7 +19,6 @@ private Claude Code config repo; this repo hands them a tool reference and a cli
 
 | Slice | Title | Status | PR | Issue | File |
 | --- | --- | --- | --- | --- | --- |
-| 18 | Every AI that connects to the board is told how to report (server instructions, setup guide) | planned | | | [slice](docs/plan/slices/18-agent-setup.md) |
 
 Notes:
 
@@ -54,7 +53,7 @@ Notes:
 
 ## Outstanding work
 
-- **Not yet tried on a device:** 46 checks across 13 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
+- **Not yet tried on a device:** 47 checks across 14 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
 - **Waiting on the user (Slice 16):** add the instruction text from `docs/clients.md` at [claude.ai settings, Your Claude, Instructions](https://claude.ai/settings), so chats and Claude Design sessions report to the board.
 - Slices 1 to 16 are live: the night's batched release called the deploy hook at 16:17:54Z and `wrangler deployments list` (read 16:25Z) shows a deployment created 2026-11-17T16:19:30Z, after Slices 15 and 16 merged; 0006 and 0007 were already applied (read about 16:20Z).
 - Follow-ups (Slice 13): open, not built, in [Slice 13](docs/plan/slices/13-session-cards.md) *Follow-ups from check pass 2*: `working_count` drops an in-progress item with an open question, and `askOnItem` accepts part and doc-synced items while a blank `why` wipes an open question (the two mediums), plus seven lows.

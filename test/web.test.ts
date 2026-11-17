@@ -3,7 +3,8 @@ import type { BoardItemDto, BoardResponse } from "../src/api/boardDto";
 import { ItemStatus, ItemType, Priority } from "../src/domain/item";
 import { boardReducer, INITIAL_STATE } from "../web/src/boardState";
 import type { StepState } from "../src/domain/stepTypes";
-import { activeTasks, groupByProject, projectLabel, waitingItems } from "../web/src/model";
+import { groupBoard } from "../src/domain/boardGroups";
+import { activeTasks, projectLabel, waitingItems } from "../web/src/model";
 import { openItemHash, openKeyOf, Route, routeOf } from "../web/src/route";
 import { currentStepText, progressText, stepWords } from "../web/src/stepsText";
 import { LOCALES, pickLocale, translator } from "../web/src/strings";
@@ -14,7 +15,7 @@ const NOW = Date.parse("2026-11-15T13:48:00.000Z");
 
 function item(over: Partial<BoardItemDto>): BoardItemDto {
   return {
-    key: "p/x", project: "p", parent: null, parent_slice: null, parent_key: null, type: ItemType.Slice, priority: Priority.P2, status: ItemStatus.Open,
+    key: "p/x", project: "p", parent: null, parent_slice: null, parent_key: null, slice: null, checks: null, type: ItemType.Slice, priority: Priority.P2, status: ItemStatus.Open,
     title: "T", why: null, details_md: null, links: [], heartbeat_at: "2026-11-15T10:00:00.000Z",
     created_at: "2026-11-15T09:00:00.000Z", done_at: null, environment: null, environment_label: null,
     agent: null, model: null, needs_you: null, after_answer: null, needs_you_at: null, steps: null, progress: null, working: false, parts: null, parts_progress: null, active_part_key: null, events: [], ...over,
@@ -34,15 +35,17 @@ describe("grouping and order", () => {
   ];
   const projects = [{ id: "z", label: "Zed" }, { id: "empty", label: "Nothing" }, { id: "a", label: "Alpha" }];
 
+  const ids = projects.map((p) => p.id);
+
   it("lists configured projects first, in config order, then others by id, and skips empty ones", () => {
-    expect(groupByProject(items, projects).map((g) => g.label)).toEqual(["Zed", "Alpha", "b"]);
+    expect(groupBoard(items, [], ids).map((g) => g.id)).toEqual(["z", "a", "b"]);
   });
 
-  it("sorts waiting by priority then oldest ask, in flight by priority, done newest first", () => {
-    const alpha = groupByProject(items, projects).find((g) => g.id === "a")!;
-    expect(alpha.waiting.map((i) => i.key)).toEqual(["a/w0", "a/w1"]);
-    expect(alpha.inFlight.map((i) => i.key)).toEqual(["a/2", "a/1"]);
-    expect(alpha.done.map((i) => i.key)).toEqual(["a/d2", "a/d1"]);
+  it("sorts waiting by priority then oldest ask, planned by number then key, done newest first", () => {
+    const alpha = groupBoard(items, [], ids).find((g) => g.id === "a")!;
+    expect(alpha.needs_you).toEqual(["a/w0", "a/w1"]);
+    expect(alpha.planned.map((s) => s.key)).toEqual(["a/1", "a/2"]);
+    expect(alpha.done.recent.map((row) => row.key)).toEqual(["a/d2", "a/d1"]);
     expect(waitingItems(items).map((i) => i.key)).toEqual(["a/w0", "a/w1"]);
   });
 

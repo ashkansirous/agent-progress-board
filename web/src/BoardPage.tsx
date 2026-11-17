@@ -1,12 +1,15 @@
 import { useEffect, useMemo } from "react";
-import type { BoardResponse } from "../../src/api/boardDto";
+import type { BoardItemDto, BoardResponse } from "../../src/api/boardDto";
+import type { ProjectGroups } from "../../src/domain/boardGroups";
+import { ItemType } from "../../src/domain/item";
 import type { BoardState } from "./boardState";
 import { Detail } from "./Detail";
 import { Header } from "./Header";
 import { opensCardDrawer } from "./cards";
-import { groupByProject, questionItems, waitingItems } from "./model";
+import { LooseChecksDrawer } from "./LooseChecksDrawer";
+import { itemsByKey, questionItems, waitingItems } from "./model";
 import { ProjectGroup } from "./ProjectGroup";
-import { Route } from "./route";
+import { looseProjectOf, Route } from "./route";
 import { QuestionList } from "./SessionCards";
 import { SessionDrawer } from "./SessionDrawer";
 import { EmptyCard, ErrorCard, LoadingCard } from "./StatePanels";
@@ -30,27 +33,54 @@ export interface PageProps {
   onRefresh: () => void;
 }
 
+/** The slice items by key (a card's `parent_key` names one). */
+function sliceItems(items: BoardItemDto[]): Map<string, BoardItemDto> {
+  return new Map(items.filter((item) => item.type === ItemType.Slice).map((item) => [item.key, item]));
+}
+
+/** The groups come from the Worker: the page draws them as given and never sorts items into lists itself. */
 function Groups({ data, phone, onOpen }: { data: BoardResponse; phone: boolean; onOpen: (key: string) => void }) {
-  const groups = groupByProject(data.items, data.config.projects);
+  const items = itemsByKey(data.items);
   return (
     <>
       {phone && <QuestionList items={questionItems(data.items)} onOpen={onOpen} />}
       <WaitingStrip items={waitingItems(data.items)} onOpen={onOpen} />
-      {groups.map((group) => (
-        <ProjectGroup key={group.id} group={group} onOpen={onOpen} />
+      {data.groups.map((group) => (
+        <ProjectGroup key={group.id} group={group} items={items} onOpen={onOpen} />
       ))}
     </>
   );
 }
 
+/** What the address asks to open: an item, a project's loose checks, or nothing on the board. */
+type OpenTarget = { loose: ProjectGroups; item?: undefined } | { item: BoardItemDto; loose?: undefined };
+
+function openTarget(data: BoardResponse | null, key: string | null): OpenTarget | null {
+  if (!data || key === null) return null;
+  const projectId = looseProjectOf(key);
+  if (projectId !== null) {
+    const group = data.groups.find((g) => g.id === projectId);
+    return group && group.loose_checks.length > 0 ? { loose: group } : null;
+  }
+  const item = data.items.find((candidate) => candidate.key === key);
+  return item ? { item } : null;
+}
+
 function Body({ props, onOpen }: { props: PageProps; onOpen: (key: string) => void }) {
   const { state, onRefresh } = props;
   if (state.data) {
-    return state.data.items.length === 0 ? <EmptyCard hours={state.data.window_hours} /> : <Groups data={state.data} phone={props.env.phone} onOpen={onOpen} />;
+    return state.data.groups.length === 0 ? <EmptyCard hours={state.data.window_hours} /> : <Groups data={state.data} phone={props.env.phone} onOpen={onOpen} />;
   }
   if (state.slow) return <LoadingCard />;
   if (state.error) return <ErrorCard status={state.error.status} onRetry={onRefresh} />;
   return null;
+}
+
+function OpenDrawer({ target, onClose }: { target: OpenTarget; onClose: () => void }) {
+  const { item, loose } = target;
+  if (loose) return <LooseChecksDrawer projectId={loose.id} checks={loose.loose_checks} onClose={onClose} />;
+  if (!item) return null;
+  return opensCardDrawer(item) ? <SessionDrawer item={item} onClose={onClose} /> : <Detail item={item} onClose={onClose} />;
 }
 
 /** The words, colours, layout and "now" the board's components draw with; the Active work page shares it. */
@@ -65,8 +95,10 @@ export function useViewValue(props: Pick<PageProps, "state" | "env">): View {
       nowMs: serverTime ? Date.parse(serverTime) : 0,
       hours: state.data?.window_hours ?? 0,
       projects: state.config?.projects ?? [],
+      slices: sliceItems(state.data?.items ?? []),
     }),
-    [env, state.config, state.data?.window_hours, serverTime],
+    // The slices follow the data, not only its clock: a refresh with the same server time is not one.
+    [env, state.config, state.data?.window_hours, serverTime, state.data?.items],
   );
 }
 
@@ -75,7 +107,7 @@ export function BoardPage(props: PageProps) {
   const { state, env, onRefresh } = props;
   const { openKey, open: onOpen, close } = useOpenItem();
   const view = useViewValue(props);
-  const open = state.data?.items.find((item) => item.key === openKey);
+  const open = openTarget(state.data, openKey);
   // The detail shows when the address names a key and that item is in the data. The address is
   // cleared when a successful load lacks the item, and when a refresh fails after data was shown
   // (the board drops its data). A first load that fails or is running leaves it.
@@ -99,7 +131,7 @@ export function BoardPage(props: PageProps) {
           <Body props={props} onOpen={onOpen} />
         </div>
         {env.phone && <ViewTabs current={Route.Board} phone t={env.t} activeCount={state.data?.working_count} />}
-        {open && (opensCardDrawer(open) ? <SessionDrawer item={open} onClose={close} /> : <Detail item={open} onClose={close} />)}
+        {open && <OpenDrawer target={open} onClose={close} />}
       </div>
     </ViewProvider>
   );

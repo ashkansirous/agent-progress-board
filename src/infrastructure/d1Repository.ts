@@ -49,9 +49,10 @@ interface EventRow extends ItemEvent {
 
 /**
  * What the board lists: open items and those done inside the window, plus the parts of a slice that is
- * itself listed, however long ago a part was done (a slice's bar counts every part; Slice 11).
+ * itself listed, however long ago a part was done (a slice's bar counts every part; Slice 11). Only parts
+ * and checks ride along: a bug or problem that names a slice is listed by its own status and window.
  */
-const BOARD_WHERE = `(status != 'done' OR done_at > ?1 OR (parent_key IS NOT NULL AND parent_key IN (
+const BOARD_WHERE = `(status != 'done' OR done_at > ?1 OR (type IN ('part', 'check') AND parent_key IS NOT NULL AND parent_key IN (
     SELECT p.key FROM items p WHERE p.status != 'done' OR p.done_at > ?1)))
   AND (?2 IS NULL OR project = ?2) AND (?3 IS NULL OR type = ?3)`;
 
@@ -157,7 +158,7 @@ const SYNC_UPSERT = `INSERT INTO items (key, project, parent, type, priority, st
   source, heartbeat_at, created_at, updated_at, done_at, in_doc_sync, doc_status, doc_status_at, live_status_at,
   parent_key)
   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)
-  ON CONFLICT (key) DO UPDATE SET parent = excluded.parent, parent_key = excluded.parent_key,
+  ON CONFLICT (key) DO UPDATE SET type = excluded.type, parent = excluded.parent, parent_key = excluded.parent_key,
   status = excluded.status,
   title = excluded.title, why = excluded.why, links = excluded.links, source = excluded.source,
   updated_at = excluded.updated_at, done_at = excluded.done_at, in_doc_sync = excluded.in_doc_sync,

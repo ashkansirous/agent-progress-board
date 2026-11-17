@@ -28,6 +28,21 @@ export function openKeyOf(hash: string): string | null {
   }
 }
 
+/**
+ * The "checks with no open slice" drawer of a project opens at the same address as an item, under a key no
+ * item can have (item keys never start with this prefix: a check's key is `<slice>/check-N`).
+ */
+const LOOSE_PREFIX = "loose-checks:";
+
+export function looseChecksKey(projectId: string): string {
+  return `${LOOSE_PREFIX}${projectId}`;
+}
+
+/** The project a loose-checks key names, or null when the key is an item's. */
+export function looseProjectOf(key: string | null): string | null {
+  return key !== null && key.startsWith(LOOSE_PREFIX) ? key.slice(LOOSE_PREFIX.length) : null;
+}
+
 /** Active work with one item's card expanded, e.g. `#/active/demo-app%2Fslice-7%2Fpart-B`; the slice's follow links go here (Slice 11). */
 const ACTIVE_PREFIX = "#/active/";
 

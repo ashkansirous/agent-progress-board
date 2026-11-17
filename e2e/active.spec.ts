@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import type { BoardResponse } from "../src/api/boardDto";
 import exampleConfig from "../config/board.example.json" with { type: "json" };
+import { ItemStatus } from "../src/domain/item";
 import { activeBoard, activeTasks, CRASH, PART_B, PART_C, STALE } from "./activeFixture";
 import { demoBoard, SERVER_TIME } from "./fixture";
 
@@ -252,32 +253,29 @@ test.describe("steps on the board", () => {
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   }
 
+  /** Slice 9 is held by an agent with a steps list, so it is a card under Working now. */
   const sliceNine = (page: Page) =>
-    page.locator("button.tile").filter({ has: page.locator(".tile-title").getByText("Slice 9 · Frost alerts", { exact: true }) });
+    page.locator("button.session-card").filter({ has: page.locator(".session-goal").getByText("Slice 9 · Frost alerts", { exact: true }) });
+  const sliceCard = (page: Page, words: string) =>
+    page.locator("button.slice-card").filter({ has: page.locator(".slice-title").getByText(words, { exact: true }) });
 
   test("the board's Active work tab carries the count", async ({ page }) => {
     await openBoard(page);
     await expect(tabs(page).getByRole("link", { name: /^Active work/ }).locator(".tab-count")).toHaveText("1");
   });
 
-  test("a task's tile shows the step now, the counts and the bar in the type's colours", async ({ page }) => {
+  test("a working task's card shows its steps with the one now marked", async ({ page }) => {
     await openBoard(page);
-    const tile = sliceNine(page);
-    await expect(tile.locator(".tile-steps-now")).toHaveText("Review 2");
-    await expect(tile.locator(".tile-steps-count")).toHaveText("3 of 7 steps · 43%");
-    const bar = tile.locator(".step-bar");
-    await expect(bar).toHaveAttribute("aria-hidden", "true");
-    expect(await css(bar, "height")).toBe("6px");
-    const type = exampleConfig.types.slice[scheme()];
-    const colours = await bar.locator(".seg").evaluateAll((els) => els.map((el) => getComputedStyle(el).backgroundColor));
-    expect(colours).toEqual([...Array<string>(3).fill(rgbOf(type.fg)), rgbOf(type.border), ...Array<string>(3).fill(rgbOf(palette().stepPendingTile))]);
+    const chips = sliceNine(page).getByRole("list", { name: "Steps" }).getByRole("listitem");
+    await expect(chips).toHaveCount(7);
+    await expect(chips.nth(3)).toHaveText("●Review 2");
+    expect(await css(chips.nth(3), "background-color")).toBe(rgbOf(palette().nowBg));
   });
 
-  test("a task with no steps list has no steps row on its tile", async ({ page }) => {
+  test("a task with no steps list is not under Working now", async ({ page }) => {
     await openBoard(page);
-    const plain = page.locator("button.tile").filter({ has: page.locator(".tile-title").getByText("Slice 4 · Tag search", { exact: true }) });
-    await expect(plain).toBeVisible();
-    await expect(plain.locator(".tile-steps")).toHaveCount(0);
+    await expect(sliceCard(page, "Tag search")).toBeVisible();
+    await expect(page.locator("button.session-card").filter({ hasText: "Tag search" })).toHaveCount(0);
   });
 
   test("the drawer has a Steps section after the fields, with who holds the task and no notes", async ({ page }) => {
@@ -297,24 +295,24 @@ test.describe("steps on the board", () => {
 
   test("a drawer of a task with no steps has no Steps section", async ({ page }) => {
     await openBoard(page);
-    await page.locator("button.tile").filter({ has: page.locator(".tile-title").getByText("Slice 4 · Tag search", { exact: true }) }).click();
+    await sliceCard(page, "Tag search").click();
     await expect(page.getByRole("dialog", { name: "Item details" })).toBeVisible();
     await expect(page.locator(".steps-section")).toHaveCount(0);
   });
 
-  test("a done task reads 100% on its tile whatever its list says", async ({ page }) => {
+  test("a done task reads 100% in its drawer whatever its list says", async ({ page }) => {
     const board = demoBoard();
     const done = board.items.map((item) =>
       item.key === "garden-planner/slice-9"
-        ? { ...item, status: "done" as const, done_at: SERVER_TIME, progress: { done: 7, total: 7, percent: 100, current: null }, working: false }
+        ? { ...item, status: ItemStatus.Done, done_at: SERVER_TIME, progress: { done: 7, total: 7, percent: 100, current: null }, working: false }
         : item,
     );
     await page.clock.setFixedTime(new Date(SERVER_TIME));
-    await page.route(BOARD_ROUTE, (route) => route.fulfill({ json: { ...board, items: done } }));
+    await page.route(BOARD_ROUTE, (route) => route.fulfill({ json: demoBoard(done) }));
     await page.goto("/");
-    const tile = sliceNine(page);
-    await expect(tile.locator(".tile-steps-count")).toHaveText("7 of 7 steps · 100%");
-    await expect(tile.locator(".tile-steps-now")).toHaveText("Done");
+    await page.locator("section.project", { hasText: "Garden Planner" }).getByRole("button", { name: /done in the last 12 hours/ }).click();
+    await page.locator("button.done-row").filter({ hasText: "Slice 9 · Frost alerts" }).click();
+    await expect(page.locator(".steps-count")).toHaveText("7 of 7 steps · 100%");
   });
 });
 
@@ -324,9 +322,11 @@ test("the stale task keeps its steps on the board but is not counted", async ({ 
   await page.route(BOARD_ROUTE, (route) => route.fulfill({ json: board }));
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-  const stale = page.locator("button.tile").filter({ has: page.locator(".tile-title").getByText("Slice 10 · Seed inventory", { exact: true }) });
-  await expect(stale).toContainText("Stale");
-  await expect(stale.locator(".tile-steps-count")).toHaveText("1 of 3 steps · 33%");
+  const stale = page.locator("button.slice-card").filter({ has: page.locator(".slice-title").getByText("Seed inventory", { exact: true }) });
+  await expect(stale).toContainText("Planned");
+  await stale.click();
+  await expect(page.getByRole("dialog").locator(".steps-count")).toHaveText("1 of 3 steps · 33%");
+  await page.keyboard.press("Escape");
   expect(STALE).toBe("garden-planner/slice-10");
   await expect(tabs(page).getByRole("link", { name: /^Active work/ }).locator(".tab-count")).toHaveText("3");
 });

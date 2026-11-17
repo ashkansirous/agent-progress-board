@@ -1,20 +1,35 @@
 import type { BoardItemDto } from "../../src/api/boardDto";
-import type { ProjectGroup as Group } from "./model";
-import { QuestionList, SessionList, StaleRow } from "./SessionCards";
+import type { ProjectGroups } from "../../src/domain/boardGroups";
+import { isQuestion } from "./cards";
+import { DoneSection } from "./DoneSection";
+import { projectLabel } from "./model";
+import { PlannedSection } from "./PlannedSection";
+import { summaryText } from "./planningText";
+import { ProblemsSection } from "./ProblemsSection";
+import { QuestionList, SessionList } from "./SessionCards";
 import { Tile } from "./Tile";
+import { looseChecksKey } from "./route";
 import { useView } from "./view";
 
 interface GroupProps {
-  group: Group;
+  group: ProjectGroups;
+  items: Map<string, BoardItemDto>;
   onOpen: (key: string) => void;
 }
 
-function Section({ label, items, onOpen }: { label: string; items: BoardItemDto[]; onOpen: (key: string) => void }) {
+function itemsOf(keys: string[], items: Map<string, BoardItemDto>): BoardItemDto[] {
+  return keys.flatMap((key) => {
+    const item = items.get(key);
+    return item ? [item] : [];
+  });
+}
+
+function Section({ label, list, onOpen }: { label: string; list: BoardItemDto[]; onOpen: (key: string) => void }) {
   return (
     <div className="section">
       <h3>{label}</h3>
       <div className="tiles">
-        {items.map((item) => (
+        {list.map((item) => (
           <Tile key={item.key} item={item} onOpen={onOpen} />
         ))}
       </div>
@@ -22,69 +37,46 @@ function Section({ label, items, onOpen }: { label: string; items: BoardItemDto[
   );
 }
 
-function summaryOf(group: Group, view: ReturnType<typeof useView>): string {
-  const { t, phone, hours } = view;
-  const parts: string[] = [];
-  const waiting = group.waiting.length + group.needs.length;
-  if (waiting > 0) {
-    parts.push(t(phone ? "summaryWaitingShort" : "summaryWaiting", { n: waiting }));
-  }
-  parts.push(t("summaryOpen", { n: group.inFlight.length + group.working.length }));
-  parts.push(t(phone ? "summaryDoneShort" : "summaryDone", { n: group.done.length + group.staleSessions.length, hours }));
-  return parts.join(" · ");
-}
-
-/** The Done section: the finished tiles, with the stopped session cards as dashed rows first. */
-function DoneSection({ group, onOpen }: GroupProps) {
-  const { t, hours } = useView();
-  const count = group.done.length + group.staleSessions.length;
-  return (
-    <div className="section">
-      <h3>{t("doneN", { hours, n: count })}</h3>
-      {group.staleSessions.length > 0 && (
-        <div className="stale-rows">
-          {group.staleSessions.map((item) => (
-            <StaleRow key={item.key} item={item} onOpen={onOpen} />
-          ))}
-        </div>
-      )}
-      {group.done.length > 0 && (
-        <div className="tiles">
-          {group.done.map((item) => (
-            <Tile key={item.key} item={item} onOpen={onOpen} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
+/** Nothing here for the phone's list: its questions are above the projects and the rest is empty. */
+function isQuietOnPhone(group: ProjectGroups): boolean {
+  const { summary } = group;
+  const shown = summary.working + summary.planned + summary.problems + summary.checks_not_tried + group.other.length + group.done.count;
+  return shown === 0;
 }
 
 /**
- * One project: its name and counts, then its sections. A project's questions sit under its name on
- * desktop; the phone lists every question above the projects and leaves a note here. The phone's
- * old-shape waiting items live in the strip above.
+ * One project: its name and summary line, then the lists the server sorted (Needs you, Working now,
+ * Planned, Problems and bugs, Done). A project's questions sit under its name on desktop; the phone
+ * lists every question above the projects and leaves a note here. Nothing here regroups.
  */
-export function ProjectGroup({ group, onOpen }: GroupProps) {
-  const view = useView();
-  const { t, phone } = view;
-  const hasCards = group.needs.length + group.working.length + group.staleSessions.length;
-  if (phone && group.inFlight.length + group.done.length + hasCards === 0) return null;
+export function ProjectGroup({ group, items, onOpen }: GroupProps) {
+  const { t, phone, projects } = useView();
+  if (phone && isQuietOnPhone(group)) return null;
+  const needs = itemsOf(group.needs_you, items);
+  const questions = needs.filter(isQuestion);
+  const waiting = needs.filter((item) => !isQuestion(item));
   return (
     <section className="project">
       <div className="project-head">
-        <h2>{group.label}</h2>
-        <span className="project-summary">{summaryOf(group, view)}</span>
+        <h2>{projectLabel(group.id, projects)}</h2>
+        <span className={group.summary.needs_you > 0 ? "project-summary project-summary-needs" : "project-summary"}>
+          {summaryText(group.summary, t)}
+        </span>
       </div>
-      {!phone && <QuestionList items={group.needs} onOpen={onOpen} />}
-      {phone && group.needs.length > 0 && <p className="question-note">{t("questionAtTop")}</p>}
-      <SessionList items={group.working} onOpen={onOpen} />
-      {!phone && group.waiting.length > 0 && (
-        <Section label={t("waitingForYouN", { n: group.waiting.length })} items={group.waiting} onOpen={onOpen} />
-      )}
-      {group.inFlight.length > 0 && (
-        <Section label={t("inFlightN", { n: group.inFlight.length })} items={group.inFlight} onOpen={onOpen} />
-      )}
-      {group.done.length + group.staleSessions.length > 0 && <DoneSection group={group} onOpen={onOpen} />}
+      {!phone && <QuestionList items={questions} onOpen={onOpen} />}
+      {phone && questions.length > 0 && <p className="question-note">{t("questionAtTop")}</p>}
+      <SessionList items={itemsOf(group.working_now, items)} onOpen={onOpen} />
+      {!phone && waiting.length > 0 && <Section label={t("waitingForYouN", { n: waiting.length })} list={waiting} onOpen={onOpen} />}
+      <PlannedSection
+        slices={group.planned}
+        items={items}
+        looseCount={group.loose_checks.length}
+        onOpen={() => onOpen(looseChecksKey(group.id))}
+        onOpenItem={onOpen}
+      />
+      <ProblemsSection problems={group.problems} items={items} onOpen={onOpen} />
+      {group.other.length > 0 && <Section label={t("otherOpenN", { n: group.other.length })} list={itemsOf(group.other, items)} onOpen={onOpen} />}
+      <DoneSection done={group.done} onOpen={onOpen} />
     </section>
   );
 }

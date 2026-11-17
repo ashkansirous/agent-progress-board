@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_CHECKS } from "../domain/checks";
 import { MAX_SNAPSHOT_ITEMS } from "../domain/docSync";
 import { ItemStatus, ItemType, Priority } from "../domain/item";
 import { MAX_PARTS } from "../domain/parts";
@@ -75,7 +76,7 @@ export const reportProgressShape = {
   parent_key: key
     .nullable()
     .optional()
-    .describe("Key of the item this one belongs to; a part's key is <slice key>/part-<letter> and names its slice; null clears it"),
+    .describe("Key of the item this one belongs to; a part's key is <slice key>/part-<letter> and names its slice; a check always names its slice; a bug or problem may name the slice planned for it; null clears it (not on a check)"),
   agent: z.string().min(1).max(MAX_MODEL).nullable().optional().describe("Kind of agent holding the task; null clears it"),
   model: z.string().min(1).max(MAX_MODEL).nullable().optional().describe("The agent's model; null clears it"),
   needs_you: z
@@ -163,6 +164,11 @@ const snapshotPart = z.object({
   done: z.boolean().describe("True when all the group's checkboxes are ticked"),
 });
 
+const snapshotCheck = z.object({
+  key: key.describe("Stable key of the check line, e.g. demo-app/slice-58/check-2"),
+  title: label.describe("The check line as the document gives it"),
+});
+
 const snapshotItem = z.object({
   key,
   project: label.describe("Must equal the call's project"),
@@ -178,6 +184,14 @@ const snapshotItem = z.object({
     .max(MAX_PARTS)
     .optional()
     .describe("The slice's lettered work groups; each becomes the item <key>/part-<letter>; a part left out is closed"),
+  checks: z
+    .array(snapshotCheck)
+    .max(MAX_CHECKS)
+    .optional()
+    .describe("The slice's checks not yet tried on a device; each becomes a check item under the slice; one left out is closed; omit the field to leave them as they are"),
+  parent_key: key
+    .optional()
+    .describe("Only on a top-level check item: the key of its slice, which need not be in the snapshot"),
 });
 
 export const syncSnapshotShape = {

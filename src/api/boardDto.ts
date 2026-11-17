@@ -1,4 +1,7 @@
 import type { ColorSet, Palette, ProjectConfig, Schemes, StatusColors, TypeConfig } from "../config";
+import type { ProjectGroups } from "../domain/boardGroups";
+import type { CheckView } from "../domain/checks";
+import type { SliceName } from "../domain/docSync";
 import type { ItemLink, ItemStatus, ItemType, Priority } from "../domain/item";
 import type { PartsProgress, PartState } from "../domain/parts";
 import type { Step, StepProgress } from "../domain/stepTypes";
@@ -36,10 +39,14 @@ export interface BoardItemDto {
   project: string;
   /** The free text stored on the item, shown on the tile. */
   parent: string | null;
-  /** For a part whose slice is on the board: that slice; null otherwise. */
+  /** For a part, bug or problem whose slice is on the board: that slice; null otherwise. */
   parent_slice: ParentSliceDto | null;
-  /** The key of the item this one belongs to; a part names its slice. */
+  /** The key of the item this one belongs to; a part names its slice, a bug or problem the slice planned for it. */
   parent_key: string | null;
+  /** For a slice: its number and its title as two values (Slice 14); null for any other type. */
+  slice: SliceName | null;
+  /** For a slice: its checks not tried on a device, never cards of their own; null for any other type. */
+  checks: CheckView[] | null;
   type: ItemType;
   priority: Priority;
   status: ItemStatus;
@@ -96,4 +103,10 @@ export interface BoardResponse {
   /** How many items are `working`: the Active work tab's count. */
   working_count: number;
   items: BoardItemDto[];
+  /**
+   * The items sorted into each project's lists (Slice 14): Needs you, Working now, Planned (with the
+   * checks), Problems, Done and the summary numbers. The page draws these and never regroups; the
+   * keys name items in `items`. Check items are not in `items`.
+   */
+  groups: ProjectGroups[];
 }

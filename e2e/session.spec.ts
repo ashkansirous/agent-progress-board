@@ -66,7 +66,8 @@ test.describe("session cards", () => {
   test("a stopped session leaves Working now and shows in Done as a dashed row", async ({ page }) => {
     await openBoard(page);
     await expect(page.locator("button.session-card").filter({ hasText: "Update the store screenshots" })).toHaveCount(0);
-    const row = project(page, "example-app").locator("button.stale-row");
+    await project(page, "example-app").getByRole("button", { name: /done in the last 12 hours/ }).click();
+    const row = project(page, "example-app").locator("button.done-row-stale");
     await expect(row).toHaveCount(1);
     await expect(row).toContainText("session 7b3d · Update the store screenshots");
     await expect(row).toContainText("Stale: no activity for 15 min · 08:55");
@@ -159,7 +160,8 @@ test.describe("card drawer", () => {
 
   test("opens from a stale row with the Stale kicker and the steps it had", async ({ page }) => {
     await openBoard(page);
-    await page.locator("button.stale-row").click();
+    await project(page, "example-app").getByRole("button", { name: /done in the last 12 hours/ }).click();
+    await page.locator("button.done-row-stale").click();
     const panel = drawer(page);
     await expect(panel.locator(".kicker")).toHaveText("Stale");
     await expect(panel).toContainText("session 7b3d · Cloud VM · no activity for 15 min");

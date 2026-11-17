@@ -1,7 +1,11 @@
 import type { BoardItemDto, BoardPartDto, BoardResponse } from "../src/api/boardDto";
 import { configFromRecord } from "../src/config";
-import type { ItemStatus, ItemType, Priority } from "../src/domain/item";
-import { partLetterOf, PartState, partsProgress } from "../src/domain/parts";
+import type { ItemStatus, Priority } from "../src/domain/item";
+import { groupBoard } from "../src/domain/boardGroups";
+import { type CheckRow, checksBySlice } from "../src/domain/checks";
+import { splitSliceTitle } from "../src/domain/docSync";
+import { ItemType } from "../src/domain/item";
+import { partLetterOf, PartState, partsProgress, partStateOf, shownStatusOf } from "../src/domain/parts";
 import { isWorkingNow, normalizeSteps, stepProgress } from "../src/domain/steps";
 import type { Step, StepState } from "../src/domain/stepTypes";
 import exampleConfig from "../config/board.example.json" with { type: "json" };
@@ -31,20 +35,33 @@ function stepsOf(seed: SeedItem): Step[] | null {
 const SLICE_TYPE = "slice";
 
 /** The seed parts of a slice as the server would list them: letter order, state read with the same rule. */
-function seedParts(slice: SeedItem): BoardPartDto[] | null {
-  const mine = SEED_ITEMS.filter((seed) => seed.parentKey === slice.key && partLetterOf(seed.key) !== null);
+function seedParts(slice: SeedItem, all: SeedItem[]): BoardPartDto[] | null {
+  const mine = all.filter((seed) => seed.parentKey === slice.key && partLetterOf(seed.key) !== null);
   if (slice.type !== SLICE_TYPE || mine.length === 0) return null;
   return mine
-    .map((seed) => ({
-      key: seed.key,
-      letter: partLetterOf(seed.key)!,
-      title: seed.title,
-      state: seed.status === "done" ? PartState.Done : PartState.Pending,
-      step: null,
-      steps_done: null,
-      steps_total: null,
-    }))
+    .map((seed) => partOf(seed, all))
     .sort((a, b) => a.letter.localeCompare(b.letter));
+}
+
+function partOf(seed: SeedItem, all: SeedItem[]): BoardPartDto {
+  const item = itemOfIn(seed, all);
+  const row = { ...item, doc_status_at: null, live_status_at: item.heartbeat_at };
+  return {
+    key: seed.key,
+    letter: partLetterOf(seed.key)!,
+    title: seed.title,
+    state: partStateOf(row, example.staleAfterMinutes, new Date(SERVER_TIME)),
+    step: item.progress?.current ?? null,
+    steps_done: item.progress?.done ?? null,
+    steps_total: item.progress?.total ?? null,
+  };
+}
+
+/** The checks of the seed set as the grouping reads them (never items of the board). */
+export function checkRowsOf(all: SeedItem[]): CheckRow[] {
+  return all
+    .filter((seed) => seed.type === ItemType.Check)
+    .map((seed) => ({ key: seed.key, title: seed.title, project: seed.project, status: seed.status as ItemStatus, parent_key: seed.parentKey }));
 }
 
 function heartbeatOf(seed: SeedItem): string {
@@ -53,8 +70,23 @@ function heartbeatOf(seed: SeedItem): string {
   return atClock(seed.events[0]?.at ?? "08:00");
 }
 
+/** The slice a part, bug or problem seed names, as the server's `parent_slice`. */
+function parentSliceOf(seed: SeedItem, all: SeedItem[]): BoardItemDto["parent_slice"] {
+  const slice = seed.parentKey && SLICE_CHILDREN.includes(seed.type) ? all.find((s) => s.key === seed.parentKey && s.type === SLICE_TYPE) : undefined;
+  return slice ? { key: slice.key, number: splitSliceTitle(slice.key, slice.title).number, title: slice.title } : null;
+}
+
+const SLICE_CHILDREN = ["part", "bug", "problem"];
+
 export function itemOf(seed: SeedItem): BoardItemDto {
-  const parts = seedParts(seed);
+  return itemOfIn(seed, SEED_ITEMS);
+}
+
+/** One seed as the server's DTO, reading its parts, checks and slice from the seed set it belongs to. */
+export function itemOfIn(seed: SeedItem, all: SeedItem[]): BoardItemDto {
+  const parts = seedParts(seed, all);
+  const active = parts?.find((part) => part.state === PartState.Active) ?? null;
+  const isSlice = seed.type === SLICE_TYPE;
   const oldest = seed.events.at(-1)?.at ?? "08:00";
   const steps = stepsOf(seed);
   const environment = seed.environment ?? null;
@@ -64,11 +96,13 @@ export function itemOf(seed: SeedItem): BoardItemDto {
     key: seed.key,
     project: seed.project,
     parent: seed.parent,
-    parent_slice: null,
+    parent_slice: parentSliceOf(seed, all),
     parent_key: seed.parentKey ?? null,
+    slice: isSlice ? splitSliceTitle(seed.key, seed.title) : null,
+    checks: isSlice ? (checksBySlice(checkRowsOf(all)).get(seed.key) ?? []) : null,
     type: seed.type as ItemType,
     priority: seed.priority as Priority,
-    status: seed.status as ItemStatus,
+    status: shownStatusOf(seed.status as ItemStatus, active !== null),
     title: seed.title,
     why: seed.why,
     details_md: seed.details.join("\n\n"),
@@ -92,17 +126,24 @@ export function itemOf(seed: SeedItem): BoardItemDto {
     ),
     parts,
     parts_progress: parts ? partsProgress(parts.map((part) => part.state)) : null,
-    active_part_key: null,
+    active_part_key: active?.key ?? null,
     events: seed.events.map((e) => ({ at: atClock(e.at), status: e.status as ItemStatus, note: e.note })),
   };
 }
 
 /** What GET /api/board answers for the demo board: 15 items, the example config's colours. */
-export function demoBoard(items: BoardItemDto[] = SEED_ITEMS.map(itemOf)): BoardResponse {
+export function demoBoard(items: BoardItemDto[] = SEED_ITEMS.map(itemOf), checks: CheckRow[] = []): BoardResponse {
   const { projects, types, statuses, priorities, palettes } = example;
   const config = { projects, types, statuses, priorities, palettes };
   const working_count = items.filter((item) => item.working).length;
-  return { server_time: SERVER_TIME, window_hours: WINDOW_HOURS, config, working_count, items };
+  const groups = groupBoard(items, checks, projects.map((project) => project.id));
+  return { server_time: SERVER_TIME, window_hours: WINDOW_HOURS, config, working_count, items, groups };
+}
+
+/** The faked /api/board for a seed set: check seeds are counted, not listed, as the Worker does. */
+export function boardOfSeeds(seeds: SeedItem[]): BoardResponse {
+  const items = seeds.filter((seed) => seed.type !== ItemType.Check).map((seed) => itemOfIn(seed, seeds));
+  return demoBoard(items, checkRowsOf(seeds));
 }
 
 export function demoItem(key: string): BoardItemDto {

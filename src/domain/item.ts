@@ -8,6 +8,11 @@ export enum ItemType {
   Unplanned = "unplanned",
   /** One lettered part of a slice (Slice 11); it has no tile, and its `parent_key` names the slice. */
   Part = "part",
+  /**
+   * One "not yet tried on a device" line of a slice (Slice 14); it has no card, and its `parent_key`
+   * names the slice it belongs to (always required).
+   */
+  Check = "check",
 }
 
 export enum ItemStatus {

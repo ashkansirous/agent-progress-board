@@ -222,7 +222,7 @@ export const SESSION_SEED_ITEMS: SeedItem[] = [
       { at: "09:31", status: "in_progress", note: `${ASKED}${CRASH_QUESTION}` },
       { at: "09:20", status: "in_progress", note: null },
     ],
-    agent: SESSION, environment: "laptop", heartbeatMinutesAgo: 2, createdMinutesAgo: 268,
+    agent: SESSION, environment: "laptop", heartbeatMinutesAgo: 2, createdMinutesAgo: 268, parentKey: "example-app/slice-12",
     steps: [
       { label: "Connect the phone", state: "done" }, { label: "Read the logs", state: "active" },
       { label: "Analyse", state: "pending" }, { label: "Conclude", state: "pending" }, { label: "Plan or fix", state: "pending" },
@@ -302,6 +302,109 @@ export const SESSION_SEED_ITEMS: SeedItem[] = [
   },
 ];
 
+const MOCK_PLAN_NOTE = "Synced from plan docs";
+
+interface PlanOver {
+  priority?: string;
+  why?: string;
+  parent?: string;
+  parentKey?: string;
+  doneMinutesAgo?: number;
+  agent?: string;
+  model?: string;
+  heartbeatMinutesAgo?: number;
+  steps?: SeedItem["steps"];
+  events?: SeedEvent[];
+}
+
+/** A made-up item of the planning set with plain defaults: only what the board shows is given. */
+function planItem(key: string, type: string, status: string, title: string, over: PlanOver = {}): SeedItem {
+  const project = key.split("/")[0]!;
+  const { priority = "P2", why = "", parent = "Plan", events, ...rest } = over;
+  return {
+    key, project, type, priority, status, title, why, parent, details: [], links: [],
+    events: events ?? [{ at: "09:12", status, note: MOCK_PLAN_NOTE }], ...rest,
+  };
+}
+
+const SLICE_12 = "example-app/slice-12";
+const SLICE_13 = "example-app/slice-13";
+const SLICE_11 = "example-app/slice-11";
+const CLOSED_SLICE = "example-app/slice-3";
+
+const SLICE_12_PARTS = [
+  ["A", "Reproduce on a device"], ["B", "Add crash reporting"], ["C", "Fix the start-up race"],
+  ["D", "Test on iOS 16 and 17"], ["E", "Release 2.3.2"],
+] as const;
+const SLICE_13_PARTS = [["A", "Cache the notes"], ["B", "Queue the edits"], ["C", "Sync on reconnect"], ["D", "Release"]] as const;
+const SLICE_11_PARTS = [["A", "Share sheet on iOS"], ["B", "Share sheet on Android"], ["C", "Release"]] as const;
+const SLICE_12_CHECKS = ["Cold start on the iPhone 8 with no network", "Start after an update from 2.3.0", "Start with 500 saved notes"];
+const SLICE_13_CHECKS = [
+  "Open a note with the plane mode on", "Edit a note offline and reconnect", "Delete a note offline",
+  "Offline with a full disk", "Switch networks while syncing",
+];
+const NOTES_SITE_CHECKS = ["Search a word in a long note", "Search with no results"];
+const RSS_CHECKS = ["Open the feed in a reader", "Feed after a new note"];
+const MOCK_DONE = [
+  ["Slice 10 · part B merged", 248], ["Wave 2 finished: Slices 7 and 8", 393], ["Fix for the flaky login test merged", 526],
+  ["session 2c9d finished its turn: tidy the README", 600], ["Release 2.3.1 uploaded to the store", 640],
+  ["Dependency update merged", 655], ["Changelog written", 670], ["Wave 1 finished: Slices 5 and 6", 690],
+  ["Icon set replaced", 700], ["Lint rules tightened", 705], ["Slice 9 · part A merged", 715],
+] as const;
+
+function partsOf(slice: string, list: readonly (readonly [string, string])[], states: Record<string, PlanOver>): SeedItem[] {
+  return list.map(([letter, title]) => {
+    const over = states[letter] ?? {};
+    const status = over.agent ? "in_progress" : (over.doneMinutesAgo ? "done" : "open");
+    return planItem(`${slice}/part-${letter}`, "part", status, title, { parentKey: slice, ...over });
+  });
+}
+
+function checksOf(slice: string, lines: readonly string[]): SeedItem[] {
+  return lines.map((line, i) => planItem(`${slice}/check-${i + 1}`, "check", "open", line, { parentKey: slice }));
+}
+
+const CRASH_STEPS = [
+  { label: "Implementation", state: "active" }, { label: "Review 1", state: "pending" }, { label: "Merging", state: "pending" },
+];
+
+/**
+ * The BoardV2 mock's planning data (Slice 14): `example-app` with Slice 12 (in progress, parts A to E,
+ * A and B done, C active, 3 checks), Slice 13 (planned, 4 parts, 5 checks) and Slice 11 (parked, 3
+ * parts), 22 checks whose slice is closed, a bug that names Slice 12, a problem that names none and
+ * 11 finished items (the session set adds the stopped card, 12 in all); `notes-site` with Slice 5 (Slice 4
+ * is in the session set) and 3 done. A separate set again, so the 15-item demo board keeps its counts.
+ */
+export const PLANNING_SEED_ITEMS: SeedItem[] = [
+  planItem(SLICE_12, "slice", "in_progress", "Slice 12 · App crashes on start", { priority: "P1" }),
+  ...partsOf(SLICE_12, SLICE_12_PARTS, {
+    A: { doneMinutesAgo: 300 }, B: { doneMinutesAgo: 200 },
+    C: { agent: "Implementer", model: "model-mid", heartbeatMinutesAgo: 3, steps: CRASH_STEPS },
+  }),
+  ...checksOf(SLICE_12, SLICE_12_CHECKS),
+  planItem(SLICE_13, "slice", "open", "Slice 13 · Offline mode"),
+  ...partsOf(SLICE_13, SLICE_13_PARTS, {}),
+  ...checksOf(SLICE_13, SLICE_13_CHECKS),
+  planItem(SLICE_11, "slice", "blocked", "Slice 11 · Share sheet"),
+  ...partsOf(SLICE_11, SLICE_11_PARTS, { A: { doneMinutesAgo: 400 } }),
+  ...Array.from({ length: 22 }, (_, i) => planItem(`${CLOSED_SLICE}/check-${i + 1}`, "check", "open", `Closed-slice check ${i + 1}`, { parentKey: CLOSED_SLICE })),
+  planItem("example-app/crash-ios16", "bug", "open", "App crashes on start on iOS 16", {
+    priority: "P1", why: "Found in the crash log of release 2.3.1, iPhone 8", parentKey: SLICE_12, parent: "Release 2.3.1",
+  }),
+  planItem("example-app/lint-timeout", "problem", "open", "Build fails on main: the lint step times out", {
+    why: "Found by wave 3 on the night run", parent: "Wave 3",
+  }),
+  ...MOCK_DONE.map(([title, minutes], i) => planItem(`example-app/done-${i + 1}`, "unplanned", "done", title, { doneMinutesAgo: minutes })),
+  planItem("notes-site/slice-5", "slice", "open", "Slice 5 · RSS feed"),
+  ...partsOf("notes-site/slice-5", [["A", "Feed builder"], ["B", "Feed link"]], {}),
+  ...checksOf("notes-site/slice-5", RSS_CHECKS),
+  ...checksOf("notes-site/slice-4", NOTES_SITE_CHECKS),
+  ...partsOf("notes-site/slice-4", [["A", "Search index"], ["B", "Search box"], ["C", "Release"]], {}),
+  planItem("notes-site/slice-3", "slice", "done", "Slice 3 · Tags merged", { doneMinutesAgo: 698 }),
+  planItem("notes-site/done-2", "unplanned", "done", "Sitemap added", { doneMinutesAgo: 600 }),
+  planItem("notes-site/done-3", "unplanned", "done", "Footer links fixed", { doneMinutesAgo: 500 }),
+];
+
 const WAITING_TYPE = "waiting_for_me";
 const LATEST_EVENT = 0;
 
@@ -332,7 +435,7 @@ export function callFor(item: SeedItem): ToolCall {
   return { name: "report_progress", arguments: { ...shared, type: item.type, status: item.status, ...work, ...question } };
 }
 
-/** The seed script's calls: the demo board plus the session cards (Slice 13). */
-export function seedCalls(items: SeedItem[] = [...SEED_ITEMS, ...SESSION_SEED_ITEMS]): ToolCall[] {
+/** The seed script's calls: the demo board plus the session cards (Slice 13) and the planning set (Slice 14). */
+export function seedCalls(items: SeedItem[] = [...SEED_ITEMS, ...SESSION_SEED_ITEMS, ...PLANNING_SEED_ITEMS]): ToolCall[] {
   return items.map(callFor);
 }

@@ -1,8 +1,9 @@
 import type { CSSProperties } from "react";
 import type { BoardItemDto } from "../../src/api/boardDto";
-import { partLetterOf, PartState } from "../../src/domain/parts";
+import { partLetterOf } from "../../src/domain/parts";
+import { PartChecklist } from "./ChecksView";
 import { ArrowIcon } from "./icons";
-import { partNowText, partsLabel, partStateText } from "./partsText";
+import { partNowText, partsLabel } from "./partsText";
 import { activeItemHash } from "./route";
 import { useView } from "./view";
 
@@ -41,7 +42,8 @@ export function FollowLink({ item }: { item: BoardItemDto }) {
   );
 }
 
-function FollowButton({ item }: { item: BoardItemDto }) {
+/** The drawer's button that follows the active part; nothing for a slice with no active part. */
+export function FollowButton({ item }: { item: BoardItemDto }) {
   const { t } = useView();
   const letter = item.active_part_key ? partLetterOf(item.active_part_key) : null;
   if (!item.active_part_key || !letter) return null;
@@ -53,30 +55,12 @@ function FollowButton({ item }: { item: BoardItemDto }) {
   );
 }
 
-/** The drawer's parts: the label and bar, one row per part with its state, and the button that follows the active part. */
+/** The drawer's parts: the same checklist the working card uses (B4), then the button that follows the active part. */
 export function PartsSection({ item }: { item: BoardItemDto }) {
-  const { t, phone, looks } = useView();
-  const parts = item.parts;
-  if (!parts || !item.parts_progress) return null;
   return (
-    <div className="parts-section">
-      <div className="parts-head">
-        <h3>{t("partsHeading")}</h3>
-        <span className="parts-count">{partsLabel(item.parts_progress, t)}</span>
-      </div>
-      <span className="parts-bar parts-bar-drawer" aria-hidden="true">
-        <span className="parts-bar-fill" style={fillStyle(item.parts_progress.percent, looks.type(item.type).fg)} />
-      </span>
-      <ol className="part-rows" aria-label={t("partsHeading")}>
-        {parts.map((part) => (
-          <li key={part.key} className={`part-row part-row-${part.state}`} aria-current={part.state === PartState.Active ? "step" : undefined}>
-            <span className="part-mark">{part.letter}</span>
-            <span className="part-title">{part.title}</span>
-            <span className="part-state">{partStateText(part, parts, phone, t)}</span>
-          </li>
-        ))}
-      </ol>
+    <>
+      <PartChecklist item={item} own />
       <FollowButton item={item} />
-    </div>
+    </>
   );
 }

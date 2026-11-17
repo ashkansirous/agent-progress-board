@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { BoardEventDto, BoardItemDto } from "../../src/api/boardDto";
+import { isSessionItem } from "./cards";
+import { SliceChecks, SliceOfCard } from "./ChecksView";
 import { CloseIcon } from "./icons";
 import { Markdown } from "./Markdown";
 import { projectLabel } from "./model";
@@ -191,6 +193,8 @@ export function Detail({ item, onClose }: DetailProps) {
         </div>
         <Fields item={item} />
         <PartsSection item={item} />
+        <SliceChecks item={item} own />
+        {(item.working || isSessionItem(item)) && <SliceOfCard item={item} />}
         <StepsSection item={item} />
         <DetailsBody item={item} />
         <Links item={item} />

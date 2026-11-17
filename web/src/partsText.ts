@@ -1,5 +1,5 @@
 import type { BoardItemDto, BoardPartDto } from "../../src/api/boardDto";
-import { firstPendingKey, PartNowKind, PartState, type PartsProgress, partNow } from "../../src/domain/parts";
+import { PartNowKind, type PartsProgress, partNow } from "../../src/domain/parts";
 import type { Translate } from "./strings";
 
 /**
@@ -32,22 +32,3 @@ export function partNowText(parts: BoardPartDto[], t: Translate): string {
   return now.kind === PartNowKind.Stale ? `${text}${t("partStaleSuffix")}` : text;
 }
 
-function activeText(part: BoardPartDto, phone: boolean, t: Translate): string {
-  if (part.steps_total === null) return t("stepNow");
-  const key = phone ? "partActivePhone" : "partActive";
-  return t(key, { step: stepOf(part, t), n: part.steps_done ?? 0, m: part.steps_total });
-}
-
-/** The state at the right of a row in the drawer's list: Done, "Active · {step} · {n} of {m} steps", "Stale · {step}", Next or Later. */
-export function partStateText(part: BoardPartDto, parts: BoardPartDto[], phone: boolean, t: Translate): string {
-  switch (part.state) {
-    case PartState.Done:
-      return t("partDone");
-    case PartState.Active:
-      return activeText(part, phone, t);
-    case PartState.Stale:
-      return t("partStale", { step: stepOf(part, t) });
-    case PartState.Pending:
-      return part.key === firstPendingKey(parts) ? t("partNextWord") : t("partLater");
-  }
-}

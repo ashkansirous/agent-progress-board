@@ -1,4 +1,4 @@
-import { DEFAULT_PRIORITY, DOC_SYNC_SOURCE, type Item, type ItemLink, ItemStatus, type ItemType, type Priority } from "./item";
+import { DEFAULT_PRIORITY, DOC_SYNC_SOURCE, type Item, type ItemLink, ItemStatus, ItemType, type Priority } from "./item";
 import { DomainError } from "./upsert";
 
 export const MAX_SNAPSHOT_ITEMS = 200;
@@ -28,8 +28,45 @@ export interface SnapshotItem {
   links?: ItemLink[];
   /** The slice's lettered parts as the documents list them (Slice 11). */
   parts?: SnapshotPart[];
-  /** Set only by `expandParts` on a part's own item; a client's snapshot never carries it. */
+  /** The slice's "not yet tried on a device" lines (Slice 14); a check left out is closed. */
+  checks?: SnapshotCheck[];
+  /**
+   * Set by `expandParts` on a part's own item and by `nestedChecks` on a check's; a client sends it
+   * only on a top-level check item, to name a slice that is not in the snapshot.
+   */
   parent_key?: string;
+}
+
+/** One check line of a slice: the client owns its key (stable across syncs) and the document owns its text. */
+export interface SnapshotCheck {
+  key: string;
+  title: string;
+}
+
+const SLICE_KEY_NUMBER = /slice-(\d+)$/;
+/** "Slice N" followed by a space, a colon, a dash or the end of the string: never a letter, digit or dot after the number. */
+const SLICE_TITLE_PREFIX = /^Slice\s+(\d+)(?=$|[\s·:–—-])\s*(?:[·:–—-]\s*)?(.*)$/i;
+
+/** A slice's number and its title as two values ("Slice 12", "App crashes on start"). */
+export interface SliceName {
+  number: number | null;
+  title: string;
+}
+
+/**
+ * Splits a slice's stored title into its number and its words. The number is the N of a key ending in
+ * `slice-N` when there is one (the title's "Slice N" prefix leaves the title only when it names that
+ * same N), else the title's own prefix, else null; a title that is only a prefix stays whole.
+ */
+export function splitSliceTitle(key: string, title: string): SliceName {
+  const keyNumber = SLICE_KEY_NUMBER.exec(key)?.[1];
+  const prefixed = SLICE_TITLE_PREFIX.exec(title.trim());
+  if (keyNumber !== undefined) {
+    const words = prefixed !== null && Number(prefixed[1]) === Number(keyNumber) ? prefixed[2]?.trim() : undefined;
+    return { number: Number(keyNumber), title: words || title };
+  }
+  if (prefixed) return { number: Number(prefixed[1]), title: prefixed[2] ? prefixed[2].trim() : title };
+  return { number: null, title };
 }
 
 /** One lettered group of a slice's work list: the document owns its title and whether it is done. */
@@ -135,6 +172,7 @@ function sameLinks(a: ItemLink[], b: ItemLink[]): boolean {
 
 function docFieldsDiffer(stored: SyncRow, next: SyncRow): boolean {
   return (
+    stored.type !== next.type ||
     stored.title !== next.title ||
     stored.why !== next.why ||
     stored.parent !== next.parent ||
@@ -161,6 +199,7 @@ export function planItem(stored: SyncRow | undefined, snap: SnapshotItem, projec
   const status = showsLiveStatus(stored.live_status_at, docStatusAt) ? stored.status : snap.status;
   const next: SyncRow = {
     ...stored,
+    type: snap.type,
     title: snap.title,
     why: snap.why ?? null,
     parent: snap.parent ?? null,
@@ -201,12 +240,18 @@ export function closeTargets(
   listed: Set<string>,
   /** Slices whose snapshot item sent no `parts`: their stored parts are left as they are (Slice 11). */
   keepPartsOf: Set<string> = new Set(),
+  /** Slices whose snapshot item sent no `checks`: their stored checks are left as they are (Slice 14). */
+  keepChecksOf: Set<string> = new Set(),
 ): SyncRow[] {
   return stored.filter(
     (item) =>
       item.project === project &&
       item.in_doc_sync &&
       !listed.has(item.key) &&
-      !(item.parent_key && keepPartsOf.has(item.parent_key)),
+      !isKeptChild(item, item.type === ItemType.Check ? keepChecksOf : keepPartsOf),
   );
+}
+
+function isKeptChild(item: SyncRow, keepOf: Set<string>): boolean {
+  return Boolean(item.parent_key) && keepOf.has(item.parent_key!);
 }

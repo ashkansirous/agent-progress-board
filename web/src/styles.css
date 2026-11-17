@@ -52,6 +52,13 @@
   --nowFg: Canvas;
   --doneFg: CanvasText;
   --panelShadow: transparent;
+  --sliceBd: color-mix(in srgb, CanvasText 20%, Canvas);
+  --bugBg: color-mix(in srgb, CanvasText 6%, Canvas);
+  --bugBd: color-mix(in srgb, CanvasText 20%, Canvas);
+  --bugFg: CanvasText;
+  --probBg: color-mix(in srgb, CanvasText 6%, Canvas);
+  --probBd: color-mix(in srgb, CanvasText 20%, Canvas);
+  --probFg: CanvasText;
   --mono: "JetBrains Mono Variable", ui-monospace, monospace;
 }
 

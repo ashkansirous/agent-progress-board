@@ -8,6 +8,7 @@ import "./usage.css";
 import "./active.css";
 import "./parts.css";
 import "./session.css";
+import "./planning.css";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("index.html has no #root element");

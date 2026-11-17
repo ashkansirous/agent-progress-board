@@ -234,18 +234,18 @@ seed data is the mock's; part B work items are rewritten.
 - review read: `reviews/pr-78-high.md` findings 8/8, all applied (#5, the `parent_key` validation, was applied narrowed, then replaced by the single `itemProblem` design below).
 - Medium pass: 10 findings, 7 applied. Check pass: 9 findings, #1 to #4 and #9 fixed by the one validation design `itemProblem` in `src/domain/checks.ts` (two strikes on key and parent validation led to it, see *Decided at build time*). The rest are the lines below.
 - `reviews/pr-78-check-2-medium.md` findings 7/7: #3 fixed, the rest are Follow-ups. `reviews/pr-78-check-3-medium.md` 7/7 and `reviews/pr-78-check-4-medium.md` 7/7: all Follow-ups, no code reopened.
-- Skipped #3 (`reviews/pr-78-medium.md`): "Open checks of a done/out-of-window slice listed as loose" - decided at the desk: a check whose slice is not open goes under "Checks with no open slice"; that is the design.
-- Skipped #4 (`reviews/pr-78-medium.md`): "Question/waiting ordering duplicated in web/src/model.ts (sentinel defined twice)" - low, no failure path.
-- Skipped #9 (`reviews/pr-78-medium.md`): "Builds full itemDto for every check just to filter needs_you; extra CPU on each 5s poll" - low, no failure path.
-- Skipped #5 (`reviews/pr-78-check-medium.md`): "A check whose open slice is missing from the listing (project filter) counts as loose ("no open slice"); header count wrong." - low; follow-up: a filtered listing should count such checks under their slice.
-- Skipped #6 (`reviews/pr-78-check-medium.md`): "A check with an open question appears in needs_you but parentSliceOf handles only Part/Bug/Problem, so parent_slice is null." - low, no failure path that changes a count the owner reads wrongly beyond a label.
-- Skipped #7 (`reviews/pr-78-check-medium.md`): "BOARD_WHERE lists parts/checks of an open slice but a done bug outside the window loses its slice number in the chip." - low, no failure path that changes a count the owner reads wrongly beyond a label.
-- Skipped #8 (`reviews/pr-78-check-medium.md`): "Table rebuild drops events; if the production D1 runner does not apply the file atomically, a mid-failure loses event history. Confirm on real D1." - low, unconfirmed; same rebuild pattern as the shipped 0005.
-- Fixed #3 (`reviews/pr-78-check-2-medium.md`): "A nested check/part skipped by screenSnapshot (bad key prefix, duplicate) is not added to `listed`, so closeTargets closes the existing stored row with that key." - every skipped key and every member of a skipped item is now listed.
+- Skipped #3 (`../agent-progress-board-worktrees/reviews/pr-78-medium.md`): "Open checks of a done/out-of-window slice listed as loose" - decided at the desk: a check whose slice is not open goes under "Checks with no open slice"; that is the design.
+- Skipped #4 (`../agent-progress-board-worktrees/reviews/pr-78-medium.md`): "Question/waiting ordering duplicated in web/src/model.ts (sentinel defined twice)" - low, no failure path.
+- Skipped #9 (`../agent-progress-board-worktrees/reviews/pr-78-medium.md`): "Builds full itemDto for every check just to filter needs_you; extra CPU on each 5s poll" - low, no failure path.
+- Skipped #5 (`../agent-progress-board-worktrees/reviews/pr-78-check-medium.md`): "A check whose open slice is missing from the listing (project filter) counts as loose ("no open slice"); header count wrong." - low; follow-up: a filtered listing should count such checks under their slice.
+- Skipped #6 (`../agent-progress-board-worktrees/reviews/pr-78-check-medium.md`): "A check with an open question appears in needs_you but parentSliceOf handles only Part/Bug/Problem, so parent_slice is null." - low, no failure path that changes a count the owner reads wrongly beyond a label.
+- Skipped #7 (`../agent-progress-board-worktrees/reviews/pr-78-check-medium.md`): "BOARD_WHERE lists parts/checks of an open slice but a done bug outside the window loses its slice number in the chip." - low, no failure path that changes a count the owner reads wrongly beyond a label.
+- Skipped #8 (`../agent-progress-board-worktrees/reviews/pr-78-check-medium.md`): "Table rebuild drops events; if the production D1 runner does not apply the file atomically, a mid-failure loses event history. Confirm on real D1." - low, unconfirmed; same rebuild pattern as the shipped 0005.
+- Fixed #3 (`../agent-progress-board-worktrees/reviews/pr-78-check-2-medium.md`): "A nested check/part skipped by screenSnapshot (bad key prefix, duplicate) is not added to `listed`, so closeTargets closes the existing stored row with that key." - every skipped key and every member of a skipped item is now listed.
 
 #### Follow-ups
 
-Second check pass, no code reopened (`reviews/pr-78-check-2-medium.md`):
+Second check pass, no code reopened (`../agent-progress-board-worktrees/reviews/pr-78-check-2-medium.md`):
 
 - #1: "planItem overwrites stored type with the snapshot's type on every sync ... but the sync_snapshot schema (src/mcp/schemas.ts) still says type is used only when the key is new." - the type overwrite is intended per the earlier fix; correct the schema's description.
 - #2: "Rows ordered by created_at DESC, key; checks of one sync share created_at so they sort by lexical key (check-10 before check-2), and a check added later jumps to the top. Doc order is not stored."
@@ -254,7 +254,7 @@ Second check pass, no code reopened (`reviews/pr-78-check-2-medium.md`):
 - #6: "Checks of finished slices all go into one project-wide loose list with no slice number or title, so the owner cannot tell which slice each unverified check belongs to." - this is the "Checks with no open slice" design.
 - #7: "Page still regroups phone questions and the waiting strip itself (questionItems/waitingItems in model.ts), duplicating the needs_you rule in boardGroups.ts ... question-holding checks get no parent_slice."
 
-Third check pass, converged, no code reopened (`reviews/pr-78-check-3-medium.md`):
+Third check pass, converged, no code reopened (`../agent-progress-board-worktrees/reviews/pr-78-check-3-medium.md`):
 
 - #1: "src/infrastructure/d1Repository.ts:56, low, other. BOARD_WHERE rider `type IN ('part','check')` loads done checks of listed slices; checksBySlice drops done checks, so up to 100 unused rows per slice on every poll."
 - #2: "src/api/board.ts:189, medium, correctness. Check items holding an open question are appended to `items` after maps are built; they count toward working_count, the items-by-key map, phone questionItems and Active page, which were not told checks can be there. The `items` doc comment ("Check items are not in items") is false."
@@ -264,7 +264,7 @@ Third check pass, converged, no code reopened (`reviews/pr-78-check-3-medium.md`
 - #6: "src/domain/checks.ts:75, low, correctness. checksBySlice counts every non-done check including stale and blocked, so dead live-reported checks keep showing as "not tried"."
 - #7: "src/domain/docSync.ts:254, medium, correctness. isKeptChild keeps any child of a slice that sent no `parts`, so a doc-synced bug/problem with parent_key = slice that the document dropped is never closed."
 
-Fourth check pass, converged, all page findings, no code reopened (`reviews/pr-78-check-4-medium.md`):
+Fourth check pass, converged, all page findings, no code reopened (`../agent-progress-board-worktrees/reviews/pr-78-check-4-medium.md`):
 
 - #1: "web/src/ChecksView.tsx:62, medium, stale part loses stalled step and looks like working part (same active class, only word "Stale")."
 - #2: "web/src/ChecksView.tsx:49, low, part list dropped aria-current=step; done/pending state only visual, no Next/Later words."

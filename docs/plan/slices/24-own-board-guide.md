@@ -40,6 +40,10 @@ Guide written 2026-11-17. `docs/setup/connect.md`'s "coming" line now links `own
 
 - The Access step assumes the page is on a custom hostname and agents use the `workers.dev` address (how the
   live board was built); Access directly on `workers.dev` was not tried.
+- The dashboard menu path in `docs/setup/own-board.md` for editing the Workers Builds token was not checked (fix pass 2
+  said so; feedback loop 2026-11-17-1826).
+- The Workers Builds fields in the guide (branch `main`, no build command, `npm run deploy:ci`, previews off) come from
+  the Slice 1 record; context7 did not confirm them (builder report).
 
 - That a Workers Builds token on a fresh account can run the D1 migrations in `deploy:ci` and provision the
   `OAUTH_KV` namespace on the first deploy ("created for you" in the guide); if the token lacks D1 edit the deploy

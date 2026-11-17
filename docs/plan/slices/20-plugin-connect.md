@@ -54,8 +54,9 @@ decision, 2026-11-17). If the CLI cannot be pointed at a temp folder, the instal
   steps kept current, heartbeat, background agents, `needs_you`, `mark_done` only when all work is done, keys,
   projects, what never to send: private data, guessed numbers). Its rules section is the same text as
   `src/mcp/instructions.ts`, held equal by `test/pluginRules.test.ts`, so the two never drift. Verify: the test
-  fails when one side changes alone. Not met: the test asserts equality only, no mutation case (see *Not yet
-  verified*).
+  fails when one side changes alone. Met by a one-off run: the builder changed one character in the skill, saw
+  `test/pluginRules.test.ts` fail, and restored it (wave 1 of night 2026-11-17-1826, builder report); the test
+  itself holds no mutation case.
 - [ ] **Connect guide for Claude** (written; its Verify, a fresh Claude Code run, is in *Not yet verified*). `docs/setup/connect.md`, written for a Claude Code with no context: check
   Claude Code's version; `claude plugin marketplace add <owner>/<repo>`; `claude plugin install
   agent-board@<marketplace>`; ask the person for the board address and token and where they come from (their
@@ -84,8 +85,6 @@ decision, 2026-11-17). If the CLI cannot be pointed at a temp folder, the instal
   `configure --values-stdin`, `claude mcp list` showed Connected against the local dev Worker).
 - The test card steps of `docs/setup/connect.md` (`report_progress`, `get_item`, `mark_done`) run by a Claude
   Code session, and the skill loading in a session (only the MCP connection was checked here).
-- The skill's "test fails when one side changes alone" check: `test/pluginRules.test.ts` asserts equality only; a
-  mutation case (change one side, see the test fail) was not run.
 - The stdin-from-a-file form of `claude plugin configure --values-stdin` in `docs/setup/connect.md` step 4 was not
   run (only the pipe form was, in a throwaway config folder).
 - Rule text for `CLAUDE.md` is left to the index pass (not edited in this slice).

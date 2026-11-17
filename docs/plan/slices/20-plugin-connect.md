@@ -36,6 +36,11 @@ context7 or the docs before building (the version rule and `userConfig` above al
 
 #### Work
 
+**Every install test runs in a throwaway Claude config folder** (`CLAUDE_CONFIG_DIR` set to a temp folder inside the
+worktree), never the owner's own profile: the owner's machine already reports through the config repo's hooks, and a
+second install there would report every session twice until that repo's Slice 20 removes its copy (start-of-run
+decision, 2026-11-17). If the CLI cannot be pointed at a temp folder, the install checks go to *Not yet verified*.
+
 - [ ] **Marketplace and plugin.** `.claude-plugin/marketplace.json` (marketplace name unlikely to clash, e.g.
   `agent-progress-board`) lists one plugin `agent-board` from `./plugin`. `plugin/.claude-plugin/plugin.json`: name,
   description, no `version` (every commit ships), `userConfig` `board_url` (string, required, "https address of

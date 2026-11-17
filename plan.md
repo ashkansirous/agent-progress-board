@@ -25,10 +25,9 @@ Notes:
 - [Finished slices](docs/plan/notes/slices-done.md): rows of built slices.
 - [Feedback loop 2026-11-15](docs/plan/notes/2026-11-15-1406-feedback-loop.md): what the end-of-run audit found.
 - [Design brief 2026-11-17](docs/plan/notes/2026-11-17-design-brief.md): the page redesign for Slices 13 to 15, for Claude Design.
-- Slices 13 to 15 (owner, 2026-11-17, "agree to all"): 13 and 14 edit the same server files, so 13 then 14; 15 after both. The sending side is planned in the owner's config repo. Slice 13 is built (PR #75, migration 0006, night 2026-11-17-1216 wave 1); Slice 14 is built (PR #78, migration 0007, night 2026-11-17-1216 wave 2), so 16 then 15 remain; 14 and 16 edit the same server files, so they run one after the other, then 15.
+- [Finished batches](docs/plan/notes/2026-11-17-finished-batches.md): order and deploy notes of Slices 8 to 11 and 13 to 16; all are built.
 - [Feedback loop 2026-11-16](docs/plan/notes/2026-11-16-1402-feedback-loop.md): what the audit of the second night found.
 - Slices 1 to 7 are built and merged and deployed; 1 is verified, 5 works in claude.ai (owner, 2026-11-16; the phone check is open), and the open checks of the rest are in `docs/plan/unverified.md` (2026-11-16).
-- Slices 8 to 11 (owner, 2026-11-16) run in this order: 8, 9, 10, 11. Slices 8, 9, 10 and 11 are built (PRs #53, #57, #60, #66); 8, 9 and 10 are deployed (8 and 9 by the deployment created 2026-11-16T16:24:39Z, 10 by the one created 17:15:11Z); 11 is deployed too (PR #68 merged without the skip-CI marker at 18:24:55Z; deployment created 2026-11-16T18:25:23Z, and the migrations list read at about 18:32Z shows none left, so migration 0005 is applied). They edit the same server files, so one at a time. In each, part A (server) can be built now and part B (the page) is planned against the design mock the owner added on 2026-11-16 (`docs/design/`). The sending side is planned in the owner's private config repo.
 
 ## Decisions (from the phone scope, approved 2026-11-15)
 
@@ -55,6 +54,7 @@ Notes:
 
 - **Not yet tried on a device:** 45 checks across 13 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
 - **Waiting on the user (Slice 16):** add the instruction text from `docs/clients.md` at [claude.ai settings, Your Claude, Instructions](https://claude.ai/settings), so chats and Claude Design sessions report to the board.
+- Slices 13 to 16 merged with the skip-CI marker on night 2026-11-17-1216 (migrations 0006 and 0007; 0006 applied); they go live when the driver's batched release posts the Workers Builds deploy hook.
 - Tooling, for the feedback loop: merge-gate's skip check resolves cited `reviews/...` paths only from the session folder, its top level and parent, not `<repo>-worktrees`; Slice 14's file cites them as `../agent-progress-board-worktrees/reviews/...` to pass.
 - Done 2026-11-17: the owner added the board-by-project artboards to the [design canvas](https://claude.ai/artifact/PZyqwkfjuwQkE4BE6UfeDd); they are copied into `docs/design/` and part B of Slices 13 and 14 and all of 15 are rewritten to them.
 - [PR #73](https://github.com/ashkansirous/agent-progress-board/pull/73) merged without a review round (owner, 2026-11-17: "you dont need to wait for my fucking reviews! fucking merge them always"); its four open points stand as written in the slices unless the owner overrules one. The part B waves of Slices 13 to 15 can start.

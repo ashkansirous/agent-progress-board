@@ -1,5 +1,7 @@
 ### Slice 19 — The owner can get the chat instruction text without a token
 
+*In progress (wave 2026-11-17), draft PR.*
+
 *Planned (owner, 2026-11-17 20:2x: "I already tried the chat and I told you it did not do anything. why are you still
 waiting for me to do a new chat without changing anything"): build it; the owner is not asked to test a chat again
 first.* Found by the feedback loop of night 2026-11-17-1657 ([note](../notes/2026-11-17-1657-feedback-loop.md)). When

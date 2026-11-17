@@ -3,6 +3,10 @@
 Every open "Not yet verified" check, one block per slice. A check that passes, or that the
 owner confirms, is removed here and its slice marked `verified`.
 
+### Slice 18: Every AI that connects to the board is told how to report ([slice](slices/18-agent-setup.md))
+
+- Whether a claude.ai chat shows the server's instructions to the model. Check: a new chat with only the connector (no pasted text) opens a `my-chats` card. If it does, the owner's pasted instruction can be removed.
+
 ### Slice 16: Claude chat and Claude Design report to the board, and their use counts ([slice](slices/16-chat-reports.md))
 
 - **You:** paste the instruction text from `docs/clients.md` (section "Claude chat") into https://claude.ai/settings, Your Claude, Instructions, and save; then a new chat that does some work shows a card under "my-chats" within a minute.

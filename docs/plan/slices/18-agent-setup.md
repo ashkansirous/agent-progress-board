@@ -1,6 +1,6 @@
 ### Slice 18 — Every AI that connects to the board is told how to report
 
-*Built (wave 2026-11-17), PR #94, not merged.*
+*Built 2026-11-17, merged as PR #94 (f325d9f).*
 
 *Planned: the owner, 2026-11-17: "the fix you did for ClaudeSkills, is a part of what should be written for the
 coding agents and AIs when they use the board via mcp. it should be in the setup", then "do we even have a proper
@@ -63,7 +63,7 @@ setup for AI agents to use the board?".* Small code change plus the client guide
 - `docs/clients.md` *Setup for an AI agent*: a pasted chat text is a copy of `initialize` `result.instructions`.
   The heartbeat is the key plus status `in_progress`; the background-agent rule and the `mark_done` rule are written in.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-17)
 
 - The reporting rules an MCP client receives are one constant, `SERVER_INSTRUCTIONS` in `src/mcp/instructions.ts`,
   built from the domain constants; `docs/clients.md` tells chat users to copy it from the `initialize` result, never a

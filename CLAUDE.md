@@ -89,3 +89,6 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
   "Needs you" comes from the server's `needs_you` (Slice 15: docs/plan/slices/15-project-blocks.md).
 - Chat and Design growth is placed only in `placeInWindows` in `src/domain/capCost.ts`; the windows are derived at
   read from session cards, never stored (Slice 16: docs/plan/slices/16-chat-reports.md).
+- The reporting rules an MCP client receives are one constant, `SERVER_INSTRUCTIONS` in `src/mcp/instructions.ts`,
+  built from the domain constants; `docs/clients.md` tells chat users to copy it from the `initialize` result, never a
+  hand copy (Slice 18: docs/plan/slices/18-agent-setup.md).

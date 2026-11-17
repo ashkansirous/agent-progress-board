@@ -2,8 +2,8 @@
 
 For anyone writing a client that reports work to the board: a Claude Code hook, a script, a
 skill, a cloud session. The board is one remote MCP server. Everything below is read from the
-server code, so a client can be built from this page alone. Clients live in the repos that use
-them; nothing client-side belongs in this repo.
+server code, so a client can be built from this page alone. The Claude Code client is the plugin in
+`plugin/`; any other client lives in the repo that uses it.
 
 All project names, keys and hosts in the examples are made up.
 
@@ -25,7 +25,9 @@ All project names, keys and hosts in the examples are made up.
 
 An AI that should report its own work needs only the connector:
 
-- **Claude Code:** add the MCP server entry (see *As an MCP server* below).
+- **Claude Code:** install the plugin in `plugin/` (the MCP server plus a skill with these rules):
+  follow [docs/setup/connect.md](setup/connect.md). Only a Claude Code that cannot use plugins adds the MCP
+  server entry by hand (see *As an MCP server* below).
 - **claude.ai:** add the custom connector and sign in with OAuth (see *Adding the board to claude.ai*).
 
 The server sends its own instructions in the `initialize` result (`src/mcp/instructions.ts`). They

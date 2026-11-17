@@ -6,7 +6,11 @@ import { MAX_STEPS, MAX_STEP_LABEL, MAX_STEP_NOTE } from "../domain/steps";
 /** How often a session reports while working. Must stay below `SESSION_STALE_AFTER_MINUTES` (test/mcpInstructions.test.ts). */
 export const HEARTBEAT_MINUTES = 5;
 
-/** Sent to every MCP client in the initialize result, so a connected AI knows how to report. */
+/**
+ * Sent to every MCP client in the initialize result, so a connected AI knows how to report.
+ * Mirrored between the BEGIN/END RULES markers of `plugin/skills/agent-board/SKILL.md`; change both
+ * (test/pluginRules.test.ts holds them equal).
+ */
 export const SERVER_INSTRUCTIONS = `This server is a progress board. Report your own work on it.
 
 If your brief names a parent card key, you are a helper agent: report your steps on that card and open no session card. Otherwise, at the start of every session or chat, before your first answer, call report_progress once with key "<project>/session-<id>" (<project> is the project you work in, or "chats" if none; <id> is a short random id you make up, the same <project> and <id> for the whole session), project = <project>, type "${ItemType.Unplanned}", agent "${SESSION_AGENT}", your environment, status "in_progress", title = your goal in one line, why = what it is for, steps = your plan as a list of {label, state}, state one of "${StepState.Done}", "${StepState.Active}", "${StepState.Pending}", at most one "${StepState.Active}". Limits: ${MAX_STEPS} steps, label ${MAX_STEP_LABEL} characters, note ${MAX_STEP_NOTE}; a report over a limit is refused and creates no card.

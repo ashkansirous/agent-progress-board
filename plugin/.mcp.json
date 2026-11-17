@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "agent-board": {
+      "type": "http",
+      "url": "${user_config.board_url}/mcp",
+      "headers": {
+        "Authorization": "Bearer ${user_config.board_token}"
+      }
+    }
+  }
+}

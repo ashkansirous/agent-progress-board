@@ -3,6 +3,7 @@ import { ActivePage } from "./ActivePage";
 import { BoardPage, type Environment } from "./BoardPage";
 import { DARK_QUERY, PHONE_QUERY, useBoard, useMediaQuery } from "./hooks";
 import { Route } from "./route";
+import { SetupPage } from "./SetupPage";
 import { pickLocale, translator } from "./strings";
 import { UsagePage } from "./UsagePage";
 import { useRoute } from "./useRoute";
@@ -27,6 +28,7 @@ export function App() {
   const route = useRoute();
   const env = useEnvironment();
   if (route === Route.Usage) return <UsagePage env={env} />;
+  if (route === Route.Setup) return <SetupPage env={env} />;
   if (route === Route.Active) return <ActivePage env={env} />;
   return <BoardRoute env={env} />;
 }

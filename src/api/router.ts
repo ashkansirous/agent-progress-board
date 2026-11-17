@@ -6,6 +6,7 @@ import { DomainError } from "../domain/upsert";
 import { type AccessEnv, AccessDecision, type AccessKeys, checkAccess, remoteAccessKeys } from "./access";
 import type { TokenSecrets } from "./auth";
 import { boardResponse } from "./board";
+import { CHAT_TEXT_PATH, chatTextResponse } from "./chatText";
 import type { UsagePageResponse } from "./usageDto";
 
 export const BOARD_PATH = "/api/board";
@@ -32,6 +33,7 @@ export async function route(request: Request, env: RouterEnv, deps: RouterDeps):
   if (access === AccessDecision.Denied) return forbidden();
   if (access === AccessDecision.Unavailable) return unavailable();
   if (url.pathname === BOARD_PATH) return boardResponse(deps.repo, parseConfig(env.BOARD_CONFIG), deps.clock);
+  if (url.pathname === CHAT_TEXT_PATH) return chatTextResponse();
   if (url.pathname === USAGE_PATH) return usageResponse(deps, url, parseConfig(env.BOARD_CONFIG));
   return env.ASSETS ? env.ASSETS.fetch(request) : notFound();
 }

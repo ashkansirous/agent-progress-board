@@ -343,6 +343,22 @@ const en = {
   partTitle: "Part {letter} · {title}",
   sliceNumber: "Slice {number}",
   parentSlice: "Slice {number} · {title}",
+  // The "Set up a chat" panel (Slice 19).
+  setupLink: "Set up a chat",
+  setupTitle: "Set up a chat",
+  setupIntro:
+    "Paste this text into claude.ai, Settings, Your Claude, Instructions, so your chats report to the board.",
+  setupPrefaceIntro: "Put this line first in the same Instructions box, above the text:",
+  setupCopyPreface: "Copy the line",
+  setupTextLabel: "Instruction text",
+  setupCopy: "Copy",
+  setupCopied: "Copied",
+  setupCopyFailed: "Could not copy. Select the text and copy it by hand.",
+  setupLoading: "Loading the instruction text…",
+  setupFailedTitle: "Couldn’t load the instruction text",
+  setupFailedApi: "The API answered {code} ({reason}).",
+  setupFailedNetwork: "The API could not be reached.",
+  setupBack: "Back to the board",
 } as const;
 
 export type StringKey = keyof typeof en;
@@ -691,6 +707,22 @@ const de: Table = {
   partTitle: "Teil {letter} · {title}",
   sliceNumber: "Slice {number}",
   parentSlice: "Slice {number} · {title}",
+  // Das Feld „Einen Chat einrichten“ (Slice 19).
+  setupLink: "Einen Chat einrichten",
+  setupTitle: "Einen Chat einrichten",
+  setupIntro:
+    "Füge diesen Text in claude.ai unter Einstellungen, Your Claude, Anweisungen ein, damit deine Chats an die Übersicht melden.",
+  setupPrefaceIntro: "Setze diese Zeile im selben Anweisungsfeld an den Anfang, über den Text:",
+  setupCopyPreface: "Zeile kopieren",
+  setupTextLabel: "Anweisungstext",
+  setupCopy: "Kopieren",
+  setupCopied: "Kopiert",
+  setupCopyFailed: "Das Kopieren ging nicht. Markiere den Text und kopiere ihn von Hand.",
+  setupLoading: "Der Anweisungstext wird geladen…",
+  setupFailedTitle: "Der Anweisungstext ließ sich nicht laden",
+  setupFailedApi: "Die API antwortete {code} ({reason}).",
+  setupFailedNetwork: "Die API ließ sich nicht erreichen.",
+  setupBack: "Zurück zur Übersicht",
 };
 
 export const LOCALES: Record<string, Table> = { en, de };

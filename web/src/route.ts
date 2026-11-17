@@ -3,12 +3,15 @@ export enum Route {
   Board = "board",
   Active = "active",
   Usage = "usage",
+  /** The "Set up a chat" panel (Slice 19); reached by a link on the board, not a tab. */
+  Setup = "setup",
 }
 
 export const ROUTE_HASH: Record<Route, string> = {
   [Route.Board]: "#/",
   [Route.Active]: "#/active",
   [Route.Usage]: "#/usage",
+  [Route.Setup]: "#/setup",
 };
 
 /** The board with one item's detail open, e.g. `#/open/demo-app%2Fslice-7`; the Active work card links here. */
@@ -62,6 +65,7 @@ export function activeKeyOf(hash: string): string | null {
 
 export function routeOf(hash: string): Route {
   if (hash === ROUTE_HASH[Route.Usage]) return Route.Usage;
+  if (hash === ROUTE_HASH[Route.Setup]) return Route.Setup;
   if (hash === ROUTE_HASH[Route.Active] || hash.startsWith(ACTIVE_PREFIX)) return Route.Active;
   return Route.Board;
 }

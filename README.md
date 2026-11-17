@@ -75,8 +75,9 @@ claude.ai connects from Anthropic's cloud and signs in with OAuth, so `/mcp` als
 tokens next to the bearer tokens (`@cloudflare/workers-oauth-provider`, storage in the KV
 binding `OAUTH_KV`). To add the board: in claude.ai open Settings, Connectors, add a custom
 connector with the URL `https://<your-worker-host>/mcp`; claude.ai opens the board's sign-in
-page, you type the owner passphrase and allow. An OAuth caller is **read-only**
-(`list_open`, `get_item`); writes need a bearer write token.
+page, you type the owner passphrase and allow. An OAuth caller is the owner's own and can
+read and report (`report_progress`, `ask_human`, `mark_done`, `report_usage`, `report_cap`);
+`sync_snapshot` needs the bearer write token (Slice 16).
 
 - Endpoints: `/.well-known/oauth-protected-resource/mcp`, `/.well-known/oauth-authorization-server`,
   `/oauth/register` (open registration, limited to Claude's redirect addresses), `/authorize`,

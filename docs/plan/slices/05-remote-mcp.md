@@ -44,6 +44,8 @@ Touches was widened: the Worker's entry (`src/index.ts`) and the test config mus
   claude.ai needs to start the flow.
 - **Scope of an OAuth caller: read** (decided here: the board is read-mostly and the *Why* is
   asking what is waiting; a write from claude.ai would need the owner to say so).
+  **Superseded by [Slice 16](16-chat-reports.md):** the owner wanted chat use reported, so an
+  OAuth caller gets the write tools except `sync_snapshot`.
 - **The one-owner allow rule (decided here, no question to the owner).** The authorize page
   asks for the owner's passphrase and compares it, in constant time, with the Worker secret
   `OWNER_PASSPHRASE`. Why this and not a sign-in with GitHub or Google: that needs an OAuth app

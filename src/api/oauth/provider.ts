@@ -8,7 +8,7 @@ import { D1ItemRepository } from "../../infrastructure/d1Repository";
 import { handleMcp } from "../../mcp/handler";
 import { scopeForToken } from "../auth";
 import { route } from "../router";
-import { handleAuthorize, READ_SCOPE } from "./authorize";
+import { handleAuthorize, OWNER_KIND, READ_SCOPE } from "./authorize";
 
 const MCP_PATH = "/mcp";
 const AUTHORIZE_PATH = "/authorize";
@@ -18,9 +18,11 @@ const REGISTER_PATH = "/oauth/register";
 export const CLIENT_REGISTRATION_TTL_SECONDS = 90 * 24 * 60 * 60;
 const LOOPBACK_HOSTS =["localhost", "127.0.0.1", "[::1]"];
 
-/** What the API handler learns about the caller: static bearer tokens carry their scope, OAuth tokens read. */
+/** What the API handler learns about the caller: static bearer tokens carry their scope; an OAuth-issued token carries none. */
 interface CallerProps {
   scope?: Scope;
+  /** Set by the authorize step on every provider-issued token. */
+  kind?: typeof OWNER_KIND;
 }
 
 /**
@@ -74,9 +76,20 @@ function checkRegistration(options: ClientRegistrationCallbackOptions, extra: st
   return { code: "invalid_redirect_uri", description: "Redirect address not allowed", status: 400 };
 }
 
-/** The MCP endpoint once a token passed: a static token keeps its scope, an OAuth token is read-only. */
+/**
+ * The one mapping from a verified caller to a scope (Slice 16): a static token keeps its own; every
+ * token the provider issued (a claude.ai sign-in, whatever scope string its grant stored, so old
+ * grants need no reconnect) is the owner's: the write tools except sync_snapshot. Only the
+ * positive owner marker earns Owner; missing or unknown props read.
+ */
+export function scopeOfCaller(props: CallerProps | undefined): Scope {
+  if (props?.scope === Scope.Write || props?.scope === Scope.Read) return props.scope;
+  return props?.kind === OWNER_KIND ? Scope.Owner : Scope.Read;
+}
+
+/** The MCP endpoint once a token passed. */
 async function serveMcp(request: Request, env: Env, props: CallerProps, clock: Clock): Promise<Response> {
-  const scope = props.scope === Scope.Write ? Scope.Write : Scope.Read;
+  const scope = scopeOfCaller(props);
   const repo = new D1ItemRepository(env.DB);
   return handleMcp(request, { scope, rawConfig: env.BOARD_CONFIG, repo, clock });
 }

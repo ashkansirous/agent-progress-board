@@ -23,6 +23,13 @@ const SOLVE_STEP_LIMIT = 1e-9;
 const MIN_MIX_SPREAD = 0.05;
 /** Unexplained growth below this many points counts as none. */
 const NO_POINTS = 0.05;
+/** Placement works on at most this many work windows (the newest, after merging overlaps per environment), so its cost per read is bounded. */
+export const MAX_PLACE_WINDOWS = 500;
+
+/** The one way environment names are compared: without case or surrounding spaces. Used by merging, placement and the repository filter. */
+export function environmentIdentity(name: string): string {
+  return name.trim().toLowerCase();
+}
 
 export enum FitMode {
   /** One weight for every token kind of the model. */
@@ -469,4 +476,95 @@ export function unexplainedTotals(fit: CapCostFit, since: string): UnexplainedTo
   const growthPoints = inside.reduce((sum, { stretch }) => sum + stretch.growth, 0);
   const points = inside.reduce((sum, { left }) => sum + left, 0);
   return { points, growthPoints, share: growthPoints === 0 ? 0 : points / growthPoints };
+}
+
+/** One reported piece of work of an environment that cannot read its own use (a chat or a Claude Design session), first report to last. */
+export interface WorkWindow {
+  environment: string;
+  start: string;
+  end: string;
+}
+
+export interface PlacedGrowth {
+  /** The fit with the placed points taken out of the residuals, so the unexplained figures count only what is left. */
+  fit: CapCostFit;
+  /** Points of cap growth put against each window environment. */
+  byEnvironment: Map<string, number>;
+}
+
+/** A work window with its times parsed once. */
+interface TimedWindow {
+  environment: string;
+  from: number;
+  to: number;
+}
+
+/** The windows' parts inside the stretch (empty ones left out), in window order. */
+function overlapsOf(windows: TimedWindow[], from: number, to: number): Array<{ environment: string; from: number; to: number }> {
+  const inside: Array<{ environment: string; from: number; to: number }> = [];
+  for (const w of windows) {
+    const start = Math.max(w.from, from);
+    const end = Math.min(w.to, to);
+    if (end > start) inside.push({ environment: w.environment, from: start, to: end });
+  }
+  return inside;
+}
+
+/** Milliseconds that at least one of the intervals covers. */
+function coveredMs(parts: Array<{ from: number; to: number }>): number {
+  const spans = parts.map((p): [number, number] => [p.from, p.to]).sort((a, b) => a[0] - b[0]);
+  let covered = 0;
+  let reach = -Infinity;
+  for (const [from, to] of spans) {
+    covered += Math.max(0, to - Math.max(from, reach));
+    reach = Math.max(reach, to);
+  }
+  return covered;
+}
+
+/**
+ * Slice 16: growth no token report explains, inside the time a chat or Design session reported
+ * working, goes against that session's environment instead of "not explained". The share of a
+ * stretch's unexplained growth that is placed is the share of the stretch's time the windows
+ * cover; it is split between overlapping windows pro rata to their overlap. Outside every window
+ * it stays unexplained. Only stretches ending after `since` count towards `byEnvironment` (the
+ * range shown); every stretch's residual shrinks. Nothing is stored: this runs on every read, one pass over stretches x windows.
+ */
+export function placeInWindows(fit: CapCostFit, allWindows: WorkWindow[], since: string): PlacedGrowth {
+  const byEnvironment = new Map<string, number>();
+  if (allWindows.length === 0) return { fit, byEnvironment };
+  const windows = boundedWindows(allWindows).map((w): TimedWindow => ({ environment: w.environment, from: Date.parse(w.start), to: Date.parse(w.end) }));
+  const residuals = fit.stretches.map((stretch, i) => {
+    const left = Math.max(0, fit.residuals[i] ?? 0);
+    const start = Date.parse(stretch.start);
+    const length = Date.parse(stretch.end) - start;
+    const parts = left === 0 || length <= 0 ? [] : overlapsOf(windows, start, start + length);
+    const total = parts.reduce((sum, p) => sum + (p.to - p.from), 0);
+    if (total === 0) return fit.residuals[i] ?? 0;
+    const placed = (left * coveredMs(parts)) / length;
+    if (stretch.end > since) parts.forEach((p) => byEnvironment.set(p.environment, (byEnvironment.get(p.environment) ?? 0) + (placed * (p.to - p.from)) / total));
+    return (fit.residuals[i] ?? 0) - placed;
+  });
+  return { fit: { ...fit, residuals, leftoverShare: shareOfGrowth(fit.stretches, residuals) }, byEnvironment };
+}
+
+/** Overlapping windows of one environment merged once, then the newest MAX_PLACE_WINDOWS kept. */
+function boundedWindows(windows: WorkWindow[]): WorkWindow[] {
+  const sorted = [...windows].sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
+  const open = new Map<string, WorkWindow>();
+  const merged: WorkWindow[] = [];
+  const names = new Map<string, string>();
+  for (const w of sorted) {
+    const identity = environmentIdentity(w.environment);
+    const last = open.get(identity);
+    if (last && w.start <= last.end) {
+      if (w.end > last.end) last.end = w.end;
+      continue;
+    }
+    if (!names.has(identity)) names.set(identity, w.environment);
+    const copy = { ...w, environment: names.get(identity) as string };
+    open.set(identity, copy);
+    merged.push(copy);
+  }
+  return merged.sort((a, b) => (a.end < b.end ? -1 : a.end > b.end ? 1 : 0)).slice(-MAX_PLACE_WINDOWS);
 }

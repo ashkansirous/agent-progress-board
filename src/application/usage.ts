@@ -27,8 +27,12 @@ import {
   type CapCostFit,
   costByKey,
   FitMode,
+  environmentIdentity,
+  environmentKey,
   fitCapCost,
   MultiplierState,
+  MAX_PLACE_WINDOWS,
+  placeInWindows,
   tokensPerPercent,
   totalCost,
   unexplainedStretches,
@@ -61,12 +65,14 @@ import {
   zeroTotals,
 } from "../domain/usage";
 import type { Clock } from "./board";
-import { SeriesKind, type SeriesName, type UsageRepository } from "./ports";
+import { SeriesKind, type SeriesName, type SessionWindow, type UsageRepository } from "./ports";
 
 const RANGE_DAYS: Record<UsageRange, number> = { [UsageRange.Day]: 1, [UsageRange.Window]: 7, [UsageRange.Month]: 30 };
 /** The cap readings are read this far back at least, so a window's state is known (and never fewer than keepDays). */
 const MIN_READING_DAYS = 30;
 const MAX_UTC_OFFSET_MINUTES = 14 * 60;
+/** Placed growth below this many points is not listed as an environment's cost. */
+const NO_PLACED_POINTS = 0.05;
 
 export interface ReportUsageInput {
   agent_key: string;
@@ -191,8 +197,8 @@ export async function readUsage(
   const knownHistory = withBaseEnvironment(history, base);
   const known = rangeDeltas(knownHistory, cap, from, now.toISOString());
   const shown = query.environment === null ? known : known.filter(({ sample }) => sample.environment === query.environment);
-  const order = await repo.seriesNames();
-  const costing = fitFor(cap, knownHistory, config, base);
+  const [order, sessionWindows] = await Promise.all([repo.seriesNames(), repo.sessionWindowsFrom(historyStart(from, now, config), MAX_PLACE_WINDOWS)]);
+  const costing = placeChatGrowth(fitFor(cap, knownHistory, config, base), knownHistory, order, windowsInFilter(sessionWindows, query.environment), from);
   const tasks = await taskCosts(repo, shown, config.topTasks, costing);
   const unit = query.range === UsageRange.Day ? BucketUnit.Hour : BucketUnit.Day;
   const buckets = bucketKeys(from, now.toISOString(), query.utcOffsetMinutes, unit);
@@ -378,12 +384,37 @@ interface Costing {
   stretches: number;
   base: string | null;
   minStretches: number;
+  /** Points of cap growth put against environments that report no tokens, from their reported work windows (Slice 16). */
+  placed: Map<string, number>;
+}
+
+/**
+ * Slice 16: cap growth no token report explains, inside the reported work of a session whose
+ * environment sends no token numbers (a chat, Claude Design), is put against that environment.
+ * An environment that does report tokens is fitted like any other and has no window here.
+ */
+function placeChatGrowth(costing: Costing, history: UsageDelta[], order: SeriesName[], sessionWindows: SessionWindow[], rangeFrom: string): Costing {
+  if (costing.fit === null) return costing;
+  const reporting = new Set([
+    ...history.map(({ sample }) => environmentIdentity(environmentKey(sample.environment, costing.base))),
+    ...order.filter((entry) => entry.kind === SeriesKind.Environment).map((entry) => environmentIdentity(entry.value)),
+  ]);
+  const windows = sessionWindows.filter((w) => !reporting.has(environmentIdentity(w.environment)));
+  const placed = placeInWindows(costing.fit, windows, rangeFrom);
+  return { ...costing, fit: placed.fit, placed: placed.byEnvironment };
+}
+
+/** An environment filter narrows the placed work windows too: only the filtered environment's own windows count. */
+function windowsInFilter(windows: SessionWindow[], environment: string | null): SessionWindow[] {
+  if (environment === null) return windows;
+  const wanted = environmentIdentity(environment);
+  return windows.filter((w) => environmentIdentity(w.environment) === wanted);
 }
 
 function fitFor(cap: CapState, history: UsageDelta[], config: UsageConfig, base: string | null): Costing {
   const stretches = cap.plan === null ? [] : buildStretches(cap.evaluation.windows, cap.plan, history, config.capCost, base);
   const fit = stretches.length >= config.capCost.minStretches ? fitCapCost(stretches, base, config.capCost) : null;
-  return { fit, stretches: stretches.length, base, minStretches: config.capCost.minStretches };
+  return { fit, stretches: stretches.length, base, minStretches: config.capCost.minStretches, placed: new Map() };
 }
 
 /** Points of the cap per key; null while the estimate is not ready. */
@@ -479,7 +510,7 @@ function stretchMix(fit: CapCostFit, name: string): TokenTotals {
 
 function environmentCosts(costing: Costing, fit: CapCostFit, known: UsageDelta[], order: SeriesName[], config: UsageConfig): CapCostEnvironmentDto[] {
   const weighted = new Set(fit.models.map((m) => m.model));
-  return environmentList(known, order, config).map((environment) => {
+  const reporting = environmentList(known, order, config).map((environment) => {
     const fitted = fit.environments.find((e) => e.environment === environment.value);
     const own = known.filter(({ sample }) => sample.environment === environment.value);
     return {
@@ -491,4 +522,23 @@ function environmentCosts(costing: Costing, fit: CapCostFit, known: UsageDelta[]
       stretches: fitted?.stretches ?? 0,
     };
   });
+  return [...reporting, ...placedEnvironments(costing, config)];
+}
+
+/** Environments with no token reports whose reported work windows hold cap growth: tokens unknown (null, never 0), points placed. */
+function placedEnvironments(costing: Costing, config: UsageConfig): CapCostEnvironmentDto[] {
+  return [...costing.placed.entries()]
+    .filter(([, points]) => points >= NO_PLACED_POINTS)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([value, points]) => ({
+      value,
+      label: config.environmentLabels[value] ?? value,
+      tokens: null,
+      reports: 0,
+      cap_points: points,
+      multiplier: null,
+      state: MultiplierState.NotEnough,
+      how_sure: null,
+      stretches: 0,
+    }));
 }

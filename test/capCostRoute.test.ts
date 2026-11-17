@@ -4,7 +4,9 @@ import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { ACCESS_JWT_HEADER, type AccessKeys } from "../src/api/access";
 import { route, type RouterEnv } from "../src/api/router";
 import type { UsageResponse } from "../src/api/usageDto";
+import { reportProgress } from "../src/application/board";
 import { reportCap, reportUsage } from "../src/application/usage";
+import { ItemStatus, ItemType } from "../src/domain/item";
 import { MultiplierState } from "../src/domain/capCost";
 import { D1ItemRepository } from "../src/infrastructure/d1Repository";
 import { resetBoard } from "./helpers";
@@ -191,5 +193,75 @@ describe("the cap cost in the usage route", () => {
     expect(model?.mode).toBe("per_kind");
     expect(model?.kind_ratio_reference).toBe("cache_read");
     expect(model?.kind_ratios?.cache_read).toBe(1);
+  });
+});
+
+describe("cap growth inside a reported chat window (Slice 16)", () => {
+  /** The week of `seedWeekWithReset`, then 6 points of growth in the hour after 42 that no token report explains. */
+  async function seedUnexplainedHour(): Promise<void> {
+    await seedWeekWithReset();
+    await readCap(43, (42 - 32) * POINTS_PER_MILLION + 6, SECOND_RESET);
+  }
+
+  async function reportSession(environment: string | undefined, key: string, status: `${ItemStatus.InProgress}` | `${ItemStatus.Done}`, at: number): Promise<void> {
+    await reportProgress(
+      repo(),
+      { key, project: "demo-app", type: ItemType.Unplanned, title: "A chat", agent: "session", status: status as ItemStatus, ...(environment ? { environment } : {}) },
+      { now: () => new Date(hour(at)) },
+    );
+  }
+
+  it("shows unexplained growth with no chat window as it was, and no chat environment", async () => {
+    await seedUnexplainedHour();
+    const usage = await getUsage("?range=30d");
+    expect(usage.cap_cost.unexplained?.points).toBeGreaterThan(5.9);
+    expect(usage.cap_cost.environments.map((e) => e.value)).not.toContain("Claude chat");
+  });
+
+  it("puts the growth inside the chat's first-to-last report against its environment, not unexplained", async () => {
+    await seedUnexplainedHour();
+    await reportSession("Claude chat", "demo-app/session-chat1", "in_progress", 42);
+    await reportSession("Claude chat", "demo-app/session-chat1", "done", 42.5);
+    const usage = await getUsage("?range=30d");
+    const chat = usage.cap_cost.environments.find((e) => e.value === "Claude chat");
+    expect(chat).toMatchObject({ tokens: null, reports: 0, multiplier: null });
+    expect(chat?.cap_points).toBeCloseTo(3, 1);
+    expect(usage.cap_cost.unexplained?.points).toBeGreaterThan(2.9);
+    expect(usage.cap_cost.unexplained?.points).toBeLessThan(3.1);
+  });
+
+  it("places nothing against a chat while the environment filter names another environment", async () => {
+    await seedUnexplainedHour();
+    await reportSession("Claude chat", "demo-app/session-chat1", "in_progress", 42);
+    await reportSession("Claude chat", "demo-app/session-chat1", "done", 42.5);
+    const usage = await getUsage("?range=30d&environment=laptop");
+    expect(usage.cap_cost.environments.map((e) => e.value)).not.toContain("Claude chat");
+    expect(usage.cap_cost.unexplained?.points).toBeGreaterThan(5.9);
+  });
+
+  it("lists a placed environment once even when its sessions spell it differently", async () => {
+    await seedUnexplainedHour();
+    await reportSession("Claude chat", "demo-app/session-chat1", "in_progress", 42);
+    await reportSession("Claude chat", "demo-app/session-chat1", "done", 42.25);
+    await reportSession("claude chat ", "demo-app/session-chat2", "in_progress", 42.5);
+    await reportSession("claude chat ", "demo-app/session-chat2", "done", 42.75);
+    const usage = await getUsage("?range=30d");
+    const names = usage.cap_cost.environments.map((e) => e.value.trim().toLowerCase()).filter((v) => v === "claude chat");
+    expect(names).toHaveLength(1);
+  });
+
+  it("does not place growth against an environment that reports its own tokens, or a session with none", async () => {
+    await seedUnexplainedHour();
+    await reportSession("laptop", "demo-app/session-lap", "in_progress", 42);
+    await reportSession("laptop", "demo-app/session-lap", "done", 43);
+    await reportSession(undefined, "demo-app/session-bare", "in_progress", 42);
+    await reportSession(undefined, "demo-app/session-bare", "done", 43);
+    await reportUsage(
+      repo(),
+      { agent_key: "demo-app/session-lap", model: "model-large", record_at: hour(42), input_tokens: 1, cache_write_tokens: 0, cache_read_tokens: 0, output_tokens: 0, environment: "laptop" },
+      clock,
+    );
+    const usage = await getUsage("?range=30d");
+    expect(usage.cap_cost.unexplained?.points).toBeGreaterThan(5.9);
   });
 });

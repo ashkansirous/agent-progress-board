@@ -50,7 +50,7 @@ const environment = z
   .string()
   .min(1)
   .max(MAX_ENVIRONMENT)
-  .describe("Where the work ran, free text as the client names it (for example laptop or cloud-vm)");
+  .describe("Where the work ran, free text as the client names it (for example laptop, cloud-vm, Claude chat or Claude Design)");
 
 const step = z.object({
   label: z.string().min(1).max(MAX_STEP_LABEL),

@@ -44,7 +44,9 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
 - MCP is stateless: a new `McpServer` and transport per request, no sessions, no Durable
   Objects. See [Slice 1](docs/plan/slices/01-items-api.md) *Decisions*.
 - Auth on `/mcp` runs through the OAuth provider in `src/api/oauth`; bearer tokens enter by its
-  external-token hook, and OAuth callers are read-only. Never add a second auth path (Slice 5:
+  external-token hook, and every OAuth-issued token is the owner's write scope without `sync_snapshot`
+  (`scopeOfCaller` in `src/api/oauth/provider.ts`, the one mapping; `allows` in `src/domain/scope.ts`).
+  Never add a second auth path (Slice 16: docs/plan/slices/16-chat-reports.md; Slice 5:
   docs/plan/slices/05-remote-mcp.md).
 - The default export in `src/index.ts` stays a plain object with `fetch` and `scheduled`
   (Slice 5: docs/plan/slices/05-remote-mcp.md).

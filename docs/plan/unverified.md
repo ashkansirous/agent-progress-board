@@ -3,6 +3,15 @@
 Every open "Not yet verified" check, one block per slice. A check that passes, or that the
 owner confirms, is removed here and its slice marked `verified`.
 
+### Slice 13: A session card says what it is doing and what it needs ([slice](slices/13-session-cards.md))
+
+- On the deployed board, a real session's goal and steps show within 5 minutes.
+- On the deployed board, a question shows under Needs you with its text.
+- On the deployed board, a stopped session leaves Working now at once.
+- The owner's comparison of the deployed page with the mocks.
+- The drawer history of a working card with several events, in a browser.
+- The 1.5px border (renders as 1px in the browser run).
+
 ### Slice 11: Slice parts: progress bar on the slice, click through to the active part ([slice](slices/11-slice-parts.md))
 
 - On the deployed board after a real document sync and a real agent run, a slice shows its bar and the click lands on the part the agent holds (needs the deploy and a client that sends parts).

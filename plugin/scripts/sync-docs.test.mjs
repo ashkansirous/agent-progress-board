@@ -126,7 +126,7 @@ describe('snapshot items', () => {
     const waiting = items.filter((item) => item.key.endsWith('/waiting'));
     assert.deepEqual(waiting.map((item) => item.key), ['demo-app/slice-6/waiting']);
     assert.ok(waiting.every((item) => item.type === 'waiting_for_me' && item.status === 'open'));
-    assert.match(keyed['demo-app/slice-6/waiting'].why, /ranking/);
+    assert.match(keyed['demo-app/slice-6/waiting'].title, /ranking/);
     assert.equal(keyed['demo-app/slice-7'].status, 'open');
   });
 
@@ -189,14 +189,14 @@ describe('snapshot items', () => {
     const table = (status) => `## Status\n\n| # | Slice | Status | PR | Issue | File |\n| --- | --- | --- | --- | --- | --- |\n| 9 | Nine | ${status} | | | |\n`;
     const sliceTexts = { 9: '*Parked: pick the store.*\n' };
     const parked = buildItems({ project: PROJECT, planText: table('parked'), sliceTexts });
-    assert.match(parked.find((item) => item.key.endsWith('/waiting')).why, /pick the store/);
+    assert.match(parked.find((item) => item.key.endsWith('/waiting')).title, /pick the store/);
     const building = buildItems({ project: PROJECT, planText: table('in progress (part C waits on the user)'), sliceTexts });
     assert.deepEqual(building.map((item) => [item.key, item.status]), [['demo-app/slice-9', 'in_progress']]);
   });
 
   test('unverified lines are `checks` inside their slice, never items of their own (Slice 16 part D)', () => {
     const owner = items.filter((item) => item.key.includes('/check-'));
-    assert.ok(owner.length > 0 && owner.every((item) => item.type === 'waiting_for_me' && /^\*{0,2}You\b/i.test(item.title)), 'only `**You` lines stay items (the owner\'s step)');
+    assert.ok(owner.length > 0 && owner.every((item) => item.type === 'waiting_for_me' && item.parent.includes('Not yet verified')), 'only `**You` lines stay items (the owner\'s step)');
     const five = keyed['demo-app/slice-5'].checks;
     assert.equal(five.length, 3 - owner.length);
     assert.ok(five.every((check) => check.key.startsWith('demo-app/slice-5/check-') && Object.keys(check).sort().join() === 'key,title'));
@@ -379,7 +379,7 @@ describe('review fixes', () => {
     const waits = buildItems({ project: PROJECT, planText, sliceTexts: { 9: '**Parked** - waits for the deploy\n' } });
     assert.equal(byKey(waits)['demo-app/slice-9/waiting'], undefined);
     const user = buildItems({ project: PROJECT, planText, sliceTexts: { 9: '**Parked** - pick the store\n' } });
-    assert.equal(byKey(user)['demo-app/slice-9/waiting'].why, 'pick the store');
+    assert.equal(byKey(user)['demo-app/slice-9/waiting'].title, 'pick the store');
   });
 
   test('only "**You:**" marks an owner step', () => {
@@ -759,5 +759,36 @@ describe('slice parts (Slice 11 part D)', () => {
     assert.equal(parts.limit, MAX_EXPANDED_ITEMS);
     assert.equal(parts.count, 1080);
     assert.deepEqual(parts.items, []);
+  });
+});
+
+describe('Slice 27: cards that say what, for which slice and why', () => {
+  const REPO = 'https://github.com/example/demo-app';
+  const table = (row) => `## Status\n\n| # | Slice | Status | PR | Issue | File |\n| --- | --- | --- | --- | --- | --- |\n${row}\n`;
+
+  test('a `**You:**` line is the step; why names the slice and what it unblocks; the slice file is linked', () => {
+    const planText = table('| 5 | Picker | planned | | | [file](docs/plan/slices/05-picker.md) |');
+    const unverifiedText = '### Slice 5: x\n\n- **You:** check the picker on a phone so that the release can go out.\n- **You:** open the board once\n';
+    const owner = buildItems({ project: PROJECT, planText, unverifiedText, repoUrl: REPO }).filter((item) => item.type === 'waiting_for_me');
+    assert.equal(owner[0].title, 'check the picker on a phone so that the release can go out.');
+    assert.equal(owner[0].why, 'Slice 5: Picker — so that the release can go out.');
+    assert.equal(owner[1].why, 'Not yet verified for Slice 5: Picker');
+    assert.deepEqual(owner[1].links, [{ label: 'Slice file', url: `${REPO}/blob/main/docs/plan/slices/05-picker.md` }]);
+  });
+
+  test('a parked row\'s card is the slice file\'s "Open for the owner" lines, why is the slice, with the link', () => {
+    const planText = table('| 9 | Nine | parked: waits for the user | | | [file](docs/plan/slices/09-nine.md) |');
+    const sliceTexts = { 9: '### Slice 9\n\n## Open for the owner\n\n- Build this or drop it.\n- Pick the store.\n\n## Notes\n\n- other\n' };
+    const card = byKey(buildItems({ project: PROJECT, planText, sliceTexts, repoUrl: REPO }))['demo-app/slice-9/waiting'];
+    assert.equal(card.title, 'Build this or drop it. Pick the store.');
+    assert.equal(card.why, 'Slice 9: Nine');
+    assert.equal(card.links[0].url, `${REPO}/blob/main/docs/plan/slices/09-nine.md`);
+  });
+
+  test('a parked row with no owner section uses its reason as the title', () => {
+    const planText = table('| 9 | Nine | parked: pick the store | | | |');
+    const card = byKey(buildItems({ project: PROJECT, planText }))['demo-app/slice-9/waiting'];
+    assert.equal(card.title, 'pick the store');
+    assert.equal(card.why, 'Slice 9: Nine');
   });
 });

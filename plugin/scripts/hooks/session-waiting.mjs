@@ -1,35 +1,54 @@
 #!/usr/bin/env node
 /* global process */
 // Notification hook: the session needs the person. Reports a `waiting_for_me` item
-// `<project>/waiting-<id>` to the board (not the session card's key). Fails open: never blocks, always exit 0.
+// `<project>/waiting-<id>` to the board (not the session card's key), only when something is asked (Slice 27):
+// the card carries the question. Fails open: never blocks, always exit 0.
 // The marker it leaves (state folder, named by the session id, holding the item's key) lets session-done.mjs
 // close the item when the session continues or stops, and close it for a session that died.
-// Input (stdin JSON): session_id, cwd, message. Env as in report-progress.mjs.
+// Input (stdin JSON): session_id, cwd, message, notification_type, transcript_path. Env as in report-progress.mjs.
+import { execFileSync } from 'node:child_process';
 import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { callTool } from '../report-progress.mjs';
 import {
-  HOOK_SOURCE, HOOK_TIMEOUT_MS, clip, parseInput, readStdinText, sessionContext, stateRoot, touchSeen, writeMarker,
+  HOOK_SOURCE, HOOK_TIMEOUT_MS, clip, parseInput, readGoal, readStdinText, sessionContext, stateRoot, touchSeen, writeMarker,
 } from './hook-input.mjs';
+import { cardText, lastAssistant } from './waiting-card.mjs';
 
 const TITLE_LIMIT = 200;
-const WHY_LIMIT = 2000;
-const DEFAULT_MESSAGE = 'Claude needs your attention';
+const BRANCH_TIMEOUT_MS = 500;
+
+// The session's reported goal; with none, the project and the branch of the working folder (the project alone
+// when git does not answer).
+function titleOf(input, context, root) {
+  const goal = readGoal(context.id, root);
+  if (goal && goal.title) return clip(goal.title, TITLE_LIMIT);
+  try {
+    const cwd = typeof input.cwd === 'string' && input.cwd ? input.cwd : process.cwd();
+    const branch = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd, timeout: BRANCH_TIMEOUT_MS, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+    if (branch) return clip(`${context.project} · ${branch}`, TITLE_LIMIT);
+  } catch { /* no git here */ }
+  return context.project;
+}
 
 export async function run(input, env = process.env, options = {}) {
   const context = sessionContext(input, env);
   if (!context) return { skipped: 'no session or token' };
   const root = stateRoot(env);
   touchSeen(context.id, root);
-  const message = clip(input.message, WHY_LIMIT) || DEFAULT_MESSAGE;
+  const card = cardText(input.notification_type, input.message, lastAssistant(input.transcript_path));
+  if (!card) return { skipped: 'nothing is asked' };
   const args = {
     key: context.key,
     project: context.project,
-    title: `${context.project} session needs you: ${clip(message, TITLE_LIMIT)}`,
-    why: message,
+    type: 'waiting_for_me',
+    status: 'open',
+    title: titleOf(input, context, root),
+    needs_you: card.needsYou,
+    after_answer: card.afterAnswer || null,
     source: HOOK_SOURCE,
   };
-  const outcome = await callTool(context.config, 'ask_human', args, { timeoutMs: HOOK_TIMEOUT_MS, ...options });
+  const outcome = await callTool(context.config, 'report_progress', args, { timeoutMs: HOOK_TIMEOUT_MS, ...options });
   if (outcome.ok) writeMarker(input, context.key, root);
   else process.stderr.write(`report-progress hook: skipped (${outcome.error})\n`);
   return outcome;

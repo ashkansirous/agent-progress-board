@@ -1,7 +1,5 @@
 import type { BoardItemDto } from "../../src/api/boardDto";
-import { isQuestion } from "./cards";
 import { QuestionCard } from "./SessionCards";
-import { Tile } from "./Tile";
 import { useView } from "./view";
 
 interface PhoneNeedsProps {
@@ -18,7 +16,7 @@ export function PhoneNeeds({ items, onOpen }: PhoneNeedsProps) {
   return (
     <section className="questions questions-top" aria-label={heading}>
       <h2>{heading}</h2>
-      {items.map((item) => (isQuestion(item) ? <QuestionCard key={item.key} item={item} onOpen={onOpen} /> : <Tile key={item.key} item={item} onOpen={onOpen} />))}
+      {items.map((item) => <QuestionCard key={item.key} item={item} onOpen={onOpen} />)}
     </section>
   );
 }

@@ -1,7 +1,8 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import exampleConfig from "../config/board.example.json" with { type: "json" };
 import { CRASH_QUESTION } from "../scripts/seed-data";
-import { SERVER_TIME } from "./fixture";
+import { SEED_ITEMS } from "../scripts/seed-data";
+import { SERVER_TIME, demoBoard, itemOf } from "./fixture";
 import { project } from "./projectBlock";
 import { sessionBoard } from "./sessionFixture";
 
@@ -77,7 +78,7 @@ test.describe("session cards", () => {
 test.describe("question cards", () => {
   test("a question card has the question in full, what follows, who asked and where to answer, and writes nothing", async ({ page }) => {
     await openBoard(page);
-    const card = page.locator("button.question-card").filter({ hasText: "iPhone 8 or the iPad" });
+    const card = page.locator(".question-card").filter({ hasText: "iPhone 8 or the iPad" });
     await expect(card).toContainText(CRASH_QUESTION);
     await expect(card).toContainText("Then I read the log and write the cause into Slice 12.");
     await expect(card).toContainText("waiting 6 min");
@@ -101,11 +102,11 @@ test.describe("question cards", () => {
     if (isPhone()) {
       await expect(page.getByRole("heading", { level: 2, name: "Needs you · 2" })).toBeVisible();
       await expect(project(page, "example-app").getByText("Its question is at the top of the page.")).toBeVisible();
-      await expect(project(page, "example-app").locator("button.question-card")).toHaveCount(0);
+      await expect(project(page, "example-app").locator(".question-card")).toHaveCount(0);
     } else {
       await expect(project(page, "example-app").getByRole("heading", { name: "Needs you · 1" })).toBeVisible();
       await expect(project(page, "tools").getByRole("heading", { name: "Needs you · 1" })).toBeVisible();
-      await expect(project(page, "tools").locator("button.question-card")).toContainText("Should I delete the 40 old backups");
+      await expect(project(page, "tools").locator(".question-card")).toContainText("Should I delete the 40 old backups");
     }
   });
 });
@@ -113,7 +114,7 @@ test.describe("question cards", () => {
 test.describe("card drawer", () => {
   test("opens from a question with the question as its title and the after-answer box", async ({ page }) => {
     await openBoard(page);
-    await page.locator("button.question-card").filter({ hasText: "iPhone 8 or the iPad" }).click();
+    await page.locator(".question-card").filter({ hasText: "iPhone 8 or the iPad" }).click();
     const panel = drawer(page);
     await expect(panel).toBeVisible();
     await expect(panel.locator(".kicker")).toHaveText("Needs you");
@@ -187,5 +188,31 @@ test.describe("card drawer", () => {
       await page.mouse.click(100, 400);
       await expect(drawer(page)).toHaveCount(0);
     }
+  });
+});
+
+test.describe("Needs you cards say what is needed (Slice 27)", () => {
+  async function openWith(page: Page, changes: Record<string, Partial<ReturnType<typeof itemOf>>>) {
+    const board = demoBoard(SEED_ITEMS.map((seed) => ({ ...itemOf(seed), ...(changes[seed.key] ?? {}) })));
+    await page.clock.setFixedTime(new Date(SERVER_TIME));
+    await page.route(BOARD_ROUTE, (route) => route.fulfill({ json: board }));
+    await page.goto("/");
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  }
+
+  test("a doc-sync card shows the step, why in full and its link", async ({ page }) => {
+    const why = "Slice 4: Tag search \u2014 so that the release can go out, and a much longer reason follows so the line would be cut if it were one line only.";
+    await openWith(page, { "recipe-box/ask-migration": { why, links: [{ label: "Slice file", url: "https://example.com/slice-4.md" }] } });
+    const card = page.locator(".question-card").filter({ hasText: "Approve the tags migration" });
+    await expect(card.locator(".question-text")).toHaveText("Approve the tags migration");
+    await expect(card.locator(".question-why")).toHaveText(why);
+    await expect(card.getByRole("link", { name: "Slice file" })).toHaveAttribute("href", "https://example.com/slice-4.md");
+  });
+
+  test("a card with no question and no why says so instead of repeating the title", async ({ page }) => {
+    await openWith(page, { "recipe-box/ask-migration": { why: "", links: [] } });
+    const card = page.locator(".question-card").filter({ hasText: "Approve the tags migration" });
+    await expect(card.locator(".question-text")).toHaveText("No question recorded");
+    await expect(card.locator(".question-work")).toHaveText("Approve the tags migration");
   });
 });

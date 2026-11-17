@@ -24,7 +24,6 @@ private Claude Code config repo; this repo hands them a tool reference and a cli
 Notes:
 
 - [Feedback loop 2026-11-17](docs/plan/notes/2026-11-17-1216-feedback-loop.md): what the audit of the third night found.
-
 - [Finished slices](docs/plan/notes/slices-done.md): rows of built slices.
 - [Feedback loop 2026-11-15](docs/plan/notes/2026-11-15-1406-feedback-loop.md): what the end-of-run audit found.
 - [Design brief 2026-11-17](docs/plan/notes/2026-11-17-design-brief.md): the page redesign for Slices 13 to 15, for Claude Design.
@@ -59,6 +58,8 @@ Notes:
 - **Waiting on the user (Slice 16):** add the instruction text from `docs/clients.md` at [claude.ai settings, Your Claude, Instructions](https://claude.ai/settings), so chats and Claude Design sessions report to the board.
 - Slices 1 to 16 are live: the night's batched release called the deploy hook at 16:17:54Z and `wrangler deployments list` (read 16:25Z) shows a deployment created 2026-11-17T16:19:30Z, after Slices 15 and 16 merged; 0006 and 0007 were already applied (read about 16:20Z).
 - Follow-ups (Slice 13): open, not built, in [Slice 13](docs/plan/slices/13-session-cards.md) *Follow-ups from check pass 2*: `working_count` drops an in-progress item with an open question, and `askOnItem` accepts part and doc-synced items while a blank `why` wipes an open question (the two mediums), plus seven lows.
+- Follow-ups (Slice 15): open, not built, in [Slice 15](docs/plan/slices/15-project-blocks.md) *Built*, "Follow-ups (low)": dead Waiting-strip leftovers and other lows.
+- Follow-ups (Slice 16): open, not built, in [Slice 16](docs/plan/slices/16-chat-reports.md) *Follow-ups from review*: the SQL and JS environment identity differ, `LIMIT 500` per card crowds out older windows, string against parsed timestamps (the mediums), plus the consent-text and scope-string mismatch and lows.
 - Follow-ups (Slice 14): open, not built, in [Slice 14](docs/plan/slices/14-checks-in-slice.md) *Follow-ups*: a doc slice retypes a live bug, problem, part or check that shares its key; a doc-synced bug or problem the document dropped is never closed; checks holding a question leak into counts and Active; duplicate part letters are skipped quietly; a stale part looks like the working part (the mediums), plus the lows.
 - Done 2026-11-17: the owner added the board-by-project artboards to the [design canvas](https://claude.ai/artifact/PZyqwkfjuwQkE4BE6UfeDd); they are copied into `docs/design/` and part B of Slices 13 and 14 and all of 15 are rewritten to them.
 - [PR #73](https://github.com/ashkansirous/agent-progress-board/pull/73) merged without a review round (owner, 2026-11-17: "you dont need to wait for my fucking reviews! fucking merge them always"); its four open points stand as written in the slices unless the owner overrules one. The part B waves of Slices 13 to 15 can start.

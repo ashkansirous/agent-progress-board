@@ -186,7 +186,9 @@ Board page); the states are the mock's; the work items are rewritten with the ar
   (`src/config.ts`, `config/board.example.json`). States follow C7.
 - Tests: 445 unit and 237 e2e pass.
 - Browser run (evidence in `reviews/wave10-s15-browser/`, script in its `script/` folder): 7 of 8
-  checks passed; the dark current-tab text colour and the German summary plural were fixed after it.
+  checks passed; the dark current-tab text colour and the German summary plural were fixed after it. The run
+  compared the page with the C0-C7 values in *Design* above, not with the mock files themselves (its own report);
+  the owner's comparison with the mocks is still open in `docs/plan/unverified.md`.
 
 *Changed while building:* the "Other open items" group that the server's `groupBoard` returns
 ([Slice 14](14-checks-in-slice.md)) is not in the mock; it is kept and shown before Done. The owner can say

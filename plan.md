@@ -20,6 +20,7 @@ private Claude Code config repo; this repo hands them a tool reference and a cli
 | Slice | Title | Status | PR | Issue | File |
 | --- | --- | --- | --- | --- | --- |
 | 17 | Parallel worktrees do not share an e2e server; scratch scripts do not fail lint | planned | | | [slice](docs/plan/slices/17-test-isolation.md) |
+| 18 | Every AI that connects to the board is told how to report (server instructions, setup guide) | planned | | | [slice](docs/plan/slices/18-agent-setup.md) |
 
 Notes:
 

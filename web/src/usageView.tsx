@@ -39,5 +39,6 @@ export const TOKEN_KIND_LABELS: Record<TokenKind, StringKey> = {
 /** What a series is called on the page: a token kind in words, an environment by its label, else the name. */
 export function seriesName(series: UsageSeriesDto, split: Split, t: Translate): string {
   if (split === Split.TokenKind) return t(TOKEN_KIND_LABELS[series.name as TokenKind] ?? "noValue");
-  return series.label ?? series.name ?? t("noValue");
+  if (split === Split.Environment) return series.label || series.name || t("noEnvironment");
+  return series.label || series.name || t("noValue");
 }

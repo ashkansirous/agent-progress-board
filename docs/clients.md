@@ -687,7 +687,10 @@ Guidance, not code: each client repo decides what it implements.
 
 ## Cloud sessions
 
-For Claude Code cloud sessions (Claude Code on the web). The setup belongs to the client repo
+For Claude Code cloud sessions (Claude Code on the web). The step-by-step guide for a Claude Code to
+follow, including usage reports under their own label (`AGENT_BOARD_ENV`), is
+[setup/cloud.md](setup/cloud.md) (Slice 28: plan/slices/28-cloud-usage.md); a cloud session does not install
+the board's plugin, so it runs the plugin's scripts directly. The setup belongs to the client repo
 and the owner's environment; this page only says what the board needs and what the Claude Code
 docs promise (read 2026-11-15; the docs change, so re-read them before relying on a detail):
 [cloud environments](https://code.claude.com/docs/en/cloud-environments),

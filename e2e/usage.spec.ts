@@ -125,6 +125,16 @@ test.describe("usage page", () => {
     expect(await legend.allTextContents()).toEqual(["reviewer", "builder"]);
   });
 
+  test("a series with no environment (only sent while no environment on the board is named) is named for the main machine, with a hint to label it, never Not set (Slice 28)", async ({ page }) => {
+    const base = demoUsage();
+    const unlabelled = { name: null, label: null, color_index: 0, values: base.buckets.map(() => 1_000_000) };
+    await openUsage(page, () => ({ ...base, splits: { ...base.splits, environment: [unlabelled] } }));
+    await pressed(page, isPhone() ? "Env" : "Environment", "Split tokens by").click();
+    await expect(page.locator(".series-legend li")).toHaveText(["No label (main machine)"]);
+    await expect(page.getByText("To label a machine, set the plugin's environment option")).toBeVisible();
+    await expect(page.getByText("Not set")).toHaveCount(0);
+  });
+
   test("the chart has its numbers in a table, and an alt text that names the biggest series", async ({ page }) => {
     await openUsage(page);
     const row = page.locator(".usage-table tbody tr", { hasText: "model-alpha" });

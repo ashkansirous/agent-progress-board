@@ -1,6 +1,6 @@
 ### Slice 26 — The "all kinds" cost figure stays steady across a weekly reset
 
-*Built 2026-11-17 (PR #115, not merged); work item 1 (live before/after comparison) not done, see Not yet verified.*
+*Built 2026-11-17, merged as PR #115 (7e4d149); work item 1 (live before/after comparison) not done, see Not yet verified.*
 
 *Planned with a recorded default (starter session, 2026-11-17, after the owner's "what the fuck is the question ...
 what the fuck do you need from me?" on bare "Waiting on you" cards): the choice below has an obvious answer, so it is
@@ -67,7 +67,7 @@ test), #3 and #8.
 - Skipped #2 (`reviews/pr-115-check-medium.md`): "a note rendered slightly later would pass vacuously" - low e2e strength; follow-up.
 - The review files are in `D:/agent-progress-board-worktrees/reviews` (outside the repo); the check needs `--root D:/agent-progress-board-worktrees`.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-17)
 
 - "All kinds" weighting while the current weekly window is under 24 hours old uses the last full window's mix, chosen only by
   `chooseMixWindow` in `src/domain/capCost.ts`; `mix_source` is derived at read, never stored, and the page never picks

@@ -112,3 +112,11 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
 - A waiting card from the plugin's Notification hook opens only when something is asked (permission, elicitation, or an
   idle prompt after a question); its text is masked by `maskSecrets` in `plugin/scripts/hooks/waiting-card.mjs` before it
   leaves the machine; never send transcript text unmasked (Slice 27: docs/plan/slices/27-needs-you-cards.md).
+- "All kinds" weighting while the current weekly window is under 24 hours old uses the last full window's mix, chosen only
+  by `chooseMixWindow` in `src/domain/capCost.ts`; `mix_source` is derived at read, never stored, and the page never picks
+  the window (Slice 26: docs/plan/slices/26-mix-after-reset.md).
+- Unlabelled usage rows are folded into the busiest named environment at read (`withBaseEnvironment` in
+  `src/application/usage.ts`, pinned by `usage.baseEnvironment`); a machine must be named before any other environment
+  is, and the "No label (main machine)" string shows only while none is named (Slice 28: docs/plan/slices/28-cloud-usage.md).
+- Cloud sessions load no plugin; `docs/setup/cloud.md` runs the plugin's usage scripts from a pinned download, so a
+  change to those script paths or imports must be mirrored there (Slice 28: docs/plan/slices/28-cloud-usage.md).

@@ -22,8 +22,6 @@ owner's config repo. Decisions in [Slice 20](docs/plan/slices/20-plugin-connect.
 
 | Slice | Title | Status | PR | Issue | File |
 | --- | --- | --- | --- | --- | --- |
-| 26 | The "all kinds" cost figure stays steady across a weekly reset | planned | | | [slice](docs/plan/slices/26-mix-after-reset.md) |
-| 28 | Cloud and VM sessions report their usage under their own label; the main machine gets a name | planned | | | [slice](docs/plan/slices/28-cloud-usage.md) |
 
 Notes:
 
@@ -60,7 +58,7 @@ Notes:
 
 ## Outstanding work
 
-- **Not yet tried on a device:** 71 checks across 21 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
+- **Not yet tried on a device:** 78 checks across 23 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
 - **Waiting on the user (Slices 16, 18, 19):** once the night's batched release has deployed Slice 19, open the board's "Set up a chat" page (`<board address>/#/setup`), copy the text and the connector line, and paste them in [claude.ai settings, Your Claude, Instructions](https://claude.ai/settings) so claude.ai chats report to the board ([Slice 19](docs/plan/slices/19-chat-text.md); the step is in `docs/plan/unverified.md` under Slice 19).
 - Slices 1 to 24 are built (19 merged as PR #110, 27 as PR #109, both after this release): the night 2026-11-17-1826 release called the deploy hook at 20:03:13Z and `wrangler deployments list` (read 20:04Z) shows a deployment created 2026-11-17T20:04:43Z; `batch-release.mjs worker-deployed` was run after it. The plugin (Slices 20 to 23) ships from the repo, not the Worker.
 - Follow-ups (Slice 21): to plan as a follow-up slice: the background-agent state bugs 1-6 (lost stopped id under parallel SubagentStop, freshness filter bypassed, active step demoted, resumed agent forced done, goal-file write races, card left open after the last SubagentStop), in [Slice 21](docs/plan/slices/21-plugin-session-cards.md) *Follow-ups* (`reviews/pr-101-check-2-medium.md`).

@@ -66,6 +66,14 @@ environment (`AGENT_BOARD_URL`, `AGENT_BOARD_TOKEN`); there is no built-in addre
   `--steps "a|b|c"` or `--steps-file <path>`, `--step-active`, `--step-done`, `--tool mark_done`); its header lists every
   flag. A steps file is JSON: `{ "agent": "..", "steps": [{ "label": "..", "note": "..", "needsTouch": [".."] }] }`.
 
+### Plan sync (Slice 23, optional)
+
+`plugin/scripts/sync-docs.mjs` reads a repo's `plan.md` `## Status` table, `docs/plan/slices/`, and
+`docs/plan/unverified.md` from `origin/main` and sends them with one `sync_snapshot` call (fail open, idempotent;
+usage and the layout it expects: `docs/setup/plan-sync.md`). A `parked:` row becomes a `waiting_for_me` card unless
+its reason only waits on work (another slice, an interactive session, a deploy, a merge); an `unverified.md` line
+starting `**You:**` becomes a `waiting_for_me` card. The plugin installs no hook for it; run it after a merge.
+
 ## Two ways to call
 
 Same endpoint (`POST {AGENT_BOARD_URL}/mcp`), same tools.

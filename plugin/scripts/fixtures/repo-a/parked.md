@@ -1,0 +1,2 @@
+- Slice 4: needs the owner to approve the new encoding list
+- Slice 06: ranking weights wait on the user

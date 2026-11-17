@@ -42,6 +42,8 @@ agent is working on now: its step in words, `N of M steps · P%` over one bar se
 the full list on a toggle. A task's tile and drawer on the board show the same bar when it has steps. A slice made of lettered parts (A, B, C) shows a bar of parts done
 over parts, the part being worked on now, and a link that opens that part's card on Active work.
 
+Checks ("not tried on a device" lines) live inside their slice, never as cards; problems and bugs have their own list.
+
 The page and `/api/board` are closed until Cloudflare Access is set up: the Worker refuses
 every request that has no valid Access JWT, and refuses all of them while the Worker secrets
 `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` are unset. `/mcp` keeps its bearer tokens.

@@ -1,6 +1,6 @@
 ### Slice 14 — Untested checks live inside their slice, and problems get their own list
 
-*Built 2026-11-17 (wave 2026-11-17), draft PR #78, not merged; not yet verified on the deployed
+*Built 2026-11-17 (wave 2026-11-17), merged as PR #78 (4865104); not yet verified on the deployed
 board.* Parts A (server) and B (the page) are both built. The plan PR with the design (#73) is
 merged. Migration 0007 rebuilds `items` and `events` for type `check`. 437 unit and 213 e2e tests
 pass. Browser run (headless, `vite --mode e2e`, the real grouping over the seeds): 8 of 8 PASS
@@ -274,12 +274,12 @@ Fourth check pass, converged, all page findings, no code reopened (`../agent-pro
 - #6: "web/src/PartsView.tsx:59, low, PartsSection thin wrapper; own/not-own heading choice duplicated across PartChecklist and SliceChecks."
 - #7: "web/src/planning.css:358, low, .check-state defaults to done green; stale shows blue, any new state word shows green."
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-17)
 
 - The board's grouping rule is one function, `groupBoard` in `src/domain/boardGroups.ts`; the page never regroups (Slice 14: docs/plan/slices/14-checks-in-slice.md).
 - Item validation (key prefix, parent in the same project, check needs a slice parent, at most 100 checks) is one function, `itemProblem` in `src/domain/checks.ts`, used by `sync_snapshot` (skips the item, returns `skipped`) and `report_progress` (refuses); never add a second copy (Slice 14: docs/plan/slices/14-checks-in-slice.md).
 
-#### For README.md
+#### For README.md (lifted 2026-11-17)
 
 - Checks ("not tried on a device" lines) live inside their slice, never as cards; problems and bugs have their own list.
 

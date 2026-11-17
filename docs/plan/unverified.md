@@ -3,6 +3,12 @@
 Every open "Not yet verified" check, one block per slice. A check that passes, or that the
 owner confirms, is removed here and its slice marked `verified`.
 
+### Slice 14: Untested checks live inside their slice, and problems get their own list ([slice](slices/14-checks-in-slice.md))
+
+- On the deployed board after a real doc sync: no card per check, and the header total equals the count line in `plan.md` (needs the config repo's client to send `checks`).
+- Migration 0007 applied on the live D1 (it goes live only with a release; merges carry the skip-CI marker).
+- The owner compares the deployed page with `BoardV2.dc.html` and `BoardV2Dark.dc.html`.
+
 ### Slice 13: A session card says what it is doing and what it needs ([slice](slices/13-session-cards.md))
 
 - On the deployed board, a real session's goal and steps show within 5 minutes.

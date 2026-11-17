@@ -16,17 +16,17 @@ remote MCP endpoint is the only public contract, from Slice 1 on.
 them"): a newcomer's Claude Code, with no background, installs and onboards itself from this repo alone.
 The repo ships a Claude Code plugin (skill, hooks, reporter scripts, connection) and guides written for
 Claude, both for connecting to a board and for setting up your own; every client piece moves here from the
-owner's config repo. Decisions in [Slice 19](docs/plan/slices/19-plugin-connect.md); Slices 19 to 23.
+owner's config repo. Decisions in [Slice 20](docs/plan/slices/20-plugin-connect.md); Slices 20 to 24.
 
 ## Status
 
 | Slice | Title | Status | PR | Issue | File |
 | --- | --- | --- | --- | --- | --- |
-| 19 | A Claude Code plugin and a setup guide: any Claude Code connects itself to a board | planned | | | [slice](docs/plan/slices/19-plugin-connect.md) |
-| 20 | Session cards report themselves from the plugin's hooks (starts after 19) | planned | | | [slice](docs/plan/slices/20-plugin-session-cards.md) |
-| 21 | Token usage and cap readings from the plugin (starts after 20) | planned | | | [slice](docs/plan/slices/21-plugin-usage.md) |
-| 22 | Plan documents sync, an optional plugin part (starts after 20) | planned | | | [slice](docs/plan/slices/22-plugin-plan-sync.md) |
-| 23 | Set up your own board: a guide Claude follows (starts after 19) | planned | | | [slice](docs/plan/slices/23-own-board-guide.md) |
+| 20 | A Claude Code plugin and a setup guide: any Claude Code connects itself to a board | planned | | | [slice](docs/plan/slices/20-plugin-connect.md) |
+| 21 | Session cards report themselves from the plugin's hooks (starts after 20) | planned | | | [slice](docs/plan/slices/21-plugin-session-cards.md) |
+| 22 | Token usage and cap readings from the plugin (starts after 21) | planned | | | [slice](docs/plan/slices/22-plugin-usage.md) |
+| 23 | Plan documents sync, an optional plugin part (starts after 21) | planned | | | [slice](docs/plan/slices/23-plugin-plan-sync.md) |
+| 24 | Set up your own board: a guide Claude follows (starts after 20) | planned | | | [slice](docs/plan/slices/24-own-board-guide.md) |
 
 Notes:
 

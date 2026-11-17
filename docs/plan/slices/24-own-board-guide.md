@@ -1,9 +1,9 @@
-### Slice 23 — Set up your own board: a guide Claude follows
+### Slice 24 — Set up your own board: a guide Claude follows
 
-*Planned and accepted with Slice 19 (owner, 2026-11-17; decisions in
-[Slice 19](19-plugin-connect.md), decision 1). Starts after Slice 19.* Docs only.
+*Planned and accepted with Slice 20 (owner, 2026-11-17; decisions in
+[Slice 20](20-plugin-connect.md), decision 1). Starts after Slice 20.* Docs only.
 
-**Touches:** `docs/setup/own-board.md`, `README.md`, `config/**`, `.dev.vars.example`, `docs/plan/slices/23-own-board-guide.md`
+**Touches:** `docs/setup/own-board.md` (new), `README.md`, `config/**`, `.dev.vars.example`, `docs/plan/slices/24-own-board-guide.md`
 
 **Migrations:** none
 

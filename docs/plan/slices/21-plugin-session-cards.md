@@ -1,12 +1,12 @@
-### Slice 20 — Session cards report themselves from the plugin's hooks
+### Slice 21 — Session cards report themselves from the plugin's hooks
 
-*Planned and accepted with Slice 19 (owner, 2026-11-17; decisions in
-[Slice 19](19-plugin-connect.md)). Starts after Slice 19.* Moves the reporter CLI and the session hooks from the
+*Planned and accepted with Slice 20 (owner, 2026-11-17; decisions in
+[Slice 20](20-plugin-connect.md)). Starts after Slice 20.* Moves the reporter CLI and the session hooks from the
 owner's config repo (`skills/report-progress/`: `report-progress.mjs`, `hooks/hook-input.mjs`,
 `hooks/session-done.mjs`, `hooks/session-waiting.mjs`, `hooks/goal-reminder.mjs`, `steps/*.json`, their tests) into
 `plugin/`, made generic, with the card fixes found on 2026-11-17.
 
-**Touches:** `plugin/scripts/**`, `plugin/hooks/hooks.json`, `plugin/skills/agent-board/SKILL.md`, `package.json`, `docs/clients.md`, `docs/plan/slices/20-plugin-session-cards.md`
+**Touches:** `plugin/scripts/**`, `plugin/hooks/hooks.json`, `plugin/skills/agent-board/SKILL.md`, `package.json`, `docs/clients.md`, `docs/plan/slices/21-plugin-session-cards.md`
 
 **Migrations:** none
 

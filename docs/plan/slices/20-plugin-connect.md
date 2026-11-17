@@ -1,4 +1,4 @@
-### Slice 19 — A Claude Code plugin and a setup guide: any Claude Code connects itself to a board
+### Slice 20 — A Claude Code plugin and a setup guide: any Claude Code connects itself to a board
 
 *Planned and accepted (owner, 2026-11-17, "/RefineScope this is a board. it is generic and is supposed to be plug and
 play and usabel by the ai agents ... a client tells its claude code to install it and on board it self ... If they
@@ -6,13 +6,13 @@ need a skill or sub agent to use, write a skill and ask them to install it ... i
 clients can be updating themselves easyly"; answered "agree with all the suggestions" to the four recommendations
 below).*
 
-**Touches:** `.claude-plugin/marketplace.json`, `plugin/**`, `docs/setup/connect.md`, `README.md`, `docs/clients.md`, `src/mcp/instructions.ts`, `test/pluginRules.test.ts`, `package.json`, `docs/plan/slices/19-plugin-connect.md`
+**Touches:** `.claude-plugin/marketplace.json`, `plugin/**`, `docs/setup/connect.md` (new), `README.md`, `docs/clients.md`, `src/mcp/instructions.ts`, `test/pluginRules.test.ts`, `package.json`, `docs/plan/slices/20-plugin-connect.md`
 
 **Migrations:** none
 
 #### Decisions (owner, 2026-11-17)
 
-1. **For whom:** anyone, in two guides: setting up your own board on your own Cloudflare account (Slice 23), and
+1. **For whom:** anyone, in two guides: setting up your own board on your own Cloudflare account (Slice 24), and
    connecting a Claude Code to a board that exists (this slice). The owner's board is one install with no special
    case in code or docs.
 2. **How it installs and updates:** this repo is a Claude Code plugin marketplace with one plugin. A person tells
@@ -20,7 +20,7 @@ below).*
    clients through Claude Code's plugin update.
 3. **What moves here:** every piece that talks to the board, now in the owner's config repo
    (`skills/report-progress/`): reporter CLI, session hooks, usage and cap reporting, the "waiting for you" rules,
-   plan documents sync (optional). Slices 20 to 22 move them; the owner's repo then installs the plugin like any
+   plan documents sync (optional). Slices 21 to 23 move them; the owner's repo then installs the plugin like any
    client and deletes its copy (its own slice, in that repo).
 4. **AIs other than Claude Code:** the rules the server sends on connect (Slice 18, `src/mcp/instructions.ts`)
    are all they need; the pasted chat instruction stays only as a fallback.
@@ -59,7 +59,7 @@ context7 or the docs before building (the version rule and `userConfig` above al
   to add the board to claude.ai (OAuth connector, `docs/clients.md`). Verify: a fresh Claude Code given only the
   README sentence, on a machine with no board setup (a clean profile), ends with a working test card.
 - [ ] **README.** Top section "Use it": one sentence to give your Claude Code ("Install and set up the agent board
-  plugin from https://github.com/<owner>/<repo>, following docs/setup/connect.md"), and a link to Slice 23's
+  plugin from https://github.com/<owner>/<repo>, following docs/setup/connect.md"), and a link to Slice 24's
   own-board guide. The *Develop* section stays below. Fix the stale "Status: building (Slice 1...)" line.
 - [ ] **Client guide.** `docs/clients.md` *Setup for an AI agent* points to the plugin and `docs/setup/connect.md`
   first; the raw MCP and HTTPS sections stay for other clients.

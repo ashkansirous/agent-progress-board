@@ -1,11 +1,11 @@
-### Slice 21 — Token usage and cap readings from the plugin
+### Slice 22 — Token usage and cap readings from the plugin
 
-*Planned and accepted with Slice 19 (owner, 2026-11-17; decisions in
-[Slice 19](19-plugin-connect.md)). Starts after Slice 20.* Moves usage reporting from the owner's config repo
+*Planned and accepted with Slice 20 (owner, 2026-11-17; decisions in
+[Slice 20](20-plugin-connect.md)). Starts after Slice 21.* Moves usage reporting from the owner's config repo
 (`skills/report-progress/`: `usage-tick.mjs`, `usage-report.mjs`, `cap-reading.mjs`, `self-report.mjs`, their tests)
 into `plugin/scripts/`.
 
-**Touches:** `plugin/scripts/**`, `plugin/hooks/hooks.json`, `plugin/.claude-plugin/plugin.json`, `plugin/skills/agent-board/SKILL.md`, `docs/clients.md`, `docs/plan/slices/21-plugin-usage.md`
+**Touches:** `plugin/scripts/**`, `plugin/hooks/hooks.json`, `plugin/.claude-plugin/plugin.json`, `plugin/skills/agent-board/SKILL.md`, `docs/clients.md`, `docs/plan/slices/22-plugin-usage.md`
 
 **Migrations:** none
 

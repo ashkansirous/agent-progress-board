@@ -1,12 +1,12 @@
-### Slice 22 — Plan documents sync, an optional plugin part
+### Slice 23 — Plan documents sync, an optional plugin part
 
-*Planned and accepted with Slice 19 (owner, 2026-11-17; decisions in
-[Slice 19](19-plugin-connect.md)). Starts after Slice 20.* Moves `sync-docs.mjs` and `sync.md` from the owner's
+*Planned and accepted with Slice 20 (owner, 2026-11-17; decisions in
+[Slice 20](20-plugin-connect.md)). Starts after Slice 21.* Moves `sync-docs.mjs` and `sync.md` from the owner's
 config repo (`skills/report-progress/`) into `plugin/scripts/`, for repos that keep their plan in this layout:
 `plan.md` with a `## Status` table, one file per slice in `docs/plan/slices/`, open checks in
 `docs/plan/unverified.md`. Repos without it skip this part.
 
-**Touches:** `plugin/scripts/**`, `plugin/skills/agent-board/SKILL.md`, `docs/clients.md`, `docs/setup/plan-sync.md`, `docs/plan/slices/22-plugin-plan-sync.md`
+**Touches:** `plugin/scripts/**`, `plugin/skills/agent-board/SKILL.md`, `docs/clients.md`, `docs/setup/plan-sync.md` (new), `docs/plan/slices/23-plugin-plan-sync.md`
 
 **Migrations:** none
 

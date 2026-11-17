@@ -91,8 +91,7 @@ the answer.
 
 Needed only where the client ignores the server's instructions (see *Setup for an AI agent*).
 Where to paste it: claude.ai, Settings, "Your Claude", Instructions (older layout: Account,
-"Instructions for Claude"): <https://claude.ai/settings>. Text, with the project name made up
-here; use your own:
+"Instructions for Claude"): <https://claude.ai/settings>.
 
 Paste the text the server returns in the `initialize` result, `result.instructions` (the
 `${...}` parts are already filled in there; do not copy from the source file), so there is one

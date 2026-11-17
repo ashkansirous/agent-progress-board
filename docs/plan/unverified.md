@@ -9,7 +9,7 @@ owner confirms, is removed here and its slice marked `verified`.
 
 ### Slice 16: Claude chat and Claude Design report to the board, and their use counts ([slice](slices/16-chat-reports.md))
 
-- **You:** paste the instruction text from `docs/clients.md` (section "Claude chat") into https://claude.ai/settings, Your Claude, Instructions, and save; then a new chat that does some work shows a card under "my-chats" within a minute.
+- **You:** a new chat at https://claude.ai/new with only the board connector that does some work shows a card under "my-chats" within a minute. If not, the instruction text for https://claude.ai/settings (Your Claude, Instructions) has no owner-readable copy since Slice 18; see the parked [Slice 19](slices/19-chat-text.md).
 - **You:** try the same instruction once in a Claude Design session and say whether a card appears (Claude Design calling the connector is unproven; see the first Work item).
 - A real claude.ai chat reporting through the connector and the usage page's "Claude chat" row.
 - Claude Design and custom connectors are unproven in the docs.

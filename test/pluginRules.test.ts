@@ -5,6 +5,8 @@ import skillText from "../plugin/skills/agent-board/SKILL.md?raw";
 import pluginJsonText from "../plugin/.claude-plugin/plugin.json?raw";
 // @ts-expect-error Vite's ?raw import has no type declaration in this project's tsconfig.
 import mcpJsonText from "../plugin/.mcp.json?raw";
+// @ts-expect-error Vite's ?raw import has no type declaration in this project's tsconfig.
+import reporterText from "../plugin/scripts/report-progress.mjs?raw";
 import { SERVER_INSTRUCTIONS } from "../src/mcp/instructions";
 
 const RULES_BEGIN = "<!-- BEGIN RULES -->";
@@ -27,10 +29,14 @@ describe("plugin skill rules", () => {
     expect(rulesOf("no markers here")).toBe("");
   });
 
-  it("declares the two options the MCP entry uses", () => {
-    const manifest = JSON.parse(String(pluginJsonText)) as { userConfig: Record<string, { sensitive?: boolean }> };
+  it("declares the options the MCP entry and the scripts use, each read by name in the scripts", () => {
+    const manifest = JSON.parse(String(pluginJsonText)) as { userConfig: Record<string, { sensitive?: boolean; default?: boolean }> };
     const mcp = String(mcpJsonText);
-    expect(Object.keys(manifest.userConfig).sort()).toEqual(["board_token", "board_url"]);
+    expect(Object.keys(manifest.userConfig).sort()).toEqual(["board_token", "board_url", "environment", "read_plan_cap", "report_usage"]);
+    for (const option of Object.keys(manifest.userConfig)) {
+      expect(String(reporterText)).toContain(`CLAUDE_PLUGIN_OPTION_${option.toUpperCase()}`);
+    }
+    expect(manifest.userConfig.read_plan_cap?.default).toBe(false);
     expect(manifest.userConfig.board_token?.sensitive).toBe(true);
     expect(mcp).toContain("${user_config.board_url}/mcp");
     expect(mcp).toContain("Bearer ${user_config.board_token}");

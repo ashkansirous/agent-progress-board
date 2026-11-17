@@ -66,6 +66,27 @@ environment (`AGENT_BOARD_URL`, `AGENT_BOARD_TOKEN`); there is no built-in addre
   `--steps "a|b|c"` or `--steps-file <path>`, `--step-active`, `--step-done`, `--tool mark_done`); its header lists every
   flag. A steps file is JSON: `{ "agent": "..", "steps": [{ "label": "..", "note": "..", "needsTouch": [".."] }] }`.
 
+### Token usage and cap readings from the plugin (Slice 22)
+
+`plugin/scripts/usage-tick.mjs` is wired to `PostToolUse` (through a five-minute gate: it reads one small file and
+returns at once) and to `Stop` and `SubagentStop` (`--force`, past the gate). A due run starts itself again in the
+background, takes a lock and then sends, in one pass: one `report_usage` per agent and model (running totals, read
+from Claude Code's own session records in `~/.claude/projects`, or the folder in `AGENT_BOARD_CLAUDE_DIR`, else Claude Code's own `CLAUDE_CONFIG_DIR`), a
+heartbeat for each task a session reported with the CLI (`<state>/<session>.task.json`), and one `report_cap`. It
+opens no card: session cards come from the session's own reports and the hooks above. The gate, lock, scan state and
+cap state live in `CLAUDE_PLUGIN_DATA/state`; nothing is written to the Claude folder.
+
+- **Options.** `report_usage` (boolean, default true) turns token reports and the cap reading off, and
+  `AGENT_BOARD_USAGE=off` still does; with either, no usage or cap call is made; the task heartbeat still goes (it is
+  not a token count or cap reading). `read_plan_cap` (boolean, default false) turns the cap reading on; it runs only
+  while `report_usage` is on too. `environment` (string, optional, for example `desktop`) is the
+  environment label on usage reports; `AGENT_BOARD_ENV` is the fallback.
+- **The cap reading reads Claude Code's own sign-in file** (`.credentials.json` in the Claude folder) to ask Anthropic's
+  usage address for the plan's cap percentage; the token stays in memory, goes to that address only, and is never
+  sent to the board, stored or printed. It runs only when `read_plan_cap` is on; turning `report_usage` off stops it too.
+- **A device check** sets `AGENT_BOARD_DEBUG=1` to see one stderr line per branch (gate closed, run started, usage
+  off, cap sent or skipped).
+
 ## Two ways to call
 
 Same endpoint (`POST {AGENT_BOARD_URL}/mcp`), same tools.

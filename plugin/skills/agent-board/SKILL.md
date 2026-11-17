@@ -48,6 +48,10 @@ The plugin installs hooks (list in the plugin repository's `docs/clients.md`). Y
 - **Reminder:** the hook sees your `report_progress` call with agent "session" and remembers its key, so use that one
   key for the whole session. If you have sent no goal by your second tool call of a prompt, it reminds you once.
 
+- **Usage (option `report_usage`, on by default):** a hook sends token counts. The plan's cap percentage is a separate
+  option, `read_plan_cap`, off by default: when the person turns it on, the same run reads Claude Code's own sign-in
+  file (`.credentials.json`) to ask Anthropic for it. `report_usage` off stops both. You send no token numbers yourself.
+
 What you still report yourself: the card's title and why, the steps and each change of them, a heartbeat at least
 every 5 minutes while working, a question in `needs_you`, and `mark_done` when the goal is done.
 

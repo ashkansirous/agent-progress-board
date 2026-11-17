@@ -55,6 +55,14 @@ JSON file themselves, `{"board_url": "<address>", "board_token": "<token>"}`, ou
 `claude plugin configure agent-board@agent-progress-board --values-stdin < <that file>` (this file form was not
 tested; the pipe form was), then the person deletes the file.
 
+### Usage reporting (tokens on by default, plan cap off by default)
+
+The plugin also sends token counts to the board (option `report_usage`, on by default; false turns it off). The
+plan's cap percentage is a separate option, `read_plan_cap`, off by default: it reads Claude Code's own sign-in file
+(`.credentials.json` in the Claude folder) to ask Anthropic for that percentage, so tell the person before they turn
+it on. Both are set in the same `/plugin` menu, and `report_usage` off stops both; the optional `environment` option
+labels where this Claude Code runs (for example `desktop`).
+
 ## 5. Keep the plugin current (optional)
 
 New versions of the plugin reach the person through Claude Code's plugin update. Updates are off by default for

@@ -39,6 +39,33 @@ needed only where the client ignores server instructions. The plain HTTPS POST p
 call*, option 2) and hooks never call `initialize`, so they receive no instructions: that prompt or
 script must carry the rules itself.
 
+### What the plugin's hooks do on their own (Slice 21)
+
+The plugin also installs hooks (`plugin/hooks/hooks.json`, scripts in `plugin/scripts/`, Node, no dependencies).
+Every script fails open: a missing address or token, a timeout (2 s) or a board error is one stderr line and exit 0.
+Config comes from the plugin options (`CLAUDE_PLUGIN_OPTION_BOARD_URL`, `CLAUDE_PLUGIN_OPTION_BOARD_TOKEN`), else the
+environment (`AGENT_BOARD_URL`, `AGENT_BOARD_TOKEN`); there is no built-in address. Small per-session files go in
+`CLAUDE_PLUGIN_DATA/state`, never the plugin folder. The project name is the main checkout's folder name unless
+`AGENT_BOARD_PROJECT` is set.
+
+| Hook event | What it does |
+| --- | --- |
+| `PostToolUse` | Local files only. Remembers the key of the session's own card: a main-thread `report_progress` call with agent `session` (later calls on the same key, and `mark_done`, update it). At the second tool call of a prompt with no goal reported, it reminds the session once to report goal, purpose and steps. |
+| `UserPromptSubmit` | Reopens a card the Stop hook closed ("Session resumed"), marks this session's waiting item done, and closes dead waiting items (below). Starts the reminder's prompt counter. |
+| `Stop` | Marks the session's card done ("Session stopped"). If a background agent's record (`<session>/subagents/*.jsonl`) changed in the last 10 minutes, the card stays `in_progress` with the note "background agents running" instead. While the session has an open `needs_you` question the card is not closed, and every hook report repeats the question text (a done or stale-to-in-progress report would clear it). Also marks the session's waiting item done. |
+| `SubagentStop` | Sends the card's steps again with the stopped agent done, when the list changed. Also marks the session's waiting item done. |
+| `Notification` (`permission_prompt`, `elicitation_dialog`) | Raises a `waiting_for_me` item `<project>/waiting-<session id>` (`ask_human`), never the session card's key. |
+
+- **Agent steps.** Each background agent whose record changed in the last 10 minutes is a step, labelled with its
+  `description` from `subagents/*.meta.json`, after the steps the session sent; it is `done` once it stopped. The board
+  allows one active step at most, so the first running agent is `active`, further running agents are `pending` with the
+  note "running in background", and the session's own active step shows as `pending` while an agent runs.
+- **A dead session's waiting item.** A waiting item whose session sent nothing (no prompt, tool call or hook) for 30
+  minutes is closed "Session ended" by the next hook of any session on the same machine.
+- **The CLI.** `plugin/scripts/report-progress.mjs` sends one report from a script (`--key` or `--slice`, `--title`,
+  `--steps "a|b|c"` or `--steps-file <path>`, `--step-active`, `--step-done`, `--tool mark_done`); its header lists every
+  flag. A steps file is JSON: `{ "agent": "..", "steps": [{ "label": "..", "note": "..", "needsTouch": [".."] }] }`.
+
 ## Two ways to call
 
 Same endpoint (`POST {AGENT_BOARD_URL}/mcp`), same tools.

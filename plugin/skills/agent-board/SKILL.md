@@ -33,6 +33,24 @@ Keep the card current:
 One session card per session: if the server's instructions already had you open one, keep that card and never open a
 second.
 
+## What the plugin's hooks do on their own
+
+The plugin installs hooks (list in the plugin repository's `docs/clients.md`). You do not repeat their work:
+
+- **Stop:** the hook marks your card done when your reply ends, so do not call `mark_done` after every reply. If a
+  background agent worked in the last 10 minutes, the hook keeps the card open ("background agents running") and shows
+  each running agent as a step. While your card has an open `needs_you` question the hook leaves the card open and
+  closes nothing: answer or clear the question yourself (`needs_you` null), or call `mark_done` when the work is over.
+- **Your next prompt** reopens a card the Stop hook closed (and only then).
+- **Waiting:** when Claude Code asks the person for input, the hook raises a "needs you" item; it closes it when the
+  session goes on or stops. A session that died leaves such an item, and the next hook on the machine closes it after
+  30 minutes of silence.
+- **Reminder:** the hook sees your `report_progress` call with agent "session" and remembers its key, so use that one
+  key for the whole session. If you have sent no goal by your second tool call of a prompt, it reminds you once.
+
+What you still report yourself: the card's title and why, the steps and each change of them, a heartbeat at least
+every 5 minutes while working, a question in `needs_you`, and `mark_done` when the goal is done.
+
 ## How to apply them
 
 The rules above are the whole procedure. What they leave to you:

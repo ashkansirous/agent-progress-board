@@ -1,6 +1,20 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const PORT = 4173;
+const DEFAULT_PORT = 4173;
+const MIN_PORT = 1;
+const MAX_PORT = 65535;
+
+/** E2E_PORT unset keeps the default; any set value must be a whole port number, else config load fails. */
+function resolvePort(raw: string | undefined): number {
+  if (raw === undefined) return DEFAULT_PORT;
+  const port = Number(raw);
+  if (raw.trim() === "" || !Number.isInteger(port) || port < MIN_PORT || port > MAX_PORT) {
+    throw new Error(`E2E_PORT must be a whole number from ${MIN_PORT} to ${MAX_PORT}, got "${raw}"`);
+  }
+  return port;
+}
+
+const PORT = resolvePort(process.env.E2E_PORT);
 const ORIGIN = `http://127.0.0.1:${PORT}`;
 const DESKTOP_VIEWPORT = { width: 1440, height: 900 };
 const PHONE_VIEWPORT = { width: 390, height: 844 };
@@ -20,7 +34,8 @@ export default defineConfig({
     command: `npx vite --mode e2e --host 127.0.0.1 --port ${PORT} --strictPort`,
     url: ORIGIN,
     env: { AGENT_BOARD_PLAYWRIGHT_SERVER: "1" },
-    reuseExistingServer: !process.env.CI,
+    // Never attach to a server this run did not start: a parallel worktree's server may serve other code.
+    reuseExistingServer: false,
     timeout: 60_000,
   },
   projects: [

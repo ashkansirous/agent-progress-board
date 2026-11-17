@@ -1,4 +1,4 @@
-### Slice 25 — The "all kinds" cost figure stays steady across a weekly reset
+### Slice 26 — The "all kinds" cost figure stays steady across a weekly reset
 
 *Parked: feedback loop, waits for the user.* Found by the feedback loop of night 2026-11-17-1826
 ([note](../notes/2026-11-17-1826-feedback-loop.md)); not to be built by a night until the owner says so.

@@ -1,6 +1,6 @@
 ### Slice 21 — Session cards report themselves from the plugin's hooks
 
-*Built (wave 2026-11-17), PR #101, not merged, not yet verified in a live session.*
+*Built (wave 2026-11-17), merged as PR #101 (372ae9a), not yet verified in a live session.*
 
 *Planned and accepted with Slice 20 (owner, 2026-11-17; decisions in
 [Slice 20](20-plugin-connect.md)). Starts after Slice 20.* Moves the reporter CLI and the session hooks from the
@@ -76,7 +76,7 @@ owner's config repo (`skills/report-progress/`: `report-progress.mjs`, `hooks/ho
 9. `plugin/scripts/hooks/session-done.mjs:146` (low): each SubagentStop does an extra disk read/write plus `closeDeadWaiting` marker stats; the stopped-id file grows unbounded.
 10. `plugin/scripts/hooks/hooks.test.mjs:93` (low): no tests for concurrent `addStoppedAgent`, old stopped ids, resumed agents, a report landing during `saveGoal`, or the active slot after the `mergeSteps` dedupe.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-17)
 
 - Plugin hooks and the reporter CLI live in `plugin/scripts`; every script fails open (exit 0, short timeout), keeps state only in `CLAUDE_PLUGIN_DATA`, and its tests run with `npm test` (`node --test plugin/**/*.test.mjs`) (Slice 21: docs/plan/slices/21-plugin-session-cards.md).
 

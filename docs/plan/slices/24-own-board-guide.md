@@ -1,6 +1,6 @@
 ### Slice 24 — Set up your own board: a guide Claude follows
 
-*Built (wave 2026-11-17), PR #100, not merged. Checks: lint, typecheck, 473 unit tests.*
+*Built (wave 2026-11-17), merged as PR #100 (8a0d1d5). Checks: lint, typecheck, 473 unit tests.*
 
 *Planned and accepted with Slice 20 (owner, 2026-11-17; decisions in
 [Slice 20](20-plugin-connect.md), decision 1). Starts after Slice 20.* Docs only.

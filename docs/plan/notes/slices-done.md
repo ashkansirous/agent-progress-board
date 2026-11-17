@@ -22,3 +22,6 @@ Rows moved out of `plan.md`'s status table once built.
 | 16 | Claude chat and Claude Design report to the board, and their use counts | built | #83 | | [16](../slices/16-chat-reports.md) |
 | 17 | Parallel worktrees do not share an e2e server; scratch scripts do not fail lint | built | #90 | | [17](../slices/17-test-isolation.md) |
 | 18 | Every AI that connects to the board is told how to report (server instructions, setup guide) | built | #94 | | [18](../slices/18-agent-setup.md) |
+| 20 | A Claude Code plugin and a setup guide: any Claude Code connects itself to a board | built | #99 | | [20](../slices/20-plugin-connect.md) |
+| 24 | Set up your own board: a guide Claude follows | built | #100 | | [24](../slices/24-own-board-guide.md) |
+| 21 | Session cards report themselves from the plugin's hooks | built | #101 | | [21](../slices/21-plugin-session-cards.md) |

@@ -3,6 +3,26 @@
 Every open "Not yet verified" check, one block per slice. A check that passes, or that the
 owner confirms, is removed here and its slice marked `verified`.
 
+### Slice 24: Set up your own board: a guide Claude follows ([slice](slices/24-own-board-guide.md))
+
+- The Access step assumes the page is on a custom hostname and agents use the `workers.dev` address (how the live board was built); Access directly on `workers.dev` was not tried.
+- That a Workers Builds token on a fresh account can run the D1 migrations in `deploy:ci` and provision the `OAUTH_KV` namespace on the first deploy ("created for you" in the guide); if the token lacks D1 edit the deploy fails with an auth error.
+- A fresh Claude Code following the guide in a new Cloudflare account ends with a board that shows a test card.
+
+### Slice 21: Session cards report themselves from the plugin's hooks ([slice](slices/21-plugin-session-cards.md))
+
+- A real session with a background agent keeps its card open past a reply, then closes it.
+- `plugin/hooks/hooks.json` exec form and the PostToolUse tool name `mcp__plugin_agent-board_agent-board__report_progress` not seen in a live session.
+
+### Slice 20: A Claude Code plugin and a setup guide ([slice](slices/20-plugin-connect.md))
+
+- A fresh Claude Code on another machine, given only the README sentence, connects and shows a card.
+- Auto-update delivers a change to an installed client after a merge.
+- Install from the GitHub marketplace source (`claude plugin marketplace add <owner>/<repo>`) with the plugin merged on `main`: tested only from a local path in a throwaway `CLAUDE_CONFIG_DIR`.
+- The test card steps of `docs/setup/connect.md` (`report_progress`, `get_item`, `mark_done`) run by a Claude Code session, and the skill loading in a session (only the MCP connection was checked).
+- The skill's "test fails when one side changes alone" check: `test/pluginRules.test.ts` asserts equality only; a mutation case was not run.
+- The stdin-from-a-file form of `claude plugin configure --values-stdin` in `docs/setup/connect.md` step 4 was not run (only the pipe form was).
+
 ### Slice 18: Every AI that connects to the board is told how to report ([slice](slices/18-agent-setup.md))
 
 - Whether a claude.ai chat shows the server's instructions to the model. Check: a new chat with only the connector (no pasted text) opens a `my-chats` card. If it does, the owner's pasted instruction can be removed.

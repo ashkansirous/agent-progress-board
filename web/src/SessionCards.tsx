@@ -40,7 +40,7 @@ export function QuestionCard({ item, onOpen }: CardProps) {
         {question ? <span className="question-text">{question}</span> : <span className="question-text question-none">{t("noQuestionRecorded")}</span>}
         {why && <span className="question-why">{why}</span>}
         {item.after_answer && <span className="question-after">{t("afterThen", { text: item.after_answer })}</span>}
-        {item.needs_you != null && <span className="question-asked">{phone ? asked : `${asked} · ${t("answerInSession")}`}</span>}
+        {item.needs_you ? <span className="question-asked">{phone ? asked : `${asked} · ${t("answerInSession")}`}</span> : null}
       </button>
       {links.length > 0 && (
         <span className="question-links">

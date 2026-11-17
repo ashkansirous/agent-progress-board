@@ -241,6 +241,9 @@ export function waitsOnlyOnWork(reason) {
 
 // The lines under a slice file's "Open for the owner" heading (bullets, or the plain lines when there are none),
 // joined: what the person must decide or do. '' when the file has no such section.
+// A line that is exactly a placeholder ("None", "n/a", "TBD", "None, the owner has nothing to do."), never a
+// sentence that only starts with one of those words ("Nothing is wired until you approve the DNS change.").
+const NO_OWNER_ASK = /^[\s([]*(?:none|nothing|n\/a|tbd)(?:[\s,.;:-]+the owner has nothing to do)?[\s.!)\]]*$/i;
 const OWNER_HEADING = /^#{1,6}\s+open for the owner\b/i;
 export function openForOwner(sliceText) {
   const found = [];
@@ -248,7 +251,11 @@ export function openForOwner(sliceText) {
   for (const line of String(sliceText || '').split(/\r?\n/)) {
     if (OWNER_HEADING.test(line)) { inside = true; continue; }
     if (inside && ANY_HEADING.test(line)) break;
-    if (inside && line.trim()) found.push(plain(line.replace(/^\s*[-*+]\s+/, '')));
+    if (inside && !line.trim() && found.length > 0) break; // the first block only: a later paragraph is not the ask
+    if (inside && line.trim()) {
+      const text = plain(line.replace(/^\s*[-*+]\s+/, ''));
+      if (!NO_OWNER_ASK.test(text)) found.push(text);
+    }
   }
   return found.join(' ');
 }

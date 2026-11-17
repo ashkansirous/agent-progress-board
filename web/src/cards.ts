@@ -44,9 +44,19 @@ export function hasNoGoal(item: BoardItemDto): boolean {
   return !item.why && (item.steps?.length ?? 0) === 0 && fallbackTitle;
 }
 
+const SESSION_KEY = /\/(?:waiting|session)-([^/]+)$/;
+const SESSION_ID_CHARS = 4;
+
+/** "session 9c1e" from a hook card's key (`<project>/waiting-<id>`), which carries no parent; null for any other key. */
+function sessionNameOf(key: string): string | null {
+  const id = SESSION_KEY.exec(key)?.[1];
+  return id ? `session ${id.slice(0, SESSION_ID_CHARS)}` : null;
+}
+
 /** "{parent} · {environment label}" ("session 9c1e · Laptop"); the raw value when no label is set; the key when nothing is. */
 export function sessionLabel(item: BoardItemDto): string {
-  const parts = [item.parent, item.environment_label ?? item.environment].filter(Boolean);
+  const parent = item.parent ?? sessionNameOf(item.key);
+  const parts = [parent, item.environment_label ?? item.environment].filter(Boolean);
   return parts.length > 0 ? parts.join(" · ") : item.key;
 }
 

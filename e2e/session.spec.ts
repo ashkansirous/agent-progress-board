@@ -1,7 +1,6 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import exampleConfig from "../config/board.example.json" with { type: "json" };
-import { CRASH_QUESTION } from "../scripts/seed-data";
-import { SEED_ITEMS } from "../scripts/seed-data";
+import { CRASH_QUESTION, SEED_ITEMS } from "../scripts/seed-data";
 import { SERVER_TIME, demoBoard, itemOf } from "./fixture";
 import { project } from "./projectBlock";
 import { sessionBoard } from "./sessionFixture";

@@ -785,6 +785,18 @@ describe('Slice 27: cards that say what, for which slice and why', () => {
     assert.equal(card.links[0].url, `${REPO}/blob/main/docs/plan/slices/09-nine.md`);
   });
 
+  test('placeholders and later paragraphs under "Open for the owner" are not the card title', () => {
+    const planText = table('| 9 | Nine | parked: waits for the user | | | |');
+    const none = { 9: '## Open for the owner\n\n- none\n\n## Notes\n' };
+    assert.equal(byKey(buildItems({ project: PROJECT, planText, sliceTexts: none, repoUrl: REPO }))['demo-app/slice-9/waiting'].title, 'waits for the user');
+    const sentence = { 9: '## Open for the owner\n\nNone, the owner has nothing to do.\n\n## Notes\n' };
+    assert.equal(byKey(buildItems({ project: PROJECT, planText, sliceTexts: sentence, repoUrl: REPO }))['demo-app/slice-9/waiting'].title, 'waits for the user');
+    const starts = { 9: '## Open for the owner\n\nNothing is wired until you approve the DNS change.\n\n## Notes\n' };
+    assert.equal(byKey(buildItems({ project: PROJECT, planText, sliceTexts: starts, repoUrl: REPO }))['demo-app/slice-9/waiting'].title, 'Nothing is wired until you approve the DNS change.');
+    const later = { 9: '## Open for the owner\n\n- Pick the store.\n\nAn unrelated paragraph.\n' };
+    assert.equal(byKey(buildItems({ project: PROJECT, planText, sliceTexts: later, repoUrl: REPO }))['demo-app/slice-9/waiting'].title, 'Pick the store.');
+  });
+
   test('a parked row with no owner section uses its reason as the title', () => {
     const planText = table('| 9 | Nine | parked: pick the store | | | |');
     const card = byKey(buildItems({ project: PROJECT, planText }))['demo-app/slice-9/waiting'];

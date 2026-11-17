@@ -43,6 +43,15 @@
   text-align: left;
 }
 
+.question-card:has(.question-body:focus-visible) {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
+.question-body:focus-visible {
+  outline: none;
+}
+
 .question-body {
   display: flex;
   flex-direction: column;

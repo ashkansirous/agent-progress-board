@@ -103,6 +103,8 @@ describe("card words", () => {
     expect(sessionLabel(item({ parent: "session 9c1e", environment: "laptop", environment_label: "Laptop" }))).toBe("session 9c1e · Laptop");
     expect(sessionLabel(item({ parent: "wave 3", environment: "edge", environment_label: null }))).toBe("wave 3 · edge");
     expect(sessionLabel(item({ key: "p/k" }))).toBe("p/k");
+    expect(sessionLabel(item({ key: "demo-app/waiting-sess-9" }))).toBe("session sess");
+    expect(sessionLabel(item({ key: "demo-app/waiting-sess-9", environment: "laptop", environment_label: "Laptop" }))).toBe("session sess · Laptop");
   });
 
   it("says how long a question has waited, in minutes then hours, and nothing without a first-asked time", () => {

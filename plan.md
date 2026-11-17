@@ -19,8 +19,7 @@ private Claude Code config repo; this repo hands them a tool reference and a cli
 
 | Slice | Title | Status | PR | Issue | File |
 | --- | --- | --- | --- | --- | --- |
-| 14 | Untested checks live inside their slice, problems get their own list | planned: part A, then part B (the design is in, PR #73) | | | [slice](docs/plan/slices/14-checks-in-slice.md) |
-| 15 | One collapsible block per project, done work always folded | planned: after 14 (the design is in, PR #73) | | | [slice](docs/plan/slices/15-project-blocks.md) |
+| 15 | One collapsible block per project, done work always folded | planned: can start now (14 merged) | | | [slice](docs/plan/slices/15-project-blocks.md) |
 | 16 | Claude chat and Claude Design report to the board, and their use counts | planned: can start now, its first item is the docs check | | | [slice](docs/plan/slices/16-chat-reports.md) |
 
 Notes:
@@ -56,7 +55,8 @@ Notes:
 
 ## Outstanding work
 
-- **Not yet tried on a device:** 36 checks across 10 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
+- **Not yet tried on a device:** 39 checks across 11 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
+- Tooling, for the feedback loop: merge-gate's skip check resolves cited `reviews/...` paths only from the session folder, its top level and parent, not `<repo>-worktrees`; Slice 14's file cites them as `../agent-progress-board-worktrees/reviews/...` to pass.
 - Done 2026-11-17: the owner added the board-by-project artboards to the [design canvas](https://claude.ai/artifact/PZyqwkfjuwQkE4BE6UfeDd); they are copied into `docs/design/` and part B of Slices 13 and 14 and all of 15 are rewritten to them.
 - [PR #73](https://github.com/ashkansirous/agent-progress-board/pull/73) merged without a review round (owner, 2026-11-17: "you dont need to wait for my fucking reviews! fucking merge them always"); its four open points stand as written in the slices unless the owner overrules one. The part B waves of Slices 13 to 15 can start.
 - The D1 database and the Worker secrets exist.

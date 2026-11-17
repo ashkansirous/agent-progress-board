@@ -75,3 +75,8 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
   `EXPIRED_ROWS` by `test/stale.test.ts`; change both together (Slice 13: docs/plan/slices/13-session-cards.md).
 - The question-clearing rule lives only in `answersQuestion` in `src/domain/upsert.ts`; never copy it
   (Slice 13: docs/plan/slices/13-session-cards.md).
+- The board's grouping rule is one function, `groupBoard` in `src/domain/boardGroups.ts`; the page never regroups
+  (Slice 14: docs/plan/slices/14-checks-in-slice.md).
+- Item validation (key prefix, parent in the same project, check needs a slice parent, at most 100 checks) is one
+  function, `itemProblem` in `src/domain/checks.ts`, used by `sync_snapshot` (skips the item, returns `skipped`) and
+  `report_progress` (refuses); never add a second copy (Slice 14: docs/plan/slices/14-checks-in-slice.md).

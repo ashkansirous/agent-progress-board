@@ -10,7 +10,9 @@ owner's Slice 16 step ("paste the instruction text into claude.ai Instructions")
 (starter session entries 2318, 2331 told the owner to paste the old text, which Slice 18 then removed).
 
 It may not be needed at all: if a claude.ai chat already shows the server's instructions to the model (Slice 18's
-open check in `docs/plan/unverified.md`), the paste step goes away.
+open check in `docs/plan/unverified.md`), the paste step goes away. [Slice 20](20-plugin-connect.md) (planned by the
+owner the same evening) already says the pasted chat instruction "stays only as a fallback"; if it is kept, this slice
+is how the owner gets that fallback text, and it may fold into Slice 20 or 24's guide.
 
 **Touches:** `web/src/**`, `src/api/**`, `docs/clients.md`, `docs/plan/unverified.md`, `e2e/**`, `test/**`
 

@@ -36,6 +36,9 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
 - Layers: `src/domain` (pure rules), `src/application` (use cases, repository port),
   `src/infrastructure` (D1), `src/mcp` (tools, schemas), `src/api` (routing, auth). Tools hold
   no rules.
+- A second `npm run test:e2e` alongside another worktree's sets `E2E_PORT` (e.g. 4174); runs never reuse a server and a
+  busy port fails at start. Scratch files go under `tmp/`, which lint ignores (Slice 17:
+  docs/plan/slices/17-test-isolation.md).
 - `npm run test:e2e` (Playwright, headless, faked `/api/board`), `npm run dev`. `web/` is the
   page (string table, palette from config), `e2e/` the Playwright tests, `scripts/seed.ts` the
   seed script (Slice 2: docs/plan/slices/02-tile-board.md).

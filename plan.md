@@ -19,7 +19,6 @@ private Claude Code config repo; this repo hands them a tool reference and a cli
 
 | Slice | Title | Status | PR | Issue | File |
 | --- | --- | --- | --- | --- | --- |
-| 17 | Parallel worktrees do not share an e2e server; scratch scripts do not fail lint | planned | | | [slice](docs/plan/slices/17-test-isolation.md) |
 | 18 | Every AI that connects to the board is told how to report (server instructions, setup guide) | planned | | | [slice](docs/plan/slices/18-agent-setup.md) |
 
 Notes:
@@ -94,6 +93,7 @@ Notes:
 - `OWNER_PASSPHRASE` is in the secrets store and set as a Worker secret; the `OAUTH_KV` namespace is created by the first deploy ([Slice 5](docs/plan/slices/05-remote-mcp.md)).
 - Follow-up (Slice 5): the Worker has no way for the owner to end a grant; the README names the library calls only. See [Slice 5](docs/plan/slices/05-remote-mcp.md) *Not yet verified*.
 - Follow-up (Slice 7): the browser test `e2e/board.spec.ts:317` ("after a failure, Retry never leaves a blank page") failed once in a full run and is intermittent. See [Slice 7](docs/plan/slices/07-stale-detection.md) *Verification*; the likely cause (wall-clock timing windows) is the fifth follow-up in [Slice 2](docs/plan/slices/02-tile-board.md).
+- Follow-up (Slice 17): timing-sensitive e2e tests in `e2e/board.spec.ts` (4-5) flake when two full suites share the CPU at default workers; two suites at once need `--workers=4`. See [Slice 17](docs/plan/slices/17-test-isolation.md).
 - Follow-ups of built slices whose rows are in the finished list stay open in their slice files: [Slice 4](docs/plan/slices/04-doc-sync.md) *Follow-ups (open, not built)* (the summary counts include writes the stale-read guard skipped; a very large close fails the whole batch) and [Slice 7](docs/plan/slices/07-stale-detection.md) *Follow-ups*.
 - Follow-ups (Slice 8): open, not built, in [Slice 8](docs/plan/slices/08-usage-reports.md) *Follow-ups (open, not built)* (DST over a 30-day range, an unbounded `record_at` that makes `bucketKeys` loop, and three smaller query and sort items).
 - Follow-ups (Slice 9): open, not built, in [Slice 9](docs/plan/slices/09-cap-cost-estimate.md) *Follow-ups from review* (under *Built*): an environment's cap points are null if any use in the plan history is of a model with no fitted weight (the one that gives a wrong result), plus every usage read refits the whole history with no cache, the phone kinds card has no "not split" note, example palettes baked into the stored config, seven wording and rounding items, and the German sentence needs a native read.

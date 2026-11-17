@@ -81,6 +81,12 @@ export interface TaskInfo {
   project: string;
 }
 
+export interface SessionWindow {
+  environment: string;
+  start: string;
+  end: string;
+}
+
 /** What the usage tools and the usage route need from storage (Slice 8). Append-only: rows are never updated. */
 export interface UsageRepository {
   /**
@@ -101,6 +107,12 @@ export interface UsageRepository {
   /** Model, agent kind and environment names by first seen, then by value. */
   seriesNames(): Promise<SeriesName[]>;
   taskInfo(keys: string[]): Promise<TaskInfo[]>;
+  /**
+   * Session cards that named an environment (Slice 16): per card, its first report to its last
+   * (the board's own stale marks are not reports), for cards last reported at or after `from`,
+   * newest `limit` only, and only for environments with no series of their own (they report no tokens).
+   */
+  sessionWindowsFrom(from: string, limit: number): Promise<SessionWindow[]>;
   /**
    * Deletes samples older than the cutoff down to the last of each hour per agent, model and
    * environment, always keeping every restart sample and the one before it, so the use worked

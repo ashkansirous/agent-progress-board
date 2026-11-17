@@ -18,6 +18,11 @@ function baseLabel(data: UsagePageResponse): string {
   return base?.label ?? data.base_environment ?? "";
 }
 
+/** A placed row: an environment that sends no token reports, its points come from its reported work windows. */
+function isPlaced(env: CapCostEnvironmentDto): boolean {
+  return env.tokens === null && env.reports === 0;
+}
+
 function points(n: number, locale: string): string {
   return new Intl.NumberFormat(locale, { minimumFractionDigits: POINT_DECIMALS, maximumFractionDigits: POINT_DECIMALS }).format(n);
 }
@@ -25,7 +30,7 @@ function points(n: number, locale: string): string {
 function multiplierText(env: CapCostEnvironmentDto, base: string, view: ReturnType<typeof useUsageView>, phone: boolean): string {
   const { t, locale } = view;
   if (env.state === MultiplierState.Base) return t("baseOne");
-  if (env.state === MultiplierState.NotEnough) return t("notEnoughYet");
+  if (env.state === MultiplierState.NotEnough || env.multiplier === null) return t("notEnoughYet");
   const label = t(env.how_sure === HowSure.Sure ? "sureInline" : "roughInline");
   const m = new Intl.NumberFormat(locale, { minimumFractionDigits: MULTIPLIER_DECIMALS, maximumFractionDigits: MULTIPLIER_DECIMALS }).format(env.multiplier);
   return t(phone ? "multiplierPhone" : "multiplierMeasured", { m, base, label, n: env.stretches });
@@ -75,10 +80,10 @@ function DesktopSourcesTable({ data }: Props) {
         <tbody>
           {data.cap_cost.environments.map((env) => (
             <tr key={env.value}>
-              <th scope="row" className="left source-name">{t("sourceClaudeCode")}</th>
-              <td className="left soft">{env.label}</td>
-              <td className="left"><ReportsPill reported /></td>
-              <td>{tokenText(env.tokens, locale)}</td>
+              <th scope="row" className="left source-name">{isPlaced(env) ? env.label : t("sourceClaudeCode")}</th>
+              <td className="left soft">{isPlaced(env) ? NO_VALUE : env.label}</td>
+              <td className="left">{isPlaced(env) ? null : <ReportsPill reported />}</td>
+              <td>{env.tokens === null ? NO_VALUE : tokenText(env.tokens, locale)}</td>
               <td className="strong-col">{env.cap_points === null ? NO_VALUE : costPercentText(env.cap_points)}</td>
               <td className="left soft">{multiplierText(env, base, view, false)}</td>
             </tr>
@@ -144,14 +149,14 @@ function PhoneSources({ data }: Props) {
       <ul className="source-rows">
         {data.cap_cost.environments.map((env) => (
           <li key={env.value} className="source-row">
-            <span className="source-main">{`${t("sourceClaudeCode")} · ${env.label}`}</span>
+            <span className="source-main">{isPlaced(env) ? env.label : `${t("sourceClaudeCode")} · ${env.label}`}</span>
             <span className="source-value">{env.cap_points === null ? NO_VALUE : costPercentText(env.cap_points)}</span>
             <span className="source-sub">
-              {env.state === MultiplierState.Base
+              {isPlaced(env) ? null : env.state === MultiplierState.Base
                 ? t("reportedBase")
                 : t("reportedMultiple", { multiple: multiplierText(env, base, view, true) })}
             </span>
-            <span className="source-sub source-tokens">{tokenText(env.tokens, locale)}</span>
+            <span className="source-sub source-tokens">{env.tokens === null ? NO_VALUE : tokenText(env.tokens, locale)}</span>
           </li>
         ))}
         {unexplained && (

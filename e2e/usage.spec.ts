@@ -1,9 +1,10 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import type { UsagePageResponse } from "../src/api/usageDto";
 import exampleConfig from "../config/board.example.json" with { type: "json" };
+import { MultiplierState } from "../src/domain/capCost";
 import { TokenKind } from "../src/domain/usage";
 import { demoBoard } from "./fixture";
-import { demoUsage, emptyUsage, ENV_ONE, ENV_TWO, PLANS, readyUsage, USAGE_SERVER_TIME } from "./usageFixture";
+import { demoUsage, emptyUsage, ENV_ONE, ENV_TWO, PLANS, readyCapCost, readyUsage, USAGE_SERVER_TIME } from "./usageFixture";
 
 const USAGE_ROUTE = "**/api/usage?*";
 const BOARD_ROUTE = "**/api/board";
@@ -368,6 +369,21 @@ test.describe("what 1% of the cap costs", () => {
     await expect(rows.nth(2)).toContainText("Not reported");
     await expect(rows.nth(2)).toContainText("in “not explained”");
     expect(await rows.last().locator("td").allTextContents()).toEqual(["Cap growth that no report accounts for", "2.8%", "8% of this window’s growth"]);
+  });
+
+  test("a placed environment row shows its own name and no reports pill", async ({ page }) => {
+    const cost = readyCapCost();
+    const chat = { value: "Claude chat", label: "Claude chat", tokens: null, reports: 0, cap_points: 3, multiplier: null, state: MultiplierState.NotEnough, how_sure: null, stretches: 0 };
+    await openReady(page, { cap_cost: { ...cost, environments: [...cost.environments, chat] } });
+    if (isPhone()) {
+      const row = page.locator(".source-row").nth(2);
+      await expect(row.locator(".source-main")).toHaveText("Claude chat");
+      await expect(row).not.toContainText("Reported");
+      return;
+    }
+    const row = page.locator(".sources-table tbody tr").nth(2);
+    await expect(row.locator("th")).toHaveText("Claude chat");
+    await expect(row.locator(".pill")).toHaveCount(0);
   });
 
   test("lists the stretches with the most unexplained growth, largest first", async ({ page }) => {

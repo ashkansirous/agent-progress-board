@@ -3,6 +3,7 @@ import {
   type BoardRow,
   type ItemRepository,
   type ItemWrite,
+  type SessionWindow,
   type StaleCutoffs,
   type SeriesName,
   SeriesKind,
@@ -202,6 +203,19 @@ const BOARD_EVENTS = `SELECT item_key, at, status, source, note FROM (
   FROM events WHERE item_key IN (SELECT key FROM items WHERE ${BOARD_WHERE})
 ) WHERE rn <= ?4 ORDER BY item_key, at DESC, id DESC`;
 
+/**
+ * ?1 the session agent, ?2 from, ?3 limit. A session's window is its first to its last report; the board's
+ * own stale marks do not count. Only cards last reported at or after ?2, only environments with no
+ * usage_series row (same case-and-space-insensitive comparison as environmentIdentity), the newest ?3.
+ */
+const SESSION_WINDOWS = `SELECT i.environment AS environment, MIN(e.at) AS start_at, MAX(e.at) AS end_at
+  FROM items i JOIN events e ON e.item_key = i.key
+  WHERE i.agent = ?1 AND i.environment IS NOT NULL AND i.environment <> '' AND e.status <> '${ItemStatus.Stale}'
+    AND NOT EXISTS (SELECT 1 FROM usage_series s WHERE s.kind = 'environment'
+      AND lower(trim(s.value)) = lower(trim(i.environment)))
+  GROUP BY i.key HAVING MAX(e.at) >= ?2
+  ORDER BY MAX(e.at) DESC LIMIT ?3`;
+
 const INSERT_SAMPLE = `INSERT OR IGNORE INTO usage_samples (agent_key, model, environment, record_at,
   reported_at, input_tokens, cache_write_tokens, cache_read_tokens, output_tokens, task_key, agent_kind, step)
   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)`;
@@ -335,6 +349,14 @@ export class D1ItemRepository implements ItemRepository, UsageRepository {
       .bind(JSON.stringify(keys))
       .all<TaskInfo>();
     return results;
+  }
+
+  async sessionWindowsFrom(from: string, limit: number): Promise<SessionWindow[]> {
+    const { results } = await this.db
+      .prepare(SESSION_WINDOWS)
+      .bind(SESSION_AGENT, from, limit)
+      .all<{ environment: string; start_at: string; end_at: string }>();
+    return results.map((row) => ({ environment: row.environment, start: row.start_at, end: row.end_at }));
   }
 
   async thinUsage(cutoff: string): Promise<number> {

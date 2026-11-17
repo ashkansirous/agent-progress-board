@@ -76,11 +76,13 @@ export interface CapCostModelDto {
 export interface CapCostEnvironmentDto {
   value: string;
   label: string;
-  tokens: number;
+  /** null for an environment placed from its work windows: it reports no tokens, so they are unknown, never 0. */
+  tokens: number | null;
   reports: number;
   /** Points of the cap this environment's use cost, multiplier applied; null when some of the use is of a model with no fitted weight. */
   cap_points: number | null;
-  multiplier: number;
+  /** null for an environment placed from its work windows: it has no fitted weight. */
+  multiplier: number | null;
   state: MultiplierState;
   /** null for the base and for an environment not measured yet. */
   how_sure: HowSure | null;

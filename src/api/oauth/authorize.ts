@@ -15,6 +15,8 @@ const FIELD_PASSPHRASE = "passphrase";
 const FIELD_DECISION = "decision";
 const DECISION_APPROVE = "approve";
 export const OWNER_USER_ID = "owner";
+/** The `kind` prop on every provider-issued token; the API handler reads it to grant owner scope. */
+export const OWNER_KIND = "owner";
 export const READ_SCOPE = "mcp:read";
 const OFFLINE_SCOPE = "offline_access";
 /** The page refuses everyone below this length: a long passphrase is what makes guessing hopeless. */
@@ -81,7 +83,7 @@ async function complete(env: Env, approved: ApprovedConsent): Promise<Response> 
     userId: OWNER_USER_ID,
     metadata: {},
     scope: grantedScopes(approved.request.scope),
-    props: { kind: "owner" },
+    props: { kind: OWNER_KIND },
   });
   approved.headers.set("Location", redirectTo);
   console.log("authorize: owner approved a client");

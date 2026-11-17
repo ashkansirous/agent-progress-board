@@ -3,8 +3,8 @@ import type { ConsentDescription } from "@cloudflare/workers-oauth-provider";
 /** Every word on the authorize page. No private data: the owner's name and hosts never appear here. */
 export const STRINGS = {
   title: "Connect to the board",
-  intro: "wants to read your board.",
-  readOnly: "It can only read: it cannot add or change items.",
+  intro: "wants to read your board and report to it.",
+  canWrite: "It can add and change items, ask you questions and report usage, but it cannot sync plan documents.",
   sendsTo: "Access will be sent to",
   unverified: "This app registered itself; its name is not verified.",
   loopbackWarning: "This sends access to an app on your computer. Continue only if you just started signing in from it.",
@@ -39,7 +39,7 @@ export function renderForm(view: FormView): string {
   const { details, handle } = view;
   const body = [
     `<h1>${escapeHtml(STRINGS.title)}</h1>`,
-    `<p><strong>${escapeHtml(details.clientName)}</strong> ${escapeHtml(STRINGS.intro)} ${escapeHtml(STRINGS.readOnly)}</p>`,
+    `<p><strong>${escapeHtml(details.clientName)}</strong> ${escapeHtml(STRINGS.intro)} ${escapeHtml(STRINGS.canWrite)}</p>`,
     `<p>${escapeHtml(STRINGS.sendsTo)} <strong>${escapeHtml(details.redirectUri)}</strong></p>`,
     `<p>${escapeHtml(STRINGS.unverified)}</p>`,
     details.redirectIsLoopback ? `<p><strong>${escapeHtml(STRINGS.loopbackWarning)}</strong></p>` : "",

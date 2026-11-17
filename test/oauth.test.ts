@@ -3,12 +3,30 @@ import { createScheduledController } from "cloudflare:test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import worker from "../src/index";
 import { handleAuthorize } from "../src/api/oauth/authorize";
-import { CLIENT_REGISTRATION_TTL_SECONDS } from "../src/api/oauth/provider";
+import { CLIENT_REGISTRATION_TTL_SECONDS, scopeOfCaller } from "../src/api/oauth/provider";
+import { allows, Need, Scope } from "../src/domain/scope";
 import { callTool, countRows, fetchWithEnv, READ_TOKEN, resetBoard, WRITE_TOKEN } from "./helpers";
 
 const ORIGIN = "https://board.example.com";
 const CLAUDE_REDIRECT = "https://claude.ai/api/mcp/auth_callback";
 const PASSPHRASE = "test-owner-passphrase-0123456789-abcdef";
+describe("scopeOfCaller", () => {
+  it("gives the owner only to the positive owner marker; missing or unknown props read", () => {
+    expect(scopeOfCaller({ kind: "owner" })).toBe(Scope.Owner);
+    expect(scopeOfCaller(undefined)).toBe(Scope.Read);
+    expect(scopeOfCaller({})).toBe(Scope.Read);
+    expect(scopeOfCaller({ kind: "other" } as never)).toBe(Scope.Read);
+    expect(scopeOfCaller({ scope: Scope.Write })).toBe(Scope.Write);
+  });
+
+  it("refuses a scope or need the rule does not name, without throwing", () => {
+    expect(allows("future" as Scope, Need.Read)).toBe(false);
+    expect(allows(Scope.Read, "future" as Need)).toBe(false);
+    expect(allows(Scope.Owner, Need.Write)).toBe(true);
+    expect(allows(Scope.Owner, Need.Snapshot)).toBe(false);
+  });
+});
+
 const SLICE = { key: "demo-app/slice-1", project: "demo-app", type: "slice", title: "Sample slice" };
 
 interface Registered {
@@ -278,15 +296,52 @@ describe("metadata and registration", () => {
 });
 
 describe("authorize and token", () => {
-  it("signs the owner in with PKCE; the OAuth token reads but cannot write", async () => {
+  it("signs the owner in with PKCE; the OAuth token reads and writes but cannot sync documents", async () => {
     await callTool("report_progress", SLICE);
     const token = await oauthToken();
     const read = await mcpCall(token, "list_open", {});
     expect(read.status).toBe(200);
     expect(await read.text()).toContain(SLICE.key);
-    const write = await mcpCall(token, "report_progress", { ...SLICE, key: "demo-app/slice-2" });
-    expect(await write.text()).toContain("read-only");
-    expect(await countRows("items")).toBe(1);
+    const write = await mcpCall(token, "report_progress", { ...SLICE, key: "demo-app/slice-2", environment: "Claude chat" });
+    expect(await write.text()).not.toContain("forbidden");
+    expect(await countRows("items")).toBe(2);
+    const sync = await mcpCall(token, "sync_snapshot", { project: "demo-app", items: [] });
+    expect(await sync.text()).toContain("forbidden: sync_snapshot needs the static write token");
+    expect(await countRows("items")).toBe(2);
+  });
+
+  it("lets an OAuth caller use every write tool but sync_snapshot", async () => {
+    const token = await oauthToken();
+    const session = { key: "demo-app/session-c1", project: "demo-app", type: "unplanned", title: "Plan a trip", agent: "session", environment: "Claude chat" };
+    const calls: [string, Record<string, unknown>][] = [
+      ["report_progress", session],
+      ["ask_human", { key: "demo-app/waiting-1", project: "demo-app", title: "Pick a date" }],
+      ["mark_done", { key: session.key }],
+      ["report_cap", { taken_at: "2026-11-17T10:00:00Z", plan: "max", windows: [{ kind: "weekly", percent: 10 }] }],
+      [
+        "report_usage",
+        { agent_key: "demo-app/session-c1", model: "m", record_at: "2026-11-17T10:00:00Z", input_tokens: 1, cache_write_tokens: 0, cache_read_tokens: 0, output_tokens: 1, environment: "Claude chat" },
+      ],
+    ];
+    for (const [name, args] of calls) {
+      const reply = await (await mcpCall(token, name, args)).text();
+      expect(reply, name).not.toContain("forbidden");
+      expect(reply, name).not.toContain('"isError":true');
+    }
+    const stored = await env.DB.prepare("SELECT environment, agent FROM items WHERE key = ?1").bind(session.key).first<{ environment: string; agent: string }>();
+    expect(stored).toEqual({ environment: "Claude chat", agent: "session" });
+  });
+
+  it("stores a session report from an OAuth caller with no environment as given", async () => {
+    const token = await oauthToken();
+    await mcpCall(token, "report_progress", { key: "demo-app/session-c2", project: "demo-app", type: "unplanned", title: "Chat", agent: "session" });
+    const stored = await env.DB.prepare("SELECT environment FROM items WHERE key = 'demo-app/session-c2'").first<{ environment: string | null }>();
+    expect(stored?.environment).toBeNull();
+  });
+
+  it("still refuses a read bearer token on a write tool and lets the write token sync", async () => {
+    expect((await callTool("report_progress", SLICE, READ_TOKEN)).text).toContain("read-only");
+    expect((await callTool("sync_snapshot", { project: "demo-app", items: [] }, WRITE_TOKEN)).isError).toBe(false);
   });
 
   it("refuses a token request with the wrong PKCE verifier", async () => {
@@ -416,7 +471,7 @@ describe("authorize and token", () => {
     }
   });
 
-  it("grants the scope of the stored consent request, whatever the posted URL says, and never write", async () => {
+  it("grants the scope of the stored consent request, whatever the posted URL says", async () => {
     const clientId = await registerClient();
     const verifier = base64Url(crypto.getRandomValues(new Uint8Array(32)));
     const challenge = await challengeFor(verifier);
@@ -428,10 +483,11 @@ describe("authorize and token", () => {
     const tokens = (await exchange(clientId, verifier, response.headers.get("Location") ?? "")) as Tokens & { scope?: string };
     expect(tokens.scope).toBe("mcp:read");
     const write = await mcpCall(tokens.access_token, "report_progress", SLICE);
-    expect(await write.text()).toContain("read-only");
+    expect(await write.text()).not.toContain("forbidden");
+    expect(await countRows("items")).toBe(1);
   });
 
-  it("grants read when the client asked for no scope: a read tool works, a write tool is refused", async () => {
+  it("grants the read scope when the client asked for none, and the caller still reads and reports", async () => {
     const clientId = await registerClient();
     const verifier = base64Url(crypto.getRandomValues(new Uint8Array(32)));
     const url = authorizeUrl(clientId, await challengeFor(verifier), { scope: "" });
@@ -446,7 +502,7 @@ describe("authorize and token", () => {
     expect(read.status).toBe(200);
     expect(await read.text()).toContain(SLICE.key);
     const write = await mcpCall(tokens.access_token, "report_progress", { ...SLICE, key: "demo-app/slice-2" });
-    expect(await write.text()).toContain("read-only");
+    expect(await write.text()).not.toContain("forbidden");
   });
 
   it("shows the client name and the full redirect address, port included, for a loopback client", async () => {

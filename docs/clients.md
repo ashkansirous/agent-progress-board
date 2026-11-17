@@ -56,10 +56,37 @@ Connectors, add a custom connector, and give it `https://<your-worker-host>/mcp`
 discovers the sign-in from the 401 on `/mcp`, opens the board's page, and you enter the owner
 passphrase (the Worker secret `OWNER_PASSPHRASE`) and press Allow. When the Worker has
 `public_origin` set, every client, bearer tokens included, must use that origin; other
-hostnames of the Worker answer 401. The connector is
-**read-only**: `list_open` and `get_item` work, every write tool answers
-`forbidden: this token is read-only`. Reporters keep using the write token. A wrong
-passphrase shows the page again; nothing locks.
+hostnames of the Worker answer 401. A caller signed in this way is the owner's own: it can
+call `list_open`, `get_item`, `report_progress`, `ask_human`, `mark_done`, `report_usage` and
+`report_cap`, whatever scope its grant stored (grants made before Slice 16 need no
+reconnect). `sync_snapshot` stays with the static write token and answers
+`forbidden: sync_snapshot needs the static write token`. Coding-agent reporters keep using the write
+token. A wrong passphrase shows the page again; nothing locks.
+
+#### Making every chat report (the owner adds this once)
+
+claude.ai chats and Claude Design sessions cannot read their own token use or cap percentage
+(the usage page is shown to the person only), so they report when work starts and ends; the board
+then puts cap growth that no token report explains, inside that window, against the
+environment the chat named (Slice 16). A chat can call the connector's tools (custom connectors
+work in chat on every plan). Whether a Claude Design session can is unproven (the Design page
+lists only built-in connectors), so the text below is for chat; try it in Design once and record
+the answer.
+
+Where to paste it: claude.ai, Settings, "Your Claude", Instructions (older layout: Account,
+"Instructions for Claude"): <https://claude.ai/settings>. Text, with the project name made up
+here; use your own:
+
+```
+You have the "board" connector (the agent progress board). Whenever I start a piece of
+work in this chat, first call report_progress once with: key "my-chats/session-<short
+random id, the same for the whole chat>", project "my-chats", type "unplanned", agent
+"session", environment "Claude chat" (in Claude Design: "Claude Design"), status
+"in_progress", title = my goal in one line, steps = your plan. Call it again whenever the
+steps change or you need something from me (needs_you = the question). When the work is
+finished call mark_done on the same key. If you can read your own token counts, also call
+report_usage; otherwise do not guess numbers.
+```
 
 ### 2. A plain HTTPS POST (hooks, scripts, sessions that do not load MCP servers)
 

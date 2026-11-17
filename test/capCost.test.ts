@@ -3,11 +3,13 @@ import { type CapReading, evaluateAll, WEEKLY_WINDOW } from "../src/domain/cap";
 import {
   buildStretches,
   costByKey,
+  type CapCostFit,
   costOf,
   FitMode,
   fitCapCost,
   HowSure,
   MultiplierState,
+  placeInWindows,
   type Stretch,
   tokensPerPercent,
   unexplainedStretches,
@@ -406,5 +408,92 @@ describe("unexplained stretches", () => {
     expect(top[0]?.points).toBeGreaterThanOrEqual(top[1]?.points ?? 0);
     expect((top[0]?.explainedPoints ?? 0) + (top[0]?.points ?? 0)).toBeCloseTo(5.5, 6);
     expect(unexplainedStretches(fit, T(-1), 1)).toHaveLength(1);
+  });
+});
+
+describe("growth placed inside reported chat windows (Slice 16)", () => {
+  const CHAT = "Claude chat";
+  const DESIGN = "Claude Design";
+  /** A fit built by hand: `count` stretches of 60 minutes, each with `left` points the reports do not explain. */
+  function fitWith(left: number, count = 1): CapCostFit {
+    const stretches = Array.from({ length: count }, (_, i): Stretch => ({ plan: "plan-a", start: T(i * 60), end: T(i * 60 + 60), growth: left, uses: [] }));
+    return { models: [], environments: [], stretches, residuals: stretches.map(() => left), leftoverShare: 1 };
+  }
+  const window = (environment: string, from: number, to: number) => ({ environment, start: T(from), end: T(to) });
+
+  it("leaves everything unexplained when no chat reported work", () => {
+    const placed = placeInWindows(fitWith(6), [], T(-1));
+    expect(placed.byEnvironment.size).toBe(0);
+    expect(placed.fit.residuals).toEqual([6]);
+  });
+
+  it("puts the share of the stretch a window covers against its environment", () => {
+    const placed = placeInWindows(fitWith(6), [window(CHAT, 0, 30)], T(-1));
+    expect(placed.byEnvironment.get(CHAT)).toBeCloseTo(3, 9);
+    expect(placed.fit.residuals[0]).toBeCloseTo(3, 9);
+    expect(unexplainedTotals(placed.fit, T(-1)).points).toBeCloseTo(3, 9);
+  });
+
+  it("merges windows of one environment spelled with different case or spaces, under one name", () => {
+    const placed = placeInWindows(fitWith(6), [window(CHAT, 0, 40), window("claude chat ", 20, 60)], T(-1));
+    expect([...placed.byEnvironment.keys()]).toEqual([CHAT]);
+    expect(placed.byEnvironment.get(CHAT)).toBeCloseTo(6, 9);
+  });
+
+  it("leaves growth outside every window unexplained", () => {
+    const placed = placeInWindows(fitWith(6), [window(CHAT, 90, 120)], T(-1));
+    expect(placed.byEnvironment.size).toBe(0);
+    expect(placed.fit.residuals).toEqual([6]);
+  });
+
+  it("splits overlapping windows pro rata to their overlap, counting the shared time once", () => {
+    const placed = placeInWindows(fitWith(6), [window(CHAT, 0, 40), window(DESIGN, 20, 60)], T(-1));
+    expect(placed.byEnvironment.get(CHAT)).toBeCloseTo(3, 9);
+    expect(placed.byEnvironment.get(DESIGN)).toBeCloseTo(3, 9);
+    expect(placed.fit.residuals[0]).toBeCloseTo(0, 9);
+    const uneven = placeInWindows(fitWith(6), [window(CHAT, 0, 15), window(DESIGN, 0, 45)], T(-1));
+    expect(uneven.byEnvironment.get(CHAT)).toBeCloseTo((4.5 * 15) / 60, 9);
+    expect(uneven.byEnvironment.get(DESIGN)).toBeCloseTo((4.5 * 45) / 60, 9);
+  });
+
+  it("never places more than the unexplained growth, and ignores negative residuals", () => {
+    const placed = placeInWindows({ ...fitWith(6), residuals: [-2] }, [window(CHAT, 0, 60)], T(-1));
+    expect(placed.byEnvironment.size).toBe(0);
+    expect(placed.fit.residuals).toEqual([-2]);
+    const all = placeInWindows(fitWith(6), [window(CHAT, 0, 60), window(DESIGN, 0, 60)], T(-1));
+    expect((all.byEnvironment.get(CHAT) ?? 0) + (all.byEnvironment.get(DESIGN) ?? 0)).toBeCloseTo(6, 9);
+  });
+
+  it("counts only stretches ending after the range start towards the environments, but shrinks every residual", () => {
+    const placed = placeInWindows(fitWith(6, 2), [window(CHAT, 0, 120)], T(60));
+    expect(placed.byEnvironment.get(CHAT)).toBeCloseTo(6, 9);
+    expect(placed.fit.residuals[0]).toBeCloseTo(0, 9);
+    expect(placed.fit.residuals[1]).toBeCloseTo(0, 9);
+  });
+
+  it("stays fast with hundreds of stretches and windows", () => {
+    const windows = Array.from({ length: 300 }, (_, i) => window(i % 2 === 0 ? CHAT : DESIGN, i * 60, i * 60 + 45));
+    const started = performance.now();
+    const placed = placeInWindows(fitWith(2, 400), windows, T(-1));
+    const elapsed = performance.now() - started;
+    expect(placed.byEnvironment.get(CHAT)).toBeGreaterThan(0);
+    expect(elapsed).toBeLessThan(1500);
+  });
+
+  it("stays fast and bounded with far more windows than the cap, keeping the newest", () => {
+    const count = 3000;
+    const windows = Array.from({ length: count }, (_, i) => window(i % 2 === 0 ? CHAT : DESIGN, i * 60, i * 60 + 45));
+    const started = performance.now();
+    const placed = placeInWindows(fitWith(2, count), windows, T(-1));
+    const elapsed = performance.now() - started;
+    expect(placed.byEnvironment.get(CHAT)).toBeGreaterThan(0);
+    expect(placed.fit.residuals[0]).toBe(2);
+    expect(placed.fit.residuals[count - 1]).toBeLessThan(2);
+    expect(elapsed).toBeLessThan(1500);
+  });
+
+  it("recomputes the unexplained share from the residuals left after placing", () => {
+    const placed = placeInWindows(fitWith(6), [window(CHAT, 0, 30)], T(-1));
+    expect(placed.fit.leftoverShare).toBeCloseTo(0.5, 9);
   });
 });

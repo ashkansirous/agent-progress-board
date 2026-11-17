@@ -1,5 +1,7 @@
 ### Slice 28 — Cloud and VM sessions report their usage under their own label
 
+*In progress (wave 2026-11-17), draft PR.*
+
 *Planned (owner, 2026-11-17: "I added environment last night and set up my build tools so that it uses the claude vm
 when possible. but looking at the token usage it says that env not set. whats going on? not implemented yet or missing
 from the plan").* Starts after Slice 22 (the plugin's usage part).
@@ -20,7 +22,7 @@ the board's plugin inside a cloud session; the board host must be in that enviro
 only plan line about it was an untried check in the owner's config repo ("one real cloud session ... `AGENT_BOARD_ENV`
 set").
 
-**Touches:** `docs/setup/connect.md`, `docs/setup/cloud.md` (new), `docs/clients.md`, `plugin/scripts/**`, `plugin/skills/agent-board/SKILL.md`, `web/src/strings.ts`, `web/src/**`, `e2e/**`, `docs/plan/slices/28-cloud-usage.md`
+**Touches:** `docs/setup/connect.md`, `docs/setup/cloud.md` (new), `docs/clients.md`, `plugin/scripts/**`, `plugin/skills/agent-board/SKILL.md`, `plugin/.claude-plugin/plugin.json`, `web/src/strings.ts`, `web/src/**`, `e2e/**`, `docs/plan/slices/28-cloud-usage.md`
 
 **Migrations:** none
 

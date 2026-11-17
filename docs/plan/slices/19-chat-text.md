@@ -2,9 +2,10 @@
 
 *Built 2026-11-17, merged as PR #110 (b99577b), not yet verified on the deployed board.*
 
-*Planned (owner, 2026-11-17 20:2x: "I already tried the chat and I told you it did not do anything. why are you still
-waiting for me to do a new chat without changing anything"): build it; the owner is not asked to test a chat again
-first.* Found by the feedback loop of night 2026-11-17-1657 ([note](../notes/2026-11-17-1657-feedback-loop.md)). When
+*Planned by the starter session (2026-11-17 20:2x), not by the owner: the owner refused a repeat test ("I already
+tried the chat and I told you it did not do anything. why are you still waiting for me to do a new chat without
+changing anything"), and the starter then decided at the desk to build it; the owner is not asked to test a chat again
+first. (Reworded by the feedback loop 2026-11-17-2023: the quote is not a go to build.)* Found by the feedback loop of night 2026-11-17-1657 ([note](../notes/2026-11-17-1657-feedback-loop.md)). When
 built, add one `**You:**` line to `docs/plan/unverified.md` under this slice that names the page with the Copy button
 (its full address), where to paste (https://claude.ai/settings, Your Claude, Instructions) and why (so claude.ai
 chats report to the board).

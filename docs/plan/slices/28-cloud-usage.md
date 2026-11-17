@@ -85,7 +85,7 @@ set").
 #### Not yet verified
 
 - A real cloud session's usage shows on the usage page under its own label.
-- The owner's main machine shows its new label after the plugin switch (config repo Slice 20; plan-not-needed: 20).
+- The owner's main machine shows its new label after it is named (the plugin's `environment` option, `docs/setup/connect.md`). Until then the page shows "No label (main machine)", not a real name.
 - The cloud records path `/root/.claude` is untried in a real cloud session.
 - The setup-time variables (unset during the setup script) are untried.
 - The Stop hook's detached send (`usage-tick` spawns a background run) is untried in a cloud VM.

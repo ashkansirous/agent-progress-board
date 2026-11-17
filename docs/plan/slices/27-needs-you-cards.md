@@ -55,6 +55,11 @@ description?! what the fuck do you need from me?").* Read live at 20:2x from `li
 - Page: every "Needs you" card is a `QuestionCard` (question, why in full, links, or "No question recorded"), focus ring via `:has`; hook cards show "session <id4>".
 - Rules: `SERVER_INSTRUCTIONS` and the `SKILL.md` copy say: question with options, the work in the title, a direct link, never a bare waiting card.
 
+*Follow-up (not built, feedback loop 2026-11-17-2023):* `ask_human` still cannot set `needs_you` (the reporting
+rules in `src/mcp/instructions.ts` do not name it, so only a client that calls it directly gets a card without the
+question). Either `ask_human` takes `needs_you` (and `links`) like `report_progress`, or its description says to use
+`report_progress` for a question. Verify: an MCP test asks through `ask_human` and the card shows the question.
+
 ## From review
 
 Findings files: `reviews/pr-109-high.md` (11 findings: applied 1-7 and 10), `reviews/pr-109-medium.md` (7: applied 1, 3, 4, 6, 7), `reviews/pr-109-check-medium.md` (10: applied 1, 2, 5), `reviews/pr-109-check-2-medium.md` (9: applied 1 only, converged), `reviews/pr-109-check-3-medium.md` (4 low, none at medium or above). The rest are listed one by one below.

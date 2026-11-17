@@ -154,7 +154,7 @@ interface DetailProps {
  * opener is read during render: the page behind goes inert in the same commit, which would blur it
  * before an effect could read it.
  */
-function useDialogFocus(onClose: () => void) {
+export function useDialogFocus(onClose: () => void) {
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const [opener] = useState(() => document.activeElement);
   useEffect(() => {

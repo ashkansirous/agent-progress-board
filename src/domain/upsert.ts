@@ -1,5 +1,9 @@
 import {
+  ANSWERED_NOTE,
   DEFAULT_PRIORITY,
+  MAX_NEEDS_YOU_NOTE,
+  NEEDS_YOU_NOTE_PREFIX,
+  NOTE_SEPARATOR,
   type Item,
   type ItemLink,
   ItemStatus,
@@ -35,10 +39,23 @@ export interface ReportInput {
   steps?: StepInput[] | null;
   agent?: string | null;
   model?: string | null;
+  /** The agent's question for the owner; null clears it (and `after_answer`). Slice 13. */
+  needs_you?: string | null;
+  /** What the agent does after the answer. */
+  after_answer?: string | null;
+  /** When the question was first asked; set by the application layer, never by a reporter. */
+  needs_you_at?: string | null;
   note?: string;
 }
 
+export const MAX_NEEDS_YOU = 2000;
+export const MAX_AFTER_ANSWER = 500;
+
 const CREATE_REQUIRED = ["project", "title", "type"] as const;
+
+function checkLength(field: "needs_you" | "after_answer", value: string | null | undefined, max: number): void {
+  if ((value?.length ?? 0) > max) throw new DomainError(field, `field ${field}: at most ${max} characters`);
+}
 
 /** The report with its steps validated and a whitespace-only agent or model made absent (null); fields not sent stay unsent. */
 export function checkReport(input: ReportInput): ReportInput {
@@ -47,7 +64,57 @@ export function checkReport(input: ReportInput): ReportInput {
   if (input.steps !== undefined) checked.steps = normalizeSteps(input.steps);
   if (input.agent !== undefined) checked.agent = blankToNull(input.agent);
   if (input.model !== undefined) checked.model = blankToNull(input.model);
+  checkLength("needs_you", input.needs_you, MAX_NEEDS_YOU);
+  checkLength("after_answer", input.after_answer, MAX_AFTER_ANSWER);
+  if (input.needs_you !== undefined) checked.needs_you = blankToNull(input.needs_you);
+  if (input.after_answer !== undefined) checked.after_answer = blankToNull(input.after_answer);
+  delete checked.needs_you_at;
   return checked;
+}
+
+/** What the stored item says of its question; the rules below compare the report with it. */
+type QuestionState = Pick<Item, "needs_you" | "needs_you_at" | "status"> | null;
+
+/** The history note: the server's marker first, the caller's own note kept beside it. */
+function withMarker(marker: string, note: string | undefined): string {
+  return note ? `${marker}${NOTE_SEPARATOR}${note}` : marker;
+}
+
+/**
+ * A report that moves the item to in progress from any other status, stale included, is the
+ * owner's answer; done also answers; a repeated in-progress report is a heartbeat and keeps the
+ * question. Why stale counts: a session that asked is idle until the owner answers, so it sends
+ * nothing and goes stale, and its next report follows the answer. A session that keeps working
+ * while asking keeps heartbeating, stays in progress and never passes through stale. An answer
+ * inside the 15 minutes is a same-status report, so the client sends `needs_you: null` then.
+ */
+function answersQuestion(input: ReportInput, existing: QuestionState): boolean {
+  if (input.status === ItemStatus.Done) return true;
+  return input.status === ItemStatus.InProgress && existing?.status !== ItemStatus.InProgress;
+}
+
+/**
+ * The question fields a report leaves in storage (Slice 13). A question given is stored and keeps
+ * its first-asked time while the text is unchanged (so "waiting N min" does not restart on a
+ * resend); `needs_you: null` clears the question, its after-text and its time; a report that moves
+ * the item to in progress from any other status, stale included (the owner answered), or to done,
+ * and sends no question, clears them too (see `answersQuestion`). Anything else, a repeated
+ * in-progress heartbeat included, leaves them as stored.
+ */
+export function withQuestion(input: ReportInput, existing: QuestionState, now: string): ReportInput {
+  if (input.needs_you) return withAsked(input, existing, now);
+  const clears = input.needs_you === null || (input.needs_you === undefined && answersQuestion(input, existing));
+  if (!clears) return input;
+  const answered = existing?.needs_you ? { note: withMarker(ANSWERED_NOTE, input.note) } : {};
+  return { ...input, ...answered, needs_you: null, after_answer: null, needs_you_at: null };
+}
+
+/** A question given: kept as first asked when the text is unchanged, else stamped now with a history note. */
+function withAsked(input: ReportInput, existing: QuestionState, now: string): ReportInput {
+  const firstAsked = existing?.needs_you === input.needs_you ? existing?.needs_you_at : null;
+  if (firstAsked) return { ...input, needs_you_at: firstAsked };
+  const firstLine = input.needs_you!.split("\n")[0]!.slice(0, MAX_NEEDS_YOU_NOTE);
+  return { ...input, needs_you_at: now, note: withMarker(`${NEEDS_YOU_NOTE_PREFIX}${firstLine}`, input.note) };
 }
 
 /** The row to insert when the key is new; unused when the key already exists. */
@@ -75,6 +142,9 @@ export function newItem(input: ReportInput, now: string): Item {
     steps: normalizeSteps(input.steps),
     agent: blankToNull(input.agent),
     model: blankToNull(input.model),
+    needs_you: input.needs_you ?? null,
+    after_answer: input.after_answer ?? null,
+    needs_you_at: input.needs_you_at ?? null,
     heartbeat_at: now,
     created_at: now,
     updated_at: now,

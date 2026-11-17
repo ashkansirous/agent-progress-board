@@ -42,6 +42,16 @@
   --stepActiveRow: color-mix(in srgb, CanvasText 8%, Canvas);
   --stepPendingTile: color-mix(in srgb, CanvasText 12%, Canvas);
   --partTrack: Canvas;
+  --sub: GrayText;
+  --needBg: color-mix(in srgb, CanvasText 6%, Canvas);
+  --needBd: color-mix(in srgb, CanvasText 20%, Canvas);
+  --needFg: CanvasText;
+  --sliceBg: color-mix(in srgb, CanvasText 6%, Canvas);
+  --sliceFg: CanvasText;
+  --nowBg: CanvasText;
+  --nowFg: Canvas;
+  --doneFg: CanvasText;
+  --panelShadow: transparent;
   --mono: "JetBrains Mono Variable", ui-monospace, monospace;
 }
 

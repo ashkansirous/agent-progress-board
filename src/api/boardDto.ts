@@ -56,6 +56,14 @@ export interface BoardItemDto {
   environment_label: string | null;
   agent: string | null;
   model: string | null;
+  /**
+   * The agent's open question for the owner (Slice 13), what it does after the answer and when it
+   * first asked; all null when no question waits (cleared, the item done, or its heartbeat past the
+   * configured expiry). The page words "waiting N min" from `needs_you_at`.
+   */
+  needs_you: string | null;
+  after_answer: string | null;
+  needs_you_at: string | null;
   /** The task's steps in the order sent; null when it has none. */
   steps: Step[] | null;
   /** Worked out at read from the steps; null when the item has no steps list. */

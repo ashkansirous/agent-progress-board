@@ -2,7 +2,8 @@ import defaultConfigFile from "../../config/board.example.json";
 import { type Clock, listBoardRows } from "../application/board";
 import type { BoardRow, ItemRepository } from "../application/ports";
 import { type BoardConfig, configFromRecord } from "../config";
-import { ItemType } from "../domain/item";
+import { type Item, type ItemStatus, ItemType } from "../domain/item";
+import { hasOpenQuestion } from "../domain/stale";
 import { activePartOf, partLetterOf, partsProgress, partStateOf, shownStatusOf } from "../domain/parts";
 import { isWorkingNow, stepProgress } from "../domain/steps";
 import { resolveWindowHours } from "../domain/window";
@@ -106,11 +107,22 @@ function partsFields(row: BoardRow, ctx: PartsContext) {
   };
 }
 
+/** The question an item holds, only while it still waits for the owner (`hasOpenQuestion`); else all three null. */
+function questionFields(item: Item, shownStatus: ItemStatus, config: BoardConfig, now: Date) {
+  const open = hasOpenQuestion({ ...item, status: shownStatus }, config.staleAfterMinutes, now);
+  return {
+    needs_you: open ? (item.needs_you ?? null) : null,
+    after_answer: open ? (item.after_answer ?? null) : null,
+    needs_you_at: open ? (item.needs_you_at ?? null) : null,
+  };
+}
+
 function itemDto(row: BoardRow, ctx: PartsContext): BoardItemDto {
   const { config, now } = ctx;
   const { expiry, ...item } = row;
   const environment = item.environment ?? null;
   const partsInfo = partsFields(row, ctx);
+  const shownStatus = shownStatusOf(item.status, partsInfo.active_part_key !== null);
   return {
     key: item.key,
     project: item.project,
@@ -119,7 +131,7 @@ function itemDto(row: BoardRow, ctx: PartsContext): BoardItemDto {
     parent_key: item.parent_key ?? null,
     type: item.type,
     priority: item.priority,
-    status: shownStatusOf(item.status, partsInfo.active_part_key !== null),
+    status: shownStatus,
     title: item.title,
     why: item.why,
     details_md: item.details_md,
@@ -131,9 +143,10 @@ function itemDto(row: BoardRow, ctx: PartsContext): BoardItemDto {
     environment_label: environment === null ? null : (config.usage.environmentLabels[environment] ?? environment),
     agent: item.agent ?? null,
     model: item.model ?? null,
+    ...questionFields(item, shownStatus, config, now),
     steps: item.steps ?? null,
     progress: stepProgress(item.steps, item.status),
-    working: isWorkingNow({ ...item, ...expiry }, config.staleAfterMinutes, now),
+    working: !hasOpenQuestion({ ...item, status: shownStatus }, config.staleAfterMinutes, now) && isWorkingNow({ ...item, ...expiry }, config.staleAfterMinutes, now),
     ...partsInfo,
     events: item.events.map(({ at, status, note }) => ({ at, status, note })),
   };

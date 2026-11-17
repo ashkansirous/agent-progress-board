@@ -47,14 +47,19 @@ function seedParts(slice: SeedItem): BoardPartDto[] | null {
     .sort((a, b) => a.letter.localeCompare(b.letter));
 }
 
-function itemOf(seed: SeedItem): BoardItemDto {
+function heartbeatOf(seed: SeedItem): string {
+  if (seed.heartbeatMinutesAgo) return minutesBeforeNow(seed.heartbeatMinutesAgo);
+  if (seed.heartbeatHoursAgo) return new Date(Date.parse(SERVER_TIME) - seed.heartbeatHoursAgo * MS_PER_HOUR).toISOString();
+  return atClock(seed.events[0]?.at ?? "08:00");
+}
+
+export function itemOf(seed: SeedItem): BoardItemDto {
   const parts = seedParts(seed);
   const oldest = seed.events.at(-1)?.at ?? "08:00";
   const steps = stepsOf(seed);
   const environment = seed.environment ?? null;
-  const heartbeat_at = seed.heartbeatHoursAgo
-    ? new Date(Date.parse(SERVER_TIME) - seed.heartbeatHoursAgo * MS_PER_HOUR).toISOString()
-    : atClock(seed.events[0]?.at ?? "08:00");
+  const heartbeat_at = heartbeatOf(seed);
+  const askedMinutes = seed.createdMinutesAgo ?? seed.askedMinutesAgo;
   return {
     key: seed.key,
     project: seed.project,
@@ -69,12 +74,15 @@ function itemOf(seed: SeedItem): BoardItemDto {
     details_md: seed.details.join("\n\n"),
     links: seed.links,
     heartbeat_at,
-    created_at: seed.askedMinutesAgo ? minutesBeforeNow(seed.askedMinutesAgo) : atClock(oldest),
+    created_at: askedMinutes ? minutesBeforeNow(askedMinutes) : atClock(oldest),
     done_at: seed.doneMinutesAgo ? minutesBeforeNow(seed.doneMinutesAgo) : null,
     environment,
     environment_label: environment === null ? null : (example.usage.environmentLabels[environment] ?? environment),
     agent: seed.agent ?? null,
     model: seed.model ?? null,
+    needs_you: seed.needsYou ?? null,
+    after_answer: seed.afterAnswer ?? null,
+    needs_you_at: seed.needsYou ? minutesBeforeNow(seed.askedMinutesAgo ?? 1) : null,
     steps,
     progress: stepProgress(steps, seed.status as ItemStatus),
     working: isWorkingNow(

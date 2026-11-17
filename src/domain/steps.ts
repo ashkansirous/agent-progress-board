@@ -86,5 +86,5 @@ export interface WorkingRow extends ExpiryRow {
 export function isWorkingNow(row: WorkingRow, staleAfterMinutes: number, now: Date): boolean {
   if (row.status !== ItemStatus.InProgress) return false;
   const hasWork = (row.steps?.length ?? 0) > 0 || Boolean(row.agent);
-  return hasWork && !isHeartbeatExpired(row.heartbeat_at, staleAfterMinutes, now);
+  return hasWork && !isHeartbeatExpired(row.heartbeat_at, staleAfterMinutes, now, row.agent);
 }

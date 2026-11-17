@@ -3,9 +3,12 @@ import type { BoardResponse } from "../../src/api/boardDto";
 import type { BoardState } from "./boardState";
 import { Detail } from "./Detail";
 import { Header } from "./Header";
-import { groupByProject, waitingItems } from "./model";
+import { opensCardDrawer } from "./cards";
+import { groupByProject, questionItems, waitingItems } from "./model";
 import { ProjectGroup } from "./ProjectGroup";
 import { Route } from "./route";
+import { QuestionList } from "./SessionCards";
+import { SessionDrawer } from "./SessionDrawer";
 import { EmptyCard, ErrorCard, LoadingCard } from "./StatePanels";
 import type { Translate } from "./strings";
 import { looksFor, paletteVars, type SchemeName } from "./theme";
@@ -27,10 +30,11 @@ export interface PageProps {
   onRefresh: () => void;
 }
 
-function Groups({ data, onOpen }: { data: BoardResponse; onOpen: (key: string) => void }) {
+function Groups({ data, phone, onOpen }: { data: BoardResponse; phone: boolean; onOpen: (key: string) => void }) {
   const groups = groupByProject(data.items, data.config.projects);
   return (
     <>
+      {phone && <QuestionList items={questionItems(data.items)} onOpen={onOpen} />}
       <WaitingStrip items={waitingItems(data.items)} onOpen={onOpen} />
       {groups.map((group) => (
         <ProjectGroup key={group.id} group={group} onOpen={onOpen} />
@@ -42,7 +46,7 @@ function Groups({ data, onOpen }: { data: BoardResponse; onOpen: (key: string) =
 function Body({ props, onOpen }: { props: PageProps; onOpen: (key: string) => void }) {
   const { state, onRefresh } = props;
   if (state.data) {
-    return state.data.items.length === 0 ? <EmptyCard hours={state.data.window_hours} /> : <Groups data={state.data} onOpen={onOpen} />;
+    return state.data.items.length === 0 ? <EmptyCard hours={state.data.window_hours} /> : <Groups data={state.data} phone={props.env.phone} onOpen={onOpen} />;
   }
   if (state.slow) return <LoadingCard />;
   if (state.error) return <ErrorCard status={state.error.status} onRetry={onRefresh} />;
@@ -95,7 +99,7 @@ export function BoardPage(props: PageProps) {
           <Body props={props} onOpen={onOpen} />
         </div>
         {env.phone && <ViewTabs current={Route.Board} phone t={env.t} activeCount={state.data?.working_count} />}
-        {open && <Detail item={open} onClose={close} />}
+        {open && (opensCardDrawer(open) ? <SessionDrawer item={open} onClose={close} /> : <Detail item={open} onClose={close} />)}
       </div>
     </ViewProvider>
   );

@@ -8,8 +8,8 @@ import {
 } from "../domain/docSync";
 import { type Item, ItemStatus, ItemType, type ItemWithEvents } from "../domain/item";
 import { expandParts } from "../domain/parts";
-import { staleCutoff } from "../domain/stale";
-import { checkReport, DomainError, newItem, type ReportInput } from "../domain/upsert";
+import { expiryMinutesFor, SESSION_AGENT, staleCutoff } from "../domain/stale";
+import { checkReport, DomainError, newItem, type ReportInput, withQuestion } from "../domain/upsert";
 import { resolveWindowHours, type WindowConfig, windowCutoff } from "../domain/window";
 import { type BoardRow, type ItemRepository, LIST_EVENT_LIMIT } from "./ports";
 
@@ -38,7 +38,7 @@ export async function reportProgress(
 ): Promise<Item> {
   const existing = await repo.find(input.key);
   const now = clock.now().toISOString();
-  const checked = checkReport(input);
+  const checked = withQuestion(checkReport(input), existing, now);
   await assertParentSameProject(repo, checked, existing);
   return repo.save({ insert: existing ?? newItem(checked, now), input: checked, now });
 }
@@ -75,11 +75,23 @@ export async function askHuman(
   clock: Clock,
 ): Promise<Item> {
   const existing = await repo.find(input.key);
-  if (existing && existing.type !== ItemType.WaitingForMe) {
-    throw new DomainError("key", `field key: ${input.key} is a ${existing.type} item, not waiting_for_me`);
-  }
+  if (existing && existing.type !== ItemType.WaitingForMe) return askOnItem(repo, existing, input, clock);
   const report: ReportInput = { ...input, type: ItemType.WaitingForMe, status: ItemStatus.Open };
   return reportProgress(repo, report, clock);
+}
+
+/**
+ * A question on an item of another type (Slice 13): the item keeps its type, status and title and
+ * gets `needs_you` (the question, from `why`, else the title) and `after_answer`, so the session
+ * stays one card. Every other field the ask sends follows the rules of `report_progress`; a field it
+ * leaves out keeps its stored value. A done item cannot be asked on.
+ */
+async function askOnItem(repo: ItemRepository, existing: Item, input: AskHumanInput, clock: Clock): Promise<Item> {
+  if (existing.status === ItemStatus.Done) {
+    throw new DomainError("key", `field key: item ${input.key} is done, so ask_human cannot ask on it`);
+  }
+  const { title, why, ...rest } = input;
+  return reportProgress(repo, { ...rest, needs_you: why?.trim() ? why : title, after_answer: rest.after_answer ?? null }, clock);
 }
 
 export interface SyncSnapshotInput {
@@ -166,7 +178,11 @@ export async function markStaleItems(
   clock: Clock,
 ): Promise<number> {
   const now = clock.now();
-  return repo.markStale(staleCutoff(now, staleAfterMinutes), now.toISOString());
+  const cutoffs = {
+    cutoff: staleCutoff(now, staleAfterMinutes),
+    sessionCutoff: staleCutoff(now, expiryMinutesFor(SESSION_AGENT, staleAfterMinutes)),
+  };
+  return repo.markStale(cutoffs, now.toISOString());
 }
 
 export async function getItem(repo: ItemRepository, key: string): Promise<ItemWithEvents> {

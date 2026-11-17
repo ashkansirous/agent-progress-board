@@ -88,6 +88,17 @@ export const PALETTE_KEYS = [
   "stepActiveRow",
   "stepPendingTile",
   "partTrack",
+  // Session cards, question cards and their drawer (Slice 13): the mock's theme keys of those names.
+  "sub",
+  "needBg",
+  "needBd",
+  "needFg",
+  "sliceBg",
+  "sliceFg",
+  "nowBg",
+  "nowFg",
+  "doneFg",
+  "panelShadow",
 ] as const;
 
 export type Palette = Record<(typeof PALETTE_KEYS)[number], string>;

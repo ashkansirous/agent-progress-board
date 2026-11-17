@@ -122,8 +122,9 @@ Output of the write tools, and each element of `list_open`:
 
 `key`, `project`, `parent` (text or null), `type`, `priority`, `status`, `title`, `why` (or
 null), `details_md` (or null), `links` (array of `{label, url}`), `source` (or null),
-`heartbeat_at`, `created_at`, `updated_at`, `done_at` (or null). Timestamps are ISO 8601
-strings.
+`heartbeat_at`, `created_at`, `updated_at`, `done_at` (or null), and `needs_you`, `after_answer`,
+`needs_you_at` (the question, what follows, when first asked; each null when none). Timestamps are
+ISO 8601 strings.
 
 An event is `{at, status, source, note}`.
 
@@ -209,13 +210,54 @@ Returns the item. An unknown key is the tool error `field key: no item <key>`.
 
 ### `ask_human` (write token)
 
-Creates or updates a `waiting_for_me` item (status `open`): a step only the person can do.
+Creates or updates a `waiting_for_me` item (status `open`): a step only the person can do (a
+console step, a device in hand).
 Fields: `key`, `project`, `title` (all required), optional `parent`, `priority`, `why`,
-`details_md`, `links`, `source`, `note` (same rules as `report_progress`). Returns the item. If
-the key already exists as another type, the tool error is
-`field key: <key> is a <type> item, not waiting_for_me`.
+`details_md`, `links`, `source`, `note` (same rules as `report_progress`) and `after_answer`.
+Returns the item. If the key already exists as **another type**, the item keeps its type, status
+and title and gets a question instead: `needs_you` is set from `why` (the title when `why` is
+missing) and `after_answer` from the field of that name (see *A session card* below).
 
-To clear a question, call `mark_done` with the same key.
+To clear a `waiting_for_me` item, call `mark_done` with the same key.
+
+### A session card: goal, purpose, steps and a question (Slice 13)
+
+A session writes its own card with `report_progress`, one item per session, `agent: "session"`:
+
+- `title`: one line saying what it is doing now ("Read the crash log on the iPhone 8").
+- `why`: what the work is for ("For Slice 12: app crashes on start"). A card with no `why`, no
+  `steps` and a fallback title (`<branch> · <project>`) shows as "no goal reported yet"; any other
+  title is a goal and shows.
+- `steps`: the planned steps, the whole list each time, one `active`.
+- `details_md`: what is done so far, one line per bullet.
+- `parent`: the session's own name ("session 9c1e") or the wave's ("wave 3"); the page shows it
+  with the environment's label ("session 9c1e · Laptop"). `environment` names where it runs.
+- `needs_you` (up to 2000 characters) and `after_answer` (up to 500): the agent's own question and
+  what it does after the answer. The same card then shows under "Needs you" with the question in
+  full; the board is read-only, so the card says "answer in that session". `needs_you: null`
+  clears it; so does any report that moves the item to `in_progress` from another status (stale
+  included: a session that asked is idle, goes stale, and its next report follows the answer) or
+  to `done`, without a new question. A repeated `in_progress` report keeps it, so a session's
+  client sends `needs_you: null` when the owner answers (on the prompt-submit hook), which covers
+  an answer inside the 15 minutes. The same text sent again keeps the time first asked; a
+  heartbeat with no status keeps the question. A question ends after the configured expiry with no report. The
+  server writes the history rows `needs_you: <first line>` and `answered`.
+
+A session card with no report for 15 minutes turns stale and leaves "Working now" (it sits in
+the project's Done list, dashed); a stopped card with a question stays under "Needs you". Other
+items keep the configured expiry (default 2 hours).
+
+Example, on a made-up project:
+
+```json
+{"name": "report_progress", "arguments": {
+  "key": "example-app/session-4f2a", "project": "example-app", "type": "unplanned",
+  "title": "Find the device with the crash", "why": "For Slice 12: app crashes on start",
+  "parent": "session 4f2a", "environment": "laptop", "agent": "session", "status": "in_progress",
+  "steps": [{"label": "Find a device", "state": "done"}, {"label": "Ask which device", "state": "active"}],
+  "needs_you": "Which iPhone should I read the crash log from?",
+  "after_answer": "I read the log and write the cause into Slice 12."}}
+```
 
 ### `list_open` (read or write token)
 
@@ -469,11 +511,14 @@ Guidance, not code: each client repo decides what it implements.
   to the PR in `links`.
 - **Slice merged:** `mark_done`.
 - **Slice parked or blocked:** `report_progress` with `status: blocked` and a `why`.
-- **A session needs a person:** `ask_human` on the session's or slice's key with a one-line
-  `title` and the reason in `why`; `mark_done` once answered.
+- **A session needs a person:** `report_progress` on the session's own key with `needs_you` (and
+  `after_answer`); the card stays one card. `ask_human` on a key of another type does the same.
+  A step only the person can do (a console step) is still a `waiting_for_me` item through
+  `ask_human` on its own key; `mark_done` once done.
 - **A session finished:** `mark_done` on `<project>/session-<id>`.
 - **A session still running:** a `report_progress` with just the `key` as a heartbeat, at
-  least once per expiry (default 2 hours; every 30 minutes is safe), or the item turns stale.
+  least once per expiry (default 2 hours; every 30 minutes is safe), or the item turns stale. A
+  session card (`agent: "session"`) expires after 15 minutes, so heartbeat it at least every 5.
 
 ## Cloud sessions
 

@@ -17,7 +17,7 @@ function item(over: Partial<BoardItemDto>): BoardItemDto {
     key: "p/x", project: "p", parent: null, parent_slice: null, parent_key: null, type: ItemType.Slice, priority: Priority.P2, status: ItemStatus.Open,
     title: "T", why: null, details_md: null, links: [], heartbeat_at: "2026-11-15T10:00:00.000Z",
     created_at: "2026-11-15T09:00:00.000Z", done_at: null, environment: null, environment_label: null,
-    agent: null, model: null, steps: null, progress: null, working: false, parts: null, parts_progress: null, active_part_key: null, events: [], ...over,
+    agent: null, model: null, needs_you: null, after_answer: null, needs_you_at: null, steps: null, progress: null, working: false, parts: null, parts_progress: null, active_part_key: null, events: [], ...over,
   };
 }
 

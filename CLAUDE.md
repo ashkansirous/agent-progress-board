@@ -82,3 +82,7 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
 - Item validation (key prefix, parent in the same project, check needs a slice parent, at most 100 checks) is one
   function, `itemProblem` in `src/domain/checks.ts`, used by `sync_snapshot` (skips the item, returns `skipped`) and
   `report_progress` (refuses); never add a second copy (Slice 14: docs/plan/slices/14-checks-in-slice.md).
+- The fold rule lives only in `resolveOpen` (`web/src/foldRules.ts`); the page never regroups: the order of
+  "Needs you" comes from the server's `needs_you` (Slice 15: docs/plan/slices/15-project-blocks.md).
+- Chat and Design growth is placed only in `placeInWindows` in `src/domain/capCost.ts`; the windows are derived at
+  read from session cards, never stored (Slice 16: docs/plan/slices/16-chat-reports.md).

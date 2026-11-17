@@ -18,3 +18,5 @@ Rows moved out of `plan.md`'s status table once built.
 | 12 | The MCP endpoint on the board's own hostname | dropped (owner, 2026-11-16) | | | [12](../slices/12-mcp-own-hostname.md) |
 | 13 | A session card says what it is doing and what it needs | built | #75 | | [13](../slices/13-session-cards.md) |
 | 14 | Untested checks live inside their slice, problems get their own list | built | #78 | | [14](../slices/14-checks-in-slice.md) |
+| 15 | One collapsible block per project, done work always folded | built | #82 | | [15](../slices/15-project-blocks.md) |
+| 16 | Claude chat and Claude Design report to the board, and their use counts | built | #83 | | [16](../slices/16-chat-reports.md) |

@@ -1,6 +1,6 @@
 ### Slice 16 — Claude chat and Claude Design report to the board, and their use counts
 
-*Built 2026-11-17 (draft PR #83, not merged), not yet verified on a real claude.ai chat. 457 unit and 215 e2e tests green.*
+*Built 2026-11-17, merged as PR #83 (bca7352), not yet verified on a real claude.ai chat. 457 unit and 215 e2e tests green.*
 
 *Changed while building:* the write rule is `allows` in `src/domain/scope.ts` (file added to Touches); `scopeOfCaller` in `src/api/oauth/provider.ts` maps every OAuth-issued token to `Scope.Owner` (write tools except `sync_snapshot`) and unknown props to `Read`; old grants need no reconnect. Chat and Design windows are derived at read from session cards (`SESSION_WINDOWS` in `src/infrastructure/d1Repository.ts`), placed by `placeInWindows` in `src/domain/capCost.ts`, capped by `MAX_PLACE_WINDOWS`; placed rows have a null multiplier and null tokens (dash) and respect the environment filter.
 
@@ -133,7 +133,7 @@ read-only choice closed it. This slice opens it and uses it.
 - The owner adds the instruction text from `docs/clients.md` at https://claude.ai/settings (Your Claude, Instructions).
 - Claude Design and custom connectors are unproven in the docs (`reviews/s16-research.md`).
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-17)
 
 - OAuth callers write: every token the OAuth provider issued gets the write tools except `sync_snapshot`, decided only by `scopeOfCaller` in `src/api/oauth/provider.ts` and `allows` in `src/domain/scope.ts`; replaces "OAuth callers are read-only" (Slice 16: docs/plan/slices/16-chat-reports.md).
 - Chat and Design growth is placed only in `placeInWindows` in `src/domain/capCost.ts`; the windows are derived at read from session cards, never stored (Slice 16: docs/plan/slices/16-chat-reports.md).

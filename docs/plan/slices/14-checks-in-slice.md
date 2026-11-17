@@ -1,11 +1,13 @@
 ### Slice 14 — Untested checks live inside their slice, and problems get their own list
 
-*Planned.* Part A (server) can be built now. Part B (the page) is designed (see *Design* below) and
-is built after the owner has reviewed the plan PR.
+*In progress (wave 2026-11-17), draft PR.* Part A (server), then part B (the page). The plan PR
+with the design (#73) is merged and the plan row says "part A, then part B", so both parts are
+built in this wave.
 
 **Touches:** `src/domain/item.ts`, `src/domain/docSync.ts`, `src/domain/parts.ts`, `src/domain/checks.ts` (new),
+`src/domain/boardGroups.ts` (new: the grouping function), `src/domain/upsert.ts`, `src/domain/steps.ts`,
 `src/application/board.ts`, `src/infrastructure/d1Repository.ts`, `src/mcp/schemas.ts`, `src/mcp/tools.ts`,
-`src/api/boardDto.ts`, `src/config.ts`, `config/board.example.json`, `test/**`, `docs/clients.md`, `web/**`,
+`src/api/board.ts`, `src/api/boardDto.ts`, `src/config.ts`, `config/board.example.json`, `test/**`, `docs/clients.md`, `web/**`,
 `e2e/**`, `scripts/seed-data.ts`, `docs/plan/slices/14-checks-in-slice.md`
 
 **Migrations:** none (a new item type is a value, not a column).

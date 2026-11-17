@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { DEFAULT_CAP_COST, parseConfig } from "../src/config";
 import type { CapCostModelDto } from "../src/api/usageDto";
-import { FitMode, HowSure } from "../src/domain/capCost";
+import { FitMode, HowSure, MixSource } from "../src/domain/capCost";
 import { TokenKind } from "../src/domain/usage";
 import { defaultBase, kindsSentence, ratioAmount, logLow, logTicks, logX, multipleOf, multipleText, ratioText, shareText, spanText, splitBold, tokensPhone, tokensTable, tokensWords } from "../web/src/capCostFormat";
 import { translator } from "../web/src/strings";
@@ -16,6 +16,7 @@ function model(name: string, mix: number, input: number | null = mix): CapCostMo
     mode: FitMode.OneWeight,
     tokens_per_percent: each,
     all_kinds_tokens_per_percent: mix,
+    mix_source: MixSource.Current,
     kind_ratios: null,
     kind_ratio_reference: null,
     how_sure: HowSure.Sure,
@@ -62,6 +63,13 @@ describe("the comparison", () => {
     expect(multipleOf(models[0] as CapCostModelDto, null, base)).toBeCloseTo(27.14, 1);
     expect(multipleOf(models[1] as CapCostModelDto, null, base)).toBeCloseTo(13.57, 1);
     expect(multipleOf(base as CapCostModelDto, null, base)).toBe(1);
+  });
+
+  it("gives no all-kinds multiple between models weighted by different windows' mixes (Slice 26)", () => {
+    const last = { ...model("model-a", 700_000), mix_source: MixSource.LastFull };
+    const base = model("model-c", 19_000_000);
+    expect(multipleOf(last, null, base)).toBeNull();
+    expect(multipleOf(last, null, { ...base, mix_source: MixSource.LastFull })).toBeCloseTo(27.14, 1);
   });
 
   it("gives none for a kind that costs nothing", () => {

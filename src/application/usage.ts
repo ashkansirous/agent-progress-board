@@ -25,11 +25,13 @@ import {
 import {
   buildStretches,
   type CapCostFit,
+  chooseMixWindow,
   costByKey,
   FitMode,
   environmentIdentity,
   environmentKey,
   fitCapCost,
+  MixSource,
   MultiplierState,
   MAX_PLACE_WINDOWS,
   placeInWindows,
@@ -222,8 +224,16 @@ export async function readUsage(
     other_tasks: tasks.other,
     agent_kinds: agentKinds(shown, order, costing),
     cap: { weekly: capLine(cap, WEEKLY_WINDOW, from), short: capLine(cap, SHORT_WINDOW, from) },
-    cap_cost: capCostDto(costing, { known, shown, order, config, from }),
+    cap_cost: capCostDto(costing, { known, shown, order, config, from, lastMix: lastWindowDeltas(cap, knownHistory, now) }),
   };
+}
+
+/** Slice 26: the use inside the last full window when the current one is too young for its own mix. */
+function lastWindowDeltas(cap: CapState, history: UsageDelta[], now: Date): UsageDelta[] | null {
+  const choice = chooseMixWindow(cap.evaluation.windows, cap.plan, now);
+  if (choice.source !== MixSource.LastFull || choice.from === null || choice.to === null) return null;
+  const to = choice.to;
+  return rangeDeltas(history, cap, choice.from, to).filter(({ sample }) => sample.recordAt < to);
 }
 
 /** The history the fit reads: as far back as the cap readings are, and never later than the range. */
@@ -428,6 +438,8 @@ interface CapCostContext {
   order: SeriesName[];
   config: UsageConfig;
   from: string;
+  /** The last full window's use (before its end) while the current window is under a day old (Slice 26); null otherwise. */
+  lastMix: UsageDelta[] | null;
 }
 
 function capCostDto(costing: Costing, context: CapCostContext): CapCostDto {
@@ -436,13 +448,14 @@ function capCostDto(costing: Costing, context: CapCostContext): CapCostDto {
   if (fit === null) {
     return { ...head, models: [], environments: [], unexplained: null, unexplained_stretches: [], steps: [] };
   }
-  const { known, shown, order, config, from } = context;
+  const { known, shown, order, config, from, lastMix } = context;
   const totals = unexplainedTotals(fit, from);
   const modelIndex = colorIndexer(order, SeriesKind.Model);
+  const mixes: ModelMixes = { current: totalsByModel(known), last: lastMix === null ? null : totalsByModel(lastMix) };
   return {
     ...head,
     ready: true,
-    models: fit.models.map((model) => modelDto(fit, model.model, known, modelIndex)),
+    models: fit.models.map((model) => modelDto(fit, model.model, mixes, modelIndex)),
     environments: environmentCosts(costing, fit, known, order, config),
     unexplained: { points: totals.points, growth_points: totals.growthPoints, share: totals.share },
     unexplained_stretches: unexplainedStretches(fit, from, config.capCost.unexplainedStretches).map((s) => ({
@@ -481,10 +494,23 @@ function ratioReference(perToken: TokenTotals): TokenKind | null {
   return perToken[heaviest] > 0 ? heaviest : null;
 }
 
-function modelDto(fit: CapCostFit, name: string, known: UsageDelta[], indexOf: (value: string | null) => number): CapCostModelDto {
+/** Each model's use in the range and, while the window is young, in the last full window (Slice 26); computed once per request. */
+interface ModelMixes {
+  current: Map<string, TokenTotals>;
+  last: Map<string, TokenTotals> | null;
+}
+
+/** The mix that weights a model's "all kinds" figure, and whose it is: last week's only for a model that used something then. */
+function mixOf(fit: CapCostFit, name: string, mixes: ModelMixes): { mix: TokenTotals; source: MixSource } {
+  const last = mixes.last?.get(name);
+  if (last && totalOf(last) > 0) return { mix: last, source: MixSource.LastFull };
+  const own = mixes.current.get(name);
+  return { mix: own && totalOf(own) > 0 ? own : stretchMix(fit, name), source: MixSource.Current };
+}
+
+function modelDto(fit: CapCostFit, name: string, mixes: ModelMixes, indexOf: (value: string | null) => number): CapCostModelDto {
   const model = fit.models.find((m) => m.model === name) as CapCostFit["models"][number];
-  const own = totalsByModel(known).get(name);
-  const mix = own && totalOf(own) > 0 ? own : stretchMix(fit, name);
+  const { mix, source } = mixOf(fit, name, mixes);
   const reference = ratioReference(model.perToken);
   const ratio = (kind: TokenKind): number | null => (reference === null ? null : model.perToken[kind] / model.perToken[reference]);
   return {
@@ -493,6 +519,7 @@ function modelDto(fit: CapCostFit, name: string, known: UsageDelta[], indexOf: (
     mode: model.mode,
     tokens_per_percent: perKindValues((kind) => (model.perToken[kind] > 0 ? 1 / model.perToken[kind] : null)),
     all_kinds_tokens_per_percent: tokensPerPercent(model.perToken, mix),
+    mix_source: source,
     kind_ratios: model.mode === FitMode.PerKind ? perKindValues(ratio) : null,
     kind_ratio_reference: model.mode === FitMode.PerKind ? reference : null,
     how_sure: model.howSure,

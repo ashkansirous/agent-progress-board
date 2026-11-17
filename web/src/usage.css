@@ -910,6 +910,13 @@
   gap: 8px;
 }
 
+.mix-note {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+
 .phone-model-note {
   color: var(--muted);
   font-size: 12px;

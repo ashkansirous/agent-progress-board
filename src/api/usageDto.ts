@@ -1,5 +1,5 @@
 import type { BoardConfig, SeriesColor } from "../config";
-import type { FitMode, HowSure, MultiplierState } from "../domain/capCost";
+import type { FitMode, HowSure, MixSource, MultiplierState } from "../domain/capCost";
 import type { BucketUnit, Split, TokenKind, UsageRange } from "../domain/usage";
 
 /** What `GET /api/usage` returns; the page and the Worker share these shapes (Slice 8). */
@@ -62,6 +62,8 @@ export interface CapCostModelDto {
   tokens_per_percent: Record<TokenKind, number | null>;
   /** The same for this window's mix of kinds. */
   all_kinds_tokens_per_percent: number | null;
+  /** Whose mix of kinds that figure is weighted by: the last full window's while this one is under a day old (Slice 26). */
+  mix_source: MixSource;
   /** Weight of each kind relative to fresh input; null when the model is on one weight. */
   kind_ratios: Record<TokenKind, number | null> | null;
   /** The kind the ratios are measured against: fresh input, or the heaviest kind when fresh input weighs nothing; null when on one weight. */

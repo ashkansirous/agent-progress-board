@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { type CapReading, evaluateAll, WEEKLY_WINDOW } from "../src/domain/cap";
+import { type CapReading, type CapWindow, evaluateAll, WEEKLY_WINDOW } from "../src/domain/cap";
 import {
   buildStretches,
+  chooseMixWindow,
+  MixSource,
+  YOUNG_WINDOW_HOURS,
   costByKey,
   type CapCostFit,
   costOf,
@@ -495,5 +498,52 @@ describe("growth placed inside reported chat windows (Slice 16)", () => {
   it("recomputes the unexplained share from the residuals left after placing", () => {
     const placed = placeInWindows(fitWith(6), [window(CHAT, 0, 30)], T(-1));
     expect(placed.fit.leftoverShare).toBeCloseTo(0.5, 9);
+  });
+});
+
+describe("which window's mix weights all kinds (Slice 26)", () => {
+  const FIRST = "2026-11-10T08:00:00.000Z";
+  const SECOND = "2026-11-17T08:00:00.000Z";
+  const hoursAfter = (start: string, hours: number): Date => new Date(Date.parse(start) + hours * 3_600_000);
+  const weekly = (startedAt: string, plan = "plan-a"): CapWindow => ({ plan, windowKind: WEEKLY_WINDOW, startedAt, resetAt: null, readings: [], peak: 0 });
+
+  it("takes the last full window while the newest one is an hour old", () => {
+    const choice = chooseMixWindow([weekly(FIRST), weekly(SECOND)], "plan-a", hoursAfter(SECOND, 1));
+    expect(choice).toEqual({ source: MixSource.LastFull, from: FIRST, to: SECOND });
+  });
+
+  it("takes the current window once it is 30 hours old, and exactly at a day", () => {
+    const windows = [weekly(FIRST), weekly(SECOND)];
+    expect(chooseMixWindow(windows, "plan-a", hoursAfter(SECOND, 30)).source).toBe(MixSource.Current);
+    expect(chooseMixWindow(windows, "plan-a", hoursAfter(SECOND, YOUNG_WINDOW_HOURS)).source).toBe(MixSource.Current);
+  });
+
+  it("skips a stub window left by a reset glitch and takes the last one that lasted a day", () => {
+    const stub = hoursAfter(SECOND, -0.5).toISOString();
+    const windows = [weekly(FIRST), weekly(stub), weekly(SECOND)];
+    expect(chooseMixWindow(windows, "plan-a", hoursAfter(SECOND, 1))).toEqual({ source: MixSource.LastFull, from: FIRST, to: stub });
+  });
+
+  it("measures the newest window's age from its reset time when the first reading came late", () => {
+    const resetAt = new Date(Date.parse(SECOND) + 7 * 24 * 3_600_000).toISOString();
+    const lateFirst = hoursAfter(SECOND, 40).toISOString();
+    const late: CapWindow = { ...weekly(lateFirst), resetAt };
+    const oldEnough = chooseMixWindow([weekly(FIRST), late], "plan-a", hoursAfter(SECOND, 41));
+    expect(oldEnough.source).toBe(MixSource.Current);
+    const young = chooseMixWindow([weekly(FIRST), { ...late, resetAt: null }], "plan-a", hoursAfter(SECOND, 41));
+    expect(young.source).toBe(MixSource.LastFull);
+  });
+
+  it("falls back to the current mix when every earlier window is a stub", () => {
+    const stub = hoursAfter(SECOND, -0.5).toISOString();
+    expect(chooseMixWindow([weekly(stub), weekly(SECOND)], "plan-a", hoursAfter(SECOND, 1)).source).toBe(MixSource.Current);
+  });
+
+  it("has nothing to fall back on with one window or no plan, and ignores other plans and short windows", () => {
+    expect(chooseMixWindow([weekly(SECOND)], "plan-a", hoursAfter(SECOND, 1)).source).toBe(MixSource.Current);
+    expect(chooseMixWindow([weekly(FIRST), weekly(SECOND)], null, hoursAfter(SECOND, 1)).source).toBe(MixSource.Current);
+    expect(chooseMixWindow([weekly(FIRST, "plan-b"), weekly(SECOND)], "plan-a", hoursAfter(SECOND, 1)).source).toBe(MixSource.Current);
+    const short = { ...weekly(FIRST), windowKind: "short" };
+    expect(chooseMixWindow([short, weekly(SECOND)], "plan-a", hoursAfter(SECOND, 1)).source).toBe(MixSource.Current);
   });
 });

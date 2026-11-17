@@ -139,7 +139,9 @@ const en = {
   oneCaption:
     "Every report carries four counts per agent and model: fresh input, cache write, cache read and output. Each is weighed on its own. Best fit over stretches inside one window on this plan; stretches with a reset or a plan change are left out.",
   tokensPerOneTitle: "Tokens that use 1% of the week",
-  columnMix: "All kinds, this window’s mix",
+  columnMix: "All kinds, by mix of use",
+  columnMixLast: "All kinds, last week’s mix",
+  mixLastWeek: "last week’s mix until this week has a day of use",
   columnHowSure: "How sure",
   stretchesN: "{n} stretches",
   oneWeightUntil: "One weight for every kind until {n} stretches ({x} each)",
@@ -507,7 +509,9 @@ const de: Table = {
   oneCaption:
     "Jede Meldung trägt vier Zahlen pro Agent und Modell: neue Eingabe, Cache schreiben, Cache lesen und Ausgabe. Jede wird einzeln gewichtet. Beste Anpassung über Abschnitte innerhalb eines Fensters in diesem Tarif; Abschnitte mit Zurücksetzung oder Tarifwechsel bleiben draußen.",
   tokensPerOneTitle: "Token, die 1 % der Woche verbrauchen",
-  columnMix: "Alle Arten, Mischung dieses Fensters",
+  columnMix: "Alle Arten, nach Mischung der Nutzung",
+  columnMixLast: "Alle Arten, Mischung der letzten Woche",
+  mixLastWeek: "Mischung der letzten Woche, bis diese Woche einen Tag Nutzung hat",
   columnHowSure: "Wie sicher",
   stretchesN: "{n} Abschnitte",
   oneWeightUntil: "Ein Gewicht für alle Arten bis {n} Abschnitte ({x} je)",

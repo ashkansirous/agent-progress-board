@@ -1,16 +1,14 @@
 import type { BoardItemDto } from "../../src/api/boardDto";
 import type { ProjectConfig } from "../../src/config";
+import type { ProjectGroups } from "../../src/domain/boardGroups";
 import { ItemStatus, ItemType, Priority } from "../../src/domain/item";
 import { isQuestion } from "./cards";
 
-/** The order the legend lists the types in. */
-export const TYPE_ORDER: ItemType[] = [
-  ItemType.WaitingForMe,
-  ItemType.Slice,
-  ItemType.Problem,
-  ItemType.Bug,
-  ItemType.Unplanned,
-];
+/** The numbers in the count row by the page title: totals over every project's summary line. */
+export function boardTotals(groups: ProjectGroups[]): { needsYou: number; working: number; problems: number } {
+  const sum = (pick: (summary: ProjectGroups["summary"]) => number) => groups.reduce((total, g) => total + pick(g.summary), 0);
+  return { needsYou: sum((s) => s.needs_you), working: sum((s) => s.working), problems: sum((s) => s.problems) };
+}
 
 const PRIORITY_RANK: Record<Priority, number> = {
   [Priority.P0]: 0,
@@ -59,6 +57,14 @@ export function projectLabel(id: string, projects: ProjectConfig[]): string {
 /** The tasks an agent is working on now, the newest report first (the Active work page's list). */
 export function activeTasks(items: BoardItemDto[]): BoardItemDto[] {
   return items.filter((item) => item.working).sort((a, b) => b.heartbeat_at.localeCompare(a.heartbeat_at));
+}
+
+/**
+ * The cards of the phone's top "Needs you" list: exactly the keys each group's `needs_you` names (the Worker's
+ * rule, so the top count matches the project lines), in the server's order: the page never re-sorts them.
+ */
+export function needsYouItems(groups: ProjectGroups[], byKey: Map<string, BoardItemDto>): BoardItemDto[] {
+  return groups.flatMap((group) => group.needs_you).flatMap((key) => byKey.get(key) ?? []);
 }
 
 export function distinctProjects(items: BoardItemDto[]): number {

@@ -173,7 +173,7 @@ test.describe("usage page", () => {
     const tabs = page.getByRole("navigation", { name: "Views" });
     await expect(tabs.getByRole("link", { name: "Usage" })).toHaveAttribute("aria-current", "page");
     await tabs.getByRole("link", { name: "Board" }).click();
-    await expect(page.getByRole("heading", { level: 1, name: "Progress" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Board" })).toBeVisible();
     await expect(page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Board" })).toHaveAttribute("aria-current", "page");
     await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Usage" }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Usage" })).toBeVisible();
@@ -183,8 +183,8 @@ test.describe("usage page", () => {
     await openUsage(page);
     const nav = page.getByRole("navigation", { name: "Views" });
     if (!isPhone()) {
-      expect(await css(nav, "background-color")).toBe(rgbOf(palette().segmentBg));
-      expect(await css(nav.getByRole("link", { name: "Usage" }), "background-color")).toBe(rgbOf(palette().segmentPressedBg));
+      expect(await css(nav, "background-color")).toBe(rgbOf(palette().tabBg));
+      expect(await css(nav.getByRole("link", { name: "Usage" }), "background-color")).toBe(rgbOf(palette().tabOn));
       return;
     }
     expect(await css(nav, "position")).toBe("sticky");

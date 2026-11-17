@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import exampleConfig from "../config/board.example.json" with { type: "json" };
 import { SERVER_TIME } from "./fixture";
+import { project } from "./projectBlock";
 import { planningBoard } from "./sessionFixture";
 
 const BOARD_ROUTE = "**/api/board";
@@ -29,8 +30,7 @@ async function openBoard(page: Page) {
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 }
 
-const example = (page: Page): Locator =>
-  page.locator("section.project", { has: page.getByRole("heading", { level: 2, name: "example-app", exact: true }) });
+const example = (page: Page): Locator => project(page, "example-app");
 
 const sliceCard = (page: Page, words: string): Locator =>
   page.locator("button.slice-card").filter({ has: page.locator(".slice-title").getByText(words, { exact: true }) });

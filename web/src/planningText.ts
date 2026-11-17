@@ -67,8 +67,8 @@ export function slicePlannedText(slice: { number: number | null } | null, t: Tra
  */
 export function summaryText(summary: ProjectSummary, t: Translate): string {
   const bits: string[] = [];
-  if (summary.needs_you > 0) bits.push(t("summaryNeedsYou", { n: summary.needs_you }));
-  bits.push(summary.working > 0 ? t("summaryWorking", { n: summary.working }) : t("summaryNothingRunning"));
+  if (summary.needs_you > 0) bits.push(t(summary.needs_you === 1 ? "summaryNeedsYouOne" : "summaryNeedsYou", { n: summary.needs_you }));
+  bits.push(summary.working > 0 ? t(summary.working === 1 ? "summaryWorkingOne" : "summaryWorking", { n: summary.working }) : t("summaryNothingRunning"));
   if (summary.planned > 0) bits.push(t("summaryPlanned", { n: summary.planned }));
   if (summary.problems > 0) bits.push(t(summary.problems === 1 ? "summaryProblemOne" : "summaryProblemMany", { n: summary.problems }));
   if (summary.checks_not_tried > 0) {

@@ -27,6 +27,15 @@ describe("summaryText", () => {
     );
   });
 
+  it("uses the singular and plural forms of needs you and working with counts 1 and 2", () => {
+    const one = { needs_you: 1, working: 1, planned: 0, problems: 0, checks_not_tried: 0 };
+    const two = { needs_you: 2, working: 2, planned: 0, problems: 0, checks_not_tried: 0 };
+    expect(summaryText(one, en)).toBe("1 needs you · 1 working");
+    expect(summaryText(two, en)).toBe("2 need you · 2 working");
+    expect(summaryText(one, de)).toBe("1 braucht dich · 1 arbeitet");
+    expect(summaryText(two, de)).toBe("2 brauchen dich · 2 arbeiten");
+  });
+
   it("is worded in German too", () => {
     expect(summaryText({ needs_you: 0, working: 0, planned: 2, problems: 0, checks_not_tried: 0 }, de)).toBe("nichts läuft · 2 geplant");
   });

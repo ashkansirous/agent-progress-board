@@ -34,14 +34,14 @@
   gap: 4px;
   padding: 4px;
   border-radius: 12px;
-  background: var(--segmentBg);
+  background: var(--tabBg);
 }
 
 .view-tab {
   display: inline-flex;
   align-items: center;
   min-height: 40px;
-  padding: 0 16px;
+  padding: 0 14px;
   border-radius: 9px;
   color: var(--segmentText);
   font-weight: 500;
@@ -49,8 +49,8 @@
 }
 
 .view-tab[aria-current="page"] {
-  background: var(--segmentPressedBg);
-  color: var(--segmentPressedText);
+  background: var(--tabOn);
+  color: var(--text);
   font-weight: 600;
   box-shadow: 0 1px 2px var(--shadow);
 }

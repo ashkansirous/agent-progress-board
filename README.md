@@ -31,7 +31,9 @@ Tests run in the Workers pool against a local D1. `npm run dev` (Vite with the W
 ## The board page
 
 A React + TypeScript page (`web/`, built by Vite) served by the Worker as static assets: a
-"Waiting for you" strip, one group per project, tiles by type and priority, a detail panel
+count row by the title, and one block per project that folds (Needs you, Working now, Planned,
+Problems and bugs, Done; a quiet project and Done start folded, a project with a question opens on
+load, the choice is kept in the browser), a detail panel
 (side panel on desktop, bottom sheet on the phone), light and dark colours from the board
 config, fonts bundled with the page. It reads `GET /api/board`, which answers with the open
 items, those done in the window, their details, links and latest events, and the config the

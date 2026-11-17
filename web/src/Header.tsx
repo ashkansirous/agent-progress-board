@@ -1,53 +1,52 @@
-import type { BoardPageConfig } from "../../src/api/boardDto";
+import type { ProjectGroups } from "../../src/domain/boardGroups";
 import { RefreshIcon } from "./icons";
-import { TYPE_ORDER } from "./model";
+import { REFRESH_EVERY_MS } from "./hooks";
+import { boardTotals } from "./model";
 import { clockTime } from "./time";
 import { useView } from "./view";
 
 interface HeaderProps {
-  config: BoardPageConfig | null;
-  hours: number | null;
+  /** The projects the Worker grouped; null while there is no data (the title shows alone). */
+  groups: ProjectGroups[] | null;
   updatedAt: Date | null;
   busy: boolean;
   onRefresh: () => void;
 }
 
-function Subtitle({ hours, updatedAt }: Pick<HeaderProps, "hours" | "updatedAt">) {
-  const { t, phone } = useView();
-  if (hours === null || updatedAt === null) return null;
-  const time = clockTime(updatedAt);
-  if (phone) return <p className="subtitle">{t("phoneUpdated", { time, n: hours })}</p>;
-  return <p className="subtitle">{[t("subtitleOpen", { n: hours }), t("subtitleUpdated", { time })].join(" · ")}</p>;
+const MS_PER_SECOND = 1000;
+
+/** "3 projects · updated 13:48 · refreshes every 60 s". */
+function Subtitle({ count, updatedAt }: { count: number; updatedAt: Date }) {
+  const { t } = useView();
+  const projects = t(count === 1 ? "projectOne" : "projectMany", { n: count });
+  const bits = [projects, t("boardUpdated", { time: clockTime(updatedAt) }), t("boardRefreshes", { n: REFRESH_EVERY_MS / MS_PER_SECOND })];
+  return <p className="subtitle">{bits.join(" · ")}</p>;
 }
 
-function Legend() {
-  const { looks } = useView();
+/** The totals over all projects: "2 need you", "3 working", "2 problems". A count of 0 stays and reads "0 ...". */
+function CountRow({ groups }: { groups: ProjectGroups[] }) {
+  const { t } = useView();
+  const totals = boardTotals(groups);
   return (
-    <ul className="legend" aria-hidden="true">
-      {TYPE_ORDER.map((type) => {
-        const look = looks.type(type);
-        return (
-          <li key={type} className="legend-pill" style={{ background: look.bg, color: look.fg }}>
-            <span className="type-dot legend-dot" style={{ background: look.fg }} />
-            {look.label}
-          </li>
-        );
-      })}
-    </ul>
+    <p className="count-row">
+      <span className="count-pill count-pill-needs">{totals.needsYou === 1 ? t("countNeedYouOne") : t("countNeedYou", { n: totals.needsYou })}</span>
+      <span className="count-pill">{totals.working === 1 ? t("countWorkingOne") : t("countWorking", { n: totals.working })}</span>
+      <span className="count-pill">{totals.problems === 1 ? t("countProblemsOne") : t("countProblems", { n: totals.problems })}</span>
+    </p>
   );
 }
 
-/** Title and last-updated line, the type legend (desktop) and the 44 px refresh button. */
-export function Header({ config, hours, updatedAt, busy, onRefresh }: HeaderProps) {
-  const { t, phone } = useView();
+/** Title, the projects and update line, the count row and the 44 px refresh button. */
+export function Header({ groups, updatedAt, busy, onRefresh }: HeaderProps) {
+  const { t } = useView();
   return (
-    <header className="header">
+    <header className="header board-header">
       <div className="header-text">
         <h1>{t("title")}</h1>
-        <Subtitle hours={hours} updatedAt={updatedAt} />
+        {groups && updatedAt && <Subtitle count={groups.length} updatedAt={updatedAt} />}
       </div>
       <div className="header-actions">
-        {!phone && config && <Legend />}
+        {groups && <CountRow groups={groups} />}
         <button
           type="button"
           className={busy ? "icon-button refresh busy" : "icon-button refresh"}

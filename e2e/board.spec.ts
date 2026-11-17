@@ -3,6 +3,7 @@ import type { BoardResponse } from "../src/api/boardDto";
 import { ItemStatus } from "../src/domain/item";
 import exampleConfig from "../config/board.example.json" with { type: "json" };
 import { demoBoard, demoItem, SERVER_TIME } from "./fixture";
+import { openAllProjects, project } from "./projectBlock";
 
 const BOARD_ROUTE = "**/api/board";
 const LOCAL_HOSTS = ["127.0.0.1", "localhost"];
@@ -27,10 +28,6 @@ function foreignRequests(page: Page): string[] {
     if (!LOCAL_HOSTS.includes(url.hostname)) hosts.push(request.url());
   });
   return hosts;
-}
-
-function project(page: Page, name: string): Locator {
-  return page.locator("section.project", { has: page.getByRole("heading", { level: 2, name, exact: true }) });
 }
 
 /**
@@ -74,7 +71,7 @@ async function openBoard(page: Page) {
 test.describe("board", () => {
   test("groups follow the config order and the tiles follow priority", async ({ page }) => {
     await openBoard(page);
-    expect(await page.locator("section.project h2").allTextContents()).toEqual(["Recipe Box", "Garden Planner", "Home Lab"]);
+    expect(await page.locator("section.project .project-name").allTextContents()).toEqual(["Recipe Box", "Garden Planner", "Home Lab"]);
     const recipe = project(page, "Recipe Box");
     const planned = recipe.locator(".section", { hasText: "Planned · 1" });
     expect(await planned.locator(".slice-title").allTextContents()).toEqual(["Tag search"]);
@@ -86,38 +83,41 @@ test.describe("board", () => {
     await expect(recipe.locator(".done-row-title")).toHaveText("Slice 3 · Share links");
   });
 
-  test("the waiting strip lists the three questions, the most urgent first", async ({ page }) => {
+  test("every need sits in its own project on desktop and above the projects on the phone, in the server's order", async ({ page }) => {
     await openBoard(page);
-    const strip = page.getByRole("region", { name: isPhone() ? "Waiting for you · 3" : "Waiting for you" });
-    expect(await strip.locator(".card-title").allTextContents()).toEqual([
-      "Sign in to the store console",
-      "Approve the tags migration",
-      "Pick the new app icon",
-    ]);
+    const garden = project(page, "Garden Planner");
     if (isPhone()) {
-      await expect(strip.getByText("Asked")).toHaveCount(0);
+      const top = page.getByRole("region", { name: "Needs you · 3" });
+      expect(await top.locator(".tile-title").allTextContents()).toEqual([
+        "Approve the tags migration",
+        "Sign in to the store console",
+        "Pick the new app icon",
+      ]);
+      await expect(top.getByText("Asked")).toHaveCount(0);
+      await expect(garden.getByText("Its question is at the top of the page.")).toBeVisible();
     } else {
-      await expect(strip.getByText("3 items across 2 projects")).toBeVisible();
-      await expect(strip.getByText("Asked 25 min ago · Slice 4 · Tag search")).toBeVisible();
+      await expect(page.getByRole("region", { name: "Needs you · 3" })).toHaveCount(0);
+      await expect(garden.getByRole("region", { name: "Needs you · 2" }).locator(".tile-title")).toHaveText([
+        "Sign in to the store console",
+        "Pick the new app icon",
+      ]);
+      await expect(project(page, "Recipe Box").getByRole("region", { name: "Needs you · 1" }).locator(".tile-title")).toHaveText([
+        "Approve the tags migration",
+      ]);
     }
   });
 
-  test("project summaries and sections differ between desktop and phone as drawn", async ({ page }) => {
+  test("the title line, the project summaries and the view tabs are the same on desktop and phone", async ({ page }) => {
     await openBoard(page);
     const recipe = project(page, "Recipe Box");
-    if (isPhone()) {
-      await expect(recipe.locator(".project-summary")).toHaveText("1 needs you · nothing running · 1 planned · 1 problem");
-      await expect(recipe.getByRole("heading", { level: 3, name: /Waiting for you/ })).toHaveCount(0);
-      await expect(page.locator("header .legend")).toHaveCount(0);
-      await expect(page.getByText("Updated 13:48 · last 12 h")).toBeVisible();
-    } else {
-      await expect(recipe.locator(".project-summary")).toHaveText("1 needs you · nothing running · 1 planned · 1 problem");
-      await expect(recipe.getByRole("heading", { level: 3, name: "Waiting for you · 1" })).toBeVisible();
-      await expect(page.locator("header .legend li")).toHaveText(["Needs you", "Slice", "Problem", "Bug", "Unplanned"]);
-      await expect(
-        page.getByText("Open work plus everything finished in the last 12 hours · updated 13:48 · refreshes every 60 s"),
-      ).toBeVisible();
-    }
+    await expect(recipe.locator(".project-summary")).toHaveText("1 needs you · nothing running · 1 planned · 1 problem");
+    await expect(page.locator(".board-header .subtitle")).toHaveText("3 projects · updated 13:48 · refreshes every 60 s");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Board");
+    await expect(page.locator(".legend")).toHaveCount(0);
+    const tabs = page.getByRole("navigation", { name: "Views" });
+    await expect(tabs.getByRole("link")).toHaveText(["Board", /^Active work\d*$/, "Usage"]);
+    const box = (await tabs.boundingBox())!;
+    expect(box.y).toBeLessThan(80);
   });
 
   test("a stale tile is dashed and muted, a finished item is a row with its time in the Done list", async ({ page }) => {
@@ -159,7 +159,7 @@ test.describe("design values", () => {
     await openBoard(page);
     const phone = isPhone();
     expect(await css(page.locator(".app"), "background-color")).toBe(phone ? "rgb(14, 16, 20)" : "rgb(245, 246, 248)");
-    expect(await css(page.getByRole("heading", { level: 1 }), "font-size")).toBe(phone ? "22px" : "26px");
+    expect(await css(page.getByRole("heading", { level: 1 }), "font-size")).toBe("26px");
     const refresh = page.getByRole("button", { name: "Refresh now" });
     const box = await refresh.boundingBox();
     expect([box?.width, box?.height]).toEqual([44, 44]);
@@ -256,6 +256,7 @@ test.describe("detail", () => {
     await page.clock.setFixedTime(new Date(SERVER_TIME));
     await serveBoard(page, demoBoard([hostile]));
     await page.goto("/");
+    await openAllProjects(page);
     await tileTitled(page, "Slice 4 · Tag search").click();
     const box = page.getByRole("dialog").locator(".details-box");
     await expect(box.locator("strong")).toHaveText("bold");
@@ -341,9 +342,9 @@ test.describe("states", () => {
   test("an empty board says so", async ({ page }) => {
     await serveBoard(page, demoBoard([]));
     await page.goto("/");
-    await expect(page.getByText("Nothing open")).toBeVisible();
+    await expect(page.getByText("Nothing open in any project")).toBeVisible();
     await expect(
-      page.getByText("No open items and nothing finished in the last 12 hours. Agents add items here as they report."),
+      page.getByText("No questions, no running work, no planned slices and no problems. Projects show here once an agent or the doc sync reports."),
     ).toBeVisible();
   });
 
@@ -450,8 +451,7 @@ test.describe("state cards use the palette without a response", () => {
     await expect(page.getByText("Loading the board…")).toBeVisible({ timeout: 1500 });
     const palette = examplePalette();
     expect(await css(page.locator(".state-card"), "background-color")).toBe(palette.card);
-    expect(await css(page.locator(".skeleton-heading"), "background-color")).toBe(palette.skeletonBar);
-    expect(await css(page.locator(".skeleton-label"), "background-color")).toBe(palette.skeletonBar);
+    expect(await css(page.locator(".skeleton-title").first(), "background-color")).toBe(palette.skeletonBar);
     expect(await css(page.locator(".skeleton-strip"), "background-color")).toBe(palette.skeletonStrip);
     expect(await css(page.locator(".skeleton-tile").first(), "background-color")).toBe(palette.skeletonTile);
   });

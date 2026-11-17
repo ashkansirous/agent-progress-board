@@ -1,5 +1,7 @@
 ### Slice 26 — The "all kinds" cost figure stays steady across a weekly reset
 
+*In progress (wave 2026-11-17), draft PR.*
+
 *Planned with a recorded default (starter session, 2026-11-17, after the owner's "what the fuck is the question ...
 what the fuck do you need from me?" on bare "Waiting on you" cards): the choice below has an obvious answer, so it is
 not asked.* Found by the feedback loop of night 2026-11-17-1826 ([note](../notes/2026-11-17-1826-feedback-loop.md)).
@@ -27,6 +29,6 @@ instead of running the read-only comparison itself.
   Verify: a domain test with a reset an hour old shows the figure equal to the last full window's; one 30 hours old
   uses the current mix; the row's note text is shown on the page (e2e).
 
-**Touches:** `src/domain/capCost.ts`, `src/api/usageDto.ts`, `web/src/**`, `test/**`
+**Touches:** `src/domain/capCost.ts`, `src/application/usage.ts`, `src/api/usageDto.ts`, `web/src/**`, `test/**`, `e2e/**`, `docs/plan/slices/26-mix-after-reset.md`
 
 **Migrations:** none

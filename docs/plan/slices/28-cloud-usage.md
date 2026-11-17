@@ -4,6 +4,13 @@
 when possible. but looking at the token usage it says that env not set. whats going on? not implemented yet or missing
 from the plan").* Starts after Slice 22 (the plugin's usage part).
 
+**Which "VM" (read from the owner's config repo, 2026-11-17; the owner: "look at the fucking claudeskill project and
+see what it is"):** Claude Code cloud sessions. The owner's wave tooling writes a slice's code in a cloud routine
+(a fixed worker routine, model Sonnet, the cloud environment named "Default", started through the routines API), then
+reviews and merges locally. Two slices used it on 2026-11-17 (one in each repo), and neither cloud run sent a usage
+row. The guide below therefore covers routines as well as interactive cloud sessions: what the routine's environment
+needs (allowed domain, variables, how the plugin or its hooks load there) and a label such as `cloud`.
+
 **Found, read live at 21:00Z** (`usage_samples` on the live D1, read-only): 4,229 usage rows since 2026-11-16 16:58Z,
 every one with no `environment`. They all come from the owner's main machine, which sets no label (no
 `AGENT_BOARD_ENV`, no `BOARD_ENV` in its secrets file), and the page shows that as "Not set" (`web/src/strings.ts:108`,

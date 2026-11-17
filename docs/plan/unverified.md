@@ -39,8 +39,8 @@ owner confirms, is removed here and its slice marked `verified`.
 
 ### Slice 16: Claude chat and Claude Design report to the board, and their use counts ([slice](slices/16-chat-reports.md))
 
-- **You:** a new chat at https://claude.ai/new with only the board connector that does some work shows a card under "my-chats" within a minute. If not, the instruction text for https://claude.ai/settings (Your Claude, Instructions) has no owner-readable copy since Slice 18; see the parked [Slice 19](slices/19-chat-text.md).
-- **You:** try the same instruction once in a Claude Design session and say whether a card appears (Claude Design calling the connector is unproven; see the first Work item).
+- A claude.ai chat reports a card under "my-chats". The owner's two chats on 2026-11-17 reported nothing (owner: "I already tried the chat and I told you it did not do anything"), so the owner is not asked to repeat it: [Slice 19](slices/19-chat-text.md) puts the instruction text on the board page, and its build adds the one owner step (paste it) with the full context.
+- The same instruction in a Claude Design session (Claude Design calling the connector is unproven; see the first Work item). Asked of the owner only after Slice 19 is built.
 - A real claude.ai chat reporting through the connector and the usage page's "Claude chat" row.
 - Claude Design and custom connectors are unproven in the docs.
 

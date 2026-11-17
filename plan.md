@@ -22,7 +22,8 @@ owner's config repo. Decisions in [Slice 20](docs/plan/slices/20-plugin-connect.
 
 | Slice | Title | Status | PR | Issue | File |
 | --- | --- | --- | --- | --- | --- |
-| 19 | The owner can get the chat instruction text without a token | parked: feedback loop, waits for the user | | | [slice](docs/plan/slices/19-chat-text.md) |
+| 19 | The owner can get the chat instruction text without a token | planned | | | [slice](docs/plan/slices/19-chat-text.md) |
+| 25 | Every "Needs you" card says what is needed, for which work, and why; no card when nothing is asked | planned | | | [slice](docs/plan/slices/25-needs-you-cards.md) |
 
 Notes:
 

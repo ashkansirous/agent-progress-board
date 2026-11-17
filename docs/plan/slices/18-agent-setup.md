@@ -1,5 +1,7 @@
 ### Slice 18 — Every AI that connects to the board is told how to report
 
+*Built (wave 2026-11-17), PR #94, not merged.*
+
 *Planned: the owner, 2026-11-17: "the fix you did for ClaudeSkills, is a part of what should be written for the
 coding agents and AIs when they use the board via mcp. it should be in the setup", then "do we even have a proper
 setup for AI agents to use the board?".* Small code change plus the client guide.
@@ -24,7 +26,7 @@ setup for AI agents to use the board?".* Small code change plus the client guide
 
 #### Work
 
-- [ ] **Server instructions.** One text constant in `src/mcp/instructions.ts`, passed as the `instructions` option
+- [x] **Server instructions.** One text constant in `src/mcp/instructions.ts`, passed as the `instructions` option
   of `McpServer` (check the option's name and shape in the installed `@modelcontextprotocol/sdk` through context7
   first). At most about 2,000 characters, no project names (public repo). It says: at the start of every
   session or chat, before the first answer, call `report_progress` once on `<project>/session-<id>` with type
@@ -34,7 +36,7 @@ setup for AI agents to use the board?".* Small code change plus the client guide
   reports back; `mark_done` only when the goal is done and no background agent is still working, never at the end
   of a reply; a question for the person goes in `needs_you`; never guess token numbers. Verify: a test sends
   `initialize` to `/mcp` and finds the text in `result.instructions`.
-- [ ] **Client guide.** `docs/clients.md` gets a short *Setup for an AI agent* section near the top: add the
+- [x] **Client guide.** `docs/clients.md` gets a short *Setup for an AI agent* section near the top: add the
   connector (Claude Code: the MCP server entry; claude.ai: the OAuth connector), and that the server's own
   instructions carry the reporting rules, so no pasted text is needed where the client shows server instructions
   to the model. *Steps* and *What to report and when* get the background-agent rule above. The pasted chat
@@ -49,3 +51,42 @@ setup for AI agents to use the board?".* Small code change plus the client guide
 #### Verification
 
 - `npm run lint`, `npm run typecheck`, `npm test` green.
+- Run: lint and typecheck clean; `npm test` 469 passed; `npm run test:e2e` 239 passed, 3 skipped (run before the last
+  review fix; that fix touched the instructions text only, and `npm test` was rerun after it: 469 passed).
+
+#### Changed while building
+
+- `SERVER_INSTRUCTIONS` in `src/mcp/instructions.ts` is built from the domain constants (`ItemType`, `SESSION_AGENT`,
+  `SESSION_STALE_AFTER_MINUTES`, the step limits), not literals. It is passed as the `instructions` option of
+  `McpServer` (SDK 1.32.2, checked through context7 `/modelcontextprotocol/typescript-sdk`); a test enforces under
+  2,000 characters.
+- `docs/clients.md` *Setup for an AI agent*: a pasted chat text is a copy of `initialize` `result.instructions`.
+  The heartbeat is the key plus status `in_progress`; the background-agent rule and the `mark_done` rule are written in.
+
+#### For CLAUDE.md
+
+- The reporting rules an MCP client receives are one constant, `SERVER_INSTRUCTIONS` in `src/mcp/instructions.ts`,
+  built from the domain constants; `docs/clients.md` tells chat users to copy it from the `initialize` result, never a
+  hand copy (Slice 18: docs/plan/slices/18-agent-setup.md).
+
+#### From review
+
+review read: `reviews/pr-94-high.md` findings 8/8, `reviews/pr-94-medium.md` 8/8, `reviews/pr-94-check-medium.md` 7/7, `reviews/pr-94-check-2-medium.md` 4/4.
+
+- `pr-94-high.md`: applied #1-5, 7, 8.
+- `pr-94-medium.md`: applied #1-6.
+- `pr-94-check-medium.md`: applied #1, 2, 3, 4, 7.
+- `pr-94-check-2-medium.md`: applied #1 (the heartbeat line in `docs/clients.md`).
+- Skipped #6 (`reviews/pr-94-high.md`): "test only checks three substrings, not the facts" - low value; the step-state names, heartbeat and stale numbers are now asserted and the limits come from the domain constants.
+- Skipped #7 (`reviews/pr-94-medium.md`): "Test only checks a few words appear" - low value; the step-state names are now asserted and the text is short.
+- Skipped #5 (`reviews/pr-94-check-medium.md`): "no list of which clients do; stateless tools/call without initialize gets none" - which clients show instructions is outside this repo; the text already says to paste where the client ignores them and that plain POST gets none.
+- Skipped #6 (`reviews/pr-94-check-medium.md`): "tests only assert 5<15 and a few words" - low value; the heartbeat and stale numbers are asserted and the limits now come from the domain constants.
+- Skipped #8 (`reviews/pr-94-medium.md`): "Work items ticked [x] before the gate finished; no unverified.md entry" - update-docs records verification state after the gate.
+
+#### Follow-ups
+
+From `reviews/pr-94-check-2-medium.md`, after the second check pass, not reopened in this slice:
+
+- #2: a reworded `needs_you` on a heartbeat restarts `needs_you_at` (`withAsked`); the text could say to send it only on an `in_progress` report, verbatim.
+- #3: the helper rule says "report your steps on that card" without saying steps replace the whole list; name `agent_key` or say not to send steps.
+- #4: a chat that goes quiet cannot heartbeat, so its session card expires (15 minutes) while the person reads; the text has no note on this or on skipping the card for trivial chats.

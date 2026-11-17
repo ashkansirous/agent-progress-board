@@ -25,6 +25,7 @@ owner's config repo. Decisions in [Slice 20](docs/plan/slices/20-plugin-connect.
 | 19 | The owner can get the chat instruction text without a token | planned | | | [slice](docs/plan/slices/19-chat-text.md) |
 | 26 | The "all kinds" cost figure stays steady across a weekly reset | planned | | | [slice](docs/plan/slices/26-mix-after-reset.md) |
 | 27 | Every "Needs you" card says what is needed, for which work, and why; no card when nothing is asked | planned | | | [slice](docs/plan/slices/27-needs-you-cards.md) |
+| 28 | Cloud and VM sessions report their usage under their own label; the main machine gets a name | planned | | | [slice](docs/plan/slices/28-cloud-usage.md) |
 
 Notes:
 

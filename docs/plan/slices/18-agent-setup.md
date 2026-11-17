@@ -1,5 +1,7 @@
 ### Slice 18 — Every AI that connects to the board is told how to report
 
+*In progress (wave 2026-11-17), draft PR.*
+
 *Planned: the owner, 2026-11-17: "the fix you did for ClaudeSkills, is a part of what should be written for the
 coding agents and AIs when they use the board via mcp. it should be in the setup", then "do we even have a proper
 setup for AI agents to use the board?".* Small code change plus the client guide.

@@ -151,11 +151,13 @@ Needed only where the client ignores the server's instructions (see *Setup for a
 Where to paste it: claude.ai, Settings, "Your Claude", Instructions (older layout: Account,
 "Instructions for Claude"): <https://claude.ai/settings>.
 
-Paste the text the server returns in the `initialize` result, `result.instructions` (the
-`${...}` parts are already filled in there; do not copy from the source file), so there is one
-text and nothing to keep equal. Start it with: "You have the "board" connector (the agent
-progress board)." Add the environment to name, for example "Claude chat" or "Claude Design" (a
-chat or a coding session).
+Get the text from the board page: open `<board address>/#/setup` (the "Set up a chat" link in
+the board header, behind the same Access sign-in as the board), press **Copy**, and paste it.
+The page reads the same `SERVER_INSTRUCTIONS` constant the server sends in `initialize`
+(`GET /api/chat-text`), so there is one text and nothing to keep equal (Slice 19). Start your
+pasted text with the connector line the panel shows apart, with its own **Copy the line**
+button (the line comes from the Worker, `CHAT_PREFACE` in `src/api/chatText.ts`). Add the
+environment to name, for example "Claude chat" or "Claude Design" (a chat or a coding session).
 
 ### 2. A plain HTTPS POST (hooks, scripts, sessions that do not load MCP servers)
 

@@ -2,6 +2,7 @@ import type { ProjectGroups } from "../../src/domain/boardGroups";
 import { RefreshIcon } from "./icons";
 import { REFRESH_EVERY_MS } from "./hooks";
 import { boardTotals } from "./model";
+import { Route, ROUTE_HASH } from "./route";
 import { clockTime } from "./time";
 import { useView } from "./view";
 
@@ -47,6 +48,9 @@ export function Header({ groups, updatedAt, busy, onRefresh }: HeaderProps) {
       </div>
       <div className="header-actions">
         {groups && <CountRow groups={groups} />}
+        <a className="setup-link" href={ROUTE_HASH[Route.Setup]}>
+          {t("setupLink")}
+        </a>
         <button
           type="button"
           className={busy ? "icon-button refresh busy" : "icon-button refresh"}

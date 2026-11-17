@@ -1,7 +1,7 @@
 import type { BoardResponse } from "../../src/api/boardDto";
 
 export const BOARD_URL = "/api/board";
-const REQUEST_TIMEOUT_MS = 15_000;
+export const REQUEST_TIMEOUT_MS = 15_000;
 
 /** Why a load failed: the HTTP status the API answered, or null when it could not be reached or read. */
 export class LoadError extends Error {

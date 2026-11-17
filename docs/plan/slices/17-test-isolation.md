@@ -1,8 +1,8 @@
 ### Slice 17 — Parallel worktrees do not share an e2e server, and scratch scripts do not fail lint
 
-*Parked: feedback loop, waits for the user (night 2026-11-17-1216, [note](../notes/2026-11-17-1216-feedback-loop.md)).*
-Test tooling only, no product change; parked so no night builds a loop finding unreviewed. The owner's
-"go" moves it to `planned`. Entry numbers are from that loop's digest.
+*Planned: the owner's go on 2026-11-17 ("yes put slice 17 to fix the fucking board"). Found by the feedback loop of
+night 2026-11-17-1216 ([note](../notes/2026-11-17-1216-feedback-loop.md)).* Test tooling only, no product change.
+Entry numbers are from that loop's digest.
 
 **Touches:** `playwright.config.ts`, `eslint.config.js`, `package.json`, `docs/plan/slices/17-test-isolation.md`
 

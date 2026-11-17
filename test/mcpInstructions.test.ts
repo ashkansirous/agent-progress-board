@@ -36,6 +36,13 @@ describe("server instructions", () => {
     for (const state of Object.values(StepState)) expect(SERVER_INSTRUCTIONS).toContain(`"${state}"`);
   });
 
+  it("tells a question to carry its options, its work and a link, never a bare waiting", () => {
+    expect(SERVER_INSTRUCTIONS).toContain("the question, its options and what each does");
+    expect(SERVER_INSTRUCTIONS).toContain("the work it belongs to (slice, task) in the title");
+    expect(SERVER_INSTRUCTIONS).toContain("a link to where the person acts");
+    expect(SERVER_INSTRUCTIONS).toContain('never a card that only says "waiting"');
+  });
+
   it("stays short", () => {
     expect(SERVER_INSTRUCTIONS.length).toBeLessThanOrEqual(MAX_CHARACTERS);
   });

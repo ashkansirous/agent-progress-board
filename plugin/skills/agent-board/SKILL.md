@@ -26,7 +26,7 @@ Keep the card current:
 - While working, report at least every 5 minutes (report_progress with the key and status "in_progress"; a session card with no report for 15 minutes turns stale). If you cannot keep time, report at every step change and before and after a long wait, never on every tool call.
 - Work you hand to a background agent keeps its step "active", with a note naming the agent, until that agent reports back.
 - Call mark_done only when the goal is done and no background agent is still working. Never call it just because a reply ended.
-- A question for the person goes in needs_you (and after_answer), on the same card. While it is open, repeat the same needs_you text in every report, heartbeats included (an unchanged text keeps its first-asked time; a heartbeat without it can clear the question after the card went stale). When it is answered, send needs_you null.
+- A question for the person goes in needs_you (and after_answer), on the same card: the question, its options and what each does, the work it belongs to (slice, task) in the title, and a link to where the person acts; never a card that only says "waiting". While it is open, repeat the same needs_you text in every report, heartbeats included (an unchanged text keeps its first-asked time; a report without it can clear the question). When it is answered, send needs_you null.
 - Never guess token numbers; report usage only if you can read it.
 <!-- END RULES -->
 

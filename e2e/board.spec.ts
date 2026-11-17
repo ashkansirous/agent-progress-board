@@ -88,7 +88,7 @@ test.describe("board", () => {
     const garden = project(page, "Garden Planner");
     if (isPhone()) {
       const top = page.getByRole("region", { name: "Needs you · 3" });
-      expect(await top.locator(".tile-title").allTextContents()).toEqual([
+      expect(await top.locator(".question-text").allTextContents()).toEqual([
         "Approve the tags migration",
         "Sign in to the store console",
         "Pick the new app icon",
@@ -97,11 +97,11 @@ test.describe("board", () => {
       await expect(garden.getByText("Its question is at the top of the page.")).toBeVisible();
     } else {
       await expect(page.getByRole("region", { name: "Needs you · 3" })).toHaveCount(0);
-      await expect(garden.getByRole("region", { name: "Needs you · 2" }).locator(".tile-title")).toHaveText([
+      await expect(garden.getByRole("region", { name: "Needs you · 2" }).locator(".question-text")).toHaveText([
         "Sign in to the store console",
         "Pick the new app icon",
       ]);
-      await expect(project(page, "Recipe Box").getByRole("region", { name: "Needs you · 1" }).locator(".tile-title")).toHaveText([
+      await expect(project(page, "Recipe Box").getByRole("region", { name: "Needs you · 1" }).locator(".question-text")).toHaveText([
         "Approve the tags migration",
       ]);
     }

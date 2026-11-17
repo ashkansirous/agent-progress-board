@@ -298,11 +298,12 @@ describe('waiting cards', () => {
     board.server.close();
     assert.equal(outcome.ok, true);
     const [{ tool, args }] = callsOf(board);
-    assert.equal(tool, 'ask_human');
+    assert.equal(tool, 'report_progress');
     assert.deepEqual(args, {
-      key: 'demo-app/waiting-sess-9', project: 'demo-app', title: 'demo-app session needs you: Claude needs your permission',
-      why: 'Claude needs your permission', source: 'hook',
+      key: 'demo-app/waiting-sess-9', project: 'demo-app', type: 'waiting_for_me', status: 'open', title: args.title,
+      needs_you: 'Claude needs your permission', after_answer: null, source: 'hook',
     });
+    assert.match(args.title, /^demo-app/);
     assert.deepEqual(listMarkers(root).map((marker) => [marker.id, marker.key]), [['sess-9', 'demo-app/waiting-sess-9']]);
   });
 
@@ -313,7 +314,7 @@ describe('waiting cards', () => {
     await runWaiting({ session_id: 'sess-9', cwd: process.cwd(), message: 'hi' }, env);
     await runDone({ session_id: 'sess-9', cwd: process.cwd(), hook_event_name: 'SubagentStop', agent_id: 'a1' }, env, {}, Date.now());
     board.server.close();
-    assert.deepEqual(callsOf(board).map((call) => call.tool), ['ask_human']);
+    assert.deepEqual(callsOf(board).map((call) => call.tool), ['report_progress']);
     assert.equal(hasMarker({ session_id: 'sess-9' }, root), true);
   });
 
@@ -338,7 +339,7 @@ describe('waiting cards', () => {
     assert.equal(hasMarker({ session_id: 'sess-9' }, root), true);
     await closeAnsweredWaiting(tool(), env);
     board.server.close();
-    assert.deepEqual(callsOf(board).map((call) => call.tool), ['ask_human', 'mark_done']);
+    assert.deepEqual(callsOf(board).map((call) => call.tool), ['report_progress', 'mark_done']);
     assert.equal(hasMarker({ session_id: 'sess-9' }, root), false);
   });
 
@@ -350,7 +351,7 @@ describe('waiting cards', () => {
       await runWaiting({ session_id: 'sess-9', cwd: process.cwd(), message: 'hi' }, env);
       await runDone({ session_id: 'sess-9', cwd: process.cwd(), hook_event_name: event }, env, {}, Date.now());
       board.server.close();
-      assert.deepEqual(callsOf(board).map((call) => call.tool), ['ask_human', 'mark_done'], event);
+      assert.deepEqual(callsOf(board).map((call) => call.tool), ['report_progress', 'mark_done'], event);
       assert.deepEqual(callsOf(board)[1].args, { key: 'demo-app/waiting-sess-9', source: 'hook', note: 'Session stopped' });
       assert.equal(hasMarker({ session_id: 'sess-9' }, root), false, event);
     }

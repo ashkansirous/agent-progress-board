@@ -54,7 +54,7 @@ environment (`AGENT_BOARD_URL`, `AGENT_BOARD_TOKEN`); there is no built-in addre
 | `UserPromptSubmit` | Reopens a card the Stop hook closed ("Session resumed"), marks this session's waiting item done, and closes dead waiting items (below). Starts the reminder's prompt counter. |
 | `Stop` | Marks the session's card done ("Session stopped"). If a background agent's record (`<session>/subagents/*.jsonl`) changed in the last 10 minutes, the card stays `in_progress` with the note "background agents running" instead. While the session has an open `needs_you` question the card is not closed, and every hook report repeats the question text (a done or stale-to-in-progress report would clear it). Also marks the session's waiting item done. |
 | `SubagentStop` | Sends the card's steps again with the stopped agent done, when the list changed. Also marks the session's waiting item done. |
-| `Notification` (`permission_prompt`, `elicitation_dialog`) | Raises a `waiting_for_me` item `<project>/waiting-<session id>` (`ask_human`), never the session card's key. |
+| `Notification` (`permission_prompt`, `elicitation_dialog`, `idle_prompt`) | Raises a `waiting_for_me` item `<project>/waiting-<session id>` (`report_progress`), never the session card's key, and only when something is asked: a permission prompt or an elicitation always, an idle prompt only when the session's last message (read from the transcript tail) ends with a question. `needs_you` is the question (at most 300 characters; a permission prompt names the tool and its command), `after_answer` what follows when the message says it, the title the session's goal (else the project and branch). An idle prompt after a status line opens no card. |
 
 - **Agent steps.** Each background agent whose record changed in the last 10 minutes is a step, labelled with its
   `description` from `subagents/*.meta.json`, after the steps the session sent; it is `done` once it stopped. The board
@@ -93,7 +93,7 @@ cap state live in `CLAUDE_PLUGIN_DATA/state`; nothing is written to the Claude f
 `docs/plan/unverified.md` from `origin/main` and sends them with one `sync_snapshot` call (fail open, idempotent;
 usage and the layout it expects: `docs/setup/plan-sync.md`). A `parked:` row becomes a `waiting_for_me` card unless
 its reason only waits on work (another slice, an interactive session, a deploy, a merge); an `unverified.md` line
-starting `**You:**` becomes a `waiting_for_me` card. The plugin installs no hook for it; run it after a merge.
+starting `**You:**` becomes a `waiting_for_me` card: its title is the step, `why` names the slice and what the step unblocks, and it links to the slice file (a `parked:` card's title is the slice file's "Open for the owner" lines). The plugin installs no hook for it; run it after a merge.
 
 ## Two ways to call
 

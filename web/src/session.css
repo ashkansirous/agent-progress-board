@@ -41,7 +41,52 @@
   background: var(--needBg);
   color: var(--text);
   text-align: left;
+}
+
+.question-card:has(.question-body:focus-visible) {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
+.question-body:focus-visible {
+  outline: none;
+}
+
+.question-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
+}
+
+.question-work {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sub);
+}
+
+.question-why {
+  font-size: 14px;
+  color: var(--sub);
+}
+
+.question-none {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.question-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .question-top {

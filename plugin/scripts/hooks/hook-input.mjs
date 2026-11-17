@@ -106,9 +106,15 @@ export function sessionContext(input, env) {
 // One small file per session that raised a waiting item, so Stop and SubagentStop can skip
 // (no git, no network) in every session that never waited. It holds the item's key, so a later run in
 // another session can close it when this one died.
-export function writeMarker(input, key, root) {
+export function writeMarker(input, key, root, kind = '') {
   const file = sessionFile(sessionIdOf(input), '', root);
-  writeJson(file, { key });
+  writeJson(file, kind ? { key, kind } : { key });
+}
+
+// The notification type stored in the session's marker (what the open card was raised for), '' when none.
+export function readMarkerKind(input, root) {
+  const value = readJson(sessionFile(sessionIdOf(input), '', root));
+  return value && typeof value.kind === 'string' ? value.kind : '';
 }
 
 // The key stored in the session's marker, or '' when there is no marker (or it holds no key).

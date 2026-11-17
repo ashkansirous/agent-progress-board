@@ -2,6 +2,7 @@ import type { BoardItemDto } from "../../src/api/boardDto";
 import { StepState } from "../../src/domain/stepTypes";
 import { hasNoGoal, sessionLabel, waitingText } from "./cards";
 import { projectLabel } from "./model";
+import { isSafeHttpUrl } from "./safeUrl";
 import { ageText } from "./time";
 import { useView } from "./view";
 
@@ -10,26 +11,47 @@ interface CardProps {
   onOpen: (key: string) => void;
 }
 
-/** One question: the question in full, what happens after the answer, and who asked. The board is read-only, so the card says where to answer. */
+/**
+ * One "Needs you" card (Slice 27): the question in full (`needs_you`; for a doc-sync card with a reason, its title is
+ * the step), why in full, the work it belongs to, what happens after the answer, and the links to where to act. A card
+ * with no question and no why says so instead of repeating its title. The board is read-only, so the card says where to answer.
+ */
 export function QuestionCard({ item, onOpen }: CardProps) {
   const { t, phone, nowMs, projects } = useView();
   const waiting = waitingText(item, nowMs, t);
   const session = sessionLabel(item);
   const asked = t("askedBy", { session });
+  const question = item.needs_you ?? (item.why ? item.title : null);
+  const work = item.title !== question ? item.title : null;
+  const why = item.why && item.why !== question ? item.why : null;
+  const links = item.links.filter((link) => isSafeHttpUrl(link.url));
   return (
-    <button type="button" className="question-card" onClick={() => onOpen(item.key)}>
-      <span className="question-top">
-        {phone ? (
-          <span className="question-project">{projectLabel(item.project, projects)}</span>
-        ) : (
-          <span className="question-label">{t("questionLabel")}</span>
-        )}
-        {waiting && <span className="question-waiting">{waiting}</span>}
-      </span>
-      <span className="question-text">{item.needs_you}</span>
-      {item.after_answer && <span className="question-after">{t("afterThen", { text: item.after_answer })}</span>}
-      <span className="question-asked">{phone ? asked : `${asked} · ${t("answerInSession")}`}</span>
-    </button>
+    <div className="question-card">
+      <button type="button" className="question-body" onClick={() => onOpen(item.key)}>
+        <span className="question-top">
+          {phone ? (
+            <span className="question-project">{projectLabel(item.project, projects)}</span>
+          ) : (
+            <span className="question-label">{t("questionLabel")}</span>
+          )}
+          {waiting && <span className="question-waiting">{waiting}</span>}
+        </span>
+        {work && <span className="question-work">{work}</span>}
+        {question ? <span className="question-text">{question}</span> : <span className="question-text question-none">{t("noQuestionRecorded")}</span>}
+        {why && <span className="question-why">{why}</span>}
+        {item.after_answer && <span className="question-after">{t("afterThen", { text: item.after_answer })}</span>}
+        {item.needs_you ? <span className="question-asked">{phone ? asked : `${asked} · ${t("answerInSession")}`}</span> : null}
+      </button>
+      {links.length > 0 && (
+        <span className="question-links">
+          {links.map((link) => (
+            <a key={`${link.label}|${link.url}`} href={link.url} target="_blank" rel="noreferrer noopener">
+              {link.label}
+            </a>
+          ))}
+        </span>
+      )}
+    </div>
   );
 }
 

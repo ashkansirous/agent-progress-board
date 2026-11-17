@@ -239,10 +239,35 @@ export function waitsOnlyOnWork(reason) {
   return WAITS_ON_WORK.test(text) && !NAMES_PERSON.test(text);
 }
 
-function waitingItem(project, row, reason, parent) {
+// The lines under a slice file's "Open for the owner" heading (bullets, or the plain lines when there are none),
+// joined: what the person must decide or do. '' when the file has no such section.
+// A line that is exactly a placeholder ("None", "n/a", "TBD", "None, the owner has nothing to do."), never a
+// sentence that only starts with one of those words ("Nothing is wired until you approve the DNS change.").
+const NO_OWNER_ASK = /^[\s([]*(?:none|nothing|n\/a|tbd)(?:[\s,.;:-]+the owner has nothing to do)?[\s.!)\]]*$/i;
+const OWNER_HEADING = /^#{1,6}\s+open for the owner\b/i;
+export function openForOwner(sliceText) {
+  const found = [];
+  let inside = false;
+  for (const line of String(sliceText || '').split(/\r?\n/)) {
+    if (OWNER_HEADING.test(line)) { inside = true; continue; }
+    if (inside && ANY_HEADING.test(line)) break;
+    if (inside && !line.trim() && found.length > 0) break; // the first block only: a later paragraph is not the ask
+    if (inside && line.trim()) {
+      const text = plain(line.replace(/^\s*[-*+]\s+/, ''));
+      if (!NO_OWNER_ASK.test(text)) found.push(text);
+    }
+  }
+  return found.join(' ');
+}
+
+// A parked slice's card says what the person must decide or do (the slice file's "Open for the owner" lines, else
+// the park reason, else the slice's title), for which slice (`why`), with a link to its file.
+function waitingItem(project, row, reason, parent, repoUrl, sliceText) {
+  const links = sliceLinks(row, repoUrl);
+  const title = openForOwner(sliceText) || reason || `Waiting on you: ${row.title}`;
   return {
     key: `${project}/slice-${row.number}/waiting`, project, type: 'waiting_for_me', status: 'open',
-    title: clip(`Waiting on you: ${row.title}`, TITLE_LIMIT), parent, ...(reason ? { why: clip(reason, WHY_LIMIT) } : {}),
+    title: clip(title, TITLE_LIMIT), parent, why: clip(`Slice ${row.number}: ${row.title}`, WHY_LIMIT), ...(links.length ? { links } : {}),
   };
 }
 
@@ -260,7 +285,7 @@ function sliceItems(project, row, notes, repoUrl, sliceText = '') {
   if (mapped.status !== 'blocked') return [item];
   const reason = mapped.reason || stripParkLead(notes.get(row.number) || '');
   if (waitsOnlyOnWork(reason)) return [item];
-  return [item, waitingItem(project, row, reason, parent)];
+  return [item, waitingItem(project, row, reason, parent, repoUrl, sliceText)];
 }
 
 // The slice file's Work section as lines (outside code fences), or null when it has none. The
@@ -363,14 +388,32 @@ function checksOf(project, block, notices) {
   return dedupe(checks);
 }
 
-// The owner's steps of a block stay items of their own, as before checks moved into the slice item.
-function ownerItems(project, blocks, notices) {
-  return dedupe(blocks.flatMap((block) => withTitle(block.lines.filter(isOwnerStep), `unverified.md slice ${block.number}`, notices).map((entry) => ({
-    key: `${project}/slice-${block.number}/check-${checkHash(entry.line)}`, project,
-    type: 'waiting_for_me', status: 'open',
-    title: entryTitle(entry),
-    parent: `Slice ${block.number} · Not yet verified`,
-  }))));
+// The step without its `**You:**` prefix, and the "so that ..." the line gives for it ('' when it gives none).
+const OWNER_PREFIX = /^\s*(?:[-*]\s+)?\*\*you:\*\*\s*/i;
+const SO_THAT = /\bso that\b[^.]*\.?/i;
+
+function ownerStepText(entry) {
+  return clip(plain([entry.line.replace(OWNER_PREFIX, ''), ...entry.nested].join(' ')), TITLE_LIMIT);
+}
+
+// The owner's steps of a block stay items of their own, as before checks moved into the slice item. Each says what
+// the step is (title), for which slice and what it unblocks (why), and links to the slice file.
+function ownerItems(project, blocks, notices, rows, repoUrl) {
+  return dedupe(blocks.flatMap((block) => withTitle(block.lines.filter(isOwnerStep), `unverified.md slice ${block.number}`, notices).map((entry) => {
+    const row = rows.find((candidate) => candidate.number === block.number);
+    const step = ownerStepText(entry);
+    const sliceName = row ? `Slice ${block.number}: ${row.title}` : `Slice ${block.number}`;
+    const unblocks = SO_THAT.exec(step);
+    const links = row ? sliceLinks(row, repoUrl) : [];
+    return {
+      key: `${project}/slice-${block.number}/check-${checkHash(entry.line)}`, project,
+      type: 'waiting_for_me', status: 'open',
+      title: step || entryTitle(entry),
+      why: clip(unblocks ? `${sliceName} — ${unblocks[0]}` : `Not yet verified for ${sliceName}`, WHY_LIMIT),
+      parent: `Slice ${block.number} · Not yet verified`,
+      ...(links.length ? { links } : {}),
+    };
+  })));
 }
 
 function dedupe(items) {
@@ -425,7 +468,7 @@ export function buildSnapshot({ project, planText, unverifiedText = null, doneTe
   const slices = dedupe(rows.flatMap((row) => sliceItems(project, row, notes, repoUrl, sliceTexts[row.number])));
   const blocks = unverifiedText === null ? null : parseUnverified(unverifiedText);
   const withChecks = attachChecks(project, slices, blocks, notices);
-  const owner = blocks === null ? [] : ownerItems(project, blocks, notices);
+  const owner = blocks === null ? [] : ownerItems(project, blocks, notices, rows, repoUrl);
   return { ...capItems([...withChecks, ...owner]), notices };
 }
 

@@ -278,6 +278,8 @@ const en = {
   answerInSession: "answer in that session",
   questionAtTop: "Its question is at the top of the page.",
   afterThen: "Then {text}",
+  // Needs you cards say what is needed (Slice 27)
+  noQuestionRecorded: "No question recorded",
   afterYouAnswer: "After you answer:",
   lastActivityAge: "last activity {age}",
   startedNoGoal: "Started {age}, no goal reported yet",
@@ -643,6 +645,8 @@ const de: Table = {
   answerInSession: "in dieser Sitzung antworten",
   questionAtTop: "Ihre Frage steht oben auf der Seite.",
   afterThen: "Danach: {text}",
+  // Needs you cards say what is needed (Slice 27)
+  noQuestionRecorded: "Keine Frage hinterlegt",
   afterYouAnswer: "Nachdem du geantwortet hast:",
   lastActivityAge: "letzte Aktivität {age}",
   startedNoGoal: "Gestartet {age}, noch kein Ziel gemeldet",

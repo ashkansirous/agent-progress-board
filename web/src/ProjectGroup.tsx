@@ -1,6 +1,5 @@
 import type { BoardItemDto } from "../../src/api/boardDto";
 import type { ProjectGroups } from "../../src/domain/boardGroups";
-import { isQuestion } from "./cards";
 import { DoneSection } from "./DoneSection";
 import { ChevronIcon } from "./icons";
 import { projectLabel } from "./model";
@@ -51,7 +50,7 @@ function NeedsGroup({ needs, onOpen }: { needs: BoardItemDto[]; onOpen: (key: st
   return (
     <section className="questions" aria-label={heading}>
       <h3>{heading}</h3>
-      {needs.map((item) => (isQuestion(item) ? <QuestionCard key={item.key} item={item} onOpen={onOpen} /> : <Tile key={item.key} item={item} onOpen={onOpen} />))}
+      {needs.map((item) => <QuestionCard key={item.key} item={item} onOpen={onOpen} />)}
     </section>
   );
 }

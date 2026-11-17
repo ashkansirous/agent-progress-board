@@ -21,7 +21,8 @@ one sentence:
 
 It installs the plugin, asks you for the board's address and write token, and proves the
 connection with a test card. See [docs/setup/connect.md](docs/setup/connect.md). To run a board of
-your own on your own Cloudflare account, a guide for that is coming; it does not exist yet.
+your own on your own Cloudflare account, give your Claude Code
+[docs/setup/own-board.md](docs/setup/own-board.md).
 
 ## Design in one paragraph
 

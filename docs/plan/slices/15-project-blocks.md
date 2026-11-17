@@ -1,6 +1,6 @@
 ### Slice 15 — One collapsible block per project, done work always folded
 
-*Built 2026-11-17 (draft PR #82, not merged); checked in a browser run, not yet compared with the mock by the owner on the deployed board.* Slices 13 and 14 are merged.
+*Built 2026-11-17, merged as PR #82 (cfe1f2e); checked in a browser run, not yet compared with the mock by the owner on the deployed board.* Slices 13 and 14 are merged.
 
 **Touches:** `web/**`, `e2e/**`, `docs/design/**`, `README.md`, `docs/plan/slices/15-project-blocks.md`, `src/config.ts`,
 `config/board.example.json` (widened at build: the `tabBg` and `tabOn` palette keys of C0), `test/projectFold.test.ts`
@@ -206,7 +206,7 @@ Follow-ups (low): dead Waiting-strip leftovers (`waitingItems`, `questionItems`,
 per-block stale copies of the stored map and no pruning; fold button without `aria-controls`; hand-rolled
 plural branches; the phone tab bar is on top only on the Board page.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-17)
 
 - The fold rule lives only in `resolveOpen` (`web/src/foldRules.ts`); the page never regroups: the order of
   "Needs you" comes from the server's `needs_you` (Slice 15: docs/plan/slices/15-project-blocks.md).

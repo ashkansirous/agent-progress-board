@@ -3,6 +3,18 @@
 Every open "Not yet verified" check, one block per slice. A check that passes, or that the
 owner confirms, is removed here and its slice marked `verified`.
 
+### Slice 16: Claude chat and Claude Design report to the board, and their use counts ([slice](slices/16-chat-reports.md))
+
+- Claude Design calling the connector: unproven (see the first Work item). The owner tries the instruction text in a Design session once.
+- A real claude.ai chat reporting through the connector and the usage page's "Claude chat" row.
+- The owner adds the instruction text from `docs/clients.md` at https://claude.ai/settings (Your Claude, Instructions).
+- Claude Design and custom connectors are unproven in the docs.
+
+### Slice 15: One collapsible block per project, done work always folded ([slice](slices/15-project-blocks.md))
+
+- The owner compares the deployed board on the phone and on the desktop with the mock (`BoardV2`, `BoardV2Dark`, `PhoneV2`, `PhoneV2Light`, `PhoneV2Drawer`, `StatesV2`).
+- The "Other open items" group (not in the mock) is kept; the owner says whether to keep it.
+
 ### Slice 14: Untested checks live inside their slice, and problems get their own list ([slice](slices/14-checks-in-slice.md))
 
 - On the deployed board after a real doc sync: no card per check, and the header total equals the count line in `plan.md` (needs the config repo's client to send `checks`).

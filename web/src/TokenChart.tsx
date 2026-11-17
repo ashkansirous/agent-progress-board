@@ -275,6 +275,7 @@ export function TokenChart({ data }: { data: UsageResponse }) {
         <Legend series={series} split={split} palette={data.palette} />
       </div>
       <Chart props={props} />
+      {split === Split.Environment && series.some((s) => !s.name) && <p className="card-note">{t("noEnvironmentHint")}</p>}
       <DataTable props={props} />
       <TokenKindsTable data={data} />
     </section>

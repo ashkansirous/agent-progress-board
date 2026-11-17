@@ -30,7 +30,7 @@
     "environment": {
       "type": "string",
       "title": "Environment label",
-      "description": "Where this Claude Code runs, shown on usage reports (for example desktop); leave empty to send none"
+      "description": "Name of this machine, shown on usage reports (for example your host name; the board keeps at most 40 characters); leave empty to send none: once any machine is named, unlabelled usage joins the busiest named environment, so name your main machine first; with none named it shows as No label (main machine)"
     }
   }
 }

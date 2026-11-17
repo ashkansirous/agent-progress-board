@@ -60,8 +60,17 @@ tested; the pipe form was), then the person deletes the file.
 The plugin also sends token counts to the board (option `report_usage`, on by default; false turns it off). The
 plan's cap percentage is a separate option, `read_plan_cap`, off by default: it reads Claude Code's own sign-in file
 (`.credentials.json` in the Claude folder) to ask Anthropic for that percentage, so tell the person before they turn
-it on. Both are set in the same `/plugin` menu, and `report_usage` off stops both; the optional `environment` option
-labels where this Claude Code runs (for example `desktop`).
+it on. Both are set in the same `/plugin` menu, and `report_usage` off stops both.
+
+### Name this machine (the `environment` option)
+
+Ask the person what to call this machine on the board's usage page, and offer the machine's host name as the
+default; tell them the name is stored on the board and shown on the usage page, and they may change it. Type it into the same `/plugin` menu as the `environment` option. The
+board accepts 1 to 40 characters and the plugin cuts a longer name to 40. Name the main machine first, before any
+cloud environment gets a label: once any machine on the board is named, usage rows with no label join the board's
+base environment (the busiest named one) and show under its name; only while no machine is named do they show as
+"No label (main machine)". A Claude Code that runs in a cloud session does not use this option: see
+[cloud.md](cloud.md).
 
 ## 5. Keep the plugin current (optional)
 

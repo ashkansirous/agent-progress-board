@@ -385,6 +385,37 @@ describe('the hook entry (requestTick)', () => {
     assert.equal(claudeDirOf({}).endsWith('.claude'), true);
   });
 
+  test('a cloud-like home (no Claude folder variable, records under <home>/.claude/projects) is found and sent (Slice 28)', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'usage-tick-cloud-home-'));
+    const saved = {
+      HOME: process.env.HOME,
+      USERPROFILE: process.env.USERPROFILE,
+      CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR,
+      AGENT_BOARD_CLAUDE_DIR: process.env.AGENT_BOARD_CLAUDE_DIR,
+    };
+    delete process.env.CLAUDE_CONFIG_DIR;
+    delete process.env.AGENT_BOARD_CLAUDE_DIR;
+    process.env.HOME = home;
+    process.env.USERPROFILE = home;
+    try {
+      const dir = join(home, '.claude', 'projects', 'repo');
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, 'cloud1.jsonl'), recordLine(OPUS, { output_tokens: 9 }, AT));
+      stamp(join(dir, 'cloud1.jsonl'), NOW - 1000);
+      const cloudEnv = { AGENT_BOARD_URL: env.AGENT_BOARD_URL, AGENT_BOARD_TOKEN: TEST_TOKEN, AGENT_BOARD_ENV: 'cloud', AGENT_BOARD_SESSION_ROOT: join(home, 'state') };
+      mkdirSync(join(home, 'state'), { recursive: true });
+      assert.equal(claudeDirOf(cloudEnv), join(home, '.claude'));
+      await tick({ env: cloudEnv });
+      assert.deepEqual(reports.map((r) => [r.args.environment, r.args.output_tokens]), [['cloud', 9]]);
+    } finally {
+      for (const [key, value] of Object.entries(saved)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+
   test('neither the not-due nor the due call lists a folder; the background run does', async () => {
     writeSession('s1', recordLine(OPUS, { output_tokens: 6 }, AT));
     const listing = mock.method(fs, 'readdirSync');

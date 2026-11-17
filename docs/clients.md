@@ -78,8 +78,8 @@ Where to paste it: claude.ai, Settings, "Your Claude", Instructions (older layou
 here; use your own:
 
 ```
-You have the "board" connector (the agent progress board). Whenever I start a piece of
-work in this chat, first call report_progress once with: key "my-chats/session-<short
+You have the "board" connector (the agent progress board). In every chat, however short,
+before your first answer, call report_progress once with: key "my-chats/session-<short
 random id, the same for the whole chat>", project "my-chats", type "unplanned", agent
 "session", environment "Claude chat" (in Claude Design: "Claude Design"), status
 "in_progress", title = my goal in one line, steps = your plan. Call it again whenever the

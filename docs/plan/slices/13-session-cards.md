@@ -1,11 +1,11 @@
 ### Slice 13 — A session's card says what it is doing and what it needs
 
-*Planned.* Part A (server) can be built now. Part B (the page) is designed (see *Design* below) and
-is built after the owner has reviewed the plan PR.
+*In progress (wave 2026-11-17), draft PR.* Parts A and B are built in this wave (the plan PR #73
+merged without a review round, owner).
 
 **Touches:** `migrations/0006_needs_you.sql` (new), `src/domain/item.ts`, `src/domain/upsert.ts`,
 `src/domain/stale.ts`, `src/domain/steps.ts`, `src/application/board.ts`, `src/application/ports.ts`,
-`src/infrastructure/d1Repository.ts`, `src/mcp/schemas.ts`, `src/mcp/tools.ts`, `src/api/boardDto.ts`,
+`src/infrastructure/d1Repository.ts`, `src/api/board.ts`, `src/domain/parts.ts`, `src/mcp/schemas.ts`, `src/mcp/tools.ts`, `src/api/boardDto.ts`,
 `src/config.ts`, `config/board.example.json`, `test/**`, `docs/clients.md`, `README.md`, `web/**`, `e2e/**`,
 `scripts/seed-data.ts`, `docs/plan/slices/13-session-cards.md`
 
@@ -46,6 +46,13 @@ Claude Code's generic notification; the heartbeat expiry is 120 minutes by defau
   step 2 of the request for Slices 13 to 15). The page has no answer box and no button that writes.
 
 #### Decided at the desk
+
+- **What makes an item a session (claim check, 2026-11-17):** `agent` is free text in
+  `src/mcp/schemas.ts` and no server code uses the value `session`; it is the clients' convention.
+  The 15-minute rule keys on one exported constant `SESSION_AGENT = "session"` in
+  `src/domain/stale.ts`, and the expiry row (`ExpiryRow` and the `EXPIRED_ROWS` SQL) gains `agent`.
+  The DTO is built in `src/api/board.ts` (with `src/api/boardDto.ts` for the shape), and
+  `src/domain/parts.ts` also calls `isWorkingNow`; both are in Touches.
 
 - **"Needs you" is two fields on any item, not a type:** `needs_you` (the question, up to 2000
   characters) and `after_answer` (what the agent will do next, up to 500). An item with `needs_you`

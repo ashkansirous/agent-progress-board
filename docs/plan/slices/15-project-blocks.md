@@ -1,8 +1,6 @@
 ### Slice 15 — One collapsible block per project, done work always folded
 
-*Planned.* The page is designed (see *Design* below) and is built after the owner has reviewed the
-plan PR, and after part A of [Slice 13](13-session-cards.md) and [Slice 14](14-checks-in-slice.md)
-(it shows their groups).
+*In progress (wave 2026-11-17), draft PR.* Designed (see *Design* below); Slices 13 and 14 are merged.
 
 **Touches:** `web/**`, `e2e/**`, `docs/design/**`, `README.md`, `docs/plan/slices/15-project-blocks.md`
 

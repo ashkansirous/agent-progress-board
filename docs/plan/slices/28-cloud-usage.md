@@ -1,6 +1,6 @@
 ### Slice 28 — Cloud and VM sessions report their usage under their own label
 
-*Built 2026-11-17 (PR #114, not merged). Web page and docs only, no device run; covered by e2e. Not yet verified in a real cloud session.*
+*Built 2026-11-17, merged as PR #114 (c7dc603). Web page and docs only, no device run; covered by e2e. Not yet verified in a real cloud session.*
 
 *Planned (owner, 2026-11-17: "I added environment last night and set up my build tools so that it uses the claude vm
 when possible. but looking at the token usage it says that env not set. whats going on? not implemented yet or missing
@@ -74,7 +74,7 @@ set").
   - #5 `plugin/scripts/usage-tick.test.mjs:388`: test mutates process-wide HOME/USERPROFILE.
   - #6 `docs/setup/cloud.md:56`: `|| true` may leave a partial script cached; no `node --check` step.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-17)
 
 - Unlabelled usage rows are folded into the busiest named environment at read (`withBaseEnvironment` in
   `src/application/usage.ts`, pinned by `usage.baseEnvironment`); a machine must be named before any other environment

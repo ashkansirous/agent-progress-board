@@ -3,6 +3,19 @@
 Every open "Not yet verified" check, one block per slice. A check that passes, or that the
 owner confirms, is removed here and its slice marked `verified`.
 
+### Slice 28: Cloud and VM sessions report their usage under their own label ([slice](slices/28-cloud-usage.md))
+
+- A real cloud session's usage shows on the usage page under its own label.
+- The owner's main machine shows its new label after the plugin switch.
+- The cloud records path `/root/.claude` is untried in a real cloud session.
+- The setup-time variables (unset during the setup script) are untried.
+- The Stop hook's detached send (`usage-tick` spawns a background run) is untried in a cloud VM.
+
+### Slice 26: The "all kinds" cost figure stays steady across a weekly reset ([slice](slices/26-mix-after-reset.md))
+
+- Live before/after figure across a weekly reset (work item 1): needs a data export replayed through `readUsage`.
+- The page on the live board after the first weekly reset since this merged.
+
 ### Slice 27: Every "Needs you" card says what is needed, for which work, and why ([slice](slices/27-needs-you-cards.md))
 
 - In a real Claude Code session with the plugin: an idle prompt after a status line opens no card; one after a question opens a card with that question; a permission prompt card names the tool and command.

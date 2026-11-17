@@ -28,4 +28,6 @@ Rows moved out of `plan.md`'s status table once built.
 | 23 | Plan documents sync, an optional plugin part | built | #103 | | [23](../slices/23-plugin-plan-sync.md) |
 | 22 | Token usage and cap readings from the plugin | built | #104 | | [22](../slices/22-plugin-usage.md) |
 | 19 | The owner can get the chat instruction text without a token | built | #110 | | [19](../slices/19-chat-text.md) |
+| 26 | The "all kinds" cost figure stays steady across a weekly reset | built | #115 | | [26](../slices/26-mix-after-reset.md) |
+| 28 | Cloud and VM sessions report their usage under their own label; the main machine gets a name | built | #114 | | [28](../slices/28-cloud-usage.md) |
 | 27 | Every "Needs you" card says what is needed, for which work, and why; no card when nothing is asked | built | #109 | | [27](../slices/27-needs-you-cards.md) |

@@ -1,5 +1,7 @@
 ### Slice 24 — Set up your own board: a guide Claude follows
 
+*In progress (wave 2026-11-17), draft PR.*
+
 *Planned and accepted with Slice 20 (owner, 2026-11-17; decisions in
 [Slice 20](20-plugin-connect.md), decision 1). Starts after Slice 20.* Docs only.
 

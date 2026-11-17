@@ -53,6 +53,12 @@ folder clashed only because both runs were in one worktree.
 *Follow-up (not built):* timing-sensitive tests in `e2e/board.spec.ts` (4-5 of them) flaked when two full suites
 shared the CPU at default workers; two suites at once need `--workers=4`.
 
+*Follow-up (not built, feedback loop 2026-11-17-2023):* three more tests failed in full runs on night 2026-11-17-2023
+and passed when rerun alone: `e2e/active.spec.ts:211` ("a wait over 500 ms shows the loading card"; wave 1 merged-main
+run, Slice 26's run, Slice 28's fix pass 2), `e2e/board.spec.ts:218` (close button, Escape and scrim; it failed on
+the unchanged baseline in the Slice 27 cloud run too) and `e2e/board.spec.ts:367`. Cause not proven. Verify: each passes
+20 times in a row in a full `npm run test:e2e` at default workers on a quiet machine, or its timing window is fixed.
+
 #### For CLAUDE.md (lifted 2026-11-17)
 
 Under *Commands and layout*: a second `npm run test:e2e` alongside another worktree's sets `E2E_PORT` (e.g. 4174);

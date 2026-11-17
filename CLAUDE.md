@@ -31,7 +31,10 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
   sets; never add a local or production path that skips the Access check in
   `src/api/access.ts` (Slice 2: docs/plan/slices/02-tile-board.md).
 - **Deploys only through the pipeline** (merge to `main`), never `wrangler deploy` from a
-  shell.
+  shell. A night's merges carry the skip marker and reach the Worker only through the batched release's deploy hook;
+  which changed files count as a Worker change is `workerPaths` in `.claude/merge-gate.json`, so a new folder that
+  changes what `npm run deploy:ci` builds is added there too (the first draft missed `config/**`; note
+  docs/plan/notes/2026-11-17-2023-feedback-loop.md).
 
 - **This repo has no PR checks.** There is no GitHub Actions workflow; the only check is Workers
   Builds on a push to `main`. Tell a merge agent "this repo has no PR checks" so it does not wait

@@ -23,8 +23,6 @@ owner's config repo. Decisions in [Slice 20](docs/plan/slices/20-plugin-connect.
 | Slice | Title | Status | PR | Issue | File |
 | --- | --- | --- | --- | --- | --- |
 | 19 | The owner can get the chat instruction text without a token | parked: feedback loop, waits for the user | | | [slice](docs/plan/slices/19-chat-text.md) |
-| 22 | Token usage and cap readings from the plugin (starts after 21, now met) | planned | | | [slice](docs/plan/slices/22-plugin-usage.md) |
-| 23 | Plan documents sync, an optional plugin part (starts after 21, now met) | planned | | | [slice](docs/plan/slices/23-plugin-plan-sync.md) |
 
 Notes:
 
@@ -60,7 +58,7 @@ Notes:
 
 ## Outstanding work
 
-- **Not yet tried on a device:** 58 checks across 17 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
+- **Not yet tried on a device:** 62 checks across 19 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
 - **Waiting on the user (Slices 16, 18):** open a new chat at [claude.ai](https://claude.ai/new) with only the board connector on and do some work; say whether a card appears. If it does, the paste step is gone; if not, the text to paste in [claude.ai settings, Your Claude, Instructions](https://claude.ai/settings) has no owner-readable copy since Slice 18 (only the server's `initialize` result), which [Slice 19](docs/plan/slices/19-chat-text.md) (parked) would fix.
 - Slices 1 to 18 are live: the night 2026-11-17-1657 release called the deploy hook at 17:59:11Z and `wrangler deployments list` (read 18:02Z) shows a deployment created 2026-11-17T18:01:25Z; `batch-release.mjs worker-deployed` was run at 18:04Z.
 - Follow-ups (Slice 21): to plan as a follow-up slice: the background-agent state bugs 1-6 (lost stopped id under parallel SubagentStop, freshness filter bypassed, active step demoted, resumed agent forced done, goal-file write races, card left open after the last SubagentStop), in [Slice 21](docs/plan/slices/21-plugin-session-cards.md) *Follow-ups* (`reviews/pr-101-check-2-medium.md`).

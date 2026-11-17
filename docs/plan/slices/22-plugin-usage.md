@@ -1,6 +1,6 @@
 ### Slice 22 — Token usage and cap readings from the plugin
 
-*Built (wave 2026-11-17), PR #104, not yet verified in a real Claude Code session (see *Not yet verified*).*
+*Built (wave 2026-11-17), merged as PR #104 (9f0a18f), not yet verified in a real Claude Code session (see *Not yet verified*).*
 
 *Planned and accepted with Slice 20 (owner, 2026-11-17; decisions in
 [Slice 20](20-plugin-connect.md)). Starts after Slice 21.* Moves usage reporting from the owner's config repo
@@ -75,7 +75,7 @@ follow-ups, none applied:
 
 - `npm run lint`, `npm run typecheck`, `npm test` green.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-17)
 
 - Plugin usage options: `report_usage` (default true, token counts), `read_plan_cap` (default false; reads Claude
   Code's sign-in file for the plan cap, needs `report_usage` on) and `environment`. The cap reading stays opt-in.

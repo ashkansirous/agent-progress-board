@@ -99,3 +99,10 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
 - The reporting rules an MCP client receives are one constant, `SERVER_INSTRUCTIONS` in `src/mcp/instructions.ts`,
   built from the domain constants; `docs/clients.md` tells chat users to copy it from the `initialize` result, never a
   hand copy (Slice 18: docs/plan/slices/18-agent-setup.md).
+- Plugin usage options: `report_usage` (default true, token counts), `read_plan_cap` (default false; reads Claude
+  Code's sign-in file for the plan cap, needs `report_usage` on) and `environment`. The cap reading stays opt-in.
+  The usage scripts in `plugin/scripts` keep state only in `CLAUDE_PLUGIN_DATA` (Slice 22:
+  docs/plan/slices/22-plugin-usage.md).
+- The park-reason rule (which `parked:` reasons give a blocked slice and no waiting card) lives only in
+  `waitsOnlyOnWork` in `plugin/scripts/sync-docs.mjs`; `plugin/skills/agent-board/SKILL.md` describes it in words,
+  so change the function and the words together (Slice 23: docs/plan/slices/23-plugin-plan-sync.md).

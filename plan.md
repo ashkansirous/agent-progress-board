@@ -22,6 +22,7 @@ private Claude Code config repo; this repo hands them a tool reference and a cli
 | 13 | A session card says what it is doing and what it needs | planned: part A now, part B after the design | | | [slice](docs/plan/slices/13-session-cards.md) |
 | 14 | Untested checks live inside their slice, problems get their own list | planned: part A now, part B after the design | | | [slice](docs/plan/slices/14-checks-in-slice.md) |
 | 15 | One collapsible block per project, done work always folded | planned: waits for the design and part A of 13 and 14 | | | [slice](docs/plan/slices/15-project-blocks.md) |
+| 16 | Claude chat and Claude Design report to the board, and their use counts | planned: first item (the docs check) can start now; the code after 13, since both edit `src/mcp/` | | | [slice](docs/plan/slices/16-chat-reports.md) |
 
 Notes:
 

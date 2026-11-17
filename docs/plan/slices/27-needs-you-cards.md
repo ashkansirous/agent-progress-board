@@ -1,6 +1,6 @@
 ### Slice 27 — Every "Needs you" card says what is needed, for which work, and why; no card when nothing is asked
 
-*Built 2026-11-17 (code by a cloud session, run cse_012UYzYQsFBDT9yG4npRLoGa, commit 4eb6bfe; reviewed and fixed locally), not merged, not yet verified in a real Claude Code session.*
+*Built 2026-11-17 (code by a cloud session, run cse_012UYzYQsFBDT9yG4npRLoGa, commit 4eb6bfe; reviewed and fixed locally), merged as PR #109 (7a07d90), not yet verified in a real Claude Code session.*
 
 *Planned (owner, 2026-11-17, on a screenshot of four "Needs you" cards: "the only active session I havae with board is
 you. why do I have so many things from you? ... 'claude is waiting your input' what input?! ... what the fuck is the
@@ -84,7 +84,7 @@ Findings files: `reviews/pr-109-high.md` (11 findings: applied 1-7 and 10), `rev
 - Skipped #3 (`reviews/pr-109-check-3-medium.md`): "git rev-parse runs in the stdin cwd; a hostile repo config could run code." - low, check passes converged: "Claude Code already works in that cwd."; follow-up.
 - Skipped #4 (`reviews/pr-109-check-3-medium.md`): "idle prompt with a missing marker falls to closeStale; consistency risk only, not a crash or data loss." - low, check passes converged; follow-up.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-17)
 
 - A waiting card from the plugin's Notification hook opens only when something is asked (permission, elicitation, or an idle prompt after a question); its text is masked by `maskSecrets` in `plugin/scripts/hooks/waiting-card.mjs` before it leaves the machine; never send transcript text unmasked (Slice 27: docs/plan/slices/27-needs-you-cards.md).
 

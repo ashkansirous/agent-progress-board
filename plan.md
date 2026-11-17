@@ -22,9 +22,7 @@ owner's config repo. Decisions in [Slice 20](docs/plan/slices/20-plugin-connect.
 
 | Slice | Title | Status | PR | Issue | File |
 | --- | --- | --- | --- | --- | --- |
-| 19 | The owner can get the chat instruction text without a token | planned | | | [slice](docs/plan/slices/19-chat-text.md) |
 | 26 | The "all kinds" cost figure stays steady across a weekly reset | planned | | | [slice](docs/plan/slices/26-mix-after-reset.md) |
-| 27 | Every "Needs you" card says what is needed, for which work, and why; no card when nothing is asked | planned | | | [slice](docs/plan/slices/27-needs-you-cards.md) |
 | 28 | Cloud and VM sessions report their usage under their own label; the main machine gets a name | planned | | | [slice](docs/plan/slices/28-cloud-usage.md) |
 
 Notes:
@@ -62,9 +60,9 @@ Notes:
 
 ## Outstanding work
 
-- **Not yet tried on a device:** 67 checks across 19 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
-- **Waiting on the user (Slices 16, 18):** open a new chat at [claude.ai](https://claude.ai/new) with only the board connector on and do some work; say whether a card appears. If it does, the paste step is gone; if not, the text to paste in [claude.ai settings, Your Claude, Instructions](https://claude.ai/settings) has no owner-readable copy since Slice 18 (only the server's `initialize` result), which [Slice 19](docs/plan/slices/19-chat-text.md) (parked) would fix.
-- Slices 1 to 24 are live (19 is parked, not built): the night 2026-11-17-1826 release called the deploy hook at 20:03:13Z and `wrangler deployments list` (read 20:04Z) shows a deployment created 2026-11-17T20:04:43Z; `batch-release.mjs worker-deployed` was run after it. The plugin (Slices 20 to 23) ships from the repo, not the Worker.
+- **Not yet tried on a device:** 71 checks across 21 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
+- **Waiting on the user (Slices 16, 18, 19):** once the night's batched release has deployed Slice 19, open the board's "Set up a chat" page (`<board address>/#/setup`), copy the text and the connector line, and paste them in [claude.ai settings, Your Claude, Instructions](https://claude.ai/settings) so claude.ai chats report to the board ([Slice 19](docs/plan/slices/19-chat-text.md); the step is in `docs/plan/unverified.md` under Slice 19).
+- Slices 1 to 24 are built (19 merged as PR #110, 27 as PR #109, both after this release): the night 2026-11-17-1826 release called the deploy hook at 20:03:13Z and `wrangler deployments list` (read 20:04Z) shows a deployment created 2026-11-17T20:04:43Z; `batch-release.mjs worker-deployed` was run after it. The plugin (Slices 20 to 23) ships from the repo, not the Worker.
 - Follow-ups (Slice 21): to plan as a follow-up slice: the background-agent state bugs 1-6 (lost stopped id under parallel SubagentStop, freshness filter bypassed, active step demoted, resumed agent forced done, goal-file write races, card left open after the last SubagentStop), in [Slice 21](docs/plan/slices/21-plugin-session-cards.md) *Follow-ups* (`reviews/pr-101-check-2-medium.md`).
 - Follow-ups (Slices 22, 23): open, not built, in [Slice 23](docs/plan/slices/23-plugin-plan-sync.md) *From review* (one medium, then lows: a wait-on-work park reason that names the person in other words loses its waiting card; the slice file is matched by the first dash segment of its name; nothing holds the park rule equal in `SKILL.md`, `plan-sync.md` and `sync-docs.mjs`; the owner-step rule makes cards for slices with no open row) and [Slice 22](docs/plan/slices/22-plugin-usage.md) *From review* (lows: cap state saved before the board accepts the reading, a non-lock error skips the cap reading, the consent text omits plan name and reset times, a Node process per PostToolUse). Added by the feedback loop 2026-11-17-1826.
 - Follow-ups (Slice 18): open, not built, in [Slice 18](docs/plan/slices/18-agent-setup.md) *Follow-ups* (check pass 2 #2-#4: a reworded `needs_you` restarts `needs_you_at`, helper steps replace the parent's list, a quiet chat's card expires).

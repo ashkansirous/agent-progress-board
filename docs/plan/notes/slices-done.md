@@ -27,3 +27,5 @@ Rows moved out of `plan.md`'s status table once built.
 | 21 | Session cards report themselves from the plugin's hooks | built | #101 | | [21](../slices/21-plugin-session-cards.md) |
 | 23 | Plan documents sync, an optional plugin part | built | #103 | | [23](../slices/23-plugin-plan-sync.md) |
 | 22 | Token usage and cap readings from the plugin | built | #104 | | [22](../slices/22-plugin-usage.md) |
+| 19 | The owner can get the chat instruction text without a token | built | #110 | | [19](../slices/19-chat-text.md) |
+| 27 | Every "Needs you" card says what is needed, for which work, and why; no card when nothing is asked | built | #109 | | [27](../slices/27-needs-you-cards.md) |

@@ -1,6 +1,6 @@
 ### Slice 19 — The owner can get the chat instruction text without a token
 
-*Built 2026-11-17, not merged, not yet verified on the deployed board.*
+*Built 2026-11-17, merged as PR #110 (b99577b), not yet verified on the deployed board.*
 
 *Planned (owner, 2026-11-17 20:2x: "I already tried the chat and I told you it did not do anything. why are you still
 waiting for me to do a new chat without changing anything"): build it; the owner is not asked to test a chat again
@@ -62,7 +62,7 @@ Applied from `reviews/pr-110-high.md`: #1, #2, #3, #6, #7. From `reviews/pr-110-
 - Skipped #5 (`reviews/pr-110-check-medium.md`): "two CopyButtons keep separate state" - trivial, check pass converged; follow-up.
 - Skipped #6 (`reviews/pr-110-check-medium.md`): "HEAD handled like GET; chatTextResponse is a thin wrapper" - trivial, check pass converged; follow-up.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-17)
 
 - The chat instruction text reaches the owner only through `GET /api/chat-text` behind the Access check
   (`src/api/chatText.ts`), read from `SERVER_INSTRUCTIONS` and `CHAT_PREFACE`; never a hand copy in `web/` or docs

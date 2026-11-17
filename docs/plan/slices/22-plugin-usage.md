@@ -87,3 +87,4 @@ follow-ups, none applied:
 - In a real Claude Code session with the plugin installed, tokens reach the board and join the session card.
 - With `report_usage` off no usage call goes out and the card stays live.
 - With `read_plan_cap` on a cap reading arrives.
+- That `CLAUDE_CONFIG_DIR` reaches the plugin's hooks (the fixer did not check Claude Code's docs; feedback loop 2026-11-17-1826).

@@ -1,10 +1,14 @@
 ### Slice 16 — Claude chat and Claude Design report to the board, and their use counts
 
-*Planned.*
+*In progress (wave 2026-11-17), draft PR.*
 
 **Touches:** `src/api/oauth/**`, `src/api/auth.ts`, `src/mcp/tools.ts`, `src/mcp/schemas.ts`, `src/domain/capCost.ts`,
 `src/domain/usage.ts`, `src/application/board.ts`, `test/**`, `docs/clients.md`, `README.md`, `CLAUDE.md`,
-`docs/plan/slices/05-remote-mcp.md`, `docs/plan/slices/16-chat-reports.md`
+`docs/plan/slices/05-remote-mcp.md`, `docs/plan/slices/16-chat-reports.md`, `src/application/usage.ts`,
+`src/application/ports.ts`, `src/infrastructure/d1Repository.ts`, `src/api/usageDto.ts`, `src/config.ts`,
+`config/board.example.json`, `web/**`, `e2e/**`
+
+**Migrations:** none.
 
 #### Why
 
@@ -43,6 +47,26 @@ read-only choice closed it. This slice opens it and uses it.
 - **How chat learns to report:** one short instruction text in `docs/clients.md` that the owner
   adds once to claude.ai (the owner's own login, the one step that stays theirs), plus the tool
   descriptions themselves, which say when to call each tool.
+
+#### Design (coordinator, at claim, wave 2026-11-17)
+
+- **Who may write.** Every token the OAuth provider issued (a claude.ai sign-in) gets the owner's
+  write tools except `sync_snapshot`, whatever scope string its grant stored, so grants made before
+  this slice need no reconnect. The bearer write token keeps every tool, the read token stays
+  read-only. One place decides it: the scope mapping in `src/api/oauth/provider.ts`; `tools.ts` only
+  reads the scope. The consent page text (`src/api/oauth/page.ts`) says the connector can write.
+- **A chat window is a report, not a new table.** A chat or Design session reports with
+  `report_progress` (a session item carrying `environment`); its window is that item's first report
+  to its last report (or `mark_done`), read from the items rows that exist today. No migration, no
+  stored window, no stored weight (root `CLAUDE.md`: derived at read).
+- **The fit.** In `src/domain/capCost.ts`, cap growth between two cap readings that the token
+  reports do not explain, and that falls inside one or more reported windows, is put against those
+  windows' environments (split evenly when windows overlap, pro rata to the overlap in time);
+  outside every window it stays "not explained". Pure function, unit tests: no window, one window,
+  two overlapping windows; the timing test in `test/capCost.test.ts` stays inside its bound.
+- **Environment from OAuth callers.** Free text as today (`schemas.ts`); a session report from an
+  OAuth caller with no environment is stored as given (nothing invented); the tool descriptions say
+  to send "Claude chat" or "Claude Design".
 
 #### Work
 

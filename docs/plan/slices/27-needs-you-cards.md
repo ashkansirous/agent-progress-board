@@ -1,5 +1,7 @@
 ### Slice 27 — Every "Needs you" card says what is needed, for which work, and why; no card when nothing is asked
 
+*In progress (wave 2026-11-17), draft PR.*
+
 *Planned (owner, 2026-11-17, on a screenshot of four "Needs you" cards: "the only active session I havae with board is
 you. why do I have so many things from you? ... 'claude is waiting your input' what input?! ... what the fuck is the
 question and the options? ... which slice?! which task?! which fucking topic!!? ... where the fuck is the

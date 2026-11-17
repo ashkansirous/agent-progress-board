@@ -1,6 +1,6 @@
 ### Slice 17 — Parallel worktrees do not share an e2e server, and scratch scripts do not fail lint
 
-*Built 2026-11-17 (wave 2026-11-17), PR #90, not merged.*
+*Built 2026-11-17, PR #90 merged.*
 
 *Planned: the owner's go on 2026-11-17 ("yes put slice 17 to fix the fucking board"). Found by the feedback loop of
 night 2026-11-17-1216 ([note](../notes/2026-11-17-1216-feedback-loop.md)).* Test tooling only, no product change.
@@ -53,7 +53,7 @@ folder clashed only because both runs were in one worktree.
 *Follow-up (not built):* timing-sensitive tests in `e2e/board.spec.ts` (4-5 of them) flaked when two full suites
 shared the CPU at default workers; two suites at once need `--workers=4`.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-17)
 
 Under *Commands and layout*: a second `npm run test:e2e` alongside another worktree's sets `E2E_PORT` (e.g. 4174);
 runs never reuse a server and a busy port fails at start; scratch files go under `tmp/`, which lint ignores

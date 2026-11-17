@@ -77,7 +77,7 @@ review read: `reviews/pr-94-high.md` findings 8/8, `reviews/pr-94-medium.md` 8/8
 - `pr-94-medium.md`: applied #1-6.
 - `pr-94-check-medium.md`: applied #1, 2, 3, 4, 7.
 - `pr-94-check-2-medium.md`: applied #1 (the heartbeat line in `docs/clients.md`).
-- Skipped #6 (`reviews/pr-94-high.md`): "test only checks three substrings, not the facts" - low value; the step-state names, heartbeat and stale numbers are now asserted and the limits come from the domain constants.
+- Skipped #6 (`reviews/pr-94-high.md`): "test only checks three substrings, not the facts" - the test already asserts equality with the `SERVER_INSTRUCTIONS` constant, which is built from the domain constants (the coordinator's reason, wave 2 entry 145; the earlier wording here was the docs agent's own, corrected by the feedback loop of night 2026-11-17-1657).
 - Skipped #7 (`reviews/pr-94-medium.md`): "Test only checks a few words appear" - low value; the step-state names are now asserted and the text is short.
 - Skipped #5 (`reviews/pr-94-check-medium.md`): "no list of which clients do; stateless tools/call without initialize gets none" - which clients show instructions is outside this repo; the text already says to paste where the client ignores them and that plain POST gets none.
 - Skipped #6 (`reviews/pr-94-check-medium.md`): "tests only assert 5<15 and a few words" - low value; the heartbeat and stale numbers are asserted and the limits now come from the domain constants.

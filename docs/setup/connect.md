@@ -5,7 +5,7 @@ progress board that already exists. You install one plugin, `agent-board`, which
 server and a skill with the reporting rules. Do the steps in order and stop at the first one that fails;
 tell the person what failed.
 
-A guide for setting up a board of your own (Cloudflare account, secrets) is coming; it does not exist yet. This
+A guide for setting up a board of your own (Cloudflare account, secrets) is [own-board.md](own-board.md). This
 page is only for connecting to a board that is already running.
 
 ## 1. Check the Claude Code version

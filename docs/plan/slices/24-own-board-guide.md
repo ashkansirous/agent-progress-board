@@ -1,17 +1,17 @@
 ### Slice 24 — Set up your own board: a guide Claude follows
 
-*In progress (wave 2026-11-17), draft PR.*
+*Built (wave 2026-11-17), PR #100, not merged. Checks: lint, typecheck, 473 unit tests.*
 
 *Planned and accepted with Slice 20 (owner, 2026-11-17; decisions in
 [Slice 20](20-plugin-connect.md), decision 1). Starts after Slice 20.* Docs only.
 
-**Touches:** `docs/setup/own-board.md` (new), `README.md`, `config/**`, `.dev.vars.example`, `docs/plan/slices/24-own-board-guide.md`
+**Touches:** `docs/setup/own-board.md` (new), `README.md`, `docs/setup/connect.md`, `config/**`, `.dev.vars.example`, `docs/plan/slices/24-own-board-guide.md`
 
 **Migrations:** none
 
 #### Work
 
-- [ ] **`docs/setup/own-board.md`, written for a Claude Code with no context**, run in a fork or clone of this repo:
+- [x] **`docs/setup/own-board.md`, written for a Claude Code with no context**, run in a fork or clone of this repo:
   what the person needs (a Cloudflare account, a GitHub account); `npm ci`; the person's own `wrangler login`
   (their login, with the link); creating the D1 database and putting its id in `wrangler.jsonc`; the Worker
   secrets the code reads (list them from `src/` and `.dev.vars.example` at build time, with how each is generated
@@ -21,10 +21,29 @@
   connect guide (`docs/setup/connect.md`) with the new address. Each step the person must do in a console names
   the page and what to press. Verify: every secret and binding the code reads appears in the guide (a reviewer
   checks the list against `src/` and `wrangler.jsonc`).
-- [ ] **Example config** in `config/` with made-up projects, so a new board starts with a working config.
-- [ ] **README** links the guide under "Use it".
+  *Note: the guide keeps the database id out of `wrangler.jsonc` (slice 01 decision: wrangler resolves it by name),
+  because an id is account data and the repo may be public.*
+- [x] **Example config** in `config/` with made-up projects, so a new board starts with a working config.
+      (Already existed as `config/board.example.json`, valid JSON with made-up projects; unchanged. The guide
+      points at it.)
+- [x] **README** links the guide under "Use it".
+
+#### Built
+
+Guide written 2026-11-17. `docs/setup/connect.md`'s "coming" line now links `own-board.md` (review finding 9).
+
+#### From review
+
+- All findings of `reviews/pr-100-high.md` and `reviews/pr-100-medium.md` were applied; none skipped.
 
 #### Not yet verified
+
+- The Access step assumes the page is on a custom hostname and agents use the `workers.dev` address (how the
+  live board was built); Access directly on `workers.dev` was not tried.
+
+- That a Workers Builds token on a fresh account can run the D1 migrations in `deploy:ci` and provision the
+  `OAUTH_KV` namespace on the first deploy ("created for you" in the guide); if the token lacks D1 edit the deploy
+  fails with an auth error.
 
 - A fresh Claude Code following the guide in a new Cloudflare account ends with a board that shows a test card.
 

@@ -44,6 +44,12 @@ export const TOKEN_OPTION_VARIABLE = 'CLAUDE_PLUGIN_OPTION_BOARD_TOKEN';
 export const URL_VARIABLE = 'AGENT_BOARD_URL';
 export const TOKEN_VARIABLE = 'AGENT_BOARD_TOKEN';
 export const ENVIRONMENT_VARIABLE = 'AGENT_BOARD_ENV';
+export const ENVIRONMENT_OPTION_VARIABLE = 'CLAUDE_PLUGIN_OPTION_ENVIRONMENT';
+export const USAGE_OPTION_VARIABLE = 'CLAUDE_PLUGIN_OPTION_REPORT_USAGE';
+export const USAGE_SWITCH_VARIABLE = 'AGENT_BOARD_USAGE';
+export const PLAN_CAP_OPTION_VARIABLE = 'CLAUDE_PLUGIN_OPTION_READ_PLAN_CAP';
+const TRUE_TEXTS = new Set(['true', '1', 'yes', 'on']);
+const USAGE_SWITCH_OFF = 'off';
 export const ENVIRONMENT_MAX_LENGTH = 40; // the board's limit for the environment field
 export const TIMEOUT_MS = 3000;
 export const MODEL_VARIABLE = 'AGENT_BOARD_MODEL'; // the model comes from the caller at run time, never from a list here
@@ -79,7 +85,29 @@ export function stateRoot(env = process.env) {
 // Where the work runs ("laptop", "cloud-vm"): free text from the environment, never hard-coded;
 // '' when it is not set (the field is then not sent).
 export function resolveEnvironment(env = process.env) {
-  return String(env[ENVIRONMENT_VARIABLE] || '').trim().slice(0, ENVIRONMENT_MAX_LENGTH);
+  return String(env[ENVIRONMENT_OPTION_VARIABLE] || env[ENVIRONMENT_VARIABLE] || '').trim().slice(0, ENVIRONMENT_MAX_LENGTH);
+}
+
+// One reading of a boolean plugin option (Claude Code exports it as the text true or false): unset or empty
+// gives the option's default; a true word is on; any other text is off, so an unclear value never sends more.
+function optionIsOn(value, defaultOn) {
+  const text = String(value ?? '').trim().toLowerCase();
+  if (!text) return defaultOn;
+  return TRUE_TEXTS.has(text);
+}
+
+// False when the person turned usage reporting off: the plugin option `report_usage` set to false (the option
+// reaches scripts as a text), or AGENT_BOARD_USAGE=off. Default on.
+export function reportUsageEnabled(env = process.env) {
+  if (String(env[USAGE_SWITCH_VARIABLE] || '').trim().toLowerCase() === USAGE_SWITCH_OFF) return false;
+  return optionIsOn(env[USAGE_OPTION_VARIABLE], true);
+}
+
+// True only when the person turned the cap reading on (the plugin option `read_plan_cap`, default false) and
+// usage reporting is on too. The cap reading reads Claude Code's sign-in file, so it never runs by default.
+export function readPlanCapEnabled(env = process.env) {
+  if (!reportUsageEnabled(env)) return false;
+  return optionIsOn(env[PLAN_CAP_OPTION_VARIABLE], false);
 }
 
 // null when the address or the token is missing: the caller then does nothing. The plugin's options come

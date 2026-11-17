@@ -1,17 +1,19 @@
 {
-  "description": "Keeps the session's board cards true: done on Stop (unless background agents work), agent steps, waiting on Notification, and a goal reminder",
+  "description": "Keeps the session's board cards true: done on Stop (unless background agents work), agent steps, waiting on Notification, a goal reminder, and token usage reports (option report_usage) and the plan cap reading (option read_plan_cap)",
   "hooks": {
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/hooks/session-done.mjs"], "timeout": 5 }
+          { "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/hooks/session-done.mjs"], "timeout": 5 },
+          { "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/usage-tick.mjs", "--force"], "timeout": 5 }
         ]
       }
     ],
     "SubagentStop": [
       {
         "hooks": [
-          { "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/hooks/session-done.mjs"], "timeout": 5 }
+          { "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/hooks/session-done.mjs"], "timeout": 5 },
+          { "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/usage-tick.mjs", "--force"], "timeout": 5 }
         ]
       }
     ],
@@ -34,7 +36,8 @@
     "PostToolUse": [
       {
         "hooks": [
-          { "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/hooks/goal-reminder.mjs"], "timeout": 5 }
+          { "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/hooks/goal-reminder.mjs"], "timeout": 5 },
+          { "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/usage-tick.mjs"], "timeout": 5 }
         ]
       }
     ]

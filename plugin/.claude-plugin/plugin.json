@@ -14,6 +14,23 @@
       "description": "The board's write token",
       "sensitive": true,
       "required": true
+    },
+    "report_usage": {
+      "type": "boolean",
+      "title": "Report token usage",
+      "description": "Send token counts to the board, read from Claude Code's own session records",
+      "default": true
+    },
+    "read_plan_cap": {
+      "type": "boolean",
+      "title": "Read the plan cap",
+      "description": "Read Claude Code's own sign-in file to ask Anthropic for your plan's cap percentage, and send that percentage to the board. Off by default; works only while report_usage is on",
+      "default": false
+    },
+    "environment": {
+      "type": "string",
+      "title": "Environment label",
+      "description": "Where this Claude Code runs, shown on usage reports (for example desktop); leave empty to send none"
     }
   }
 }

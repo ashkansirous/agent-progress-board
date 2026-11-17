@@ -135,6 +135,8 @@ function unitOf(base: CapCostModelDto | undefined): number | null {
 /** How many base tokens one token of `model` (in `kind`, or its whole mix) uses as much of the week as; null when unknown. */
 export function multipleOf(model: CapCostModelDto, kind: TokenKind | null, base: CapCostModelDto | undefined): number | null {
   const unit = unitOf(base);
+  // Two figures weighted by different windows' mixes (Slice 26) are not comparable: show a dash.
+  if (kind === null && base !== undefined && model.mix_source !== base.mix_source) return null;
   const own = kind === null ? model.all_kinds_tokens_per_percent : model.tokens_per_percent[kind];
   return unit !== null && own !== null && own > 0 ? unit / own : null;
 }

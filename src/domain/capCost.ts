@@ -448,6 +448,59 @@ export function totalCost(deltas: UsageDelta[], fit: CapCostFit, base: string | 
   return deltas.reduce((sum, delta) => sum + costOf(delta, fit, base), 0);
 }
 
+/** A window younger than this has too thin a mix to weight "all kinds" by (Slice 26). */
+export const YOUNG_WINDOW_HOURS = 24;
+const MS_PER_HOUR = 60 * MS_PER_MINUTE;
+
+/** Which window's mix of kinds weights the "all kinds" figure. */
+export enum MixSource {
+  Current = "current",
+  LastFull = "last_full",
+}
+
+export interface MixChoice {
+  source: MixSource;
+  /** The last full window's span (from inclusive, to exclusive) when it is the source; null for the current mix. */
+  from: string | null;
+  to: string | null;
+}
+
+/** A window that lasted at least as long as the "young" threshold counts as a full one; a stub (a reset glitch) does not. */
+function lastedFull(window: CapWindow, endedAt: string): boolean {
+  return Date.parse(endedAt) - Date.parse(window.startedAt) >= YOUNG_WINDOW_HOURS * MS_PER_HOUR;
+}
+
+const MS_PER_WEEK = 7 * 24 * MS_PER_HOUR;
+
+/** When a weekly window really began: its reset time minus a week when that is earlier than its first reading (a late first reading). */
+function windowStartMs(window: CapWindow): number {
+  const started = Date.parse(window.startedAt);
+  if (window.resetAt === null) return started;
+  const fromReset = Date.parse(window.resetAt) - MS_PER_WEEK;
+  return Number.isNaN(fromReset) ? started : Math.min(started, fromReset);
+}
+
+/**
+ * Slice 26: while the plan's newest weekly window is younger than a day, the mix comes from the
+ * newest earlier window that lasted a full day or more (stubs are skipped); with none, or once the
+ * newest window is a day old, from the current one (the range, as before).
+ */
+export function chooseMixWindow(windows: CapWindow[], plan: string | null, now: Date): MixChoice {
+  const current: MixChoice = { source: MixSource.Current, from: null, to: null };
+  if (plan === null) return current;
+  const weekly = windows
+    .filter((w) => w.plan === plan && w.windowKind === WEEKLY_WINDOW)
+    .sort((a, b) => (a.startedAt < b.startedAt ? -1 : a.startedAt > b.startedAt ? 1 : 0));
+  const newest = weekly[weekly.length - 1];
+  if (newest === undefined || now.getTime() - windowStartMs(newest) >= YOUNG_WINDOW_HOURS * MS_PER_HOUR) return current;
+  for (let i = weekly.length - 2; i >= 0; i--) {
+    const window = weekly[i] as CapWindow;
+    const endedAt = (weekly[i + 1] as CapWindow).startedAt;
+    if (lastedFull(window, endedAt)) return { source: MixSource.LastFull, from: window.startedAt, to: endedAt };
+  }
+  return current;
+}
+
 /** Tokens per 1% of the cap for a mix of kinds, or null when that use costs nothing. */
 export function tokensPerPercent(perToken: TokenTotals, mix: TokenTotals): number | null {
   const points = TOKEN_KINDS.reduce((sum, kind) => sum + mix[kind] * perToken[kind], 0);

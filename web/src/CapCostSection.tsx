@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { CapCostModelDto, UsagePageResponse } from "../../src/api/usageDto";
-import { FitMode } from "../../src/domain/capCost";
+import { FitMode, MixSource } from "../../src/domain/capCost";
 import { TOKEN_KINDS, TokenKind } from "../../src/domain/usage";
 import { defaultBase, kindsSentence, logLow, logTicks, logX, multipleOf, multipleText, ratioText, splitBold, tokensPhone, tokensTable, tokensWords } from "./capCostFormat";
 import { HowSurePill } from "./HowSurePill";
@@ -41,6 +41,18 @@ function kindCell(value: number | null, locale: string, t: ReturnType<typeof use
   return value === null ? NO_VALUE : tokensTable(value, locale, t);
 }
 
+/** Says so on a row whose "all kinds" figure is weighted by last week's mix because this window is under a day old (Slice 26). */
+function MixNote({ model }: { model: CapCostModelDto }) {
+  const { t } = useUsageView();
+  if (model.mix_source !== MixSource.LastFull) return null;
+  return <span className="mix-note">{t("mixLastWeek")}</span>;
+}
+
+/** The name of the all-kinds figure for one model: its own source of mix. */
+function mixLabel(model: CapCostModelDto, t: ReturnType<typeof useUsageView>["t"]): string {
+  return t(model.mix_source === MixSource.LastFull ? "columnMixLast" : "columnMix");
+}
+
 function TokensPerOne({ data }: Props) {
   const { t, locale } = useUsageView();
   const models = data.cap_cost.models;
@@ -70,7 +82,10 @@ function TokensPerOne({ data }: Props) {
                     {t("oneWeightUntil", { n: model.finer_at, x: wordsOrDash(model.all_kinds_tokens_per_percent, locale, t) })}
                   </td>
                 )}
-                <td className="strong-col">{kindCell(model.all_kinds_tokens_per_percent, locale, t)}</td>
+                <td className="strong-col">
+                  {kindCell(model.all_kinds_tokens_per_percent, locale, t)}
+                  <MixNote model={model} />
+                </td>
                 <td>
                   <HowSurePill howSure={model.how_sure} />
                   <span className="pill-count">{t("stretchesN", { n: model.stretches })}</span>
@@ -151,7 +166,7 @@ function ModelRow({ data, model, base, y, low }: ModelRowProps) {
       )}
       {mix !== null && (
         <g>
-          <title>{t("compareTip", { model: model.model, kind: t("columnMix"), n: multipleText(mix, locale) })}</title>
+          <title>{t("compareTip", { model: model.model, kind: mixLabel(model, t), n: multipleText(mix, locale) })}</title>
           <line x1={logX(mix, low)} x2={logX(mix, low)} y1={y - 12} y2={y + 12} className="chart-mix" />
         </g>
       )}
@@ -225,7 +240,10 @@ function CompareTable({ data, base }: { data: UsagePageResponse; base: CapCostMo
                     {isBase ? t("baseOneWeight") : mix === null ? NO_VALUE : `${multipleText(mix, locale)}×`}
                   </td>
                 )}
-                <td className="strong-col">{mix === null ? NO_VALUE : `${multipleText(mix, locale)}×`}</td>
+                <td className="strong-col">
+                  {mix === null ? NO_VALUE : `${multipleText(mix, locale)}×`}
+                  <MixNote model={model} />
+                </td>
               </tr>
             );
           })}
@@ -370,6 +388,7 @@ function PhoneModel({ data, model, base }: { data: UsagePageResponse; model: Cap
         <HowSurePill howSure={model.how_sure} />
       </span>
       <span className="phone-model-line"><Emphasised text={line} pieces={[n, `${x}×`]} /></span>
+      <MixNote model={model} />
       {model.mode === FitMode.PerKind ? (
         <span className="kind-cells">
           {TOKEN_KINDS.map((kind) => {

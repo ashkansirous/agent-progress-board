@@ -1,7 +1,7 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import type { UsagePageResponse } from "../src/api/usageDto";
 import exampleConfig from "../config/board.example.json" with { type: "json" };
-import { MultiplierState } from "../src/domain/capCost";
+import { MixSource, MultiplierState } from "../src/domain/capCost";
 import { TokenKind } from "../src/domain/usage";
 import { demoBoard } from "./fixture";
 import { demoUsage, emptyUsage, ENV_ONE, ENV_TWO, PLANS, readyCapCost, readyUsage, USAGE_SERVER_TIME } from "./usageFixture";
@@ -259,6 +259,22 @@ test.describe("what 1% of the cap costs", () => {
     await expect(unexplained.locator(".cap-value")).toHaveText("8%");
     await expect(unexplained.locator(".cap-bar")).toHaveCount(0);
     await expect(unexplained.locator(".cap-note")).toHaveText("2.8 of the 34.2 points. Use no client reports: Claude chat on desktop or phone, Claude Design, or a machine without the client.");
+  });
+
+  test("shows no mix note while every figure uses the current window's mix (Slice 26)", async ({ page }) => {
+    await openReady(page);
+    await expect(page.locator(".cap-cost-card, .phone-models").first()).toBeVisible();
+    await expect(page.locator(".mix-note")).toHaveCount(0);
+  });
+
+  test("marks only the model whose all-kinds figure uses last week's mix (Slice 26)", async ({ page }) => {
+    const base = readyCapCost();
+    const models = base.models.map((m, i) => (i === 0 ? { ...m, mix_source: MixSource.LastFull } : m));
+    await openReady(page, { cap_cost: { ...base, models } });
+    const notes = page.locator(".mix-note");
+    // One note per place the figure is shown (the cost table and the compare table on desktop, the row on the phone): only the first model's.
+    await expect(notes).toHaveCount(isPhone() ? 1 : 2);
+    await expect(notes.first()).toHaveText("last week’s mix until this week has a day of use");
   });
 
   test("writes tokens per 1% in full below a million and as millions from there, with both pills", async ({ page }) => {

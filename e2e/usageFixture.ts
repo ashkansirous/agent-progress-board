@@ -1,6 +1,6 @@
 import type { CapCostDto, CapCostModelDto, UsagePageResponse, UsageSeriesDto } from "../src/api/usageDto";
 import { configFromRecord } from "../src/config";
-import { FitMode, HowSure, MultiplierState } from "../src/domain/capCost";
+import { FitMode, HowSure, MixSource, MultiplierState } from "../src/domain/capCost";
 import { BucketUnit, Split, TOKEN_KINDS, TokenKind, UsageRange } from "../src/domain/usage";
 import exampleConfig from "../config/board.example.json" with { type: "json" };
 
@@ -148,6 +148,7 @@ function fittedModel(model: string, colorIndex: number, factor: number, howSure:
     mode: FitMode.PerKind,
     tokens_per_percent: scaled(factor),
     all_kinds_tokens_per_percent: 700_000 * factor,
+    mix_source: MixSource.Current,
     kind_ratios: KIND_RATIOS,
     kind_ratio_reference: TokenKind.Input,
     how_sure: howSure,
@@ -165,6 +166,7 @@ function coarseModel(model: string, colorIndex: number, stretches: number): CapC
     mode: FitMode.OneWeight,
     tokens_per_percent: { input: each, cache_write: each, cache_read: each, output: each },
     all_kinds_tokens_per_percent: each,
+    mix_source: MixSource.Current,
     kind_ratios: null,
     kind_ratio_reference: null,
     how_sure: HowSure.Rough,

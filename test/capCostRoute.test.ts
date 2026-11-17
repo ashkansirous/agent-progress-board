@@ -41,7 +41,7 @@ beforeAll(async () => {
 
 beforeEach(resetBoard);
 
-async function getUsage(query: string): Promise<UsageResponse> {
+async function getUsage(query: string, at: Date = NOW): Promise<UsageResponse> {
   const jwt = await new SignJWT({ email: "owner@example.com" })
     .setProtectedHeader({ alg: "RS256", kid: KEY_ID })
     .setIssuer(TEAM)
@@ -49,7 +49,7 @@ async function getUsage(query: string): Promise<UsageResponse> {
     .setExpirationTime("1h")
     .sign(privateKey);
   const request = new Request(`http://example.com/api/usage${query}`, { headers: { [ACCESS_JWT_HEADER]: jwt } });
-  const response = await route(request, routerEnv, { repo: repo(), clock, accessKeys });
+  const response = await route(request, routerEnv, { repo: repo(), clock: { now: () => at }, accessKeys });
   expect(response.status).toBe(200);
   return (await response.json()) as UsageResponse;
 }
@@ -109,6 +109,45 @@ describe("the cap cost in the usage route", () => {
     expect(cost.steps[0]).toMatchObject({ step: "build" });
     expect(cost.unexplained?.share ?? 1).toBeLessThan(0.01);
     for (const stretch of cost.unexplained_stretches) expect(stretch.points).toBeGreaterThanOrEqual(0);
+  });
+
+  it("weights all kinds by the last full window's mix while the window is an hour old, and by its own at 30 hours (Slice 26)", async () => {
+    await seedWeekWithReset();
+    const young = (await getUsage("?range=30d", new Date(hour(33)))).cap_cost.models[0];
+    expect(young?.mix_source).toBe("last_full");
+    expect(young?.all_kinds_tokens_per_percent).toBeCloseTo(400_000, -1);
+    const aged = (await getUsage("?range=30d", new Date(hour(32 + 30)))).cap_cost.models[0];
+    expect(aged?.mix_source).toBe("current");
+    expect((await getUsage("?range=30d")).cap_cost.models[0]?.mix_source).toBe("current");
+  });
+
+  it("takes the previous window's kinds, not this one's, for the young figure (Slice 26)", async () => {
+    await seedWeekWithReset();
+    await reportUsage(
+      repo(),
+      { agent_key: "demo-app/session-3", model: "model-large", record_at: hour(33), input_tokens: 0, cache_write_tokens: 0, cache_read_tokens: 20 * MILLION, output_tokens: 0 },
+      clock,
+    );
+    const young = (await getUsage("?range=30d", new Date(hour(34)))).cap_cost.models[0];
+    const aged = (await getUsage("?range=30d", new Date(hour(32 + 30)))).cap_cost.models[0];
+    expect(young?.mix_source).toBe("last_full");
+    expect(aged?.mix_source).toBe("current");
+    expect(young?.all_kinds_tokens_per_percent).toBeCloseTo(400_000, -1);
+    expect(Math.abs((aged?.all_kinds_tokens_per_percent ?? 0) - 400_000)).toBeGreaterThan(10_000);
+  });
+
+  it("gives the young figure the same value whichever environment the page filters on (Slice 26)", async () => {
+    await seedWeekWithReset("laptop");
+    await reportUsage(
+      repo(),
+      { agent_key: "demo-app/session-2", model: "model-large", record_at: hour(33), input_tokens: 0, cache_write_tokens: 0, cache_read_tokens: 20 * MILLION, output_tokens: 0, environment: "cloud" },
+      clock,
+    );
+    const at = new Date(hour(34));
+    const all = (await getUsage("?range=30d", at)).cap_cost.models[0];
+    const filtered = (await getUsage("?range=30d&environment=cloud", at)).cap_cost.models[0];
+    expect(filtered?.mix_source).toBe(all?.mix_source);
+    expect(filtered?.all_kinds_tokens_per_percent).toBe(all?.all_kinds_tokens_per_percent);
   });
 
   it("reports the estimate not ready, with no cap figure, while the plan has too few stretches", async () => {

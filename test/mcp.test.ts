@@ -209,14 +209,54 @@ describe("report_progress safety", () => {
 });
 
 describe("mark_done, ask_human, get_item", () => {
-  it("ask_human refuses an existing non-waiting_for_me key and writes nothing", async () => {
+  it("ask_human on an existing item of another type sets needs_you on it and keeps its type, title and status", async () => {
+    await callTool("report_progress", { ...SLICE, status: "in_progress" });
+    const reply = await callTool("ask_human", {
+      key: SLICE.key, project: "demo-app", title: "Q", why: "Which phone?", after_answer: "I read its log.",
+    });
+    expect(reply.isError).toBe(false);
+    const item = (await callTool("get_item", { key: SLICE.key })).data as BoardItem & Record<string, unknown>;
+    expect(item).toMatchObject({
+      type: "slice", status: "in_progress", title: SLICE.title, needs_you: "Which phone?", after_answer: "I read its log.",
+    });
+    expect(item.needs_you_at).toEqual(expect.any(String));
+    expect(item.events[0]?.note).toBe("needs_you: Which phone?");
+  });
+
+  it("ask_human on another type keeps the stored fields the ask does not send and applies the ones it does", async () => {
+    await callTool("report_progress", { ...SLICE, status: "in_progress", priority: "P1", details_md: "Kept", source: "agent" });
+    await callTool("ask_human", {
+      key: SLICE.key, project: "demo-app", title: "Q", why: "Which phone?", links: [{ label: "Log", url: "https://example.com/log" }],
+    });
+    const item = (await callTool("get_item", { key: SLICE.key })).data as Record<string, unknown>;
+    expect(item).toMatchObject({ priority: "P1", details_md: "Kept", source: "agent", links: [{ label: "Log", url: "https://example.com/log" }] });
+  });
+
+  it("a new ask replaces after_answer, and clears it when the ask omits it", async () => {
+    await callTool("report_progress", { ...SLICE, status: "in_progress" });
+    await callTool("ask_human", { key: SLICE.key, project: "demo-app", title: "Q", why: "First?", after_answer: "Then deploy" });
+    await callTool("ask_human", { key: SLICE.key, project: "demo-app", title: "Q", why: "Second?" });
+    const item = (await callTool("get_item", { key: SLICE.key })).data as Record<string, unknown>;
+    expect(item).toMatchObject({ needs_you: "Second?", after_answer: null });
+  });
+
+  it("ask_human on a done item of another type is an error result naming that it is done", async () => {
     await callTool("report_progress", SLICE);
+    await callTool("mark_done", { key: SLICE.key });
     const reply = await callTool("ask_human", { key: SLICE.key, project: "demo-app", title: "Q" });
     expect(reply.isError).toBe(true);
-    expect(reply.text).toContain("key");
-    const item = (await callTool("get_item", { key: SLICE.key })).data as BoardItem & { type: string };
-    expect(item.type).toBe("slice");
-    expect(item.events).toHaveLength(1);
+    expect(reply.text).toContain("is done");
+    expect(((await callTool("get_item", { key: SLICE.key })).data as Record<string, unknown>).needs_you).toBeNull();
+  });
+
+  it("ask_human on an unplanned key asks with the title when why is missing, and creates a waiting_for_me item for a missing key", async () => {
+    await callTool("report_progress", { key: "demo-app/s", project: "demo-app", type: "unplanned", title: "Session goal" });
+    await callTool("ask_human", { key: "demo-app/s", project: "demo-app", title: "Session goal" });
+    const session = (await callTool("get_item", { key: "demo-app/s" })).data as Record<string, unknown>;
+    expect(session).toMatchObject({ type: "unplanned", needs_you: "Session goal" });
+    await callTool("ask_human", { key: "demo-app/new", project: "demo-app", title: "Approve" });
+    const created = (await callTool("get_item", { key: "demo-app/new" })).data as Record<string, unknown>;
+    expect(created).toMatchObject({ type: "waiting_for_me", status: "open", needs_you: null });
   });
 
   it("a repeat ask_human reopens a done waiting_for_me item", async () => {

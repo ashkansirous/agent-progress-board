@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { markStaleItems } from "../src/application/board";
 import worker from "../src/index";
 import { ItemStatus } from "../src/domain/item";
-import { type ExpiryRow, isExpired, staleCutoff } from "../src/domain/stale";
+import { type ExpiryRow, isExpired, SESSION_AGENT, staleCutoff } from "../src/domain/stale";
 import { D1ItemRepository } from "../src/infrastructure/d1Repository";
 import { callTool, countRows, resetBoard } from "./helpers";
 
@@ -51,6 +51,14 @@ describe("isExpired", () => {
   it("computes the cutoff in whole minutes before now", () => {
     expect(staleCutoff(NOW, 120)).toBe(ago(120));
   });
+
+  it("expires a session card after 15 minutes, whatever the configured expiry", () => {
+    const session = { ...live, agent: SESSION_AGENT };
+    expect(isExpired({ ...session, heartbeat_at: ago(16) }, MINUTES, NOW)).toBe(true);
+    expect(isExpired({ ...session, heartbeat_at: ago(15) }, MINUTES, NOW)).toBe(false);
+    expect(isExpired({ ...session, heartbeat_at: ago(5) }, MINUTES, NOW)).toBe(false);
+    expect(isExpired({ ...live, agent: "Implementer", heartbeat_at: ago(16) }, MINUTES, NOW)).toBe(false);
+  });
 });
 
 interface SqlRow extends ExpiryRow {
@@ -60,10 +68,13 @@ interface SqlRow extends ExpiryRow {
 async function insertRow(row: SqlRow): Promise<void> {
   await env.DB.prepare(
     `INSERT INTO items (key, project, type, priority, status, title, links, heartbeat_at, created_at, updated_at,
-       live_status_at, doc_status_at, in_doc_sync)
-     VALUES (?1, 'demo-app', 'slice', 'P2', ?2, 'T', '[]', ?3, ?3, ?3, ?4, ?5, ?6)`,
+       live_status_at, doc_status_at, in_doc_sync, agent)
+     VALUES (?1, 'demo-app', 'slice', 'P2', ?2, 'T', '[]', ?3, ?3, ?3, ?4, ?5, ?6, ?7)`,
   )
-    .bind(row.key, row.status, row.heartbeat_at, row.live_status_at, row.doc_status_at, row.doc_status_at ? 1 : 0)
+    .bind(
+      row.key, row.status, row.heartbeat_at, row.live_status_at, row.doc_status_at, row.doc_status_at ? 1 : 0,
+      row.agent ?? null,
+    )
     .run();
 }
 
@@ -95,13 +106,16 @@ describe("markStale (SQL) agrees with isExpired", () => {
       { key: "e", status: ItemStatus.InProgress, heartbeat_at: ago(200), doc_status_at: ago(300), live_status_at: null },
       { key: "f", status: ItemStatus.Open, heartbeat_at: ago(200), doc_status_at: null, live_status_at: ago(300) },
       { key: "g", status: ItemStatus.Done, heartbeat_at: ago(200), doc_status_at: null, live_status_at: ago(300) },
+      { key: "h", status: ItemStatus.InProgress, heartbeat_at: ago(16), doc_status_at: null, live_status_at: ago(300), agent: SESSION_AGENT },
+      { key: "i", status: ItemStatus.InProgress, heartbeat_at: ago(14), doc_status_at: null, live_status_at: ago(300), agent: SESSION_AGENT },
+      { key: "j", status: ItemStatus.InProgress, heartbeat_at: ago(16), doc_status_at: null, live_status_at: ago(300), agent: "Implementer" },
     ];
     for (const row of cases) await insertRow(row);
     const repo = new D1ItemRepository(env.DB);
     const turned = await markStaleItems(repo, MINUTES, { now: () => NOW });
     const expected = cases.filter((row) => isExpired(row, MINUTES, NOW)).map((row) => row.key);
-    expect(expected).toEqual(["a", "b"]);
-    expect(turned).toBe(2);
+    expect(expected).toEqual(["a", "b", "h"]);
+    expect(turned).toBe(3);
     for (const row of cases) {
       expect(await statusOf(row.key)).toBe(expected.includes(row.key) ? "stale" : row.status);
     }

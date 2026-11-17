@@ -28,6 +28,15 @@ export enum Priority {
 export const DEFAULT_PRIORITY = Priority.P2;
 export const HEARTBEAT_NOTE = "Heartbeat";
 export const DOC_SYNC_SOURCE = "doc-sync";
+/**
+ * Notes the server writes on the history row of a question (Slice 13), as data the page turns into
+ * words: `needs_you: <first line of the question>` when it is asked, `answered` when it is cleared.
+ */
+export const NEEDS_YOU_NOTE_PREFIX = "needs_you: ";
+export const ANSWERED_NOTE = "answered";
+/** Between the server's marker and the caller's own note when both are on one history row. */
+export const NOTE_SEPARATOR = "\n";
+export const MAX_NEEDS_YOU_NOTE = 120;
 
 export interface ItemLink {
   label: string;
@@ -55,6 +64,10 @@ export interface Item {
   /** The kind of agent holding the task, and its model: free text from the client (Slice 10). */
   agent?: string | null;
   model?: string | null;
+  /** The agent's own open question for the owner, what it does after the answer, and when it asked (Slice 13); optional like environment. */
+  needs_you?: string | null;
+  after_answer?: string | null;
+  needs_you_at?: string | null;
   heartbeat_at: string;
   created_at: string;
   updated_at: string;

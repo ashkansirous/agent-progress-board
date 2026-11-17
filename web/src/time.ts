@@ -6,7 +6,7 @@ const HOURS_PER_DAY = 24;
 const CLOCK_DIGITS = 2;
 
 /** Whole minutes from `iso` to `nowMs`, at least 1 so a fresh item never reads "0 min ago". */
-function minutesSince(iso: string, nowMs: number): number {
+export function minutesSince(iso: string, nowMs: number): number {
   return Math.max(1, Math.floor((nowMs - Date.parse(iso)) / MS_PER_MINUTE));
 }
 

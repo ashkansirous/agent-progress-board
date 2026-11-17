@@ -1,0 +1,436 @@
+/* Question cards, session cards and their drawer (Slice 13). Values are the BoardV2 mock's
+   (docs/design/BoardV2.dc.html lines 69 to 110 and 175 to 242; PhoneV2.dc.html lines 39 to 51);
+   colours are the palette keys of the same names (config/board.example.json). */
+
+/* Needs you */
+
+.questions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.questions h3,
+.questions h2 {
+  margin: 0;
+  font-weight: 700;
+  color: var(--needFg);
+}
+
+.questions h3 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.questions-top {
+  padding: 4px 16px 16px;
+}
+
+.questions-top h2 {
+  font-size: 15px;
+}
+
+.question-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 20px;
+  border: 1.5px solid var(--needBd);
+  border-radius: 14px;
+  background: var(--needBg);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.question-top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--needFg);
+}
+
+.question-label,
+.question-project {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.question-waiting {
+  margin-left: auto;
+  font-weight: 600;
+}
+
+.question-text {
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.question-after {
+  font-size: 14px;
+  color: var(--sub);
+}
+
+.question-asked {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.phone .question-card {
+  padding: 14px 16px;
+}
+
+.phone .question-text {
+  font-size: 17px;
+}
+
+.phone .question-after {
+  font-size: 13px;
+}
+
+.question-note {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--needFg);
+}
+
+/* Working now */
+
+.session-section h3 {
+  font-weight: 700;
+}
+
+.session-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 12px;
+}
+
+.phone .session-grid {
+  grid-template-columns: 1fr;
+}
+
+.session-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  text-align: left;
+  cursor: pointer;
+}
+
+.session-card-nogoal {
+  border-style: dashed;
+}
+
+.session-top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.session-last {
+  margin-left: auto;
+}
+
+.session-goal {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.session-why {
+  font-size: 13px;
+  color: var(--sub);
+}
+
+.session-nogoal {
+  font-size: 14px;
+  font-style: italic;
+  color: var(--muted);
+}
+
+.step-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--sub);
+}
+
+.step-chip-done {
+  color: var(--muted);
+}
+
+.step-chip-active {
+  border-color: var(--nowBg);
+  background: var(--nowBg);
+  color: var(--nowFg);
+  font-weight: 700;
+}
+
+/* A stopped session in Done */
+
+.stale-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stale-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding: 8px 12px;
+  border: 1px dashed var(--hairline);
+  border-radius: 10px;
+  background: var(--chipBg);
+  color: var(--muted);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.stale-row-when {
+  margin-left: auto;
+}
+
+/* The drawer: a 480px panel with a scrim on desktop, full screen on the phone */
+
+.card-scrim {
+  border: 0;
+  cursor: pointer;
+}
+
+.card-drawer {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 480px;
+  max-width: 100%;
+  padding: 24px;
+  overflow-y: auto;
+  background: var(--card);
+  box-shadow: -12px 0 32px var(--panelShadow);
+}
+
+.card-drawer-phone {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  box-shadow: none;
+}
+
+.drawer-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.kicker {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.kicker-need {
+  background: var(--needBg);
+  color: var(--needFg);
+}
+
+.kicker-work {
+  background: var(--sliceBg);
+  color: var(--sliceFg);
+}
+
+.kicker-stale,
+.kicker-other {
+  background: var(--chipBg);
+  color: var(--muted);
+}
+
+.drawer-project {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.drawer-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.drawer-heading h2 {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+.drawer-purpose {
+  font-size: 14px;
+  color: var(--sub);
+}
+
+.drawer-meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.drawer-after {
+  padding: 12px 14px;
+  border: 1px solid var(--needBd);
+  border-radius: 10px;
+  background: var(--needBg);
+  font-size: 14px;
+}
+
+.drawer-after strong {
+  color: var(--needFg);
+}
+
+.drawer-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.drawer-section h3 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.drawer-bullets {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.drawer-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.drawer-step {
+  display: grid;
+  grid-template-columns: 26px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 8px;
+}
+
+.drawer-step-active {
+  background: var(--sliceBg);
+}
+
+.drawer-step-active .drawer-step-label {
+  font-weight: 600;
+}
+
+.drawer-step-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  box-sizing: border-box;
+  border: 1.5px solid var(--hairline);
+  border-radius: 50%;
+  background: var(--card);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.drawer-step-done .drawer-step-mark {
+  border-color: var(--doneFg);
+  background: var(--doneFg);
+  color: var(--card);
+}
+
+.drawer-step-active .drawer-step-mark {
+  border-color: var(--sliceFg);
+}
+
+.drawer-step-state {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.drawer-step-done .drawer-step-state {
+  color: var(--doneFg);
+}
+
+.drawer-step-active .drawer-step-state {
+  color: var(--sliceFg);
+}
+
+.drawer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-weight: 500;
+}
+
+.drawer-history {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.drawer-history li {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.drawer-time {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+}

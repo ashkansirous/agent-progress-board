@@ -14,7 +14,8 @@ export interface SeedEvent {
   /** Clock time "HH:mm" on the demo day (the E2E fixture only). */
   at: string;
   status: string;
-  note: string;
+  /** null is a plain status change (a history row with no note). */
+  note: string | null;
 }
 
 export interface SeedItem {
@@ -43,6 +44,13 @@ export interface SeedItem {
   steps?: { label: string; state: string; note?: string }[];
   /** The key of the item this one belongs to: a part names its slice (Slice 11). */
   parentKey?: string;
+  /** A session card's open question, what happens after the answer, and the minutes since it began (Slice 13). */
+  needsYou?: string;
+  afterAnswer?: string;
+  /** Minutes since the last report, for a session card (the E2E fixture only). */
+  heartbeatMinutesAgo?: number;
+  /** Minutes since the card was created, for "Started N min ago" (the E2E fixture only). */
+  createdMinutesAgo?: number;
 }
 
 export interface ToolCall {
@@ -188,8 +196,120 @@ export const SEED_ITEMS: SeedItem[] = [
   },
 ];
 
+const SESSION = "session";
+const ASKED = "needs_you: ";
+const ANSWERED = "answered";
+export const CRASH_QUESTION = "Which iPhone should I read the crash log from: the iPhone 8 or the iPad?";
+export const BACKUP_QUESTION = "Should I delete the 40 old backups in the backups folder, or move them to the archive drive?";
+
+/**
+ * Made-up session cards (Slice 13, the BoardV2 mock's data): `example-app` with two working cards
+ * (one with a goal and five steps, one a wave on a cloud VM), one with no goal yet, one with a
+ * question and one stale without a question; `tools` with only a question; `notes-site` with a
+ * plain planned slice and no session card. A separate set, so the 15-item demo board keeps its counts.
+ */
+export const SESSION_SEED_ITEMS: SeedItem[] = [
+  {
+    key: "example-app/session-9c1e", project: "example-app", type: "unplanned", priority: "P2", status: "in_progress",
+    title: "Read the crash log on the iPhone 8", why: "For Slice 12: app crashes on start", parent: "session 9c1e",
+    details: ["Connected the iPhone 8 over USB\nFound 3 crash logs from release 2.3.1, all at start-up"],
+    links: [link("Pull request #88", "example-app/pull/88"), link("Slice file", "example-app/slice-12")],
+    events: [
+      { at: "13:46", status: "in_progress", note: "Reading the logs" },
+      { at: "10:05", status: "in_progress", note: null },
+      { at: "09:52", status: "done", note: null },
+      { at: "09:38", status: "in_progress", note: ANSWERED },
+      { at: "09:31", status: "in_progress", note: `${ASKED}${CRASH_QUESTION}` },
+      { at: "09:20", status: "in_progress", note: null },
+    ],
+    agent: SESSION, environment: "laptop", heartbeatMinutesAgo: 2, createdMinutesAgo: 268,
+    steps: [
+      { label: "Connect the phone", state: "done" }, { label: "Read the logs", state: "active" },
+      { label: "Analyse", state: "pending" }, { label: "Conclude", state: "pending" }, { label: "Plan or fix", state: "pending" },
+    ],
+  },
+  {
+    key: "example-app/wave-3", project: "example-app", type: "unplanned", priority: "P2", status: "in_progress",
+    title: "Build Slices 9 and 10 overnight", why: "For the night run, wave 3", parent: "wave 3",
+    details: ["Built and reviewed Slice 9"], links: [link("Wave log", "example-app/wave-3")],
+    events: [{ at: "13:44", status: "in_progress", note: "Building Slice 10" }, { at: "03:10", status: "in_progress", note: null }],
+    agent: SESSION, environment: "cloud-vm", heartbeatMinutesAgo: 4, createdMinutesAgo: 640,
+    steps: [
+      { label: "Build Slice 9", state: "done" }, { label: "Review Slice 9", state: "done" }, { label: "Build Slice 10", state: "active" },
+      { label: "Review Slice 10", state: "pending" }, { label: "Merge", state: "pending" },
+    ],
+  },
+  {
+    key: "example-app/session-a71b", project: "example-app", type: "unplanned", priority: "P2", status: "in_progress",
+    title: "main · example-app", why: "", parent: "session a71b",
+    details: [], links: [], events: [{ at: "13:46", status: "in_progress", note: null }],
+    agent: SESSION, environment: "cloud-vm", heartbeatMinutesAgo: 1, createdMinutesAgo: 2,
+  },
+  {
+    key: "example-app/session-4f2a", project: "example-app", type: "unplanned", priority: "P2", status: "in_progress",
+    title: "Find the device with the crash", why: "For Slice 12: app crashes on start", parent: "session 4f2a",
+    details: ["Found two devices with the app installed\nBoth have crash logs from today"],
+    links: [link("Slice file", "example-app/slice-12")],
+    events: [
+      { at: "13:42", status: "in_progress", note: `${ASKED}${CRASH_QUESTION}` },
+      { at: "13:30", status: "in_progress", note: null },
+    ],
+    agent: SESSION, environment: "laptop", heartbeatMinutesAgo: 6, createdMinutesAgo: 18, askedMinutesAgo: 6,
+    needsYou: CRASH_QUESTION,
+    afterAnswer: "I read the log and write the cause into Slice 12.",
+    steps: [
+      { label: "Find a device with the crash", state: "done" }, { label: "Ask which device", state: "active" },
+      { label: "Read the log", state: "pending" }, { label: "Write the cause", state: "pending" },
+    ],
+  },
+  {
+    key: "example-app/session-7b3d", project: "example-app", type: "unplanned", priority: "P2", status: "stale",
+    title: "Update the store screenshots", why: "For the release 2.3.2 store listing", parent: "session 7b3d",
+    details: ["Took 4 of 6 screenshots"], links: [link("Slice file", "example-app/slice-12")],
+    events: [
+      { at: "09:10", status: "stale", note: "Heartbeat expired" },
+      { at: "08:55", status: "in_progress", note: "Heartbeat" },
+      { at: "08:41", status: "in_progress", note: null },
+      { at: "08:40", status: "done", note: null },
+      { at: "08:30", status: "in_progress", note: null },
+    ],
+    agent: SESSION, environment: "cloud-vm", heartbeatMinutesAgo: 293, createdMinutesAgo: 318,
+    steps: [
+      { label: "Take the screenshots", state: "active" }, { label: "Add captions", state: "pending" }, { label: "Upload", state: "pending" },
+    ],
+  },
+  {
+    key: "tools/session-51e0", project: "tools", type: "unplanned", priority: "P2", status: "in_progress",
+    title: "List old backups", why: "For the cleanup slice of tools", parent: "session 51e0",
+    details: ["Listed 40 backups older than a year, 18 GB in all"], links: [link("Slice file", "tools/cleanup")],
+    events: [
+      { at: "13:06", status: "in_progress", note: `${ASKED}${BACKUP_QUESTION}` },
+      { at: "12:51", status: "in_progress", note: null },
+    ],
+    agent: SESSION, environment: "laptop", heartbeatMinutesAgo: 42, createdMinutesAgo: 57, askedMinutesAgo: 42,
+    needsYou: BACKUP_QUESTION,
+    afterAnswer: "I free the space and close the cleanup slice.",
+    steps: [
+      { label: "List old backups", state: "done" }, { label: "Ask what to do with them", state: "active" },
+      { label: "Delete or move", state: "pending" }, { label: "Close the slice", state: "pending" },
+    ],
+  },
+  {
+    key: "notes-site/slice-4", project: "notes-site", type: "slice", priority: "P2", status: "open",
+    title: "Slice 4 · Search page", why: "Find a note by words", parent: "Plan · Search",
+    details: ["Not started."], links: [link("Slice file", "notes-site/slice-4")],
+    events: [{ at: "09:12", status: "open", note: "Synced from plan docs" }],
+  },
+];
+
 const WAITING_TYPE = "waiting_for_me";
 const LATEST_EVENT = 0;
+
+/** The latest event's note, except the question marker: the server writes that one itself. */
+function agentNote(item: SeedItem): string | undefined {
+  const note = item.events[LATEST_EVENT]?.note ?? undefined;
+  return note?.startsWith(ASKED) ? undefined : note;
+}
 
 /** The MCP tool call that puts one item on the board: ask_human for a waiting item, else report_progress. */
 export function callFor(item: SeedItem): ToolCall {
@@ -197,20 +317,22 @@ export function callFor(item: SeedItem): ToolCall {
     key: item.key,
     project: item.project,
     title: item.title,
-    why: item.why,
+    why: item.why || undefined,
     parent: item.parent,
     parent_key: item.parentKey,
     priority: item.priority,
-    details_md: item.details.join("\n\n"),
+    details_md: item.details.join("\n\n") || undefined,
     links: item.links,
     source: "seed",
-    note: item.events[LATEST_EVENT]?.note,
+    note: agentNote(item),
   };
   if (item.type === WAITING_TYPE) return { name: "ask_human", arguments: shared };
   const work = { agent: item.agent, model: item.model, environment: item.environment, steps: item.steps };
-  return { name: "report_progress", arguments: { ...shared, type: item.type, status: item.status, ...work } };
+  const question = { needs_you: item.needsYou, after_answer: item.afterAnswer };
+  return { name: "report_progress", arguments: { ...shared, type: item.type, status: item.status, ...work, ...question } };
 }
 
-export function seedCalls(items: SeedItem[] = SEED_ITEMS): ToolCall[] {
+/** The seed script's calls: the demo board plus the session cards (Slice 13). */
+export function seedCalls(items: SeedItem[] = [...SEED_ITEMS, ...SESSION_SEED_ITEMS]): ToolCall[] {
   return items.map(callFor);
 }

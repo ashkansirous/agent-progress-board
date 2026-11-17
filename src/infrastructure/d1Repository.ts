@@ -3,6 +3,7 @@ import {
   type BoardRow,
   type ItemRepository,
   type ItemWrite,
+  type StaleCutoffs,
   type SeriesName,
   SeriesKind,
   type TaskInfo,
@@ -20,7 +21,7 @@ import {
   type ItemType,
   type Priority,
 } from "../domain/item";
-import { EXPIRING_STATUSES, STALE_NOTE } from "../domain/stale";
+import { EXPIRING_STATUSES, SESSION_AGENT, STALE_NOTE } from "../domain/stale";
 import { parseStoredSteps } from "../domain/steps";
 import type { ReportInput } from "../domain/upsert";
 
@@ -76,6 +77,9 @@ const CHANGEABLE_COLUMNS = [
   "agent",
   "model",
   "parent_key",
+  "needs_you",
+  "after_answer",
+  "needs_you_at",
 ] as const;
 type ChangeableColumn = (typeof CHANGEABLE_COLUMNS)[number];
 
@@ -108,11 +112,15 @@ const SET_CHANGEABLE = CHANGEABLE_COLUMNS.map((col, i) =>
     : `${col} = CASE WHEN ${flagParam(i)} THEN ${valueParam(i)} ELSE ${col} END`,
 ).join(", ");
 
-/** The rule of isExpired (domain/stale.ts) in SQL: ?1 is the cutoff, an ISO time. */
+/**
+ * The rule of isExpired (domain/stale.ts) in SQL: ?1 is the cutoff, an ISO time; ?4 the shorter one
+ * for a session card (agent = SESSION_AGENT). Every statement using it binds all four parameters.
+ */
 const EXPIRED_ROWS = `status IN (${LIVE_STATUS_LIST}) AND live_status_at IS NOT NULL
-  AND (doc_status_at IS NULL OR live_status_at > doc_status_at) AND heartbeat_at < ?1`;
+  AND (doc_status_at IS NULL OR live_status_at > doc_status_at)
+  AND heartbeat_at < CASE WHEN agent = '${SESSION_AGENT}' THEN ?4 ELSE ?1 END`;
 
-/** ?1 cutoff, ?2 now, ?3 note. */
+/** ?1 cutoff, ?2 now, ?3 note, ?4 session cutoff. */
 const STALE_EVENTS = `INSERT INTO events (item_key, at, status, source, note)
   SELECT key, ?2, '${ItemStatus.Stale}', NULL, ?3 FROM items WHERE ${EXPIRED_ROWS}`;
 const STALE_ITEMS = `UPDATE items SET status = '${ItemStatus.Stale}', updated_at = ?2 WHERE ${EXPIRED_ROWS}`;
@@ -126,10 +134,11 @@ const valueOf = (column: ChangeableColumn): string => valueParam(CHANGEABLE_COLU
 
 const UPSERT_ITEM = `INSERT INTO items (key, project, parent, type, priority, status, title, why,
   details_md, links, source, heartbeat_at, created_at, updated_at, done_at, live_status_at, environment,
-  steps, agent, model, parent_key)
+  steps, agent, model, parent_key, needs_you, after_answer, needs_you_at)
   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?12, ?12, ?13,
     CASE WHEN ?11 IS '${DOC_SYNC_SOURCE}' THEN NULL ELSE ?12 END, ${valueOf("environment")},
-    ${valueOf("steps")}, ${valueOf("agent")}, ${valueOf("model")}, ${valueOf("parent_key")})
+    ${valueOf("steps")}, ${valueOf("agent")}, ${valueOf("model")}, ${valueOf("parent_key")},
+    ${valueOf("needs_you")}, ${valueOf("after_answer")}, ${valueOf("needs_you_at")})
   ON CONFLICT (key) DO UPDATE SET ${SET_CHANGEABLE}, heartbeat_at = ?12,
   live_status_at = CASE WHEN ${LIVE_STATUS_REPORT} THEN ?12 ELSE live_status_at END,
   updated_at = CASE WHEN ${ANY_CHANGED} THEN ?12 ELSE updated_at END,
@@ -377,10 +386,10 @@ export class D1ItemRepository implements ItemRepository, UsageRepository {
     await this.db.batch(statements);
   }
 
-  async markStale(cutoff: string, now: string): Promise<number> {
+  async markStale({ cutoff, sessionCutoff }: StaleCutoffs, now: string): Promise<number> {
     const [, items] = await this.db.batch([
-      this.db.prepare(STALE_EVENTS).bind(cutoff, now, STALE_NOTE),
-      this.db.prepare(STALE_ITEMS).bind(cutoff, now),
+      this.db.prepare(STALE_EVENTS).bind(cutoff, now, STALE_NOTE, sessionCutoff),
+      this.db.prepare(STALE_ITEMS).bind(cutoff, now, STALE_NOTE, sessionCutoff),
     ]);
     return items?.meta.changes ?? 0;
   }

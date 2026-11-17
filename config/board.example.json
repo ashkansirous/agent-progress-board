@@ -140,7 +140,17 @@
       "stepActive": "#9DBDFF",
       "stepActiveRow": "#E6EEFC",
       "stepPendingTile": "#D5DAE1",
-      "partTrack": "#FFFFFF"
+      "partTrack": "#FFFFFF",
+      "sub": "#3B424D",
+      "needBg": "#FDEBD8",
+      "needBd": "#F0C9A0",
+      "needFg": "#9A3F00",
+      "sliceBg": "#E6EEFC",
+      "sliceFg": "#1D4ED8",
+      "nowBg": "#1D4ED8",
+      "nowFg": "#FFFFFF",
+      "doneFg": "#0B6B4B",
+      "panelShadow": "rgba(20,23,28,0.12)"
     },
     "dark": {
       "page": "#0E1014",
@@ -190,7 +200,17 @@
       "stepActive": "#3B5A94",
       "stepActiveRow": "#1C2B4A",
       "stepPendingTile": "#0E1014",
-      "partTrack": "#0E1014"
+      "partTrack": "#0E1014",
+      "sub": "#C7CDD8",
+      "needBg": "#2A1C0E",
+      "needBd": "#5A3712",
+      "needFg": "#FFB672",
+      "sliceBg": "#1C2B4A",
+      "sliceFg": "#9DBDFF",
+      "nowBg": "#9DBDFF",
+      "nowFg": "#0E1014",
+      "doneFg": "#7FD8B4",
+      "panelShadow": "rgba(0,0,0,0.5)"
     }
   }
 }

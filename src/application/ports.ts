@@ -22,6 +22,12 @@ export interface BoardRow extends ItemWithEvents {
   docSync: { in_doc_sync: boolean; doc_status: ItemStatus | null };
 }
 
+/** Heartbeats older than `cutoff` have expired; a session card's own, shorter expiry is `sessionCutoff` (Slice 13). */
+export interface StaleCutoffs {
+  cutoff: string;
+  sessionCutoff: string;
+}
+
 export interface ItemWrite {
   /** The row to insert when the key is new (defaults filled). */
   insert: Item;
@@ -52,7 +58,7 @@ export interface ItemRepository {
    * statements carry the rule, so a report that lands in between is never overwritten; items
    * already stale no longer match, so a second run writes nothing. Returns how many turned stale.
    */
-  markStale(cutoff: string, now: string): Promise<number>;
+  markStale(cutoffs: StaleCutoffs, now: string): Promise<number>;
   listBoard(filter: BoardFilter): Promise<BoardRow[]>;
   /** Newest first, all events. */
   eventsFor(key: string): Promise<ItemEvent[]>;

@@ -1,11 +1,11 @@
 ### Slice 13 — A session's card says what it is doing and what it needs
 
-*Planned.* Part A (server) can be built now. Part B (the page) is designed (see *Design* below) and
-is built after the owner has reviewed the plan PR.
+*Built 2026-11-17 (PR #75), parts A and B; not merged, deployed-board checks open (see Not yet
+verified).* The plan PR #73 merged without a review round (owner).
 
 **Touches:** `migrations/0006_needs_you.sql` (new), `src/domain/item.ts`, `src/domain/upsert.ts`,
 `src/domain/stale.ts`, `src/domain/steps.ts`, `src/application/board.ts`, `src/application/ports.ts`,
-`src/infrastructure/d1Repository.ts`, `src/mcp/schemas.ts`, `src/mcp/tools.ts`, `src/api/boardDto.ts`,
+`src/infrastructure/d1Repository.ts`, `src/api/board.ts`, `src/domain/parts.ts`, `src/mcp/schemas.ts`, `src/mcp/tools.ts`, `src/api/boardDto.ts`,
 `src/config.ts`, `config/board.example.json`, `test/**`, `docs/clients.md`, `README.md`, `web/**`, `e2e/**`,
 `scripts/seed-data.ts`, `docs/plan/slices/13-session-cards.md`
 
@@ -46,6 +46,13 @@ Claude Code's generic notification; the heartbeat expiry is 120 minutes by defau
   step 2 of the request for Slices 13 to 15). The page has no answer box and no button that writes.
 
 #### Decided at the desk
+
+- **What makes an item a session (claim check, 2026-11-17):** `agent` is free text in
+  `src/mcp/schemas.ts` and no server code uses the value `session`; it is the clients' convention.
+  The 15-minute rule keys on one exported constant `SESSION_AGENT = "session"` in
+  `src/domain/stale.ts`, and the expiry row (`ExpiryRow` and the `EXPIRED_ROWS` SQL) gains `agent`.
+  The DTO is built in `src/api/board.ts` (with `src/api/boardDto.ts` for the shape), and
+  `src/domain/parts.ts` also calls `isWorkingNow`; both are in Touches.
 
 - **"Needs you" is two fields on any item, not a type:** `needs_you` (the question, up to 2000
   characters) and `after_answer` (what the agent will do next, up to 500). An item with `needs_you`
@@ -171,37 +178,37 @@ B work items are rewritten.
 
 **A. Server**
 
-- [ ] Migration 0006: `needs_you TEXT NULL`, `after_answer TEXT NULL`, `needs_you_at TEXT NULL` on
+- [x] Migration 0006: `needs_you TEXT NULL`, `after_answer TEXT NULL`, `needs_you_at TEXT NULL` on
   items. Upsert rules in `src/domain/upsert.ts`; schema fields with limits in `src/mcp/schemas.ts`;
   `docs/clients.md` documents them with an example on a made-up project.
-- [ ] `ask_human` on a key of another type sets `needs_you` (from `why`) on that item and returns
+- [x] `ask_human` on a key of another type sets `needs_you` (from `why`) on that item and returns
   ok. Tests: on a `waiting_for_me` key (as today), on an `unplanned` key, on a missing key (creates a
   `waiting_for_me` item as today).
-- [ ] Session expiry: a constant `SESSION_STALE_AFTER_MINUTES = 15` in `src/domain/stale.ts`, used
+- [x] Session expiry: a constant `SESSION_STALE_AFTER_MINUTES = 15` in `src/domain/stale.ts`, used
   by `isExpired`, `isHeartbeatExpired` and the `EXPIRED_ROWS` SQL for `agent = 'session'` items; the
   equality test covers both expiries.
-- [ ] `/api/board` returns `needs_you`, `after_answer`, `needs_you_at`; the board DTO groups an item
+- [x] `/api/board` returns `needs_you`, `after_answer`, `needs_you_at`; the board DTO groups an item
   with `needs_you` under the project's "needs you" list.
-- [ ] The board DTO returns, for every card, `parent`, `environment`, `agent`, `heartbeat_at`,
+- [x] The board DTO returns, for every card, `parent`, `environment`, `agent`, `heartbeat_at`,
   `steps` and `details_md` as data. The card label, "last activity N min ago" and "waiting N min" are
   built on the page from these and `needs_you_at`; the Worker returns no text. `docs/clients.md` says
   a session sends its own name ("session 9c1e") in `parent` (from the mock).
-- [ ] Seed data: the mock's made-up projects (`PROJECTS`, `BoardV2.dc.html` lines 248 to 282). Session
+- [x] Seed data: the mock's made-up projects (`PROJECTS`, `BoardV2.dc.html` lines 248 to 282). Session
   cards: `example-app` with two working (one with a goal and five steps, one a wave on a cloud VM with
   five steps), one working with no goal, one with a question, one stale without a question; `tools`
   with only a question; `notes-site` with none.
 
 **B. Page (design in `docs/design/`, see *Design* above)**
 
-- [ ] The question card as B1 (desktop and phone variants), "answer in that session", no control
+- [x] The question card as B1 (desktop and phone variants), "answer in that session", no control
   that writes.
-- [ ] The working card as B1: white card, goal, purpose, step chips with the current step filled,
+- [x] The working card as B1: white card, goal, purpose, step chips with the current step filled,
   "last activity N min ago", and the no-goal card.
-- [ ] The drawer as B2 for a question, a working card and a stale card; desktop panel and phone full
+- [x] The drawer as B2 for a question, a working card and a stale card; desktop panel and phone full
   screen; the scrim closes it; the Close button is 44px.
-- [ ] Drawer history in plain words from the string table (B3).
-- [ ] Both themes from the theme keys, English and German strings.
-- [ ] E2E: a session card with steps; one with a question (the card says "answer in that session"
+- [x] Drawer history in plain words from the string table (B3).
+- [x] Both themes from the theme keys, English and German strings.
+- [x] E2E: a session card with steps; one with a question (the card says "answer in that session"
   and has no write control); a stale one that leaves "Working now" and shows in Done; the drawer opens
   from each.
 
@@ -213,3 +220,84 @@ B work items are rewritten.
   text, and after the session stops its card leaves "Working now" at once.
 - The owner compares the deployed page with `BoardV2.dc.html`, `BoardV2Dark.dc.html`,
   `PhoneV2.dc.html` and `PhoneV2Drawer.dc.html`.
+
+*Changed while building:*
+
+- Built: `needs_you`, `after_answer`, `needs_you_at` (migration 0006); `ask_human` on a key of another
+  type sets `needs_you` and errors on a done item; `SESSION_AGENT` and the 15-minute session expiry in
+  `isExpired`, `isHeartbeatExpired` and `EXPIRED_ROWS`; page cards, drawer, history words, English and
+  German strings, ten new palette keys; seed `SESSION_SEED_ITEMS`.
+- The DTO stays flat: the page groups Needs you / Working now / Done in `web/src/model.ts`. `/api/board`
+  carries no group lists (Slice 14 adds the domain grouping).
+- "No goal" = no `why`, no steps, and a title ending " · <project>" (the client's fallback, documented
+  in `docs/clients.md`).
+- History notes: the marker, then "\n", then the caller's note.
+- An item with an open question counts under Needs you, not in `working_count`.
+- Decision (coordinator, after two failed fix rounds): a question clears on `needs_you: null`, on done,
+  or on a move to `in_progress` from any other status, stale included (a session that asked is idle
+  until answered); a repeated `in_progress` keeps it. Clients send `needs_you: null` when the owner
+  answers. The rule lives only in `answersQuestion` in `src/domain/upsert.ts`.
+
+*Checks on the final code:* typecheck and lint clean; npm test green, e2e 195 passed 3 skipped. Browser
+run (`reviews/wave8-s13-browser`): 8 of 9 items; values desktop 79/89 light and dark, phone 67/78.
+Misses: the 1.5px border renders as 1px (as in Slice 11), drifting minute counts, and script selectors.
+The doubled seed history note was fixed after the run and not re-run in a browser.
+
+*From review:*
+
+- Applied: high #1, 2, 3, 5, 6, 7, 9; medium #1-5; check #1, 3, 4. Check pass 2 applied none (see below).
+- Skipped #4 (`reviews/pr-75-high.md`): "Stale session cards never leave the board" - main already keeps
+  stale items on the board; Slice 14's done group settles the window.
+- Skipped #8 (`reviews/pr-75-high.md`): "two overlapping reports can disagree" - low, two overlapping
+  reports for one key, no failure seen.
+- Skipped #6 (`reviews/pr-75-medium.md`): "hasNoGoal compares the fallback title" - low,
+  `docs/clients.md` defines the fallback title with the project id.
+- Skipped #7 (`reviews/pr-75-medium.md`): "Detail/SessionDrawer is chosen from live data" - low, focus
+  return when the dialog kind swaps; follow-up.
+- Skipped #2 (`reviews/pr-75-check-medium.md`): "hasOpenQuestion hides a question once heartbeat is older than expiry" - the slice's
+  Decided-at-the-desk bullet says the question leaves after the configured expiry.
+- Skipped #5 (`reviews/pr-75-check-medium.md`): "hasNoGoal detects the client fallback title" - low.
+- Skipped #6 (`reviews/pr-75-check-medium.md`): "questionOrder/waitingOrder/flightOrder and question filters near-duplicated" - low.
+- Check pass 2 (`reviews/pr-75-check-2-medium.md`): none applied; "after the second check pass only crash,
+  data-loss, security, privacy or loading-state findings reopen the code", so all 9 go to the follow-up
+  list below.
+- Check pass 3 (`reviews/pr-75-check-3-medium.md`, on the seed fix): 6 low findings, none applied
+  (after the second check pass only crash, data-loss, security, privacy or loading-state findings
+  reopen the code); they join the follow-up list: seed test counts, unique-key checks skipping
+  `SESSION_SEED_ITEMS`, empty seed fields sent as undefined, no seed of `ask_human` on an existing
+  item, seeded session cards go stale 15 minutes after seeding, hard-coded history markers in the seed.
+
+*Follow-ups from check pass 2 (`reviews/pr-75-check-2-medium.md`), not fixed:*
+
+- #1 `src/api/board.ts:139`: `working`/`working_count` drop any in-progress item with an open question,
+  for every item type.
+- #2 `src/domain/upsert.ts:106`: a report with `needs_you` and status done stores a question on a done
+  item.
+- #3 `src/application/board.ts:96`: `askOnItem` does not reject Part or doc-synced items; a blank `why`
+  replaces an open question and resets `needs_you_at`.
+- #4 `web/src/SessionDrawer.tsx:148`: a question on a non-session item shows `why` as purpose and all
+  `details_md` lines as "Done so far" bullets.
+- #5 `src/api/board.ts:112`: `hasOpenQuestion` is computed twice per item.
+- #6 `src/infrastructure/d1Repository.ts:120`: the `EXPIRED_ROWS` CASE prevents index range use; no
+  query-plan test.
+- #7 `web/src/cards.ts:99`: a caller note starting with `needs_you: ` renders as a question event.
+- #8 `web/src/time.ts:9`: an unparseable timestamp shows "waiting NaN min".
+- #9 `web/src/model.ts:53` and `docs/clients.md:514`: `LAST_TIME` sorting with U+FFFF; the heartbeat
+  guidance "every 30 minutes is safe" contradicts the 15-minute session expiry.
+
+#### For CLAUDE.md
+
+- Session expiry is `SESSION_AGENT` / `SESSION_STALE_AFTER_MINUTES` in `src/domain/stale.ts`, kept equal
+  to `EXPIRED_ROWS` by `test/stale.test.ts`; change both together (Slice 13:
+  docs/plan/slices/13-session-cards.md).
+- The question-clearing rule lives only in `answersQuestion` in `src/domain/upsert.ts`; never copy it
+  (Slice 13: docs/plan/slices/13-session-cards.md).
+
+#### Not yet verified
+
+- On the deployed board, a real session's goal and steps show within 5 minutes.
+- On the deployed board, a question shows under Needs you with its text.
+- On the deployed board, a stopped session leaves Working now at once.
+- The owner's comparison of the deployed page with the mocks.
+- The drawer history of a working card with several events, in a browser.
+- The 1.5px border (renders as 1px in the browser run).

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { MAX_SNAPSHOT_ITEMS } from "../domain/docSync";
 import { ItemStatus, ItemType, Priority } from "../domain/item";
 import { MAX_PARTS } from "../domain/parts";
+import { MAX_AFTER_ANSWER, MAX_NEEDS_YOU } from "../domain/upsert";
 import { MAX_STEP_LABEL, MAX_STEP_NOTE, MAX_STEPS } from "../domain/steps";
 import { StepState } from "../domain/stepTypes";
 
@@ -77,6 +78,16 @@ export const reportProgressShape = {
     .describe("Key of the item this one belongs to; a part's key is <slice key>/part-<letter> and names its slice; null clears it"),
   agent: z.string().min(1).max(MAX_MODEL).nullable().optional().describe("Kind of agent holding the task; null clears it"),
   model: z.string().min(1).max(MAX_MODEL).nullable().optional().describe("The agent's model; null clears it"),
+  needs_you: z
+    .string()
+    .max(MAX_NEEDS_YOU)
+    .refine((text) => text.trim() !== "", "needs_you: blank text is not a question; send null to clear it")
+    .nullable()
+    .optional()
+    .describe(
+      "The agent's own question for the owner; the item shows under Needs you until it is cleared. null clears it, and so does a report that sets in_progress or done without one",
+    ),
+  after_answer: z.string().max(MAX_AFTER_ANSWER).nullable().optional().describe("What the agent does after the answer; null clears it"),
   ...detailShape,
 };
 
@@ -129,6 +140,12 @@ export const askHumanShape = {
   key,
   project: label.describe("Project the question belongs to"),
   title: label,
+  after_answer: z
+    .string()
+    .max(MAX_AFTER_ANSWER)
+    .nullable()
+    .optional()
+    .describe("What the agent does after the answer; shown on the question card"),
   ...detailShape,
 };
 

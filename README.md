@@ -116,9 +116,9 @@ Keys are stable and chosen by the reporter, for example `<project>/slice-58`.
 
 | Tool | Scope | Inputs | Returns |
 | --- | --- | --- | --- |
-| `report_progress` | write | `key`; for a new key also `project`, `type`, `title`; optional `status`, `priority`, `parent` (text), `why`, `details_md`, `links` (`[{label,url}]`), `source`, `environment`, `steps` (`[{label, state, note?}]`, the whole list each time), `parent_key` (a part names its slice), `agent`, `model`, `note` | the item |
+| `report_progress` | write | `key`; for a new key also `project`, `type`, `title`; optional `status`, `priority`, `parent` (text), `why`, `details_md`, `links` (`[{label,url}]`), `source`, `environment`, `steps` (`[{label, state, note?}]`, the whole list each time), `parent_key` (a part names its slice), `agent`, `model`, `needs_you` (the agent's question, up to 2000 characters), `after_answer` (up to 500), `note` | the item |
 | `mark_done` | write | `key`, optional `source`, `note` | the item |
-| `ask_human` | write | `key`, `project`, `title`; optional `parent`, `priority`, `why`, `details_md`, `links`, `source`, `note` (creates or updates a `waiting_for_me` item, open) | the item |
+| `ask_human` | write | `key`, `project`, `title`; optional `parent`, `priority`, `why`, `details_md`, `links`, `source`, `note`, `after_answer` (creates or updates a `waiting_for_me` item, open; on a key of another type it sets `needs_you` on that item instead) | the item |
 | `list_open` | read | optional `project`, `type`, `window_hours` (capped by config) | items not done, plus items done inside the window, each with its latest 20 events |
 | `get_item` | read | `key` | the item with all its events, newest first |
 | `report_usage` | write | `agent_key`, `model`, `record_at`, the four running token totals (`input_tokens`, `cache_write_tokens`, `cache_read_tokens`, `output_tokens`); optional `task_key`, `agent_kind`, `step`, `environment` | `{stored}`; the same report twice stores one sample |
@@ -130,7 +130,7 @@ Optional fields on `report_progress` and `ask_human`: leave one out to keep the 
 `why`, `details_md` or `parent` is a tool error naming the field.
 
 An item has `key`, `project`, `parent`, `type`, `priority`, `status`, `title`, `why`,
-`details_md`, `links`, `source`, `heartbeat_at`, `created_at`, `updated_at`, `done_at`. A
+`details_md`, `links`, `source`, `heartbeat_at`, `created_at`, `updated_at`, `done_at`, `needs_you`, `after_answer`, `needs_you_at`. A
 report that changes nothing but the heartbeat writes an event with the note `Heartbeat`.
 
 Usage (Slice 8): `report_usage` and `report_cap` store running token totals and raw cap readings;

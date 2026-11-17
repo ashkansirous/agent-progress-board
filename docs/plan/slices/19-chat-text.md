@@ -1,7 +1,11 @@
 ### Slice 19 — The owner can get the chat instruction text without a token
 
-*Parked: feedback loop, waits for the user.* Found by the feedback loop of night 2026-11-17-1657
-([note](../notes/2026-11-17-1657-feedback-loop.md)); not to be built by a night until the owner says so.
+*Planned (owner, 2026-11-17 20:2x: "I already tried the chat and I told you it did not do anything. why are you still
+waiting for me to do a new chat without changing anything"): build it; the owner is not asked to test a chat again
+first.* Found by the feedback loop of night 2026-11-17-1657 ([note](../notes/2026-11-17-1657-feedback-loop.md)). When
+built, add one `**You:**` line to `docs/plan/unverified.md` under this slice that names the page with the Copy button
+(its full address), where to paste (https://claude.ai/settings, Your Claude, Instructions) and why (so claude.ai
+chats report to the board).
 
 **Why:** Slice 18 moved the reporting rules into `SERVER_INSTRUCTIONS` (`src/mcp/instructions.ts`) and changed
 `docs/clients.md` (*Claude chat*) to "paste the text the server returns in the `initialize` result". The guide no

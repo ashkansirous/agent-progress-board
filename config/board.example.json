@@ -150,7 +150,14 @@
       "nowBg": "#1D4ED8",
       "nowFg": "#FFFFFF",
       "doneFg": "#0B6B4B",
-      "panelShadow": "rgba(20,23,28,0.12)"
+      "panelShadow": "rgba(20,23,28,0.12)",
+      "sliceBd": "#BFD0F5",
+      "bugBg": "#FCE4E4",
+      "bugBd": "#F3BDBA",
+      "bugFg": "#B42318",
+      "probBg": "#EFE7FB",
+      "probBd": "#D6C4F2",
+      "probFg": "#6B2FBF"
     },
     "dark": {
       "page": "#0E1014",
@@ -210,7 +217,14 @@
       "nowBg": "#9DBDFF",
       "nowFg": "#0E1014",
       "doneFg": "#7FD8B4",
-      "panelShadow": "rgba(0,0,0,0.5)"
+      "panelShadow": "rgba(0,0,0,0.5)",
+      "sliceBd": "#2E4473",
+      "bugBg": "#3F1A1A",
+      "bugBd": "#5E2A28",
+      "bugFg": "#FF9B94",
+      "probBg": "#2C1F45",
+      "probBd": "#46336B",
+      "probFg": "#C9A7FF"
     }
   }
 }

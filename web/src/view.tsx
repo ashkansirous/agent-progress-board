@@ -14,6 +14,8 @@ export interface View {
   nowMs: number;
   hours: number;
   projects: ProjectConfig[];
+  /** The slice items by key: a working card or a bug names its slice in `parent_key` and the drawer lists that slice's parts and checks. */
+  slices: Map<string, BoardItemDto>;
 }
 
 const ViewContext = createContext<View | null>(null);

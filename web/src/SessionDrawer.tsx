@@ -2,6 +2,7 @@ import type { BoardItemDto } from "../../src/api/boardDto";
 import { ItemStatus } from "../../src/domain/item";
 import { SESSION_STALE_AFTER_MINUTES } from "../../src/domain/stale";
 import { StepState } from "../../src/domain/stepTypes";
+import { SliceOfCard } from "./ChecksView";
 import { doneSoFar, historyWords, isQuestion, isStaleSession, isWorkingCard, sessionLabel, waitingText } from "./cards";
 import { useDialogFocus } from "./Detail";
 import { CloseIcon } from "./icons";
@@ -164,6 +165,7 @@ export function SessionDrawer({ item, onClose }: DrawerProps) {
         )}
         <DoneSoFar item={item} />
         <DrawerSteps item={item} />
+        <SliceOfCard item={item} />
         <DrawerLinks item={item} />
         <DrawerHistory item={item} />
       </aside>

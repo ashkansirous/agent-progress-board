@@ -4,9 +4,11 @@ import {
   MAX_EXPANDED_ITEMS,
   planItem,
   type SnapshotItem,
+  type SyncRow,
   validateSnapshot,
 } from "../domain/docSync";
 import { type Item, ItemStatus, ItemType, type ItemWithEvents } from "../domain/item";
+import { itemProblem, nestedChecks, type ParentRef } from "../domain/checks";
 import { expandParts } from "../domain/parts";
 import { expiryMinutesFor, SESSION_AGENT, staleCutoff } from "../domain/stale";
 import { checkReport, DomainError, newItem, type ReportInput, withQuestion } from "../domain/upsert";
@@ -39,24 +41,26 @@ export async function reportProgress(
   const existing = await repo.find(input.key);
   const now = clock.now().toISOString();
   const checked = withQuestion(checkReport(input), existing, now);
-  await assertParentSameProject(repo, checked, existing);
+  await assertItemFits(repo, checked, existing);
   return repo.save({ insert: existing ?? newItem(checked, now), input: checked, now });
 }
 
 /**
- * A parent_key names an item of the same project. A parent that does not exist yet is allowed (a
- * live report may arrive before the document snapshot lists the slice).
+ * The report's final state (the stored row with the report laid over it) must pass `itemProblem`, so a
+ * retype or re-parent of an existing item is checked like a new one. A parent that does not exist yet is
+ * allowed (a live report may arrive before the document snapshot lists the slice).
  */
-async function assertParentSameProject(repo: ItemRepository, input: ReportInput, existing: Item | null): Promise<void> {
-  if (!input.parent_key) return;
-  const project = input.project ?? existing?.project;
-  const parent = await repo.find(input.parent_key);
-  if (parent && project !== undefined && parent.project !== project) {
-    throw new DomainError(
-      "parent_key",
-      `field parent_key: ${input.parent_key} belongs to project ${parent.project}, not ${project}`,
-    );
-  }
+async function assertItemFits(repo: ItemRepository, input: ReportInput, existing: Item | null): Promise<void> {
+  const parentKey = input.parent_key === undefined ? existing?.parent_key : input.parent_key;
+  const parent = parentKey ? await repo.find(parentKey) : null;
+  const state = { key: input.key, type: input.type ?? existing?.type, parent_key: parentKey };
+  const reason = itemProblem(state, parent, input.project ?? existing?.project);
+  if (reason) throw problemError(reason);
+}
+
+/** A rule's reason as the error a tool returns: the reason names its field before the colon. */
+function problemError(reason: string): DomainError {
+  return new DomainError(reason.slice(0, reason.indexOf(":")), `field ${reason}`);
 }
 
 export async function markDone(
@@ -105,6 +109,13 @@ export interface SyncSummary {
   updated: number;
   closed: number;
   unchanged: number;
+  /** Items the sync did not save, each with the reason; everything else was saved. */
+  skipped: SkippedItem[];
+}
+
+export interface SkippedItem {
+  key: string;
+  reason: string;
 }
 
 /** One project's full doc-sync set: merge each item, close the ones that left, one batch. */
@@ -114,18 +125,27 @@ export async function syncSnapshot(
   clock: Clock,
 ): Promise<SyncSummary> {
   validateSnapshot(input.project, input.items);
-  const items = expandParts(input.items);
-  validateSnapshot(input.project, items, MAX_EXPANDED_ITEMS);
+  const groups = input.items.map((item) => ({ item, members: expandParts([item, ...nestedChecks(item)]) }));
+  const candidates = groups.flatMap((group) => group.members);
+  if (candidates.length > MAX_EXPANDED_ITEMS) {
+    throw new DomainError("items", `field items: at most ${MAX_EXPANDED_ITEMS} items per snapshot after parts and checks, got ${candidates.length}`);
+  }
   const now = clock.now().toISOString();
-  const stored = await repo.loadForSync(input.project, items.map((item) => item.key));
+  const stored = await repo.loadForSync(input.project, loadKeys(candidates));
   const byKey = new Map(stored.map((item) => [item.key, item]));
-  const merges = items.map((snap) => {
-    assertSameProject(byKey.get(snap.key), input.project);
-    return { existed: byKey.has(snap.key), write: planItem(byKey.get(snap.key), snap, input.project, now) };
-  });
-  const listed = new Set(items.map((item) => item.key));
-  const partless = new Set(input.items.filter((item) => item.parts === undefined).map((item) => item.key));
-  const closes = closeTargets(stored, input.project, listed, partless);
+  for (const candidate of candidates) assertSameProject(byKey.get(candidate.key), input.project);
+  const { items, skipped, held } = screenSnapshot(input.project, groups, byKey);
+  const merges = items.map((snap) => ({
+    existed: byKey.has(snap.key),
+    write: planItem(byKey.get(snap.key), snap, input.project, now),
+  }));
+  const skippedKeys = new Set(skipped.map((entry) => entry.key));
+  const listed = new Set([...items.map((item) => item.key), ...skippedKeys, ...held]);
+  const keepsParts = (item: SnapshotItem) => item.parts === undefined || skippedKeys.has(item.key);
+  const keepsChecks = (item: SnapshotItem) => item.checks === undefined || skippedKeys.has(item.key);
+  const partless = new Set(input.items.filter(keepsParts).map((item) => item.key));
+  const checkless = new Set(input.items.filter(keepsChecks).map((item) => item.key));
+  const closes = closeTargets(stored, input.project, listed, partless, checkless);
   const changed = merges.flatMap((m) => (m.write ? [m.write] : []));
   if (changed.length > 0 || closes.length > 0) await repo.applySync(changed, closes, now);
   const created = merges.filter((m) => !m.existed).length;
@@ -135,7 +155,92 @@ export async function syncSnapshot(
     updated: changed.length - created,
     closed: closes.length,
     unchanged: merges.length - changed.length,
+    skipped,
   };
+}
+
+/** The keys one sync loads: every item's own, plus each parent's (read once, in the same query, for the parent checks). */
+function loadKeys(items: SnapshotItem[]): string[] {
+  const keys = new Set(items.map((item) => item.key));
+  for (const item of items) if (item.parent_key) keys.add(item.parent_key);
+  return [...keys];
+}
+
+/** A snapshot item with the items its parts and checks became (the item first). */
+interface SnapshotGroup {
+  item: SnapshotItem;
+  members: SnapshotItem[];
+}
+
+/**
+ * Runs `itemProblem` on every item and nested check of a snapshot. An item with a problem is skipped,
+ * never thrown (its parts and checks go with it); the rest is kept. A skipped key, and every part and check of a skipped item, is also not closed.
+ */
+function screenSnapshot(
+  project: string,
+  groups: SnapshotGroup[],
+  stored: Map<string, SyncRow>,
+): { items: SnapshotItem[]; skipped: SkippedItem[]; held: Set<string> } {
+  const topLevel = new Map(groups.map((group) => [group.item.key, group.item]));
+  const seen = new Set(topLevel.keys());
+  const items: SnapshotItem[] = [];
+  const skipped: SkippedItem[] = [];
+  const held = new Set<string>();
+  for (const { item, members } of groups) {
+    const reason = topLevelProblem(project, item, topLevel, stored);
+    if (reason) {
+      skipped.push({ key: item.key, reason });
+      for (const member of members) held.add(member.key);
+      continue;
+    }
+    const [self, ...children] = members;
+    items.push(omitChecks(self!));
+    for (const child of children) {
+      const childReason = childProblem(project, child, item, seen);
+      if (childReason) skipped.push({ key: child.key, reason: childReason });
+      else {
+        seen.add(child.key);
+        items.push(child);
+      }
+    }
+  }
+  return { items, skipped, held };
+}
+
+function omitChecks(item: SnapshotItem): SnapshotItem {
+  const rest = { ...item };
+  delete rest.checks;
+  return rest;
+}
+
+function parentRef(row: { project: string; type: ItemType } | undefined): ParentRef | null {
+  return row ? { project: row.project, type: row.type } : null;
+}
+
+/** A top-level item in its final state: the snapshot's type and parent_key, the stored parent_key when it sends none. */
+function topLevelProblem(
+  project: string,
+  item: SnapshotItem,
+  topLevel: Map<string, SnapshotItem>,
+  stored: Map<string, SyncRow>,
+): string | null {
+  const row = stored.get(item.key);
+  const parentKey = item.parent_key ?? row?.parent_key;
+  const parent = parentKey ? parentRef(topLevel.get(parentKey) ?? stored.get(parentKey)) : null;
+  const state = { key: item.key, type: item.type, parent_key: parentKey, checks: item.checks?.length };
+  return itemProblem(state, parent, project);
+}
+
+/** A part or check made from a slice: its parent is that slice, and its key may not repeat one already kept. */
+function childProblem(
+  project: string,
+  child: SnapshotItem,
+  slice: SnapshotItem,
+  seen: Set<string>,
+): string | null {
+  if (seen.has(child.key)) return `key: ${child.key} appears twice in the snapshot`;
+  const state = { key: child.key, type: child.type, parent_key: child.parent_key };
+  return itemProblem(state, parentRef(slice), project);
 }
 
 /** The board window with each item's expiry times, for the page's working-now rule. */

@@ -1,9 +1,8 @@
 import type { BoardItemDto } from "../../src/api/boardDto";
-import { SESSION_STALE_AFTER_MINUTES } from "../../src/domain/stale";
 import { StepState } from "../../src/domain/stepTypes";
 import { hasNoGoal, sessionLabel, waitingText } from "./cards";
 import { projectLabel } from "./model";
-import { ageText, clockTime } from "./time";
+import { ageText } from "./time";
 import { useView } from "./view";
 
 interface CardProps {
@@ -108,18 +107,5 @@ export function SessionList({ items, onOpen }: { items: BoardItemDto[]; onOpen: 
         ))}
       </div>
     </div>
-  );
-}
-
-/** A stopped session with no question: a dashed, muted row in Done, "session 7b3d · Update the store screenshots". */
-export function StaleRow({ item, onOpen }: CardProps) {
-  const { t } = useView();
-  const name = [item.parent, item.title].filter(Boolean).join(" · ");
-  const when = t("staleRowWhen", { n: SESSION_STALE_AFTER_MINUTES, time: clockTime(item.heartbeat_at) });
-  return (
-    <button type="button" className="stale-row" onClick={() => onOpen(item.key)}>
-      <span className="stale-row-name">{name}</span>
-      <span className="stale-row-when">{when}</span>
-    </button>
   );
 }

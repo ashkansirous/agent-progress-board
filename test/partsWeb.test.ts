@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { BoardPartDto } from "../src/api/boardDto";
 import { PartState } from "../src/domain/parts";
-import { groupByProject } from "../web/src/model";
-import { parentText, partNowText, partsLabel, partStateText } from "../web/src/partsText";
+import { groupBoard } from "../src/domain/boardGroups";
+import { parentText, partNowText, partsLabel } from "../web/src/partsText";
 import { activeItemHash, activeKeyOf, Route, routeOf } from "../web/src/route";
 import { LOCALES, translator } from "../web/src/strings";
 import { ItemStatus, ItemType, Priority } from "../src/domain/item";
@@ -37,26 +37,9 @@ describe("partNowText", () => {
   });
 });
 
-describe("partsLabel and partStateText", () => {
-  const parts = [
-    part("A", PartState.Done),
-    part("B", PartState.Active, { step: "Review 1", steps_done: 1, steps_total: 5 }),
-    part("C", PartState.Stale, { step: "Fixing" }),
-    part("D", PartState.Pending),
-    part("E", PartState.Pending),
-  ];
-
+describe("partsLabel", () => {
   it("reads the counts", () => {
     expect(partsLabel({ done: 1, total: 5, percent: 20 }, t)).toBe("1 of 5 parts · 20%");
-  });
-
-  it("words each state: Done, Active with its step count, Stale, Next and Later", () => {
-    const words = parts.map((p) => partStateText(p, parts, false, t));
-    expect(words).toEqual(["Done", "Active · Review 1 · 1 of 5 steps", "Stale · Fixing", "Next", "Later"]);
-  });
-
-  it("leaves out Active on the phone", () => {
-    expect(partStateText(parts[1]!, parts, true, t)).toBe("Review 1 · 1 of 5 steps");
   });
 
   it("has every key in every locale", () => {
@@ -105,7 +88,7 @@ describe("parentText", () => {
 describe("parts on the board page", () => {
   function item(over: Partial<BoardItemDto>): BoardItemDto {
     return {
-      key: "p/x", project: "p", parent: null, parent_slice: null, parent_key: null, type: ItemType.Slice, priority: Priority.P2, status: ItemStatus.Open,
+      key: "p/x", project: "p", parent: null, parent_slice: null, parent_key: null, slice: null, checks: null, type: ItemType.Slice, priority: Priority.P2, status: ItemStatus.Open,
       title: "T", why: null, details_md: null, links: [], heartbeat_at: "2026-11-15T10:00:00.000Z",
       created_at: "2026-11-15T09:00:00.000Z", done_at: null, environment: null, environment_label: null,
       agent: null, model: null, needs_you: null, after_answer: null, needs_you_at: null, steps: null, progress: null, working: false, parts: null, parts_progress: null,
@@ -115,7 +98,8 @@ describe("parts on the board page", () => {
 
   it("gives a part no tile of its own", () => {
     const items = [item({ key: "p/slice-1" }), item({ key: "p/slice-1/part-A", type: ItemType.Part, parent_key: "p/slice-1" })];
-    const group = groupByProject(items, [{ id: "p", label: "P" }])[0]!;
-    expect(group.inFlight.map((i) => i.key)).toEqual(["p/slice-1"]);
+    const group = groupBoard(items, [], ["p"])[0]!;
+    expect(group.planned.map((slice) => slice.key)).toEqual(["p/slice-1"]);
+    expect([...group.working_now, ...group.other, ...group.needs_you]).toEqual([]);
   });
 });

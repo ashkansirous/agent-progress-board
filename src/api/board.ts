@@ -2,6 +2,9 @@ import defaultConfigFile from "../../config/board.example.json";
 import { type Clock, listBoardRows } from "../application/board";
 import type { BoardRow, ItemRepository } from "../application/ports";
 import { type BoardConfig, configFromRecord } from "../config";
+import { groupBoard } from "../domain/boardGroups";
+import { type CheckRow, type CheckView, checksBySlice } from "../domain/checks";
+import { splitSliceTitle } from "../domain/docSync";
 import { type Item, type ItemStatus, ItemType } from "../domain/item";
 import { hasOpenQuestion } from "../domain/stale";
 import { activePartOf, partLetterOf, partsProgress, partStateOf, shownStatusOf } from "../domain/parts";
@@ -50,10 +53,9 @@ interface PartsContext {
   config: BoardConfig;
   now: Date;
   partsOf: Map<string, BoardPartDto[]>;
+  checksOf: Map<string, CheckView[]>;
   sliceByKey: Map<string, BoardRow>;
 }
-
-const SLICE_NUMBER = /slice-(\d+)$/;
 
 function partDto(row: BoardRow, config: BoardConfig, now: Date): BoardPartDto {
   const { expiry, ...item } = row;
@@ -89,12 +91,14 @@ function partsByParent(rows: BoardRow[], config: BoardConfig, now: Date): Map<st
   return byParent;
 }
 
-/** The slice a part belongs to, as data (key, number from the key, title); the page words it. */
+/** The types that name a slice in `parent_key`: a part belongs to it, a bug or problem is planned into it (Slice 14). */
+const SLICE_CHILD_TYPES: readonly ItemType[] = [ItemType.Part, ItemType.Bug, ItemType.Problem];
+
+/** The slice a part, bug or problem names, as data (key, number, title); the page words it. Null when it names no slice on the board. */
 function parentSliceOf(row: BoardRow, ctx: PartsContext): ParentSliceDto | null {
-  const slice = row.type === ItemType.Part && row.parent_key ? ctx.sliceByKey.get(row.parent_key) : undefined;
+  const slice = SLICE_CHILD_TYPES.includes(row.type) && row.parent_key ? ctx.sliceByKey.get(row.parent_key) : undefined;
   if (!slice) return null;
-  const number = SLICE_NUMBER.exec(slice.key)?.[1];
-  return { key: slice.key, number: number === undefined ? null : Number(number), title: slice.title };
+  return { key: slice.key, number: splitSliceTitle(slice.key, slice.title).number, title: slice.title };
 }
 
 function partsFields(row: BoardRow, ctx: PartsContext) {
@@ -129,6 +133,8 @@ function itemDto(row: BoardRow, ctx: PartsContext): BoardItemDto {
     parent: item.parent,
     parent_slice: parentSliceOf(row, ctx),
     parent_key: item.parent_key ?? null,
+    slice: item.type === ItemType.Slice ? splitSliceTitle(item.key, item.title) : null,
+    checks: item.type === ItemType.Slice ? (ctx.checksOf.get(item.key) ?? []) : null,
     type: item.type,
     priority: item.priority,
     status: shownStatus,
@@ -152,27 +158,37 @@ function itemDto(row: BoardRow, ctx: PartsContext): BoardItemDto {
   };
 }
 
-/** Open items plus those done inside the window, with the config the page draws them with. */
+function checkRowOf(row: BoardRow): CheckRow {
+  return { key: row.key, title: row.title, project: row.project, status: row.status, parent_key: row.parent_key };
+}
+
+/** Open items plus those done inside the window, with the config the page draws them with and the groups it lists them in. */
 export async function boardResponse(
   repo: ItemRepository,
   config: BoardConfig,
   clock: Clock,
 ): Promise<Response> {
-  const rows = await listBoardRows(repo, {}, config.window, clock);
+  const all = await listBoardRows(repo, {}, config.window, clock);
+  const rows = all.filter((row) => row.type !== ItemType.Check);
+  const checkAll = all.filter((row) => row.type === ItemType.Check);
+  const checkRows: CheckRow[] = checkAll.map(checkRowOf);
   const now = clock.now();
   const ctx: PartsContext = {
     config,
     now,
     partsOf: partsByParent(rows, config, now),
+    checksOf: checksBySlice(checkRows),
     sliceByKey: new Map(rows.filter((row) => row.type === ItemType.Slice).map((row) => [row.key, row])),
   };
-  const items = rows.map((row) => itemDto(row, ctx));
+  const questionChecks = checkAll.map((row) => itemDto(row, ctx)).filter((item) => item.needs_you !== null);
+  const items = [...rows.map((row) => itemDto(row, ctx)), ...questionChecks];
   const body: BoardResponse = {
     server_time: now.toISOString(),
     window_hours: resolveWindowHours(undefined, config.window),
     config: pageConfigOf(config),
     working_count: items.filter((item) => item.working).length,
     items,
+    groups: groupBoard(items, checkRows, config.projects.map((project) => project.id)),
   };
   return Response.json(body, { headers: { "Cache-Control": "no-store" } });
 }

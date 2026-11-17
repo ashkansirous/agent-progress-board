@@ -1,16 +1,21 @@
 ### Slice 14 — Untested checks live inside their slice, and problems get their own list
 
-*In progress (wave 2026-11-17), draft PR.* Part A (server), then part B (the page). The plan PR
-with the design (#73) is merged and the plan row says "part A, then part B", so both parts are
-built in this wave.
+*Built 2026-11-17 (wave 2026-11-17), draft PR #78, not merged; not yet verified on the deployed
+board.* Parts A (server) and B (the page) are both built. The plan PR with the design (#73) is
+merged. Migration 0007 rebuilds `items` and `events` for type `check`. 437 unit and 213 e2e tests
+pass. Browser run (headless, `vite --mode e2e`, the real grouping over the seeds): 8 of 8 PASS
+after one fix (item 4, the slice drawer kept the old parts view, failed on the first run);
+evidence `reviews/wave9-s14-browser/results.md`.
 
 **Touches:** `src/domain/item.ts`, `src/domain/docSync.ts`, `src/domain/parts.ts`, `src/domain/checks.ts` (new),
 `src/domain/boardGroups.ts` (new: the grouping function), `src/domain/upsert.ts`, `src/domain/steps.ts`,
 `src/application/board.ts`, `src/infrastructure/d1Repository.ts`, `src/mcp/schemas.ts`, `src/mcp/tools.ts`,
 `src/api/board.ts`, `src/api/boardDto.ts`, `src/config.ts`, `config/board.example.json`, `test/**`, `docs/clients.md`, `web/**`,
-`e2e/**`, `scripts/seed-data.ts`, `docs/plan/slices/14-checks-in-slice.md`
+`e2e/**`, `scripts/seed-data.ts`, `migrations/0007_checks.sql` (new), `docs/plan/slices/14-checks-in-slice.md`
 
-**Migrations:** none (a new item type is a value, not a column).
+**Migrations:** 0007 (widened at build time, wave 2026-11-17: `items.type` has a CHECK constraint
+listing the allowed types in `migrations/0001_items.sql` and `0005_parts.sql`, so `check` needs a
+table rebuild like 0005, keeping the 0006 columns and rebuilding `events` the same way).
 
 #### Why
 
@@ -59,6 +64,33 @@ client reports bugs or problems, though the types exist.
   holds the split.
 - **Existing check cards on the live board** close by themselves on the first doc sync after this
   ships (they leave the snapshot as slices). The config repo's slice clears what is left.
+
+#### Decided at build time (wave 2026-11-17, owner via the coordinator)
+
+- Open items that are none of Needs you, Working now, Planned or Problems (an unplanned item nobody
+  holds) go to an `other` list, drawn as plain tiles under "Other open items", so nothing is hidden.
+- A stale item that is not a session card and not a slice stays where it was found: a stale slice shows
+  under Planned with the "Planned" pill, any other stale item in `other`.
+- A slice that an agent holds with a steps list is in `working_now` and in `planned`.
+- A check always names its slice in `parent_key`. In a snapshot a loose check is a top-level `check`
+  item with the `parent_key` of its (closed or absent) slice; a slice sending no `checks` leaves its
+  stored ones alone, `checks: []` closes them.
+- Key and parent validation is one pure function, `itemProblem(item, parent, project)` in
+  `src/domain/checks.ts`, run on an item's final state (stored row merged with the report or snapshot
+  entry): a parent in another project, a check with no slice parent, a check key not starting with
+  its slice's key + "/", a check whose parent is no slice, checks on a non-slice, over 100 checks.
+  `sync_snapshot` skips an item or nested check with a problem (and its parts and checks), saves the
+  rest, still closes what left (a skipped key is not closed) and returns `skipped: [{key, reason}]`;
+  `report_progress` refuses with the reason. `planItem` takes the snapshot's type, so a key stored as a
+  slice or bug that is now sent as a check becomes a check. A key stored under another project still
+  refuses the whole sync (unchanged). (review `reviews/pr-78-check-medium.md` #1, #2, #3, #4, #9)
+- The "N checks with no open slice" card opens a drawer under the address key `loose-checks:<project>`.
+- The Slice 11 "Follow part" link stays under a slice card (outside the card button).
+- A working card's drawer lists the parts and checks of the slice its `parent_key` names.
+- Migration 0007 rebuilds `items` and `events` like 0005 (the `type` CHECK allows `check`).
+- Client-visible runtime change: `sync_snapshot` skips bad items and returns `skipped: [{key, reason}]`;
+  a check's key must start with its slice's key + "/"; a slice sending `checks: []` closes its
+  checks, a slice with no `checks` field keeps them.
 
 #### Design (BoardV2 mock, sections BoardV2, BoardV2Dark, PhoneV2, PhoneV2Light, PhoneV2Drawer, added 2026-11-17)
 
@@ -157,21 +189,21 @@ seed data is the mock's; part B work items are rewritten.
 
 **A. Server**
 
-- [ ] `ItemType.Check`; schema and upsert accept it only with a `parent_key`; `docs/clients.md`
+- [x] `ItemType.Check`; schema and upsert accept it only with a `parent_key`; `docs/clients.md`
   shows a snapshot with parts and checks on a made-up project.
-- [ ] Doc sync accepts `checks` per slice and closes missing ones; tests for add, keep, close and a
+- [x] Doc sync accepts `checks` per slice and closes missing ones; tests for add, keep, close and a
   check with no slice.
-- [ ] `parent_key` is accepted on `bug` and `problem` and names the slice planned for it; tests for
+- [x] `parent_key` is accepted on `bug` and `problem` and names the slice planned for it; tests for
   a bug with a slice, a problem without, and a key that names no slice.
-- [ ] The grouping function and its tests: a quiet project (no work now, two planned slices, one
+- [x] The grouping function and its tests: a quiet project (no work now, two planned slices, one
   needs you) gives the numbers for "1 needs you · nothing running · 2 planned"; a blocked slice is
   in `planned` and flagged parked; `done` holds the 12-hour count and the newest five, a stale
   session card among them with `stale: true`; the summary numbers are needs you, working, planned,
   problems, checks not tried.
-- [ ] `/api/board` returns the groups and the counts (checks per slice, checks per project, checks
+- [x] `/api/board` returns the groups and the counts (checks per slice, checks per project, checks
   with no open slice), the slice number and title as two values, and for each problem the slice it
   names.
-- [ ] Seed data: the mock's made-up projects (`PROJECTS`, `BoardV2.dc.html` lines 248 to 282):
+- [x] Seed data: the mock's made-up projects (`PROJECTS`, `BoardV2.dc.html` lines 248 to 282):
   `example-app` with Slices 12 (in progress, parts A to E with A and B done and C active, 3 checks),
   13 (planned, four parts, 5 checks) and 11 (parked, three parts, 0 checks), 22 checks with no open
   slice, one bug naming Slice 12, one problem naming none, 12 done in the last 12 hours; `notes-site`
@@ -179,14 +211,14 @@ seed data is the mock's; part B work items are rewritten.
 
 **B. Page (design in `docs/design/`, see *Design* above)**
 
-- [ ] Slice cards as B1: tint, status pill, parts bar with letters, the "Now:" line, "N of M parts",
+- [x] Slice cards as B1: tint, status pill, parts bar with letters, the "Now:" line, "N of M parts",
   the check count line, "Parked" at 70% opacity.
-- [ ] The dashed "N checks with no open slice" card under Planned as B2.
-- [ ] The "Problems and bugs" list as B3, with the slice chip.
-- [ ] The drawer lists the parts and the checks as B4, for a slice and for a working card.
-- [ ] The project summary line as B5 and the Done button and list as B6.
-- [ ] Both themes, English and German strings.
-- [ ] E2E: a project with 30 checks shows them as counts, not cards; the loose-checks card and the
+- [x] The dashed "N checks with no open slice" card under Planned as B2.
+- [x] The "Problems and bugs" list as B3, with the slice chip.
+- [x] The drawer lists the parts and the checks as B4, for a slice and for a working card.
+- [x] The project summary line as B5 and the Done button and list as B6.
+- [x] Both themes, English and German strings.
+- [x] E2E: a project with 30 checks shows them as counts, not cards; the loose-checks card and the
   slice card count agree with the summary line.
 
 #### Verification
@@ -196,3 +228,63 @@ seed data is the mock's; part B work items are rewritten.
   total equals the count line in `plan.md`.
 - The owner compares the deployed page with `BoardV2.dc.html` (Planned, Problems and bugs, Done) and
   the drawer in `BoardV2Dark.dc.html`.
+
+#### From review
+
+- review read: `reviews/pr-78-high.md` findings 8/8, all applied (#5, the `parent_key` validation, was applied narrowed, then replaced by the single `itemProblem` design below).
+- Medium pass: 10 findings, 7 applied. Check pass: 9 findings, #1 to #4 and #9 fixed by the one validation design `itemProblem` in `src/domain/checks.ts` (two strikes on key and parent validation led to it, see *Decided at build time*). The rest are the lines below.
+- `reviews/pr-78-check-2-medium.md` findings 7/7: #3 fixed, the rest are Follow-ups. `reviews/pr-78-check-3-medium.md` 7/7 and `reviews/pr-78-check-4-medium.md` 7/7: all Follow-ups, no code reopened.
+- Skipped #3 (`reviews/pr-78-medium.md`): "Open checks of a done/out-of-window slice listed as loose" - decided at the desk: a check whose slice is not open goes under "Checks with no open slice"; that is the design.
+- Skipped #4 (`reviews/pr-78-medium.md`): "Question/waiting ordering duplicated in web/src/model.ts (sentinel defined twice)" - low, no failure path.
+- Skipped #9 (`reviews/pr-78-medium.md`): "Builds full itemDto for every check just to filter needs_you; extra CPU on each 5s poll" - low, no failure path.
+- Skipped #5 (`reviews/pr-78-check-medium.md`): "A check whose open slice is missing from the listing (project filter) counts as loose ("no open slice"); header count wrong." - low; follow-up: a filtered listing should count such checks under their slice.
+- Skipped #6 (`reviews/pr-78-check-medium.md`): "A check with an open question appears in needs_you but parentSliceOf handles only Part/Bug/Problem, so parent_slice is null." - low, no failure path that changes a count the owner reads wrongly beyond a label.
+- Skipped #7 (`reviews/pr-78-check-medium.md`): "BOARD_WHERE lists parts/checks of an open slice but a done bug outside the window loses its slice number in the chip." - low, no failure path that changes a count the owner reads wrongly beyond a label.
+- Skipped #8 (`reviews/pr-78-check-medium.md`): "Table rebuild drops events; if the production D1 runner does not apply the file atomically, a mid-failure loses event history. Confirm on real D1." - low, unconfirmed; same rebuild pattern as the shipped 0005.
+- Fixed #3 (`reviews/pr-78-check-2-medium.md`): "A nested check/part skipped by screenSnapshot (bad key prefix, duplicate) is not added to `listed`, so closeTargets closes the existing stored row with that key." - every skipped key and every member of a skipped item is now listed.
+
+#### Follow-ups
+
+Second check pass, no code reopened (`reviews/pr-78-check-2-medium.md`):
+
+- #1: "planItem overwrites stored type with the snapshot's type on every sync ... but the sync_snapshot schema (src/mcp/schemas.ts) still says type is used only when the key is new." - the type overwrite is intended per the earlier fix; correct the schema's description.
+- #2: "Rows ordered by created_at DESC, key; checks of one sync share created_at so they sort by lexical key (check-10 before check-2), and a check added later jumps to the top. Doc order is not stored."
+- #4: "topLevelProblem validates a check's parent via topLevel.get(parentKey) from the snapshot first, even if that sibling is later skipped or has another type; the check can be saved under a parent that is not saved as a slice."
+- #5: "syncSnapshot no longer runs validateSnapshot on the expanded set; duplicate part letters or colliding keys are skipped quietly instead of rejecting the snapshot."
+- #6: "Checks of finished slices all go into one project-wide loose list with no slice number or title, so the owner cannot tell which slice each unverified check belongs to." - this is the "Checks with no open slice" design.
+- #7: "Page still regroups phone questions and the waiting strip itself (questionItems/waitingItems in model.ts), duplicating the needs_you rule in boardGroups.ts ... question-holding checks get no parent_slice."
+
+Third check pass, converged, no code reopened (`reviews/pr-78-check-3-medium.md`):
+
+- #1: "src/infrastructure/d1Repository.ts:56, low, other. BOARD_WHERE rider `type IN ('part','check')` loads done checks of listed slices; checksBySlice drops done checks, so up to 100 unused rows per slice on every poll."
+- #2: "src/api/board.ts:189, medium, correctness. Check items holding an open question are appended to `items` after maps are built; they count toward working_count, the items-by-key map, phone questionItems and Active page, which were not told checks can be there. The `items` doc comment ("Check items are not in items") is false."
+- #3: "web/src/route.ts:38, low, correctness. Loose-checks drawer uses the item address under prefix `loose-checks:`; item keys are free strings and the prefix is not reserved, so a key `loose-checks:x` can never be opened."
+- #4: "src/domain/boardGroups.ts:163, medium, correctness. Checks whose slice is done/closed or never synced are counted as "loose checks" for the project, inflating checks_not_tried; the two cases are indistinguishable."
+- #5: "src/domain/docSync.ts:200, medium, correctness. planItem now overwrites stored `type` on every doc sync; a live `bug`/`problem` (or part/check) sharing a key with a doc slice is silently retyped, bypassing reportProgress type-conflict handling."
+- #6: "src/domain/checks.ts:75, low, correctness. checksBySlice counts every non-done check including stale and blocked, so dead live-reported checks keep showing as "not tried"."
+- #7: "src/domain/docSync.ts:254, medium, correctness. isKeptChild keeps any child of a slice that sent no `parts`, so a doc-synced bug/problem with parent_key = slice that the document dropped is never closed."
+
+Fourth check pass, converged, all page findings, no code reopened (`reviews/pr-78-check-4-medium.md`):
+
+- #1: "web/src/ChecksView.tsx:62, medium, stale part loses stalled step and looks like working part (same active class, only word "Stale")."
+- #2: "web/src/ChecksView.tsx:49, low, part list dropped aria-current=step; done/pending state only visual, no Next/Later words."
+- #3: "web/src/strings.ts:261, low, dead strings (partActive, partActivePhone, partStale, partLater, partsHeading, partNextWord) and firstPendingKey used only by test."
+- #4: "e2e/planning.spec.ts:49, low, tautology expect(3 + 5 + LOOSE_COUNT).toBe(30) cannot fail; card counts not tied to constants."
+- #5: "web/src/ChecksView.tsx:45, low, part label "letter · title" built in code not t(); ul aria-label repeats h3 text."
+- #6: "web/src/PartsView.tsx:59, low, PartsSection thin wrapper; own/not-own heading choice duplicated across PartChecklist and SliceChecks."
+- #7: "web/src/planning.css:358, low, .check-state defaults to done green; stale shows blue, any new state word shows green."
+
+#### For CLAUDE.md
+
+- The board's grouping rule is one function, `groupBoard` in `src/domain/boardGroups.ts`; the page never regroups (Slice 14: docs/plan/slices/14-checks-in-slice.md).
+- Item validation (key prefix, parent in the same project, check needs a slice parent, at most 100 checks) is one function, `itemProblem` in `src/domain/checks.ts`, used by `sync_snapshot` (skips the item, returns `skipped`) and `report_progress` (refuses); never add a second copy (Slice 14: docs/plan/slices/14-checks-in-slice.md).
+
+#### For README.md
+
+- Checks ("not tried on a device" lines) live inside their slice, never as cards; problems and bugs have their own list.
+
+#### Not yet verified
+
+- On the deployed board after a real doc sync: no card per check, and the header total equals the count line in `plan.md` (needs the config repo's client to send `checks`).
+- Migration 0007 applied on the live D1 (it goes live only with a release; merges carry the skip-CI marker).
+- The owner compares the deployed page with `BoardV2.dc.html` and `BoardV2Dark.dc.html`.

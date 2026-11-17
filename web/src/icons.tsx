@@ -92,6 +92,16 @@ export function ClockIcon(props: IconProps) {
   );
 }
 
+/** An outline phone: a 12 by 20 rectangle with a small line at the bottom (the mock's checks icon). */
+export function PhoneIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="6" y="2" width="12" height="20" rx="2" />
+      <path d="M11 18h2" />
+    </Icon>
+  );
+}
+
 export function ArrowIcon(props: IconProps) {
   return (
     <Icon {...props}>

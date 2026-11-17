@@ -99,6 +99,14 @@ export const PALETTE_KEYS = [
   "nowFg",
   "doneFg",
   "panelShadow",
+  // Planned slice cards and the problems list (Slice 14): the mock's theme keys of those names.
+  "sliceBd",
+  "bugBg",
+  "bugBd",
+  "bugFg",
+  "probBg",
+  "probBd",
+  "probFg",
 ] as const;
 
 export type Palette = Record<(typeof PALETTE_KEYS)[number], string>;

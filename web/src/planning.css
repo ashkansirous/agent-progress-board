@@ -1,0 +1,366 @@
+/* Planned slices, the loose-checks card, problems and bugs, the Done list and the checks in the drawer (Slice 14).
+   Every value is the BoardV2 mock's (BoardV2.dc.html lines 112 to 166 and 208 to 227); colours are palette vars. */
+
+.project-summary-needs {
+  color: var(--needFg);
+}
+
+.plan-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.phone .plan-grid {
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+/* A planned slice keeps the blue slice tint */
+
+.slice-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--sliceBd);
+  border-radius: 12px;
+  background: var(--sliceBg);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* The box holds the card button and, for a slice with an active part, the follow link (Slice 11) under it */
+.slice-box {
+  display: flex;
+  flex-direction: column;
+}
+
+.slice-box > .slice-card {
+  flex: 1;
+}
+
+.slice-box > .tile-follow {
+  margin-top: 0;
+}
+
+.slice-box-parked {
+  opacity: 0.7;
+}
+
+.slice-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.slice-number {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--sliceFg);
+}
+
+.slice-pill {
+  margin-left: auto;
+  padding: 1px 8px;
+  border: 1px solid var(--sliceBd);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--sub);
+  font-weight: 600;
+}
+
+.slice-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.slice-segs {
+  display: flex;
+  gap: 3px;
+}
+
+.slice-seg {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  height: 16px;
+  border: 1px solid;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.slice-seg-done {
+  background: var(--sliceFg);
+  border-color: var(--sliceFg);
+  color: var(--card);
+}
+
+.slice-seg-active {
+  background: var(--card);
+  border-color: var(--sliceFg);
+  color: var(--sliceFg);
+}
+
+.slice-seg-later {
+  background: transparent;
+  border-color: var(--sliceBd);
+  color: var(--muted);
+}
+
+.slice-now {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--sub);
+}
+
+.slice-now-line {
+  font-weight: 600;
+}
+
+.slice-now-count {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.slice-checks {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* "N checks with no open slice": dashed, no tint */
+
+.loose-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px dashed var(--hairline);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.loose-line {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.loose-note {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* Problems and bugs */
+
+.problem-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid;
+  border-radius: 12px;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.problem-bug {
+  background: var(--bugBg);
+  border-color: var(--bugBd);
+  --kind: var(--bugFg);
+}
+
+.problem-problem {
+  background: var(--probBg);
+  border-color: var(--probBd);
+  --kind: var(--probFg);
+}
+
+.problem-kind {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--kind);
+}
+
+.problem-what {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.problem-where {
+  font-size: 12px;
+  color: var(--sub);
+}
+
+.problem-chip {
+  align-self: flex-start;
+  padding: 2px 9px;
+  border: 1px var(--kind);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.problem-chip-planned {
+  border-style: solid;
+  background: var(--card);
+  color: var(--text);
+}
+
+.problem-chip-none {
+  border-style: dashed;
+  background: transparent;
+  color: var(--kind);
+}
+
+/* Done: a button, then the newest rows */
+
+.done-toggle {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 14px 0 10px;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--sub);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.done-chevron {
+  display: inline-flex;
+  transition: transform 0.15s;
+}
+
+.done-chevron-open {
+  transform: rotate(90deg);
+}
+
+.done-toggle-text {
+  font-weight: 600;
+  color: var(--doneFg);
+}
+
+.done-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.done-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.done-row-title {
+  font-weight: 500;
+}
+
+.done-row-when {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.done-row-stale {
+  border-style: dashed;
+  background: var(--chipBg);
+  color: var(--muted);
+}
+
+.done-row-all {
+  color: var(--link);
+}
+
+/* Parts and checks in the drawer: a box, a label and the state at the right */
+
+.check-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.check-row {
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+
+.check-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--muted);
+  border-radius: 4px;
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.check-row-done .check-box {
+  background: var(--doneFg);
+  border-color: var(--doneFg);
+}
+
+.check-row-done .check-label {
+  color: var(--muted);
+}
+
+.check-row-active .check-box {
+  border-color: var(--sliceFg);
+}
+
+.check-state {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--doneFg);
+}
+
+.check-row-active .check-state {
+  color: var(--sliceFg);
+}

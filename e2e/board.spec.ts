@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import type { BoardResponse } from "../src/api/boardDto";
+import { ItemStatus } from "../src/domain/item";
 import exampleConfig from "../config/board.example.json" with { type: "json" };
 import { demoBoard, demoItem, SERVER_TIME } from "./fixture";
 
@@ -32,14 +33,30 @@ function project(page: Page, name: string): Locator {
   return page.locator("section.project", { has: page.getByRole("heading", { level: 2, name, exact: true }) });
 }
 
-/** The project-group tile whose title is exactly `title` (a title can also appear as another tile's parent). */
+/**
+ * The button that opens the item titled `title`: a planned slice's card ("Slice 4 · Tag search" shows as
+ * "Slice 4" and "Tag search", so its card is found by the words), else the project-group tile whose title
+ * is exactly `title` (a title can also appear as another tile's parent).
+ */
 function tileTitled(page: Page, title: string): Locator {
+  const slice = /^Slice \d+ · (.+)$/.exec(title);
+  if (slice) return page.locator("button.slice-card").filter({ has: page.locator(".slice-title").getByText(slice[1]!, { exact: true }) });
   return page.locator("button.tile").filter({ has: page.locator(".tile-title").getByText(title, { exact: true }) });
 }
 
 /** The card that holds a tile button (its colours, border and fade) and, for a slice with an active part, the follow link. */
 function cardOf(tile: Locator): Locator {
   return tile.locator("xpath=..");
+}
+
+const STALE_HEARTBEAT = "2026-11-15T10:48:00.000Z";
+
+/** The demo board with the unplanned "Image uploads skip resizing" item gone stale three hours ago. */
+function staleResizeBoard(): BoardResponse {
+  const items = demoBoard().items.map((item) =>
+    item.key === "recipe-box/resize" ? { ...item, status: ItemStatus.Stale, heartbeat_at: STALE_HEARTBEAT } : item,
+  );
+  return demoBoard(items);
 }
 
 async function css(locator: Locator, property: string): Promise<string> {
@@ -58,14 +75,15 @@ test.describe("board", () => {
   test("groups follow the config order and the tiles follow priority", async ({ page }) => {
     await openBoard(page);
     expect(await page.locator("section.project h2").allTextContents()).toEqual(["Recipe Box", "Garden Planner", "Home Lab"]);
-    const flight = project(page, "Recipe Box").locator(".section", { hasText: "In flight · 3" });
-    expect(await flight.locator(".tile-title").allTextContents()).toEqual([
-      "CI failing on main",
-      "Slice 4 · Tag search",
-      "Image uploads skip resizing",
-    ]);
-    const done = project(page, "Recipe Box").locator(".section", { hasText: "Done in the last 12 h · 1" });
-    await expect(done.locator(".tile-title")).toHaveText("Slice 3 · Share links");
+    const recipe = project(page, "Recipe Box");
+    const planned = recipe.locator(".section", { hasText: "Planned · 1" });
+    expect(await planned.locator(".slice-title").allTextContents()).toEqual(["Tag search"]);
+    const problems = recipe.locator(".section", { hasText: "Problems and bugs · 1" });
+    expect(await problems.locator(".problem-what").allTextContents()).toEqual(["CI failing on main"]);
+    const other = recipe.locator(".section", { hasText: "Other open items · 1" });
+    expect(await other.locator(".tile-title").allTextContents()).toEqual(["Image uploads skip resizing"]);
+    await recipe.getByRole("button", { name: "1 done in the last 12 hours" }).click();
+    await expect(recipe.locator(".done-row-title")).toHaveText("Slice 3 · Share links");
   });
 
   test("the waiting strip lists the three questions, the most urgent first", async ({ page }) => {
@@ -88,12 +106,12 @@ test.describe("board", () => {
     await openBoard(page);
     const recipe = project(page, "Recipe Box");
     if (isPhone()) {
-      await expect(recipe.locator(".project-summary")).toHaveText("1 waiting · 3 open · 1 done");
+      await expect(recipe.locator(".project-summary")).toHaveText("1 needs you · nothing running · 1 planned · 1 problem");
       await expect(recipe.getByRole("heading", { level: 3, name: /Waiting for you/ })).toHaveCount(0);
       await expect(page.locator("header .legend")).toHaveCount(0);
       await expect(page.getByText("Updated 13:48 · last 12 h")).toBeVisible();
     } else {
-      await expect(recipe.locator(".project-summary")).toHaveText("1 waiting for you · 3 open · 1 done in 12 h");
+      await expect(recipe.locator(".project-summary")).toHaveText("1 needs you · nothing running · 1 planned · 1 problem");
       await expect(recipe.getByRole("heading", { level: 3, name: "Waiting for you · 1" })).toBeVisible();
       await expect(page.locator("header .legend li")).toHaveText(["Needs you", "Slice", "Problem", "Bug", "Unplanned"]);
       await expect(
@@ -102,21 +120,26 @@ test.describe("board", () => {
     }
   });
 
-  test("a stale tile is dashed and muted, a done tile is faded with its age", async ({ page }) => {
-    await openBoard(page);
-    const stale = tileTitled(page, "Slice 10 · Seed inventory");
+  test("a stale tile is dashed and muted, a finished item is a row with its time in the Done list", async ({ page }) => {
+    await page.clock.setFixedTime(new Date(SERVER_TIME));
+    await serveBoard(page, staleResizeBoard());
+    await page.goto("/");
+    const stale = tileTitled(page, "Image uploads skip resizing");
     await expect(stale).toContainText("Stale · No heartbeat for 3 h");
     expect(await css(cardOf(stale), "border-top-style")).toBe("dashed");
-    const done = tileTitled(page, "Slice 3 · Share links");
-    await expect(done).toContainText("Done 2 h ago");
-    expect(await css(cardOf(done), "opacity")).toBe("0.78");
-    expect(await css(cardOf(tileTitled(page, "CI failing on main")), "opacity")).toBe("1");
+    const recipe = project(page, "Recipe Box");
+    await expect(recipe.locator(".done-row")).toHaveCount(0);
+    await recipe.getByRole("button", { name: "1 done in the last 12 hours" }).click();
+    const done = recipe.locator(".done-row");
+    await expect(done).toContainText("Slice 3 · Share links");
+    await expect(done).toContainText("11:44");
+    expect(await css(done, "border-top-style")).toBe("solid");
   });
 
   test("tiles carry the type label, priority, why, parent and status", async ({ page }) => {
     await openBoard(page);
-    const tile = tileTitled(page, "CI failing on main");
-    for (const text of ["Problem", "P0", "Lint step times out after 10 minutes", "↳ Wave 3", "Blocked"]) {
+    const tile = tileTitled(page, "Image uploads skip resizing");
+    for (const text of ["Unplanned", "P2", "Found while testing tag search", "↳ Slice 4 · Tag search", "Open"]) {
       await expect(tile).toContainText(text);
     }
   });
@@ -141,10 +164,10 @@ test.describe("design values", () => {
     const box = await refresh.boundingBox();
     expect([box?.width, box?.height]).toEqual([44, 44]);
     expect(await css(refresh, "background-color")).toBe(phone ? "rgb(23, 26, 33)" : "rgb(255, 255, 255)");
-    const tile = tileTitled(page, "CI failing on main");
+    const tile = tileTitled(page, "Image uploads skip resizing");
     expect(await css(cardOf(tile), "border-radius")).toBe("12px");
     expect(await css(tile, "padding")).toBe(phone ? "12px 14px" : "14px 16px");
-    expect(await css(cardOf(tile), "background-color")).toBe(phone ? "rgb(44, 31, 69)" : "rgb(239, 231, 251)");
+    expect(await css(cardOf(tile), "background-color")).toBe(phone ? "rgb(18, 54, 49)" : "rgb(221, 243, 240)");
     expect(await css(tile.locator(".tile-title"), "font-size")).toBe("15px");
     expect(await css(tile.locator(".badge"), "font-family")).toContain("JetBrains Mono Variable");
     expect(await css(page.locator(".app"), "font-family")).toContain("Inter Variable");
@@ -451,7 +474,7 @@ test.describe("state cards use the palette without a response", () => {
 test.describe("tile why colour", () => {
   test("a tile's why text uses the palette's tileWhy colour", async ({ page }) => {
     await openBoard(page);
-    const why = tileTitled(page, "CI failing on main").locator(".tile-why");
+    const why = tileTitled(page, "Image uploads skip resizing").locator(".tile-why");
     // The phone mock draws the tile why text #B3BBC8 (Phone.dc.html), which the dark palette's tileWhy holds.
     expect(await css(why, "color")).toBe(examplePalette().tileWhy);
     if (isPhone()) expect(await css(why, "color")).toBe("rgb(179, 187, 200)");
@@ -460,8 +483,10 @@ test.describe("tile why colour", () => {
 
 test.describe("stale tile colours", () => {
   test("a stale tile draws the palette's staleBg and staleBorder and a muted title", async ({ page }) => {
-    await openBoard(page);
-    const stale = tileTitled(page, "Slice 10 · Seed inventory");
+    await page.clock.setFixedTime(new Date(SERVER_TIME));
+    await serveBoard(page, staleResizeBoard());
+    await page.goto("/");
+    const stale = tileTitled(page, "Image uploads skip resizing");
     const palette = examplePalette();
     expect(await css(cardOf(stale), "background-color")).toBe(palette.staleBg);
     expect(await css(cardOf(stale), "border-top-color")).toBe(palette.staleBorder);

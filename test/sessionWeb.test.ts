@@ -14,16 +14,16 @@ import {
   waitingText,
 } from "../web/src/cards";
 import { StepState } from "../src/domain/stepTypes";
-import { groupByProject, questionItems, waitingItems } from "../web/src/model";
+import { groupBoard } from "../src/domain/boardGroups";
+import { questionItems, waitingItems } from "../web/src/model";
 import { translator } from "../web/src/strings";
 
 const NOW = Date.parse("2026-11-17T13:48:00.000Z");
 const t = translator("en");
-const PROJECTS = [{ id: "p", label: "P" }];
 
 function item(over: Partial<BoardItemDto>): BoardItemDto {
   return {
-    key: "p/x", project: "p", parent: null, parent_slice: null, parent_key: null, type: ItemType.Unplanned, priority: Priority.P2,
+    key: "p/x", project: "p", parent: null, parent_slice: null, parent_key: null, slice: null, checks: null, type: ItemType.Unplanned, priority: Priority.P2,
     status: ItemStatus.InProgress, title: "T", why: null, details_md: null, links: [], heartbeat_at: "2026-11-17T13:46:00.000Z",
     created_at: "2026-11-17T13:00:00.000Z", done_at: null, environment: null, environment_label: null, agent: "session",
     model: null, needs_you: null, after_answer: null, needs_you_at: null, steps: null, progress: null, working: true, parts: null,
@@ -80,13 +80,12 @@ describe("grouping session cards", () => {
   ];
 
   it("puts each card in its own list and none twice", () => {
-    const group = groupByProject(items, PROJECTS)[0]!;
-    expect(group.needs.map((i) => i.key)).toEqual(["p/q1", "p/q2"]);
-    expect(group.working.map((i) => i.key)).toEqual(["p/w2", "p/w"]);
-    expect(group.staleSessions.map((i) => i.key)).toEqual(["p/s"]);
-    expect(group.waiting.map((i) => i.key)).toEqual(["p/old"]);
-    expect(group.inFlight.map((i) => i.key)).toEqual(["p/tile"]);
-    expect(group.done.map((i) => i.key)).toEqual(["p/d"]);
+    const group = groupBoard(items, [], ["p"])[0]!;
+    expect(group.needs_you).toEqual(["p/q1", "p/q2", "p/old"]);
+    expect(group.working_now).toEqual(["p/w2", "p/w"]);
+    expect(group.planned.map((s) => s.key)).toEqual(["p/tile"]);
+    expect(group.done.recent.map((row) => [row.key, row.stale])).toEqual([["p/s", true], ["p/d", false]]);
+    expect(group.other).toEqual([]);
   });
 
   it("lists questions across projects oldest first and leaves them out of the old waiting strip", () => {
@@ -95,7 +94,7 @@ describe("grouping session cards", () => {
   });
 
   it("shows a project that has only a question", () => {
-    expect(groupByProject([items[3]!], PROJECTS)).toHaveLength(1);
+    expect(groupBoard([items[3]!], [], ["p"])).toHaveLength(1);
   });
 });
 

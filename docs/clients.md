@@ -291,11 +291,18 @@ Inputs:
     one capital letter A to Z, at most 26, only on an item of type `slice` (see *Slice parts*
     below). The 200 limit counts the items you send; the slices and their parts together may not
     pass 1000.
+  - `checks` (optional, on a slice): its "not yet tried on a device" lines, `[{key, title}]`, at
+    most 100 (see *Checks* below). A top-level item of type `check` names its slice in
+    `parent_key`, even a slice that is not in the snapshot.
 
-Output (a counts summary, not items): `{project, created, updated, closed, unchanged}`.
+Output (a counts summary, not items): `{project, created, updated, closed, unchanged, skipped}`.
 `created` counts keys the board had not seen, `updated` counts existing items the sync
 changed, `closed` counts items that left the snapshot, `unchanged` counts snapshot items that
-needed no write.
+needed no write. `skipped` is `[{key, reason}]`: an item or nested check that breaks a key or
+parent rule is not saved and is named here with the reason (its `parent_key` names another
+project; a check with no slice, a key not under its slice's key plus `/`, or a parent that is no
+slice; checks on an item that is not a slice; a repeated nested key). The rest of the snapshot is
+saved, and a skipped key is not closed. A client should read `skipped` and show it.
 
 Errors (tool errors, nothing written): a read token (`forbidden: this token is read-only, a
 write token is required`); more than 200 items; an item whose `project` differs from the
@@ -332,7 +339,7 @@ curl -sS --max-time 3 -X POST "$AGENT_BOARD_URL/mcp" \
   }' || true
 ```
 
-Reply text (parse it as for the other tools): `{"project":"demo-app","created":1,"updated":0,"closed":0,"unchanged":0}`.
+Reply text (parse it as for the other tools): `{"project":"demo-app","created":1,"updated":0,"closed":0,"unchanged":0,"skipped":[]}`.
 
 **The merge rule**, per key:
 
@@ -487,6 +494,59 @@ holds now.
   slice's tile and drawer link to it (`#/active/<key>` opens the view with that card expanded).
 - Send a part's usage with `task_key` set to the part's key.
 
+## Checks (Slice 14)
+
+A "not yet tried on a device" line is a check, never a card. A made-up snapshot with parts and checks:
+
+```json
+{
+  "project": "demo-app",
+  "items": [
+    {
+      "key": "demo-app/slice-58",
+      "project": "demo-app",
+      "type": "slice",
+      "title": "Slice 58 · Add the export button",
+      "status": "in_progress",
+      "parts": [
+        {"letter": "A", "title": "Export service", "done": true},
+        {"letter": "B", "title": "Button and menu", "done": false}
+      ],
+      "checks": [
+        {"key": "demo-app/slice-58/check-1", "title": "Export 500 rows on a phone"},
+        {"key": "demo-app/slice-58/check-2", "title": "Export with no network"}
+      ]
+    },
+    {
+      "key": "demo-app/slice-40/check-1",
+      "project": "demo-app",
+      "type": "check",
+      "title": "Dark theme on the tablet",
+      "status": "open",
+      "parent_key": "demo-app/slice-40"
+    }
+  ]
+}
+```
+
+- A check is an item of type `check`; `parent_key` names its slice and is required (a report with no
+  `parent_key` on a check, or one that clears it, is refused). Its key is the client's and must stay the
+  same each sync.
+- A check that leaves the snapshot is closed like a part. A slice item with no `checks` field leaves its
+  stored checks alone; `checks: []` closes them all (the field's presence, even empty, is what decides).
+- Any `parent_key` must name an item of the same project, and a check's must be a slice whose key plus
+  `/` starts the check's key (a parent that exists nowhere yet is allowed). `report_progress` checks the
+  item's final state (stored row plus the report), so a retype or re-parent is refused with the reason;
+  `sync_snapshot` skips the item and lists it in `skipped`. A key stored as another type that a snapshot
+  sends as a check becomes a check.
+- A check or part that holds a `needs_you` question is listed in the project's `needs_you`.
+- The board does not list checks as items. A slice's `checks` field lists its open ones; a check whose
+  slice is closed or not on the board is counted in the project's `loose_checks`.
+- A `bug` or `problem` may name the slice planned for it in `parent_key`; the board returns that slice
+  as `parent_slice` (null when the key names no slice on the board).
+- `GET /api/board` also returns `groups`, one per project, which the page draws without regrouping:
+  `needs_you`, `working_now`, `planned`, `loose_checks`, `problems`, `other`, `done` and `summary`.
+
 ## Keys
 
 A key is chosen by the reporter and must be the same every time the same thing is reported:
@@ -584,3 +644,5 @@ described above are unchanged.
   under `report_progress`).
 - Built in [Slice 11](plan/slices/11-slice-parts.md): slice parts, `parts` in the snapshot and
   `parent_key` (see *Slice parts*).
+- Built in [Slice 14](plan/slices/14-checks-in-slice.md): checks inside their slice, bugs and problems
+  naming a slice, and the board's `groups` (see *Checks*).

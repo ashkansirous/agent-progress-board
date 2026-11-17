@@ -1,4 +1,5 @@
 import type { BoardItemDto, BoardResponse } from "../src/api/boardDto";
+import { splitSliceTitle } from "../src/domain/docSync";
 import { ItemStatus, ItemType, Priority } from "../src/domain/item";
 import { normalizeSteps, stepProgress } from "../src/domain/steps";
 import { type StepInput, StepState } from "../src/domain/stepTypes";
@@ -42,6 +43,8 @@ function taskOf(spec: TaskSpec): BoardItemDto {
     parent: spec.parent,
     parent_slice: null,
     parent_key: null,
+    slice: spec.type === ItemType.Slice ? splitSliceTitle(spec.key, spec.title) : null,
+    checks: spec.type === ItemType.Slice ? [] : null,
     type: spec.type,
     priority: Priority.P2,
     status,

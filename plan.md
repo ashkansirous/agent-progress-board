@@ -10,15 +10,23 @@ Source: the owner's phone scope "Agent Progress Board — online dashboard of wo
 across projects" (2026-11-15).
 
 **The board exposes everything through MCP** (owner's decision at the desk, 2026-11-15): one
-remote MCP endpoint is the only public contract, from Slice 1 on. Clients (reporter CLI, hooks,
-doc-sync parser, cloud setup) are built by the repos that want them, starting with the owner's
-private Claude Code config repo; this repo hands them a tool reference and a client guide
-(Slice 3).
+remote MCP endpoint is the only public contract, from Slice 1 on.
+
+**The board is a stand-alone product** (owner, 2026-11-17, replacing "clients live in the repos that use
+them"): a newcomer's Claude Code, with no background, installs and onboards itself from this repo alone.
+The repo ships a Claude Code plugin (skill, hooks, reporter scripts, connection) and guides written for
+Claude, both for connecting to a board and for setting up your own; every client piece moves here from the
+owner's config repo. Decisions in [Slice 20](docs/plan/slices/20-plugin-connect.md); Slices 20 to 24.
 
 ## Status
 
 | Slice | Title | Status | PR | Issue | File |
 | --- | --- | --- | --- | --- | --- |
+| 20 | A Claude Code plugin and a setup guide: any Claude Code connects itself to a board | planned | | | [slice](docs/plan/slices/20-plugin-connect.md) |
+| 21 | Session cards report themselves from the plugin's hooks (starts after 20) | planned | | | [slice](docs/plan/slices/21-plugin-session-cards.md) |
+| 22 | Token usage and cap readings from the plugin (starts after 21) | planned | | | [slice](docs/plan/slices/22-plugin-usage.md) |
+| 23 | Plan documents sync, an optional plugin part (starts after 21) | planned | | | [slice](docs/plan/slices/23-plugin-plan-sync.md) |
+| 24 | Set up your own board: a guide Claude follows (starts after 20) | planned | | | [slice](docs/plan/slices/24-own-board-guide.md) |
 
 Notes:
 

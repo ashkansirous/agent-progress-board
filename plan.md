@@ -22,6 +22,7 @@ owner's config repo. Decisions in [Slice 20](docs/plan/slices/20-plugin-connect.
 
 | Slice | Title | Status | PR | Issue | File |
 | --- | --- | --- | --- | --- | --- |
+| 19 | The owner can get the chat instruction text without a token | parked: feedback loop, waits for the user | | | [slice](docs/plan/slices/19-chat-text.md) |
 | 20 | A Claude Code plugin and a setup guide: any Claude Code connects itself to a board | planned | | | [slice](docs/plan/slices/20-plugin-connect.md) |
 | 21 | Session cards report themselves from the plugin's hooks (starts after 20) | planned | | | [slice](docs/plan/slices/21-plugin-session-cards.md) |
 | 22 | Token usage and cap readings from the plugin (starts after 21) | planned | | | [slice](docs/plan/slices/22-plugin-usage.md) |
@@ -30,6 +31,7 @@ owner's config repo. Decisions in [Slice 20](docs/plan/slices/20-plugin-connect.
 
 Notes:
 
+- [Feedback loop 2026-11-17 evening](docs/plan/notes/2026-11-17-1657-feedback-loop.md): what the audit of the fourth night found.
 - [Feedback loop 2026-11-17](docs/plan/notes/2026-11-17-1216-feedback-loop.md): what the audit of the third night found.
 - [Finished slices](docs/plan/notes/slices-done.md): rows of built slices.
 - [Feedback loop 2026-11-15](docs/plan/notes/2026-11-15-1406-feedback-loop.md): what the end-of-run audit found.
@@ -62,8 +64,9 @@ Notes:
 ## Outstanding work
 
 - **Not yet tried on a device:** 47 checks across 14 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
-- **Waiting on the user (Slice 16):** add the instruction text from `docs/clients.md` at [claude.ai settings, Your Claude, Instructions](https://claude.ai/settings), so chats and Claude Design sessions report to the board.
-- Slices 1 to 16 are live: the night's batched release called the deploy hook at 16:17:54Z and `wrangler deployments list` (read 16:25Z) shows a deployment created 2026-11-17T16:19:30Z, after Slices 15 and 16 merged; 0006 and 0007 were already applied (read about 16:20Z).
+- **Waiting on the user (Slices 16, 18):** open a new chat at [claude.ai](https://claude.ai/new) with only the board connector on and do some work; say whether a card appears. If it does, the paste step is gone; if not, the text to paste in [claude.ai settings, Your Claude, Instructions](https://claude.ai/settings) has no owner-readable copy since Slice 18 (only the server's `initialize` result), which [Slice 19](docs/plan/slices/19-chat-text.md) (parked) would fix.
+- Slices 1 to 18 are live: the night 2026-11-17-1657 release called the deploy hook at 17:59:11Z and `wrangler deployments list` (read 18:02Z) shows a deployment created 2026-11-17T18:01:25Z; `batch-release.mjs worker-deployed` was run at 18:04Z.
+- Follow-ups (Slice 18): open, not built, in [Slice 18](docs/plan/slices/18-agent-setup.md) *Follow-ups* (check pass 2 #2-#4: a reworded `needs_you` restarts `needs_you_at`, helper steps replace the parent's list, a quiet chat's card expires).
 - Follow-ups (Slice 13): open, not built, in [Slice 13](docs/plan/slices/13-session-cards.md) *Follow-ups from check pass 2*: `working_count` drops an in-progress item with an open question, and `askOnItem` accepts part and doc-synced items while a blank `why` wipes an open question (the two mediums), plus seven lows.
 - Follow-ups (Slice 15): open, not built, in [Slice 15](docs/plan/slices/15-project-blocks.md) *Built*, "Follow-ups (low)": dead Waiting-strip leftovers and other lows.
 - Follow-ups (Slice 16): open, not built, in [Slice 16](docs/plan/slices/16-chat-reports.md) *Follow-ups from review*: the SQL and JS environment identity differ, `LIMIT 500` per card crowds out older windows, string against parsed timestamps (the mediums), plus the consent-text and scope-string mismatch and lows.
@@ -108,7 +111,7 @@ Notes:
 - Follow-ups (Slice 11): open, not built, in [Slice 11](docs/plan/slices/11-slice-parts.md) *Follow-ups (not built)*: a valid snapshot of more than 1000 expanded items (100 slices with 10 parts each) is refused and the schema text does not say so (the one that gives a wrong result), a blocked part reads as Next or Later, plus the lows (parent cycle, part key length, a card remount on navigation).
 - Feedback loop of 2026-11-16: [note](docs/plan/notes/2026-11-16-1402-feedback-loop.md), with what waits on the owner and the open tooling findings.
 - **Deploys during a night (owner, 2026-11-17, answer at the night start):** until the deploy hook exists, each housekeeping index PR of a run-all-waves night is merged **without** the skip-CI marker, so Workers Builds deploys `main` (that wave's slices and their D1 migrations) through the pipeline after every wave. Slice PRs keep the marker. This lets the config repo's work that needs Slices 13 and 14 part A live go ahead the same night. Night 2026-11-17-1216: wave 1's own index PR #76 merged with the marker (its Workers Builds check read `skipped`, as did PR #75's), so Slice 13 was not live after wave 1; housekeeping 1 tried to merge its index PR #77 without the marker, and `merge-gate.mjs` denied it ("a batch release is open", `batch-release.json` started 12:17:30Z, needs the skip-CI subject), so #77 merged with the marker too. The clash with `merge-gate.mjs` is now moot: the batched release posts the deploy hook (PR #79), so index PRs keep the skip-CI marker. Slice 13 went live at 14:16Z (2026-11-17); Slice 14 waits for the next batched release.
-- Done 2026-11-17: deploy trigger. PR #79 (merged 14:24:12Z) added `.claude/merge-gate.json` with `workerPaths`; the Workers Builds deploy hook URL is in the secrets store, so a night's batched release now starts the build. The hook was posted once by hand: deployment created 2026-11-17T14:16:21Z, and migration 0006 is applied, so Slice 13 is live. Slice 14 (PR #78, merged 14:55:26Z, migration 0007) is not live yet: `wrangler d1 migrations list --remote` read at about 15:00Z shows 0007_checks.sql pending. It goes live at the driver's next batched release (the hook).
+- Done 2026-11-17: deploy trigger. PR #79 (merged 14:24:12Z) added `.claude/merge-gate.json` with `workerPaths`; the Workers Builds deploy hook URL is in the secrets store, so a night's batched release now starts the build. The hook was posted once by hand: deployment created 2026-11-17T14:16:21Z, and migration 0006 is applied, so Slice 13 is live. Slice 14 (PR #78, merged 14:55:26Z, migration 0007) went live with the hook's build of 15:07Z (0006 and 0007 read as applied at about 16:20Z).
 - Feedback loop of 2026-11-15: [note](docs/plan/notes/2026-11-15-1406-feedback-loop.md), with the open tooling findings it could not fix in its time.
 
 ## Risks / kill criteria

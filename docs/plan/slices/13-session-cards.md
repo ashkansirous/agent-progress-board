@@ -1,6 +1,6 @@
 ### Slice 13 — A session's card says what it is doing and what it needs
 
-*Built 2026-11-17 (PR #75), parts A and B; not merged, deployed-board checks open (see Not yet
+*Built 2026-11-17, parts A and B; merged as PR #75 (538d555), deployed-board checks open (see Not yet
 verified).* The plan PR #73 merged without a review round (owner).
 
 **Touches:** `migrations/0006_needs_you.sql` (new), `src/domain/item.ts`, `src/domain/upsert.ts`,
@@ -285,7 +285,7 @@ The doubled seed history note was fixed after the run and not re-run in a browse
 - #9 `web/src/model.ts:53` and `docs/clients.md:514`: `LAST_TIME` sorting with U+FFFF; the heartbeat
   guidance "every 30 minutes is safe" contradicts the 15-minute session expiry.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-17)
 
 - Session expiry is `SESSION_AGENT` / `SESSION_STALE_AFTER_MINUTES` in `src/domain/stale.ts`, kept equal
   to `EXPIRED_ROWS` by `test/stale.test.ts`; change both together (Slice 13:

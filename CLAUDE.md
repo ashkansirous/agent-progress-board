@@ -71,3 +71,7 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
 - The shown status of a slice with an active part is derived at read (`shownStatusOf`), never stored (Slice 11:
   docs/plan/slices/11-slice-parts.md).
 - The Worker returns `parent_slice` as data; the page builds the text (Slice 11: docs/plan/slices/11-slice-parts.md).
+- Session expiry is `SESSION_AGENT` / `SESSION_STALE_AFTER_MINUTES` in `src/domain/stale.ts`, kept equal to
+  `EXPIRED_ROWS` by `test/stale.test.ts`; change both together (Slice 13: docs/plan/slices/13-session-cards.md).
+- The question-clearing rule lives only in `answersQuestion` in `src/domain/upsert.ts`; never copy it
+  (Slice 13: docs/plan/slices/13-session-cards.md).

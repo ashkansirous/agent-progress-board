@@ -21,6 +21,22 @@ All project names, keys and hosts in the examples are made up.
 - **Idempotent.** Every write is an upsert on a stable `key`, so retrying or reporting twice
   is safe.
 
+## Setup for an AI agent
+
+An AI that should report its own work needs only the connector:
+
+- **Claude Code:** add the MCP server entry (see *As an MCP server* below).
+- **claude.ai:** add the custom connector and sign in with OAuth (see *Adding the board to claude.ai*).
+
+The server sends its own instructions in the `initialize` result (`src/mcp/instructions.ts`). They
+carry the reporting rules: open a session card before the first answer, keep its steps current,
+report at least every 5 minutes while working (a client with no clock: at every step change and before and after a long wait, never on every tool call), keep a step active while a background agent works, `mark_done` only
+when the goal is done, questions in `needs_you`. Where the client shows server instructions to the
+model, no pasted text is needed. The pasted chat instruction under *Making every chat report* is
+needed only where the client ignores server instructions. The plain HTTPS POST path (*Two ways to
+call*, option 2) and hooks never call `initialize`, so they receive no instructions: that prompt or
+script must carry the rules itself.
+
 ## Two ways to call
 
 Same endpoint (`POST {AGENT_BOARD_URL}/mcp`), same tools.
@@ -73,20 +89,16 @@ work in chat on every plan). Whether a Claude Design session can is unproven (th
 lists only built-in connectors), so the text below is for chat; try it in Design once and record
 the answer.
 
+Needed only where the client ignores the server's instructions (see *Setup for an AI agent*).
 Where to paste it: claude.ai, Settings, "Your Claude", Instructions (older layout: Account,
 "Instructions for Claude"): <https://claude.ai/settings>. Text, with the project name made up
 here; use your own:
 
-```
-You have the "board" connector (the agent progress board). In every chat, however short,
-before your first answer, call report_progress once with: key "my-chats/session-<short
-random id, the same for the whole chat>", project "my-chats", type "unplanned", agent
-"session", environment "Claude chat" (in Claude Design: "Claude Design"), status
-"in_progress", title = my goal in one line, steps = your plan. Call it again whenever the
-steps change or you need something from me (needs_you = the question). When the work is
-finished call mark_done on the same key. If you can read your own token counts, also call
-report_usage; otherwise do not guess numbers.
-```
+Paste the text the server returns in the `initialize` result, `result.instructions` (the
+`${...}` parts are already filled in there; do not copy from the source file), so there is one
+text and nothing to keep equal. Start it with: "You have the "board" connector (the agent
+progress board)." Add the environment to name, for example "Claude chat" or "Claude Design" (a
+chat or a coding session).
 
 ### 2. A plain HTTPS POST (hooks, scripts, sessions that do not load MCP servers)
 
@@ -216,6 +228,9 @@ most one `active`. Labels and notes are shown as sent.
 - **Helpers count under their parent's step.** A helper agent does not add steps of its own to the
   task: its work counts under the step of the agent that started it (a note such as "Two helper
   agents count under this step" says so).
+- **Background agents keep the step active.** Work handed to a background agent (translation,
+  illustration, a long build) keeps its step `active`, with a note naming the agent, until that
+  agent reports back; the card is not closed while it works.
 - **Active work.** The Active work page lists a task while its status is `in_progress`, it has a
   steps list or an `agent`, and its last report is newer than the stale expiry (below), whether or
   not the cron has run yet. Send `agent`, `model` and `environment` with the steps.
@@ -602,10 +617,14 @@ Guidance, not code: each client repo decides what it implements.
   `after_answer`); the card stays one card. `ask_human` on a key of another type does the same.
   A step only the person can do (a console step) is still a `waiting_for_me` item through
   `ask_human` on its own key; `mark_done` once done.
-- **A session finished:** `mark_done` on `<project>/session-<id>`.
-- **A session still running:** a `report_progress` with just the `key` as a heartbeat, at
-  least once per expiry (default 2 hours; every 30 minutes is safe), or the item turns stale. A
-  session card (`agent: "session"`) expires after 15 minutes, so heartbeat it at least every 5.
+- **A session finished:** `mark_done` on `<project>/session-<id>`, only when the goal is done and
+  no background agent is still working; never at the end of a reply or turn.
+- **A session still running:** a `report_progress` with the `key` and `status: "in_progress"` as a heartbeat (a bare key does
+  not bring a stale card back), at
+  least once per expiry (default 2 hours), or the item turns stale. A session card
+  (`agent: "session"`) expires after 15 minutes, so heartbeat it at least every 5 while working; a
+  client that cannot keep time reports at every step change and before and after a long wait,
+  never on every tool call.
 
 ## Cloud sessions
 

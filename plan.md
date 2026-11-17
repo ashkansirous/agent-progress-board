@@ -58,7 +58,8 @@ Notes:
 ## Outstanding work
 
 - **Not yet tried on a device:** 30 checks across 9 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
-- **Design, the owner's step:** paste the brief in [the design brief](docs/plan/notes/2026-11-17-design-brief.md) into the [board design project](https://claude.ai/artifact/PZyqwkfjuwQkE4BE6UfeDd) and send the mock link back; part B of Slices 13 and 14 and all of 15 wait for it.
+- Done 2026-11-17: the owner added the board-by-project artboards to the [design canvas](https://claude.ai/artifact/PZyqwkfjuwQkE4BE6UfeDd); they are copied into `docs/design/` and part B of Slices 13 and 14 and all of 15 are rewritten to them.
+- [PR #73](https://github.com/ashkansirous/agent-progress-board/pull/73) merged without a review round (owner, 2026-11-17: "you dont need to wait for my fucking reviews! fucking merge them always"); its four open points stand as written in the slices unless the owner overrules one. The part B waves of Slices 13 to 15 can start.
 - The D1 database and the Worker secrets exist.
 - The client guide (`docs/clients.md`) is ready (Slice 3); the owner's config repo can start its
   client.

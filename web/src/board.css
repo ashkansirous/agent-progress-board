@@ -1,0 +1,68 @@
+/* The Board page frame, title row and count row (Slice 15). Values are the BoardV2 and PhoneV2 mocks'
+   (docs/design/BoardV2.dc.html lines 18 to 37; PhoneV2.dc.html line 19); colours are palette vars. */
+
+.board-page {
+  max-width: 1240px;
+  gap: 22px;
+}
+
+.phone .board-page {
+  padding: 16px 14px 40px;
+  gap: 22px;
+}
+
+.board-header {
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0;
+}
+
+.phone .board-header {
+  flex-wrap: wrap;
+  justify-content: space-between;
+  padding: 0;
+}
+
+.board-header .header-text {
+  flex: 0 1 auto;
+}
+
+.board-header h1 {
+  font-size: 26px;
+}
+
+.board-header .subtitle {
+  font-size: 13px;
+}
+
+.count-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.count-pill {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--chipBg);
+  color: var(--sub);
+  font-weight: 600;
+}
+
+.count-pill-needs {
+  background: var(--needBg);
+  color: var(--needFg);
+}
+
+.phone .board-page .questions-top {
+  padding: 0;
+  gap: 10px;
+}
+
+.phone .board-page .state-card {
+  margin: 0;
+}

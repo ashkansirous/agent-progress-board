@@ -1,8 +1,10 @@
 ### Slice 15 — One collapsible block per project, done work always folded
 
-*In progress (wave 2026-11-17), draft PR.* Designed (see *Design* below); Slices 13 and 14 are merged.
+*Built 2026-11-17 (draft PR #82, not merged); checked in a browser run, not yet compared with the mock by the owner on the deployed board.* Slices 13 and 14 are merged.
 
-**Touches:** `web/**`, `e2e/**`, `docs/design/**`, `README.md`, `docs/plan/slices/15-project-blocks.md`
+**Touches:** `web/**`, `e2e/**`, `docs/design/**`, `README.md`, `docs/plan/slices/15-project-blocks.md`, `src/config.ts`,
+`config/board.example.json` (widened at build: the `tabBg` and `tabOn` palette keys of C0), `test/projectFold.test.ts`
+(widened at review: the fold rules' unit test), `test/planningText.test.ts` (widened at the browser run: summary plurals)
 
 **Migrations:** none.
 
@@ -34,7 +36,7 @@ collapse anywhere (`web/src`).
 #### Decided at the desk
 
 - The collapsed state is a per-viewer convenience kept in `localStorage`, read and written inside
-  `try`/`catch`; the page renders expanded projects when storage fails. A project with something
+  `try`/`catch`; the page renders every project expanded when storage fails (a quiet one too; e2e checks it). A project with something
   under "Needs you" opens expanded on load whatever was stored, so a question is never hidden.
   (Not in the mock: the mock keeps the state in memory only. The rule is the mock's own, "a project
   with a question opens on load; after that it folds like any other", plus the storage.)
@@ -146,19 +148,21 @@ Board page); the states are the mock's; the work items are rewritten with the ar
 
 #### Work
 
-- [ ] Import the mock (`import-claude-design`) and write a *Design* section here from it. (Done
+- [x] Import the mock (`import-claude-design`) and write a *Design* section here from it. (Done
   2026-11-17: the mock is in `docs/design/` and the section is above.)
-- [ ] Theme keys from C0 in the page's theme config, light and dark.
-- [ ] View tabs and the title with the count row (C1, C2), desktop and phone.
-- [ ] Project block with header (name, summary line, Fold or Open control) and the five groups in
+- [x] Theme keys from C0 in the page's theme config, light and dark. (Every C0 key was already a palette
+  key with the mock's value except `tabBg` and `tabOn`; both are added to `src/config.ts` and both
+  palettes in `config/board.example.json` and drive the view-tab bar on all three pages.)
+- [x] View tabs and the title with the count row (C1, C2), desktop and phone.
+- [x] Project block with header (name, summary line, Fold or Open control) and the five groups in
   the order of C3; defaults and the open-on-load rule for a question.
-- [ ] Done folded with its count; opens and closes on click (C4).
-- [ ] Phone: the "Needs you" cards of all projects at the top and the project line (C5).
-- [ ] Drawer: purpose, what was done, steps, checks, history, links (C6; the contents are in Slices
-  13 and 14).
-- [ ] Loading, empty and failed states (C7).
-- [ ] Desktop and phone, light and dark, German strings.
-- [ ] E2E: collapse remembered across reload; a project with a question opens expanded and can then
+- [x] Done folded with its count; opens and closes on click (C4).
+- [x] Phone: the "Needs you" cards of all projects at the top and the project line (C5).
+- [x] Drawer: purpose, what was done, steps, checks, history, links (C6; the contents are in Slices
+  13 and 14). (Already built by Slices 13 and 14; unchanged here.)
+- [x] Loading, empty and failed states (C7).
+- [x] Desktop and phone, light and dark, German strings.
+- [x] E2E: collapse remembered across reload; a project with a question opens expanded and can then
   be folded; a quiet project is folded by default; done folded by default; the count row shows the
   totals; the three states.
 
@@ -167,3 +171,47 @@ Board page); the states are the mock's; the work items are rewritten with the ar
 - `npm run typecheck`, `npm run lint`, `npm test`, `npm run test:e2e`.
 - The owner opens the deployed board on the phone and on the desktop and compares it with the mock
   (`BoardV2`, `BoardV2Dark`, `PhoneV2`, `PhoneV2Light`, `PhoneV2Drawer`, `StatesV2`).
+
+#### Built
+
+- Fold rule: one function, `resolveOpen` in `web/src/foldRules.ts`. The stored click carries the question
+  keys shown at the click; a new question key reopens the block; a storage failure opens every block.
+  Storage is `web/src/projectFold.ts` (key `board.projectOpen`). Count row and the project summary use
+  singular and plural forms in EN and DE. The phone "Needs you" list comes from `needsYouItems`
+  (`web/src/model.ts`) in the server's `needs_you` order. Palette keys `tabBg` and `tabOn` are added
+  (`src/config.ts`, `config/board.example.json`). States follow C7.
+- Tests: 445 unit and 237 e2e pass.
+- Browser run (evidence in `reviews/wave10-s15-browser/`, script in its `script/` folder): 7 of 8
+  checks passed; the dark current-tab text colour and the German summary plural were fixed after it.
+
+*Changed while building:* the "Other open items" group that the server's `groupBoard` returns
+([Slice 14](14-checks-in-slice.md)) is not in the mock; it is kept and shown before Done. The owner can say
+whether to drop it. `test/projectFold.test.ts` and `test/planningText.test.ts` were added (see *Touches*).
+
+*From review:* files `reviews/pr-82-high.md`, `reviews/pr-82-medium.md`, `reviews/pr-82-check-medium.md`,
+`reviews/pr-82-check-2-medium.md`, `reviews/pr-82-check-3-medium.md` (the last pass, on the code after the browser-run fix). Applied: high #1, #2, #3, #4, #6; medium #1, #6, #7; check-medium #1.
+- Skipped #5 (`reviews/pr-82-high.md`): "Harmless for one viewer; note only." - low; one viewer, two tabs overwriting each other is harmless.
+- Skipped #7 (`reviews/pr-82-high.md`): "Dead leftovers of the deleted Waiting strip" - low; a live config may still carry the `waitingHeading` key. Follow-up.
+- Skipped #2 (`reviews/pr-82-medium.md`): "Folding a block that a question holds open saves a permanent 'folded' choice" - the slice's Decisions: "the page remembers it per project".
+- Skipped #3 (`reviews/pr-82-medium.md`): "A group.needs_you key with no item is dropped silently" - low.
+- Skipped #4 (`reviews/pr-82-medium.md`): "the tab bar at the top on the phone while Active and Usage still draw it at the bottom" - the slice's *Decided at the desk*: Active work and Usage keep the bar their own artboards show.
+- Skipped #5 (`reviews/pr-82-medium.md`): "unused by the app now (only tests use them)" - low, dead code. Follow-up.
+- Skipped #8 (`reviews/pr-82-medium.md`): "without a guard" - low; the server always sends the counts.
+- Skipped #2 (`reviews/pr-82-check-medium.md`): "click stores needs_you keys as seen" - the fold rule stores the question keys shown at the click as seen (the rule of the fix for check #1/medium #1).
+- Skipped #3 to #7 (`reviews/pr-82-check-medium.md`): "dead copy" and the other four lows (phone note, unused helpers, tab bar position, palette key fallback) - low, follow-ups.
+- `reviews/pr-82-check-2-medium.md`: "no blocking finding"; 8 findings (6 low, 2 info), none reopens the slice, all left as follow-ups.
+- Skipped #1 to #3 (`reviews/pr-82-check-3-medium.md`): "Singular/plural wording duplicated across" and two other lows (no test for the German "Projekte" form, current tab `--text` beside unselected `--segmentText`) - low, follow-ups; check passes converged.
+
+Follow-ups (low): dead Waiting-strip leftovers (`waitingItems`, `questionItems`, `distinctProjects`, `waitingForYouN`, CSS);
+per-block stale copies of the stored map and no pruning; fold button without `aria-controls`; hand-rolled
+plural branches; the phone tab bar is on top only on the Board page.
+
+#### For CLAUDE.md
+
+- The fold rule lives only in `resolveOpen` (`web/src/foldRules.ts`); the page never regroups: the order of
+  "Needs you" comes from the server's `needs_you` (Slice 15: docs/plan/slices/15-project-blocks.md).
+
+#### Not yet verified
+
+- The owner compares the deployed board on the phone and on the desktop with the mock (`BoardV2`, `BoardV2Dark`, `PhoneV2`, `PhoneV2Light`, `PhoneV2Drawer`, `StatesV2`).
+- The "Other open items" group (not in the mock) is kept; the owner says whether to keep it.

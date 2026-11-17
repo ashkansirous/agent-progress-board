@@ -12,28 +12,39 @@ const REASON_KEYS: Record<number, StringKey> = {
   504: "reason504",
 };
 
-/** Grey placeholder blocks and "Loading the board…"; shown only after the 500 ms wait. */
+/** One skeleton project: a title bar and two tiles side by side (StatesV2). */
+function SkeletonBlock() {
+  return (
+    <div className="skeleton-block" aria-hidden="true">
+      <div className="skeleton skeleton-title" />
+      <div className="skeleton-pair">
+        <div className="skeleton skeleton-tile" />
+        <div className="skeleton skeleton-tile" />
+      </div>
+    </div>
+  );
+}
+
+/** A bar for the question area, two skeleton projects and "Loading the board…"; shown only after the 500 ms wait. */
 export function LoadingCard() {
   const { t } = useView();
   return (
     <section className="state-card" role="status" aria-label={t("loading")}>
-      <div className="skeleton skeleton-heading" aria-hidden="true" />
       <div className="skeleton skeleton-strip" aria-hidden="true" />
-      <div className="skeleton skeleton-label" aria-hidden="true" />
-      <div className="skeleton skeleton-tile" aria-hidden="true" />
-      <div className="skeleton skeleton-tile" aria-hidden="true" />
+      <SkeletonBlock />
+      <SkeletonBlock />
       <p className="state-note">{t("loading")}</p>
     </section>
   );
 }
 
-export function EmptyCard({ hours }: { hours: number }) {
+export function EmptyCard() {
   const { t } = useView();
   return (
     <section className="state-card state-center">
       <CheckCircleIcon size={44} stroke="var(--success)" strokeWidth={1.6} />
       <p className="state-title">{t("emptyTitle")}</p>
-      <p className="state-body">{t("emptyBody", { n: hours })}</p>
+      <p className="state-body state-body-wide">{t("emptyBody")}</p>
     </section>
   );
 }

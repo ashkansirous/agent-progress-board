@@ -7,10 +7,10 @@ import { Detail } from "./Detail";
 import { Header } from "./Header";
 import { opensCardDrawer } from "./cards";
 import { LooseChecksDrawer } from "./LooseChecksDrawer";
-import { itemsByKey, questionItems, waitingItems } from "./model";
+import { itemsByKey, needsYouItems } from "./model";
+import { PhoneNeeds } from "./PhoneNeeds";
 import { ProjectGroup } from "./ProjectGroup";
 import { looseProjectOf, Route } from "./route";
-import { QuestionList } from "./SessionCards";
 import { SessionDrawer } from "./SessionDrawer";
 import { EmptyCard, ErrorCard, LoadingCard } from "./StatePanels";
 import type { Translate } from "./strings";
@@ -18,7 +18,6 @@ import { looksFor, paletteVars, type SchemeName } from "./theme";
 import { useOpenItem } from "./useRoute";
 import { ViewProvider, type View } from "./view";
 import { ViewTabs } from "./ViewTabs";
-import { WaitingStrip } from "./WaitingStrip";
 
 export interface Environment {
   phone: boolean;
@@ -43,8 +42,7 @@ function Groups({ data, phone, onOpen }: { data: BoardResponse; phone: boolean; 
   const items = itemsByKey(data.items);
   return (
     <>
-      {phone && <QuestionList items={questionItems(data.items)} onOpen={onOpen} />}
-      <WaitingStrip items={waitingItems(data.items)} onOpen={onOpen} />
+      {phone && <PhoneNeeds items={needsYouItems(data.groups, items)} onOpen={onOpen} />}
       {data.groups.map((group) => (
         <ProjectGroup key={group.id} group={group} items={items} onOpen={onOpen} />
       ))}
@@ -69,7 +67,7 @@ function openTarget(data: BoardResponse | null, key: string | null): OpenTarget 
 function Body({ props, onOpen }: { props: PageProps; onOpen: (key: string) => void }) {
   const { state, onRefresh } = props;
   if (state.data) {
-    return state.data.groups.length === 0 ? <EmptyCard hours={state.data.window_hours} /> : <Groups data={state.data} phone={props.env.phone} onOpen={onOpen} />;
+    return state.data.groups.length === 0 ? <EmptyCard /> : <Groups data={state.data} phone={props.env.phone} onOpen={onOpen} />;
   }
   if (state.slow) return <LoadingCard />;
   if (state.error) return <ErrorCard status={state.error.status} onRetry={onRefresh} />;
@@ -119,18 +117,17 @@ export function BoardPage(props: PageProps) {
   return (
     <ViewProvider value={view}>
       <div className={env.phone ? "app phone" : "app"} style={paletteVars(state.config, env.scheme)}>
-        <div className="page" inert={open ? true : undefined}>
-          {!env.phone && <ViewTabs current={Route.Board} phone={false} t={env.t} activeCount={state.data?.working_count} />}
+        <div className="page board-page" inert={open ? true : undefined}>
+          {/* The same bar at the top on the phone as on the desktop (the PhoneV2 mock); the other pages keep the bottom bar. */}
+          <ViewTabs current={Route.Board} phone={false} t={env.t} activeCount={state.data?.working_count} />
           <Header
-            config={state.config}
-            hours={state.data?.window_hours ?? null}
+            groups={state.data?.groups ?? null}
             updatedAt={state.updatedAt}
             busy={state.loading && state.slow}
             onRefresh={onRefresh}
           />
           <Body props={props} onOpen={onOpen} />
         </div>
-        {env.phone && <ViewTabs current={Route.Board} phone t={env.t} activeCount={state.data?.working_count} />}
         {open && <OpenDrawer target={open} onClose={close} />}
       </div>
     </ViewProvider>

@@ -2,6 +2,7 @@ import { expect, type Locator, type Page, test } from "@playwright/test";
 import exampleConfig from "../config/board.example.json" with { type: "json" };
 import { CRASH_QUESTION } from "../scripts/seed-data";
 import { SERVER_TIME } from "./fixture";
+import { project } from "./projectBlock";
 import { sessionBoard } from "./sessionFixture";
 
 const BOARD_ROUTE = "**/api/board";
@@ -27,9 +28,6 @@ async function openBoard(page: Page) {
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 }
-
-const project = (page: Page, name: string): Locator =>
-  page.locator("section.project", { has: page.getByRole("heading", { level: 2, name, exact: true }) });
 
 const workingCard = (page: Page, goal: string): Locator =>
   page.locator("button.session-card").filter({ has: page.locator(".session-goal").getByText(goal, { exact: true }) });

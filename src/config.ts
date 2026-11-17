@@ -69,6 +69,8 @@ export const PALETTE_KEYS = [
   "segmentText",
   "segmentPressedBg",
   "segmentPressedText",
+  "tabBg",
+  "tabOn",
   "shadow",
   "track",
   "barFill",

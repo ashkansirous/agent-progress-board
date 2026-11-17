@@ -2,6 +2,7 @@ import { expect, type Locator, type Page, test } from "@playwright/test";
 import exampleConfig from "../config/board.example.json" with { type: "json" };
 import { SERVER_TIME } from "./fixture";
 import { partsBoard } from "./partsFixture";
+import { openAllProjects } from "./projectBlock";
 
 const BOARD_ROUTE = "**/api/board";
 
@@ -24,6 +25,8 @@ async function openAt(page: Page, hash = "/") {
   await page.route(BOARD_ROUTE, (route) => route.fulfill({ json: partsBoard() }));
   await page.goto(hash);
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  // A drawer opened by the address makes the page inert, and then no card is clicked.
+  if (hash === "/") await openAllProjects(page);
 }
 
 /** The card button of the planned slice with this title ("Slice 4 · Tag search" shows as the number and "Tag search"). */

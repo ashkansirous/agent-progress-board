@@ -63,6 +63,8 @@ test.describe("active work page", () => {
     const tab = tabs(page).getByRole("link", { name: /^Active work/ });
     await expect(tab).toHaveAttribute("aria-current", "page");
     await expect(tab.locator(".tab-count")).toHaveText("3");
+    // C1: the current tab's text is the `text` key, #E8EAEE dark and #14171C light.
+    expect(await css(tab, "color")).toBe(scheme() === "dark" ? "rgb(232, 234, 238)" : "rgb(20, 23, 28)");
   });
 
   test("the tab count is left out when nothing is working, and the empty card shows", async ({ page }) => {
@@ -177,7 +179,7 @@ test.describe("active work page", () => {
     await expect(dialog).toHaveCount(0);
     expect(new URL(page.url()).hash).toBe("#/");
     await page.reload();
-    await expect(page.getByRole("heading", { level: 1, name: "Progress" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Board" })).toBeVisible();
     await expect(dialog).toHaveCount(0);
     await page.evaluate((hash) => {
       window.location.hash = hash;

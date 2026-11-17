@@ -2,11 +2,13 @@ import type { BoardItemDto } from "../../src/api/boardDto";
 import type { ProjectGroups } from "../../src/domain/boardGroups";
 import { isQuestion } from "./cards";
 import { DoneSection } from "./DoneSection";
+import { ChevronIcon } from "./icons";
 import { projectLabel } from "./model";
 import { PlannedSection } from "./PlannedSection";
 import { summaryText } from "./planningText";
+import { useProjectOpen } from "./projectFold";
 import { ProblemsSection } from "./ProblemsSection";
-import { QuestionList, SessionList } from "./SessionCards";
+import { QuestionCard, SessionList } from "./SessionCards";
 import { Tile } from "./Tile";
 import { looseChecksKey } from "./route";
 import { useView } from "./view";
@@ -37,36 +39,29 @@ function Section({ label, list, onOpen }: { label: string; list: BoardItemDto[];
   );
 }
 
-/** Nothing here for the phone's list: its questions are above the projects and the rest is empty. */
-function isQuietOnPhone(group: ProjectGroups): boolean {
-  const { summary } = group;
-  const shown = summary.working + summary.planned + summary.problems + summary.checks_not_tried + group.other.length + group.done.count;
-  return shown === 0;
+/**
+ * "Needs you · {n}": the question cards, then the old-shape waiting items as tiles. The phone lists every
+ * question above the projects, so here it leaves the note that points there.
+ */
+function NeedsGroup({ needs, onOpen }: { needs: BoardItemDto[]; onOpen: (key: string) => void }) {
+  const { t, phone } = useView();
+  if (needs.length === 0) return null;
+  if (phone) return <p className="question-note">{t("questionAtTop")}</p>;
+  const heading = t("needsYouN", { n: needs.length });
+  return (
+    <section className="questions" aria-label={heading}>
+      <h3>{heading}</h3>
+      {needs.map((item) => (isQuestion(item) ? <QuestionCard key={item.key} item={item} onOpen={onOpen} /> : <Tile key={item.key} item={item} onOpen={onOpen} />))}
+    </section>
+  );
 }
 
-/**
- * One project: its name and summary line, then the lists the server sorted (Needs you, Working now,
- * Planned, Problems and bugs, Done). A project's questions sit under its name on desktop; the phone
- * lists every question above the projects and leaves a note here. Nothing here regroups.
- */
-export function ProjectGroup({ group, items, onOpen }: GroupProps) {
-  const { t, phone, projects } = useView();
-  if (phone && isQuietOnPhone(group)) return null;
-  const needs = itemsOf(group.needs_you, items);
-  const questions = needs.filter(isQuestion);
-  const waiting = needs.filter((item) => !isQuestion(item));
+function ProjectBody({ group, items, onOpen }: GroupProps) {
+  const { t } = useView();
   return (
-    <section className="project">
-      <div className="project-head">
-        <h2>{projectLabel(group.id, projects)}</h2>
-        <span className={group.summary.needs_you > 0 ? "project-summary project-summary-needs" : "project-summary"}>
-          {summaryText(group.summary, t)}
-        </span>
-      </div>
-      {!phone && <QuestionList items={questions} onOpen={onOpen} />}
-      {phone && questions.length > 0 && <p className="question-note">{t("questionAtTop")}</p>}
+    <div className="project-body">
+      <NeedsGroup needs={itemsOf(group.needs_you, items)} onOpen={onOpen} />
       <SessionList items={itemsOf(group.working_now, items)} onOpen={onOpen} />
-      {!phone && waiting.length > 0 && <Section label={t("waitingForYouN", { n: waiting.length })} list={waiting} onOpen={onOpen} />}
       <PlannedSection
         slices={group.planned}
         items={items}
@@ -77,6 +72,33 @@ export function ProjectGroup({ group, items, onOpen }: GroupProps) {
       <ProblemsSection problems={group.problems} items={items} onOpen={onOpen} />
       {group.other.length > 0 && <Section label={t("otherOpenN", { n: group.other.length })} list={itemsOf(group.other, items)} onOpen={onOpen} />}
       <DoneSection done={group.done} onOpen={onOpen} />
+    </div>
+  );
+}
+
+/**
+ * One project as a block that folds: a header button (name, summary line, Fold or Open) and, while open, the
+ * lists the server sorted (Needs you, Working now, Planned, Problems and bugs, Done). Nothing here regroups.
+ */
+export function ProjectGroup({ group, items, onOpen }: GroupProps) {
+  const { t, projects } = useView();
+  const [open, toggle] = useProjectOpen(group);
+  const summaryClass = group.summary.needs_you > 0 ? "project-summary project-summary-needs" : "project-summary";
+  return (
+    <section className="project">
+      <h2 className="project-head">
+        <button type="button" className="project-toggle" aria-expanded={open} onClick={toggle}>
+          <span className={open ? "project-chevron project-chevron-open" : "project-chevron"}>
+            <ChevronIcon size={18} stroke="currentColor" />
+          </span>
+          <span className="project-title">
+            <span className="project-name">{projectLabel(group.id, projects)}</span>
+            <span className={summaryClass}>{summaryText(group.summary, t)}</span>
+          </span>
+          <span className="project-fold">{open ? t("foldProject") : t("openProject")}</span>
+        </button>
+      </h2>
+      {open && <ProjectBody group={group} items={items} onOpen={onOpen} />}
     </section>
   );
 }

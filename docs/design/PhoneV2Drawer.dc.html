@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Card detail, phone</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E1014}
+a{color:#9DBDFF}a:hover{color:#C7CDD8}
+button{font:inherit;color:inherit}
+</style>
+</helmet>
+<div style="position: relative; width: 390px; height: 844px; overflow: hidden; box-sizing: border-box; background: #0E1014; color: #E8EAEE; font-family: Inter, system-ui, sans-serif; font-size: 14px; line-height: 1.45">
+<div style="max-width: 1240px; margin: 0 auto; padding: 16px 14px 40px; display: flex; flex-direction: column; gap: 22px">
+
+<nav aria-label="Views" style="display: flex; gap: 4px; padding: 4px; background: #171A21; border-radius: 12px; align-self: flex-start">
+<a href="#" aria-current="page" style="min-height: 40px; padding: 0 14px; display: inline-flex; align-items: center; border-radius: 9px; background: #2E3440; color: #E8EAEE; font-weight: 600; text-decoration: none">Board</a>
+<a href="#" style="min-height: 40px; padding: 0 14px; display: inline-flex; align-items: center; border-radius: 9px; color: #C7CDD8; font-weight: 500; text-decoration: none">Active work</a>
+<a href="#" style="min-height: 40px; padding: 0 14px; display: inline-flex; align-items: center; border-radius: 9px; color: #C7CDD8; font-weight: 500; text-decoration: none">Usage</a>
+</nav>
+
+<header style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; justify-content: space-between">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<h1 style="margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.02em">Board</h1>
+<p style="margin: 0; color: #9AA3B2; font-size: 13px">3 projects · updated 13:48 · refreshes every 60 s</p>
+</div>
+<p style="margin: 0; display: flex; flex-wrap: wrap; gap: 8px; font-size: 13px">
+<span style="padding: 4px 10px; border-radius: 999px; background: #2A1C0E; color: #FFB672; font-weight: 600">2 need you</span>
+<span style="padding: 4px 10px; border-radius: 999px; background: #232833; color: #C7CDD8; font-weight: 600">3 working</span>
+<span style="padding: 4px 10px; border-radius: 999px; background: #232833; color: #C7CDD8; font-weight: 600">2 problems</span>
+</p>
+</header>
+
+<sc-if value="{{ phone }}" hint-placeholder-val="{{ false }}">
+<section aria-labelledby="top-needs" style="display: flex; flex-direction: column; gap: 10px">
+<h2 id="top-needs" style="margin: 0; font-size: 15px; font-weight: 700; color: #FFB672">Needs you · {{ allNeedsCount }}</h2>
+<sc-for list="{{ allNeeds }}" as="n" hint-placeholder-count="2">
+<button onClick="{{ n.open }}" style="text-align: left; cursor: pointer; background: #2A1C0E; border: 1.5px solid #5A3712; border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px">
+<span style="display: flex; gap: 8px; font-size: 12px; color: #FFB672"><span style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em">{{ n.project }}</span><span style="margin-left: auto">{{ n.waited }}</span></span>
+<span style="font-size: 17px; font-weight: 600; line-height: 1.35">{{ n.question }}</span>
+<span style="font-size: 13px; color: #C7CDD8">{{ n.after }}</span>
+<span style="font-size: 12px; color: #9AA3B2">Asked by {{ n.session }}</span>
+</button>
+</sc-for>
+</section>
+</sc-if>
+
+<sc-for list="{{ projects }}" as="p" hint-placeholder-count="3">
+<section style="background: #171A21; border: 1px solid #262B35; border-radius: 16px; display: flex; flex-direction: column">
+<h2 style="margin: 0">
+<button onClick="{{ p.toggle }}" aria-expanded="{{ p.open }}" style="width: 100%; min-height: 64px; text-align: left; cursor: pointer; background: transparent; border: 0; border-radius: 16px; padding: 14px 18px; display: flex; align-items: center; gap: 12px">
+<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#E8EAEE" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none; transform: rotate({{ p.chevron }})"><path d="M9 6l6 6-6 6"></path></svg>
+<span style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; min-width: 0">
+<span style="font-size: 19px; font-weight: 700; letter-spacing: -0.01em">{{ p.name }}</span>
+<span style="font-size: 13px; font-weight: 400; color: {{ p.summaryColor }}">{{ p.summary }}</span>
+</span>
+<span style="margin-left: auto; font-size: 12px; font-weight: 500; color: #9AA3B2; white-space: nowrap">{{ p.foldLabel }}</span>
+</button>
+</h2>
+
+<sc-if value="{{ p.open }}" hint-placeholder-val="{{ true }}">
+<div style="padding: 4px 18px 18px; display: flex; flex-direction: column; gap: 20px; border-top: 1px solid #262B35">
+
+<sc-if value="{{ p.showNeeds }}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; gap: 8px; padding-top: 14px">
+<h3 style="margin: 0; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #FFB672">Needs you · {{ p.needsCount }}</h3>
+<sc-for list="{{ p.needs }}" as="n" hint-placeholder-count="1">
+<button onClick="{{ n.open }}" style="text-align: left; cursor: pointer; background: #2A1C0E; border: 1.5px solid #5A3712; border-radius: 14px; padding: 16px 20px; display: flex; flex-direction: column; gap: 8px">
+<span style="display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; color: #FFB672"><span style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em">Question</span><span style="margin-left: auto; font-weight: 600">{{ n.waited }}</span></span>
+<span style="font-size: 19px; font-weight: 600; line-height: 1.35">{{ n.question }}</span>
+<span style="font-size: 14px; color: #C7CDD8">{{ n.after }}</span>
+<span style="font-size: 12px; color: #9AA3B2">Asked by {{ n.session }} · answer in that session</span>
+</button>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{ p.phoneNeedsNote }}" hint-placeholder-val="{{ false }}">
+<p style="margin: 14px 0 0; font-size: 13px; color: #FFB672; font-weight: 600">Its question is at the top of the page.</p>
+</sc-if>
+
+<sc-if value="{{ p.hasWorking }}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h3 style="margin: 0; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #9AA3B2">Working now · {{ p.workingCount }}</h3>
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px">
+<sc-for list="{{ p.working }}" as="w" hint-placeholder-count="2">
+<button onClick="{{ w.open }}" style="text-align: left; cursor: pointer; background: #171A21; border: 1px {{ w.borderStyle }} #262B35; border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.04)">
+<span style="display: flex; flex-wrap: wrap; gap: 6px 10px; font-size: 12px; color: #9AA3B2"><span>{{ w.session }}</span><span style="margin-left: auto">{{ w.last }}</span></span>
+<sc-if value="{{ w.hasGoal }}" hint-placeholder-val="{{ true }}">
+<span style="font-size: 16px; font-weight: 700; line-height: 1.3">{{ w.goal }}</span>
+<span style="font-size: 13px; color: #C7CDD8">{{ w.why }}</span>
+<ol aria-label="Steps" style="margin: 2px 0 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px">
+<sc-for list="{{ w.steps }}" as="st" hint-placeholder-count="5">
+<li style="display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: {{ st.weight }}; background: {{ st.bg }}; color: {{ st.fg }}; border: 1px solid {{ st.bd }}"><span>{{ st.mark }}</span>{{ st.label }}</li>
+</sc-for>
+</ol>
+</sc-if>
+<sc-if value="{{ w.noGoal }}" hint-placeholder-val="{{ false }}">
+<span style="font-size: 14px; font-style: italic; color: #9AA3B2">Started 2 min ago, no goal reported yet</span>
+</sc-if>
+</button>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ p.hasPlanned }}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h3 style="margin: 0; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #9AA3B2">Planned · {{ p.plannedCount }}</h3>
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px">
+<sc-for list="{{ p.planned }}" as="s" hint-placeholder-count="3">
+<button onClick="{{ s.open }}" style="text-align: left; cursor: pointer; background: #1C2B4A; border: 1px solid #2E4473; border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; opacity: {{ s.opacity }}">
+<span style="display: flex; align-items: center; gap: 8px; font-size: 11px"><span style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #9DBDFF">{{ s.num }}</span><span style="margin-left: auto; padding: 1px 8px; border-radius: 999px; font-weight: 600; background: #171A21; color: #C7CDD8; border: 1px solid #2E4473">{{ s.status }}</span></span>
+<span style="font-size: 15px; font-weight: 600">{{ s.title }}</span>
+<span aria-hidden="true" style="display: flex; gap: 3px">
+<sc-for list="{{ s.segs }}" as="g" hint-placeholder-count="5">
+<span style="flex: 1; height: 16px; border-radius: 4px; background: {{ g.bg }}; color: {{ g.fg }}; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; box-sizing: border-box; border: 1px solid {{ g.bd }}">{{ g.l }}</span>
+</sc-for>
+</span>
+<span style="display: flex; gap: 8px; font-size: 12px; color: #C7CDD8"><span style="font-weight: 600">{{ s.nowLine }}</span><span style="margin-left: auto; white-space: nowrap">{{ s.partsLine }}</span></span>
+<span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #9AA3B2"><svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9AA3B2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"></rect><path d="M11 18h2"></path></svg>{{ s.checksLine }}</span>
+</button>
+</sc-for>
+<sc-if value="{{ p.hasLoose }}" hint-placeholder-val="{{ false }}">
+<button onClick="{{ p.openLoose }}" style="text-align: left; cursor: pointer; background: transparent; border: 1px dashed #262B35; border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; justify-content: center">
+<span style="font-size: 14px; font-weight: 600">{{ p.looseLine }}</span>
+<span style="font-size: 12px; color: #9AA3B2">Not tried on a device; their slices are already closed</span>
+</button>
+</sc-if>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ p.hasProblems }}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h3 style="margin: 0; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #9AA3B2">Problems and bugs · {{ p.problemsCount }}</h3>
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px">
+<sc-for list="{{ p.problems }}" as="b" hint-placeholder-count="2">
+<button onClick="{{ b.open }}" style="text-align: left; cursor: pointer; background: {{ b.bg }}; border: 1px solid {{ b.bd }}; border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: {{ b.fg }}">{{ b.kind }}</span>
+<span style="font-size: 15px; font-weight: 600">{{ b.what }}</span>
+<span style="font-size: 12px; color: #C7CDD8">{{ b.where }}</span>
+<span style="align-self: flex-start; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: {{ b.sliceBg }}; color: {{ b.sliceFg }}; border: 1px {{ b.sliceBorder }} {{ b.fg }}">{{ b.slice }}</span>
+</button>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ p.hasDone }}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<button onClick="{{ p.toggleDone }}" aria-expanded="{{ p.doneOpen }}" style="align-self: flex-start; min-height: 44px; cursor: pointer; background: transparent; border: 1px solid #262B35; border-radius: 10px; padding: 0 14px 0 10px; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: #C7CDD8"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C7CDD8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transform: rotate({{ p.doneChevron }})"><path d="M9 6l6 6-6 6"></path></svg><span style="font-weight: 600; color: #7FD8B4">{{ p.doneLine }}</span></button>
+<sc-if value="{{ p.doneOpen }}" hint-placeholder-val="{{ false }}">
+<ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px">
+<sc-for list="{{ p.done }}" as="d" hint-placeholder-count="4">
+<li><button onClick="{{ d.open }}" style="width: 100%; min-height: 44px; text-align: left; cursor: pointer; background: {{ d.bg }}; border: 1px {{ d.bs }} #262B35; border-radius: 10px; padding: 8px 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 13px; color: {{ d.fg }}"><span style="font-weight: 500">{{ d.title }}</span><span style="margin-left: auto; font-size: 12px; color: #9AA3B2">{{ d.when }}</span></button></li>
+</sc-for>
+</ul>
+</sc-if>
+</div>
+</sc-if>
+
+</div>
+</sc-if>
+</section>
+</sc-for>
+
+</div>
+
+<sc-if value="{{ hasSel }}" hint-placeholder-val="{{ false }}">
+<div style="position: absolute; inset: 0; display: flex; justify-content: flex-end">
+<button aria-label="Close details" onClick="{{ close }}" style="position: absolute; inset: 0; border: 0; background: rgba(0,0,0,0.55); cursor: pointer"></button>
+<aside aria-label="Card details" style="position: absolute; inset: 0; width: 100%; background: #171A21; padding: 24px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px; overflow-y: auto">
+<div style="display: flex; align-items: center; gap: 8px">
+<span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; padding: 3px 10px; border-radius: 999px; background: {{ sel.kBg }}; color: {{ sel.kFg }}">{{ sel.kicker }}</span>
+<span style="font-size: 12px; color: #9AA3B2">{{ sel.project }}</span>
+<button aria-label="Close" onClick="{{ close }}" style="margin-left: auto; width: 44px; height: 44px; border-radius: 10px; border: 1px solid #262B35; background: #171A21; cursor: pointer; display: inline-flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#E8EAEE" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<h2 style="margin: 0; font-size: 21px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.3">{{ sel.title }}</h2>
+<span style="font-size: 14px; color: #C7CDD8">{{ sel.purpose }}</span>
+<span style="font-size: 12px; color: #9AA3B2">{{ sel.meta }}</span>
+</div>
+<sc-if value="{{ sel.hasAfter }}" hint-placeholder-val="{{ false }}">
+<div style="background: #2A1C0E; border: 1px solid #5A3712; border-radius: 10px; padding: 12px 14px; font-size: 14px"><strong style="color: #FFB672">After you answer:</strong> {{ sel.after }}</div>
+</sc-if>
+<sc-if value="{{ sel.hasDoneSoFar }}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<h3 style="margin: 0; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #9AA3B2">Done so far</h3>
+<ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px"><sc-for list="{{ sel.doneSoFar }}" as="x" hint-placeholder-count="2"><li>{{ x }}</li></sc-for></ul>
+</div>
+</sc-if>
+<sc-if value="{{ sel.hasSteps }}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<h3 style="margin: 0; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #9AA3B2">Steps</h3>
+<ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px">
+<sc-for list="{{ sel.steps }}" as="st" hint-placeholder-count="5">
+<li style="display: grid; grid-template-columns: 26px 1fr auto; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 8px; background: {{ st.rowBg }}"><span style="width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; background: {{ st.mBg }}; color: {{ st.mFg }}; border: 1.5px solid {{ st.mBd }}; box-sizing: border-box">{{ st.n }}</span><span style="font-weight: {{ st.weight }}">{{ st.label }}</span><span style="font-size: 12px; font-weight: 600; color: {{ st.sFg }}">{{ st.state }}</span></li>
+</sc-for>
+</ol>
+</div>
+</sc-if>
+<sc-if value="{{ sel.hasParts }}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<h3 style="margin: 0; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #9AA3B2">{{ sel.partsHead }}</h3>
+<ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px">
+<sc-for list="{{ sel.parts }}" as="c" hint-placeholder-count="5">
+<li style="display: grid; grid-template-columns: 22px 1fr auto; align-items: center; gap: 10px; font-size: 14px; color: {{ c.fg }}"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18"><rect x="1.5" y="1.5" width="15" height="15" rx="4" fill="{{ c.boxBg }}" stroke="{{ c.boxBd }}" stroke-width="1.5"></rect><path d="{{ c.tick }}" fill="none" stroke="#171A21" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg><span>{{ c.label }}</span><span style="font-size: 12px; font-weight: 600; color: {{ c.sFg }}">{{ c.state }}</span></li>
+</sc-for>
+</ul>
+</div>
+</sc-if>
+<sc-if value="{{ sel.hasChecks }}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<h3 style="margin: 0; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #9AA3B2">{{ sel.checksHead }}</h3>
+<ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px">
+<sc-for list="{{ sel.checks }}" as="c" hint-placeholder-count="3">
+<li style="display: grid; grid-template-columns: 22px 1fr; align-items: center; gap: 10px; font-size: 14px"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18"><rect x="1.5" y="1.5" width="15" height="15" rx="4" fill="none" stroke="#9AA3B2" stroke-width="1.5"></rect></svg><span>{{ c }}</span></li>
+</sc-for>
+</ul>
+</div>
+</sc-if>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<h3 style="margin: 0; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #9AA3B2">Links</h3>
+<span style="display: flex; flex-wrap: wrap; gap: 16px"><sc-for list="{{ sel.links }}" as="lk" hint-placeholder-count="2"><a href="#" style="font-weight: 500">{{ lk }}</a></sc-for></span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h3 style="margin: 0; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #9AA3B2">History</h3>
+<ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px">
+<sc-for list="{{ sel.history }}" as="ev" hint-placeholder-count="4">
+<li style="display: grid; grid-template-columns: 48px 1fr; gap: 10px; font-size: 13px"><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #9AA3B2">{{ ev.at }}</span><span>{{ ev.what }}</span></li>
+</sc-for>
+</ol>
+</div>
+</aside>
+</div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+var CONFIG = {"theme": {"ground": "#0E1014", "card": "#171A21", "border": "#262B35", "text": "#E8EAEE", "muted": "#9AA3B2", "sub": "#C7CDD8", "track": "#262B35", "needBg": "#2A1C0E", "needBd": "#5A3712", "needFg": "#FFB672", "sliceBg": "#1C2B4A", "sliceBd": "#2E4473", "sliceFg": "#9DBDFF", "bugBg": "#3F1A1A", "bugBd": "#5E2A28", "bugFg": "#FF9B94", "probBg": "#2C1F45", "probBd": "#46336B", "probFg": "#C9A7FF", "nowBg": "#9DBDFF", "nowFg": "#0E1014", "doneFg": "#7FD8B4", "chip": "#232833", "tabBg": "#171A21", "tabOn": "#2E3440", "scrim": "rgba(0,0,0,0.55)", "shadow": "-12px 0 32px rgba(0,0,0,0.5)", "link": "#9DBDFF", "btnBg": "#E8EAEE", "btnFg": "#0E1014"}, "phone": true, "init": {"folded": {"notes": true}, "sel": "n1"}};
+var T = CONFIG.theme;
+var PROJECTS = [
+  { id: 'ex', name: 'example-app',
+    needs: [{ id: 'n1', question: 'Which iPhone should I read the crash log from: the iPhone 8 or the iPad?', after: 'Then I read the log and write the cause into Slice 12.', session: 'session 4f2a · laptop', waited: 'waiting 6 min' }],
+    working: [
+      { id: 'w1', goal: 'Read the crash log on the iPhone 8', why: 'For Slice 12: app crashes on start', session: 'session 9c1e · laptop', last: 'last activity 2 min ago', steps: [['Connect the phone', 'done'], ['Read the logs', 'now'], ['Analyse', 'next'], ['Conclude', 'next'], ['Plan or fix', 'next']] },
+      { id: 'w2', goal: 'Build Slices 9 and 10 overnight', why: 'For the night run, wave 3', session: 'wave 3 · cloud VM', last: 'last activity 4 min ago', steps: [['Build Slice 9', 'done'], ['Review Slice 9', 'done'], ['Build Slice 10', 'now'], ['Review Slice 10', 'next'], ['Merge', 'next']] },
+      { id: 'w3', noGoal: true, session: 'session a71b · cloud VM', last: 'last activity 1 min ago' }
+    ],
+    planned: [
+      { id: 's12', num: 'Slice 12', title: 'App crashes on start', status: 'In progress', parts: [['A', 'd'], ['B', 'd'], ['C', 'a'], ['D', 'p'], ['E', 'p']], nowLine: 'Now: part C, fix the start-up race', checks: 3 },
+      { id: 's13', num: 'Slice 13', title: 'Offline mode', status: 'Planned', parts: [['A', 'p'], ['B', 'p'], ['C', 'p'], ['D', 'p']], nowLine: 'Not started', checks: 5 },
+      { id: 's11', num: 'Slice 11', title: 'Share sheet', status: 'Parked', parts: [['A', 'd'], ['B', 'p'], ['C', 'p']], nowLine: 'Parked after part A', checks: 0 }
+    ],
+    loose: 22,
+    problems: [
+      { id: 'p1', type: 'bug', what: 'App crashes on start on iOS 16', where: 'Found in the crash log of release 2.3.1, iPhone 8', slice: 'Slice 12 planned', planned: true },
+      { id: 'p2', type: 'problem', what: 'Build fails on main: the lint step times out', where: 'Found by wave 3 on the night run', slice: 'No slice yet', planned: false }
+    ],
+    doneCount: 12,
+    done: [
+      { id: 'st1', title: 'session 7b3d · Update the store screenshots', when: 'Stale: no activity for 15 min · 08:55', stale: true },
+      { title: 'Slice 10 · part B merged', when: '09:40' },
+      { title: 'Wave 2 finished: Slices 7 and 8', when: '07:15' },
+      { title: 'Fix for the flaky login test merged', when: '05:02' },
+      { title: 'session 2c9d finished its turn: tidy the README', when: '03:48' }
+    ] },
+  { id: 'notes', name: 'notes-site', needs: [], working: [],
+    planned: [
+      { id: 'ns4', num: 'Slice 4', title: 'Search page', status: 'Planned', parts: [['A', 'p'], ['B', 'p'], ['C', 'p']], nowLine: 'Not started', checks: 2 },
+      { id: 'ns5', num: 'Slice 5', title: 'RSS feed', status: 'Planned', parts: [['A', 'p'], ['B', 'p']], nowLine: 'Not started', checks: 2 }
+    ], loose: 0, problems: [], doneCount: 3, done: [{ title: 'Slice 3 · Tags merged', when: '02:10' }] },
+  { id: 'tools', name: 'tools',
+    needs: [{ id: 'n2', question: 'Should I delete the 40 old backups in the backups folder, or move them to the archive drive?', after: 'Then I free the space and close the cleanup slice.', session: 'session 51e0 · laptop', waited: 'waiting 42 min' }],
+    working: [], planned: [], loose: 0, problems: [], doneCount: 0, done: [] }
+];
+var DRAWERS = {
+  n1: { kicker: 'Needs you', kind: 'need', title: 'Which iPhone should I read the crash log from: the iPhone 8 or the iPad?', purpose: 'For Slice 12: app crashes on start', meta: 'session 4f2a · laptop · waiting 6 min', after: 'I read the log and write the cause into Slice 12.',
+    doneSoFar: ['Found two devices with the app installed', 'Both have crash logs from today'],
+    steps: [['Find a device with the crash', 'done'], ['Ask which device', 'now'], ['Read the log', 'next'], ['Write the cause', 'next']],
+    links: ['Slice file'], history: [['09:20', 'Started'], ['09:31', 'Needs you: which iPhone should I read the crash log from…']] },
+  n2: { kicker: 'Needs you', kind: 'need', title: 'Should I delete the 40 old backups in the backups folder, or move them to the archive drive?', purpose: 'For the cleanup slice of tools', meta: 'session 51e0 · laptop · waiting 42 min', after: 'I free the space and close the cleanup slice.',
+    doneSoFar: ['Listed 40 backups older than a year, 18 GB in all'], steps: [['List old backups', 'done'], ['Ask what to do with them', 'now'], ['Delete or move', 'next'], ['Close the slice', 'next']],
+    links: ['Slice file'], history: [['12:51', 'Started'], ['13:06', 'Needs you: should I delete the 40 old backups…']] },
+  w1: { kicker: 'Working now', kind: 'work', title: 'Read the crash log on the iPhone 8', purpose: 'For Slice 12: app crashes on start', meta: 'session 9c1e · laptop · last activity 2 min ago',
+    doneSoFar: ['Connected the iPhone 8 over USB', 'Found 3 crash logs from release 2.3.1, all at start-up'],
+    steps: [['Connect the phone', 'done'], ['Read the logs', 'now'], ['Analyse', 'next'], ['Conclude', 'next'], ['Plan or fix', 'next']],
+    partsHead: 'Slice 12 parts · 2 of 5 done', parts: [['A · Reproduce on a device', 'd'], ['B · Add crash reporting', 'd'], ['C · Fix the start-up race', 'a'], ['D · Test on iOS 16 and 17', 'p'], ['E · Release 2.3.2', 'p']],
+    checksHead: 'Slice 12 checks not tried on a device · 3', checks: ['Cold start on the iPhone 8 with no network', 'Start after an update from 2.3.0', 'Start with 500 saved notes'],
+    links: ['Pull request #88', 'Slice file'],
+    history: [['09:20', 'Started'], ['09:31', 'Needs you: which iPhone should I read the crash log from…'], ['09:38', 'Answered'], ['09:52', 'Finished turn'], ['10:05', 'Started'], ['13:46', 'Reading the logs']] },
+  s12: { kicker: 'Slice 12', kind: 'slice', title: 'App crashes on start', purpose: 'In progress · 2 of 5 parts done', meta: 'From the plan docs · synced 13:40',
+    doneSoFar: ['Reproduced on a device', 'Crash reporting added and merged'],
+    partsHead: 'Parts · 2 of 5 done', parts: [['A · Reproduce on a device', 'd'], ['B · Add crash reporting', 'd'], ['C · Fix the start-up race', 'a'], ['D · Test on iOS 16 and 17', 'p'], ['E · Release 2.3.2', 'p']],
+    checksHead: 'Checks not tried on a device · 3', checks: ['Cold start on the iPhone 8 with no network', 'Start after an update from 2.3.0', 'Start with 500 saved notes'],
+    links: ['Slice file', 'Pull request #86'], history: [['Mon 16', 'Planned'], ['Tue 17 08:10', 'Part A done'], ['Tue 17 09:02', 'Part B done'], ['Tue 17 10:05', 'Part C started']] },
+  p1: { kicker: 'Bug', kind: 'bug', title: 'App crashes on start on iOS 16', purpose: 'Found in the crash log of release 2.3.1, iPhone 8', meta: 'Reported by session 9c1e · Slice 12 is planned for it',
+    doneSoFar: ['3 crash logs read, all at start-up, all iOS 16'], links: ['Slice 12', 'Crash log'], history: [['10:12', 'Found by session 9c1e'], ['10:20', 'Slice 12 planned for it']] },
+  st1: { kicker: 'Stale', kind: 'stale', title: 'Update the store screenshots', purpose: 'For the release 2.3.2 store listing', meta: 'session 7b3d · cloud VM · no activity for 15 min',
+    doneSoFar: ['Took 4 of 6 screenshots'], steps: [['Take the screenshots', 'now'], ['Add captions', 'next'], ['Upload', 'next']],
+    links: ['Slice file'], history: [['08:30', 'Started'], ['08:40', 'Finished turn'], ['08:41', 'Started'], ['08:55', 'Last activity'], ['09:10', 'Stale: no activity for 15 min']] }
+};
+var TICK = 'M5 9.5l2.6 2.6L13 6.5';
+class Component extends DCLogic {
+  stepChips(steps) {
+    return steps.map(function (s) {
+      if (s[1] === 'done') return { label: s[0], mark: '✓', bg: 'transparent', fg: T.muted, bd: T.border, weight: '400' };
+      if (s[1] === 'now') return { label: s[0], mark: '●', bg: T.nowBg, fg: T.nowFg, bd: T.nowBg, weight: '700' };
+      return { label: s[0], mark: '', bg: 'transparent', fg: T.sub, bd: T.border, weight: '400' };
+    });
+  }
+  drawer(id, project) {
+    var d = DRAWERS[id];
+    if (!d) return null;
+    var K = { need: [T.needBg, T.needFg], work: [T.sliceBg, T.sliceFg], slice: [T.sliceBg, T.sliceFg], bug: [T.bugBg, T.bugFg], stale: [T.chip, T.muted] }[d.kind];
+    var seen = false;
+    var steps = (d.steps || []).map(function (s, i) {
+      var r = { n: String(i + 1), label: s[0] };
+      if (s[1] === 'done') return Object.assign(r, { state: 'Done', sFg: T.doneFg, mBg: T.doneFg, mFg: T.card, mBd: T.doneFg, rowBg: 'transparent', weight: '400' });
+      if (s[1] === 'now') return Object.assign(r, { state: 'Now', sFg: T.sliceFg, mBg: T.card, mFg: T.sliceFg, mBd: T.sliceFg, rowBg: T.sliceBg, weight: '600' });
+      var st = seen ? 'Later' : 'Next'; seen = true;
+      return Object.assign(r, { state: st, sFg: T.muted, mBg: T.card, mFg: T.muted, mBd: T.border, rowBg: 'transparent', weight: '400' });
+    });
+    var parts = (d.parts || []).map(function (p) {
+      if (p[1] === 'd') return { label: p[0], state: 'Done', sFg: T.doneFg, fg: T.muted, boxBg: T.doneFg, boxBd: T.doneFg, tick: TICK };
+      if (p[1] === 'a') return { label: p[0], state: 'Working now', sFg: T.sliceFg, fg: T.text, boxBg: 'none', boxBd: T.sliceFg, tick: '' };
+      return { label: p[0], state: '', sFg: T.muted, fg: T.text, boxBg: 'none', boxBd: T.muted, tick: '' };
+    });
+    return Object.assign({}, d, { project: project, kBg: K[0], kFg: K[1], hasAfter: !!d.after, hasDoneSoFar: !!(d.doneSoFar && d.doneSoFar.length),
+      hasSteps: steps.length > 0, steps: steps, hasParts: parts.length > 0, parts: parts, hasChecks: !!(d.checks && d.checks.length), checks: d.checks || [],
+      links: d.links || [], history: d.history.map(function (h) { return { at: h[0], what: h[1] }; }) });
+  }
+  renderVals() {
+    var self = this, phone = !!CONFIG.phone, i = CONFIG.init || {}, cur = this.state || {};
+    var st = { folded: cur.folded || i.folded || {}, doneOpen: cur.doneOpen || i.doneOpen || {}, sel: cur.sel !== undefined ? cur.sel : (i.sel || null) };
+    var opener = function (id) { return function () { if (DRAWERS[id]) self.setState({ sel: id }); }; };
+    var allNeeds = [];
+    var projects = PROJECTS.map(function (p) {
+      var quiet = p.working.length === 0 && p.needs.length === 0;
+      var folded = st.folded[p.id] !== undefined ? st.folded[p.id] : quiet;
+      var open = !folded;
+      p.needs.forEach(function (n) { allNeeds.push(Object.assign({ project: p.name, open: opener(n.id) }, n)); });
+      var bits = [];
+      if (p.needs.length) bits.push(p.needs.length + ' needs you');
+      bits.push(p.working.length ? p.working.length + ' working' : 'nothing running');
+      if (p.planned.length) bits.push(p.planned.length + ' planned');
+      if (p.problems.length) bits.push(p.problems.length + ' problems');
+      var checks = p.loose + p.planned.reduce(function (a, s) { return a + s.checks; }, 0);
+      if (checks) bits.push(checks + ' checks not tried');
+      var doneOpen = !!st.doneOpen[p.id];
+      return {
+        name: p.name, open: open, chevron: open ? '90deg' : '0deg', foldLabel: open ? 'Fold' : 'Open',
+        summary: bits.join(' · '), summaryColor: p.needs.length ? T.needFg : T.muted,
+        toggle: function () { var f = Object.assign({}, st.folded); f[p.id] = open; self.setState({ folded: f }); },
+        showNeeds: !phone && p.needs.length > 0, phoneNeedsNote: phone && p.needs.length > 0, needs: p.needs.map(function (n) { return Object.assign({ open: opener(n.id) }, n); }), needsCount: p.needs.length,
+        hasWorking: p.working.length > 0, workingCount: p.working.length,
+        working: p.working.map(function (w) { return Object.assign({}, w, { hasGoal: !w.noGoal, noGoal: !!w.noGoal, borderStyle: w.noGoal ? 'dashed' : 'solid', steps: w.steps ? self.stepChips(w.steps) : [], open: opener(w.id) }); }),
+        hasPlanned: p.planned.length > 0 || p.loose > 0, plannedCount: p.planned.length,
+        planned: p.planned.map(function (s) {
+          var done = s.parts.filter(function (x) { return x[1] === 'd'; }).length;
+          return Object.assign({}, s, { opacity: s.status === 'Parked' ? '0.7' : '1', open: opener(s.id),
+            partsLine: done + ' of ' + s.parts.length + ' parts',
+            checksLine: s.checks ? s.checks + ' checks not tried on a device' : 'All checks tried',
+            segs: s.parts.map(function (x) { return x[1] === 'd' ? { l: x[0], bg: T.sliceFg, fg: T.card, bd: T.sliceFg } : x[1] === 'a' ? { l: x[0], bg: T.card, fg: T.sliceFg, bd: T.sliceFg } : { l: x[0], bg: 'transparent', fg: T.muted, bd: T.sliceBd }; }) });
+        }),
+        hasLoose: p.loose > 0, looseLine: p.loose + ' checks with no open slice', openLoose: function () {},
+        hasProblems: p.problems.length > 0, problemsCount: p.problems.length,
+        problems: p.problems.map(function (b) { var bug = b.type === 'bug'; return Object.assign({}, b, { kind: bug ? 'Bug' : 'Problem', bg: bug ? T.bugBg : T.probBg, bd: bug ? T.bugBd : T.probBd, fg: bug ? T.bugFg : T.probFg,
+          sliceBg: b.planned ? T.card : 'transparent', sliceFg: b.planned ? T.text : (bug ? T.bugFg : T.probFg), sliceBorder: b.planned ? 'solid' : 'dashed', open: opener(b.id) }); }),
+        hasDone: p.doneCount > 0, doneOpen: doneOpen, doneChevron: doneOpen ? '90deg' : '0deg',
+        doneLine: p.doneCount + ' done in the last 12 hours',
+        toggleDone: function () { var d = Object.assign({}, st.doneOpen); d[p.id] = !doneOpen; self.setState({ doneOpen: d }); },
+        done: p.done.map(function (d) { return Object.assign({}, d, { bg: d.stale ? T.chip : 'transparent', bs: d.stale ? 'dashed' : 'solid', fg: d.stale ? T.muted : T.text, open: opener(d.id) }); }).concat(p.doneCount > p.done.length ? [{ title: 'Show all ' + p.doneCount, when: '', bg: 'transparent', bs: 'solid', fg: T.link, open: function () {} }] : [])
+      };
+    });
+    var selId = st.sel, selProject = '';
+    PROJECTS.forEach(function (p) {
+      var ids = [].concat(p.needs, p.working, p.planned, p.problems, p.done).map(function (x) { return x.id; });
+      if (ids.indexOf(selId) >= 0) selProject = p.name;
+    });
+    var sel = selId ? this.drawer(selId, selProject) : null;
+    return { phone: phone, allNeeds: allNeeds, allNeedsCount: allNeeds.length, projects: projects, hasSel: !!sel, sel: sel || this.drawer('w1', 'example-app'), close: function () { self.setState({ sel: null }); } };
+  }
+}
+</script>
+</body>
+</html>

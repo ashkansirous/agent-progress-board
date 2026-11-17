@@ -1,0 +1,3 @@
+{
+  "workerPaths": ["src/**", "web/**", "migrations/**", "config/**", "wrangler*", "package.json", "package-lock.json", "vite.config.ts", "tsconfig*.json", "!**/*.md"]
+}

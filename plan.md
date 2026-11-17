@@ -23,11 +23,8 @@ owner's config repo. Decisions in [Slice 20](docs/plan/slices/20-plugin-connect.
 | Slice | Title | Status | PR | Issue | File |
 | --- | --- | --- | --- | --- | --- |
 | 19 | The owner can get the chat instruction text without a token | parked: feedback loop, waits for the user | | | [slice](docs/plan/slices/19-chat-text.md) |
-| 20 | A Claude Code plugin and a setup guide: any Claude Code connects itself to a board | planned | | | [slice](docs/plan/slices/20-plugin-connect.md) |
-| 21 | Session cards report themselves from the plugin's hooks (starts after 20) | planned | | | [slice](docs/plan/slices/21-plugin-session-cards.md) |
-| 22 | Token usage and cap readings from the plugin (starts after 21) | planned | | | [slice](docs/plan/slices/22-plugin-usage.md) |
-| 23 | Plan documents sync, an optional plugin part (starts after 21) | planned | | | [slice](docs/plan/slices/23-plugin-plan-sync.md) |
-| 24 | Set up your own board: a guide Claude follows (starts after 20) | planned | | | [slice](docs/plan/slices/24-own-board-guide.md) |
+| 22 | Token usage and cap readings from the plugin (starts after 21, now met) | planned | | | [slice](docs/plan/slices/22-plugin-usage.md) |
+| 23 | Plan documents sync, an optional plugin part (starts after 21, now met) | planned | | | [slice](docs/plan/slices/23-plugin-plan-sync.md) |
 
 Notes:
 
@@ -63,9 +60,10 @@ Notes:
 
 ## Outstanding work
 
-- **Not yet tried on a device:** 47 checks across 14 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
+- **Not yet tried on a device:** 58 checks across 17 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
 - **Waiting on the user (Slices 16, 18):** open a new chat at [claude.ai](https://claude.ai/new) with only the board connector on and do some work; say whether a card appears. If it does, the paste step is gone; if not, the text to paste in [claude.ai settings, Your Claude, Instructions](https://claude.ai/settings) has no owner-readable copy since Slice 18 (only the server's `initialize` result), which [Slice 19](docs/plan/slices/19-chat-text.md) (parked) would fix.
 - Slices 1 to 18 are live: the night 2026-11-17-1657 release called the deploy hook at 17:59:11Z and `wrangler deployments list` (read 18:02Z) shows a deployment created 2026-11-17T18:01:25Z; `batch-release.mjs worker-deployed` was run at 18:04Z.
+- Follow-ups (Slice 21): to plan as a follow-up slice: the background-agent state bugs 1-6 (lost stopped id under parallel SubagentStop, freshness filter bypassed, active step demoted, resumed agent forced done, goal-file write races, card left open after the last SubagentStop), in [Slice 21](docs/plan/slices/21-plugin-session-cards.md) *Follow-ups* (`reviews/pr-101-check-2-medium.md`).
 - Follow-ups (Slice 18): open, not built, in [Slice 18](docs/plan/slices/18-agent-setup.md) *Follow-ups* (check pass 2 #2-#4: a reworded `needs_you` restarts `needs_you_at`, helper steps replace the parent's list, a quiet chat's card expires).
 - Follow-ups (Slice 13): open, not built, in [Slice 13](docs/plan/slices/13-session-cards.md) *Follow-ups from check pass 2*: `working_count` drops an in-progress item with an open question, and `askOnItem` accepts part and doc-synced items while a blank `why` wipes an open question (the two mediums), plus seven lows.
 - Follow-ups (Slice 15): open, not built, in [Slice 15](docs/plan/slices/15-project-blocks.md) *Built*, "Follow-ups (low)": dead Waiting-strip leftovers and other lows.

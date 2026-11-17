@@ -14,8 +14,15 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
   block or fail the caller: short timeout, swallow errors, exit 0.
 - **One contract: MCP.** Every capability is an MCP tool on the one `/mcp` endpoint, and every
   tool calls the application layer (one upsert keyed by a stable `key`). No public REST write
-  path; the board page's read route calls the same application functions. Clients live in
-  the repos that use them, not here; `docs/clients.md` is their guide.
+  path; the board page's read route calls the same application functions.
+  Clients for Claude Code live in `plugin/` (marketplace in `.claude-plugin/marketplace.json`); `docs/clients.md`
+  is the guide for other clients. The reporting rules text exists once, in `src/mcp/instructions.ts`, mirrored
+  between the BEGIN/END RULES markers of `plugin/skills/agent-board/SKILL.md` and held equal by
+  `test/pluginRules.test.ts`; change both together. `plugin/` holds no owner data and no version (public repo)
+  (Slice 20: docs/plan/slices/20-plugin-connect.md).
+- **Plugin scripts.** Hooks and the reporter CLI live in `plugin/scripts`; every script fails open (exit 0, short
+  timeout), keeps state only in `CLAUDE_PLUGIN_DATA`, and its tests run with `npm test`
+  (`node --test plugin/**/*.test.mjs`) (Slice 21: docs/plan/slices/21-plugin-session-cards.md).
 - **The design is in `docs/design/`.** Read every visual value (colour, size, spacing, copy)
   from those files ([README](docs/design/README.md)); never guess one and never fetch the
   design from outside the repo.

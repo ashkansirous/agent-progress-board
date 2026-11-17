@@ -1,6 +1,6 @@
 ### Slice 20 — A Claude Code plugin and a setup guide: any Claude Code connects itself to a board
 
-*Built (wave 2026-11-17), PR #99, not merged.*
+*Built (wave 2026-11-17), merged as PR #99 (63bb41e).*
 
 *Planned and accepted (owner, 2026-11-17, "/RefineScope this is a board. it is generic and is supposed to be plug and
 play and usabel by the ai agents ... a client tells its claude code to install it and on board it self ... If they
@@ -71,7 +71,7 @@ decision, 2026-11-17). If the CLI cannot be pointed at a temp folder, the instal
   own-board guide. The *Develop* section stays below. Fix the stale "Status: building (Slice 1...)" line.
 - [x] **Client guide.** `docs/clients.md` *Setup for an AI agent* points to the plugin and `docs/setup/connect.md`
   first; the raw MCP and HTTPS sections stay for other clients.
-- [ ] **Rule text** for the index pass (`CLAUDE.md`): replace "Clients live in the repos that use them, not here"
+- [x] **Rule text** for the index pass (`CLAUDE.md`): replace "Clients live in the repos that use them, not here"
   with: clients for Claude Code live in `plugin/`; the rules text exists once, in `src/mcp/instructions.ts`, mirrored
   by the skill and held equal by `test/pluginRules.test.ts`; `plugin/` holds no owner data (public repo).
 
@@ -100,7 +100,7 @@ decision, 2026-11-17). If the CLI cannot be pointed at a temp folder, the instal
 - Skipped #5 (`reviews/pr-99-medium.md`): "slice Verify (fresh run reaching a working card) unmet, listed under Not yet verified." Already listed under *Not yet verified*.
 - Skipped #7 (`reviews/pr-99-medium.md`): "Hard-coded GitHub main URL to guide; forks misdirect" Low; the owner's repo is the only source of the plugin.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-17)
 
 - Replace the rule "Clients live in the repos that use them, not here" with: clients for Claude Code live in
   `plugin/` (marketplace in `.claude-plugin/marketplace.json`); the reporting rules text exists once, in

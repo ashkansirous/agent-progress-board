@@ -19,11 +19,16 @@ private Claude Code config repo; this repo hands them a tool reference and a cli
 
 | Slice | Title | Status | PR | Issue | File |
 | --- | --- | --- | --- | --- | --- |
+| 13 | A session card says what it is doing and what it needs | planned: part A now, part B after the design | | | [slice](docs/plan/slices/13-session-cards.md) |
+| 14 | Untested checks live inside their slice, problems get their own list | planned: part A now, part B after the design | | | [slice](docs/plan/slices/14-checks-in-slice.md) |
+| 15 | One collapsible block per project, done work always folded | planned: waits for the design and part A of 13 and 14 | | | [slice](docs/plan/slices/15-project-blocks.md) |
 
 Notes:
 
 - [Finished slices](docs/plan/notes/slices-done.md): rows of built slices.
 - [Feedback loop 2026-11-15](docs/plan/notes/2026-11-15-1406-feedback-loop.md): what the end-of-run audit found.
+- [Design brief 2026-11-17](docs/plan/notes/2026-11-17-design-brief.md): the page redesign for Slices 13 to 15, for Claude Design.
+- Slices 13 to 15 (owner, 2026-11-17, "agree to all"): 13 and 14 edit the same server files, so 13 then 14; 15 after both. The sending side is planned in the owner's config repo.
 - [Feedback loop 2026-11-16](docs/plan/notes/2026-11-16-1402-feedback-loop.md): what the audit of the second night found.
 - Slices 1 to 7 are built and merged and deployed; 1 is verified, 5 works in claude.ai (owner, 2026-11-16; the phone check is open), and the open checks of the rest are in `docs/plan/unverified.md` (2026-11-16).
 - Slices 8 to 11 (owner, 2026-11-16) run in this order: 8, 9, 10, 11. Slices 8, 9, 10 and 11 are built (PRs #53, #57, #60, #66); 8, 9 and 10 are deployed (8 and 9 by the deployment created 2026-11-16T16:24:39Z, 10 by the one created 17:15:11Z); 11 is deployed too (PR #68 merged without the skip-CI marker at 18:24:55Z; deployment created 2026-11-16T18:25:23Z, and the migrations list read at about 18:32Z shows none left, so migration 0005 is applied). They edit the same server files, so one at a time. In each, part A (server) can be built now and part B (the page) is planned against the design mock the owner added on 2026-11-16 (`docs/design/`). The sending side is planned in the owner's private config repo.
@@ -52,6 +57,7 @@ Notes:
 ## Outstanding work
 
 - **Not yet tried on a device:** 30 checks across 9 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
+- **Design, the owner's step:** paste the brief in [the design brief](docs/plan/notes/2026-11-17-design-brief.md) into the [board design project](https://claude.ai/artifact/PZyqwkfjuwQkE4BE6UfeDd) and send the mock link back; part B of Slices 13 and 14 and all of 15 wait for it.
 - The D1 database and the Worker secrets exist.
 - The client guide (`docs/clients.md`) is ready (Slice 3); the owner's config repo can start its
   client.

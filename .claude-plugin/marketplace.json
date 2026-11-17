@@ -1,0 +1,14 @@
+{
+  "name": "agent-progress-board",
+  "description": "Plugins that connect a coding agent to an agent progress board",
+  "owner": {
+    "name": "agent-progress-board"
+  },
+  "plugins": [
+    {
+      "name": "agent-board",
+      "source": "./plugin",
+      "description": "Connects Claude Code to an agent progress board: the MCP server and the reporting skill"
+    }
+  ]
+}

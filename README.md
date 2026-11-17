@@ -6,9 +6,22 @@ One group per project. Each item (a planned slice, a problem, something waiting 
 a bug, new unplanned work) is a colour-coded tile with one line of what and why, plus its
 parent. The board shows everything still open plus whatever finished in the last 12 hours.
 Everything is exposed through one remote MCP server: agents load it as an MCP server, or post
-the same MCP tool calls over HTTPS where they can't. Clients live in the repos that use them.
+the same MCP tool calls over HTTPS where they can't. Clients for Claude Code live in `plugin/`
+(a Claude Code plugin marketplace with one plugin, `agent-board`); other clients follow
+[docs/clients.md](docs/clients.md).
 
-Status: building (Slice 1, the MCP items API). See [plan.md](plan.md).
+Status: working, built slice by slice. See [plan.md](plan.md).
+
+## Use it
+
+You already have a board and want your Claude Code to report to it. Give your Claude Code this
+one sentence:
+
+> Install and set up the agent board plugin from https://github.com/ashkansirous/agent-progress-board, following docs/setup/connect.md
+
+It installs the plugin, asks you for the board's address and write token, and proves the
+connection with a test card. See [docs/setup/connect.md](docs/setup/connect.md). To run a board of
+your own on your own Cloudflare account, a guide for that is coming; it does not exist yet.
 
 ## Design in one paragraph
 

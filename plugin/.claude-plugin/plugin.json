@@ -1,0 +1,19 @@
+{
+  "name": "agent-board",
+  "description": "Connects Claude Code to an agent progress board: the board's MCP server and a skill with the reporting rules",
+  "userConfig": {
+    "board_url": {
+      "type": "string",
+      "title": "Board address",
+      "description": "The https address of your board, ending before /mcp, with no trailing slash (https only: the token is sent with every request)",
+      "required": true
+    },
+    "board_token": {
+      "type": "string",
+      "title": "Board write token",
+      "description": "The board's write token",
+      "sensitive": true,
+      "required": true
+    }
+  }
+}

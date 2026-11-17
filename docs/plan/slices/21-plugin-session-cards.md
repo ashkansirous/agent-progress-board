@@ -33,7 +33,9 @@ owner's config repo (`skills/report-progress/`: `report-progress.mjs`, `hooks/ho
 - [x] **Running background agents show as steps.** The same card stayed at step "write English text" for two
   hours. Each background agent whose transcript changed in the last 10 minutes shows as an `active` step labelled
   with its `description` from `subagents/*.meta.json`, and turns `done` on its SubagentStop; steps the session
-  sent stay as sent. Verify: two meta files give two active steps; after one SubagentStop one is done.
+  sent stay as sent. Verify: two meta files give two active steps; after one SubagentStop one is done. Built differently: the board
+  allows one active step, so the first agent is active and the others pending "running in background" (*Decisions
+  (wave)*; Follow-up 11).
 - [x] **A dead session's waiting card closes.** On 2026-11-17 a "Claude is waiting for your input" card stayed 8
   hours after its session died (no Stop ran). A hook `waiting_for_me` card whose session sent nothing for 30
   minutes is closed with "Session ended" at the next tick of any session on the machine. Verify: a test with an
@@ -75,6 +77,7 @@ owner's config repo (`skills/report-progress/`: `report-progress.mjs`, `hooks/ho
 8. `plugin/scripts/hooks/goal-reminder.mjs:117` (low): `process.exitCode = 0` in `.finally` does not force exit; a lingering handle keeps the hook alive to the 5 s timeout; the sync part of `closeAnsweredWaiting` can throw outside the try.
 9. `plugin/scripts/hooks/session-done.mjs:146` (low): each SubagentStop does an extra disk read/write plus `closeDeadWaiting` marker stats; the stopped-id file grows unbounded.
 10. `plugin/scripts/hooks/hooks.test.mjs:93` (low): no tests for concurrent `addStoppedAgent`, old stopped ids, resumed agents, a report landing during `saveGoal`, or the active slot after the `mergeSteps` dedupe.
+11. Board side (feedback loop 2026-11-17-1826): the board allows one active step (`normalizeSteps` in `src/domain/steps.ts`), so while a background agent runs the session's own step shows as pending. The wave kept the rule (*Decisions (wave)*); relaxing it is a product choice for the owner, not planned.
 
 #### For CLAUDE.md (lifted 2026-11-17)
 
@@ -84,6 +87,8 @@ owner's config repo (`skills/report-progress/`: `report-progress.mjs`, `hooks/ho
 
 - A real session with a background agent keeps its card open past a reply, then closes it.
 - `plugin/hooks/hooks.json` exec form and the PostToolUse tool name `mcp__plugin_agent-board_agent-board__report_progress` not seen in a live session.
+- On Windows, the hook's reminder JSON reaches the session whole (the check pass replaced `process.exit(0)` with `process.exitCode`; the truncation was never reproduced). Added by the feedback loop 2026-11-17-1826.
+- In a live session an open question survives Stop and is cleared by the next prompt (added by the check pass). Added by the feedback loop 2026-11-17-1826.
 
 #### Verification
 

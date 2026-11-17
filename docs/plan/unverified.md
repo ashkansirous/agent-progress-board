@@ -8,6 +8,7 @@ owner confirms, is removed here and its slice marked `verified`.
 - In a real Claude Code session with the plugin installed, tokens reach the board and join the session card.
 - With `report_usage` off no usage call goes out and the card stays live.
 - With `read_plan_cap` on a cap reading arrives.
+- That `CLAUDE_CONFIG_DIR` reaches the plugin's hooks (the fixer did not check Claude Code's docs).
 
 ### Slice 23: Plan documents sync, an optional plugin part ([slice](slices/23-plugin-plan-sync.md))
 
@@ -18,11 +19,15 @@ owner confirms, is removed here and its slice marked `verified`.
 - The Access step assumes the page is on a custom hostname and agents use the `workers.dev` address (how the live board was built); Access directly on `workers.dev` was not tried.
 - That a Workers Builds token on a fresh account can run the D1 migrations in `deploy:ci` and provision the `OAUTH_KV` namespace on the first deploy ("created for you" in the guide); if the token lacks D1 edit the deploy fails with an auth error.
 - A fresh Claude Code following the guide in a new Cloudflare account ends with a board that shows a test card.
+- The dashboard menu path in `docs/setup/own-board.md` for editing the Workers Builds token (not checked).
+- The guide's Workers Builds fields (branch `main`, no build command, `npm run deploy:ci`, previews off), taken from the Slice 1 record, not confirmed in docs.
 
 ### Slice 21: Session cards report themselves from the plugin's hooks ([slice](slices/21-plugin-session-cards.md))
 
 - A real session with a background agent keeps its card open past a reply, then closes it.
 - `plugin/hooks/hooks.json` exec form and the PostToolUse tool name `mcp__plugin_agent-board_agent-board__report_progress` not seen in a live session.
+- On Windows, the hook's reminder JSON reaches the session whole (the check pass replaced `process.exit(0)` with `process.exitCode`; the truncation was never reproduced).
+- In a live session an open question survives Stop and is cleared by the next prompt (UserPromptSubmit/PostToolUse close of waiting items, added by the check pass).
 
 ### Slice 20: A Claude Code plugin and a setup guide ([slice](slices/20-plugin-connect.md))
 
@@ -30,7 +35,6 @@ owner confirms, is removed here and its slice marked `verified`.
 - Auto-update delivers a change to an installed client after a merge.
 - Install from the GitHub marketplace source (`claude plugin marketplace add <owner>/<repo>`) with the plugin merged on `main`: tested only from a local path in a throwaway `CLAUDE_CONFIG_DIR`.
 - The test card steps of `docs/setup/connect.md` (`report_progress`, `get_item`, `mark_done`) run by a Claude Code session, and the skill loading in a session (only the MCP connection was checked).
-- The skill's "test fails when one side changes alone" check: `test/pluginRules.test.ts` asserts equality only; a mutation case was not run.
 - The stdin-from-a-file form of `claude plugin configure --values-stdin` in `docs/setup/connect.md` step 4 was not run (only the pipe form was).
 
 ### Slice 18: Every AI that connects to the board is told how to report ([slice](slices/18-agent-setup.md))
@@ -43,6 +47,7 @@ owner confirms, is removed here and its slice marked `verified`.
 - **You:** try the same instruction once in a Claude Design session and say whether a card appears (Claude Design calling the connector is unproven; see the first Work item).
 - A real claude.ai chat reporting through the connector and the usage page's "Claude chat" row.
 - Claude Design and custom connectors are unproven in the docs.
+- The claude.ai settings path in `docs/clients.md` (*Claude chat*: Settings, "Your Claude", Instructions) was never read from the live site (feedback loop 2026-11-17-1826).
 
 ### Slice 15: One collapsible block per project, done work always folded ([slice](slices/15-project-blocks.md))
 

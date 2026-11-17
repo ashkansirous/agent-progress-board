@@ -25,3 +25,5 @@ Rows moved out of `plan.md`'s status table once built.
 | 20 | A Claude Code plugin and a setup guide: any Claude Code connects itself to a board | built | #99 | | [20](../slices/20-plugin-connect.md) |
 | 24 | Set up your own board: a guide Claude follows | built | #100 | | [24](../slices/24-own-board-guide.md) |
 | 21 | Session cards report themselves from the plugin's hooks | built | #101 | | [21](../slices/21-plugin-session-cards.md) |
+| 23 | Plan documents sync, an optional plugin part | built | #103 | | [23](../slices/23-plugin-plan-sync.md) |
+| 22 | Token usage and cap readings from the plugin | built | #104 | | [22](../slices/22-plugin-usage.md) |

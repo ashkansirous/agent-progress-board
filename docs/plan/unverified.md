@@ -3,6 +3,16 @@
 Every open "Not yet verified" check, one block per slice. A check that passes, or that the
 owner confirms, is removed here and its slice marked `verified`.
 
+### Slice 22: Token usage and cap readings from the plugin ([slice](slices/22-plugin-usage.md))
+
+- In a real Claude Code session with the plugin installed, tokens reach the board and join the session card.
+- With `report_usage` off no usage call goes out and the card stays live.
+- With `read_plan_cap` on a cap reading arrives.
+
+### Slice 23: Plan documents sync, an optional plugin part ([slice](slices/23-plugin-plan-sync.md))
+
+- A real sync against a live board from a qualifying repo with the plugin's script (`plugin/scripts/sync-docs.mjs`, git mode from `origin/main`).
+
 ### Slice 24: Set up your own board: a guide Claude follows ([slice](slices/24-own-board-guide.md))
 
 - The Access step assumes the page is on a custom hostname and agents use the `workers.dev` address (how the live board was built); Access directly on `workers.dev` was not tried.

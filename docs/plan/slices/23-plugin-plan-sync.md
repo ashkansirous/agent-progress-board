@@ -1,6 +1,6 @@
 ### Slice 23 — Plan documents sync, an optional plugin part
 
-*Built (wave 2026-11-17), PR #103, not merged.*
+*Built (wave 2026-11-17), merged as PR #103 (8d82cad), not yet verified against a live board (see *Not yet verified*).*
 
 *Planned and accepted with Slice 20 (owner, 2026-11-17; decisions in
 [Slice 20](20-plugin-connect.md)). Starts after Slice 21.* Moves `sync-docs.mjs` and `sync.md` from the owner's
@@ -65,7 +65,7 @@ where a finding repeats another, that is said.
 - Skipped #6 (`reviews/pr-103-check-medium.md`): "The park-reason rule is duplicated in SKILL.md, docs/setup/plan-sync.md and sync-docs.mjs with no test holding them equal" - follow-up: add an equality test.
 - Skipped #7 (`reviews/pr-103-check-medium.md`): "for a slice with no open row still become standalone waiting_for_me cards" - follow-up, low.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-17)
 
 - The park-reason rule (which `parked:` reasons give a blocked slice and no waiting card) lives only in
   `waitsOnlyOnWork` in `plugin/scripts/sync-docs.mjs`; `plugin/skills/agent-board/SKILL.md` describes it in words,

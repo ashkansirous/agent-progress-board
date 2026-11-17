@@ -1,4 +1,4 @@
-### Slice 26 — Every "Needs you" card says what is needed, for which work, and why; no card when nothing is asked
+### Slice 27 — Every "Needs you" card says what is needed, for which work, and why; no card when nothing is asked
 
 *Planned (owner, 2026-11-17, on a screenshot of four "Needs you" cards: "the only active session I havae with board is
 you. why do I have so many things from you? ... 'claude is waiting your input' what input?! ... what the fuck is the
@@ -13,7 +13,7 @@ description?! what the fuck do you need from me?").* Read live at 20:2x from `li
   "Waiting on you: <slice title>", `why` is empty or the park reason, no link to the slice, no description of what
   the step is for.
 
-**Touches:** `plugin/scripts/hooks/**`, `plugin/scripts/sync-docs.mjs`, `plugin/scripts/sync-docs.test.mjs`, `plugin/scripts/report-progress.mjs`, `plugin/skills/agent-board/SKILL.md`, `src/mcp/instructions.ts`, `src/domain/**`, `web/src/**`, `test/**`, `e2e/**`, `docs/clients.md`, `docs/plan/slices/26-needs-you-cards.md`
+**Touches:** `plugin/scripts/hooks/**`, `plugin/scripts/sync-docs.mjs`, `plugin/scripts/sync-docs.test.mjs`, `plugin/scripts/report-progress.mjs`, `plugin/skills/agent-board/SKILL.md`, `src/mcp/instructions.ts`, `src/domain/**`, `web/src/**`, `test/**`, `e2e/**`, `docs/clients.md`, `docs/plan/slices/27-needs-you-cards.md`
 
 **Migrations:** none
 

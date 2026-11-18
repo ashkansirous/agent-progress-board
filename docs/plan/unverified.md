@@ -3,6 +3,11 @@
 Every open "Not yet verified" check, one block per slice. A check that passes, or that the
 owner confirms, is removed here and its slice marked `verified`.
 
+### Slice 35: Usage page and cost figures: review leftovers ([slice](slices/35-usage-page-fixes.md))
+
+- On a phone or desktop in a zone with daylight saving, the Usage page's bars, reset markers and labels line up across a clock change (next change: late March).
+- **You:** read the German strings `kindsSecondFraction`, `kindsSecondMultiple`, `multipleOther` and `hourAgain` on `<board address>/#/usage` (native read).
+
 ### Slice 32: Open questions are counted and kept right; `ask_human` can set `needs_you` ([slice](slices/32-questions-and-rules.md))
 
 - A live `ask_human` from a chat sets `needs_you` on its card, after the release.

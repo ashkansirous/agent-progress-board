@@ -102,8 +102,9 @@ function answersQuestion(input: ReportInput, existing: QuestionState): boolean {
  * in-progress heartbeat included, leaves them as stored.
  */
 export function withQuestion(input: ReportInput, existing: QuestionState, now: string): ReportInput {
-  if (input.needs_you) return withAsked(input, existing, now);
-  const clears = input.needs_you === null || (input.needs_you === undefined && answersQuestion(input, existing));
+  const done = input.status === ItemStatus.Done;
+  if (input.needs_you && !done) return withAsked(input, existing, now);
+  const clears = done || input.needs_you === null || (input.needs_you === undefined && answersQuestion(input, existing));
   if (!clears) return input;
   const answered = existing?.needs_you ? { note: withMarker(ANSWERED_NOTE, input.note) } : {};
   return { ...input, ...answered, needs_you: null, after_answer: null, needs_you_at: null };
@@ -140,8 +141,8 @@ export function newItem(input: ReportInput, now: string): Item {
     source: input.source ?? null,
     environment: input.environment ?? null,
     steps: normalizeSteps(input.steps),
-    agent: blankToNull(input.agent),
-    model: blankToNull(input.model),
+    agent: input.agent ?? null,
+    model: input.model ?? null,
     needs_you: input.needs_you ?? null,
     after_answer: input.after_answer ?? null,
     needs_you_at: input.needs_you_at ?? null,

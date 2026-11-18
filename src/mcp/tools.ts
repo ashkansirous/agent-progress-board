@@ -110,7 +110,7 @@ function registerAskHuman(server: McpServer, ctx: ToolContext): void {
     ToolName.AskHuman,
     {
       description:
-        "Create or update a waiting_for_me item: a step only the human can do. On a key of another type it sets needs_you (from why, else the title) on that item instead.",
+        "Create or update a waiting_for_me item: a step only the human can do. Set needs_you to put the question under Needs you on a waiting_for_me item (links say where to act). On a key of another type it sets needs_you (from needs_you, else why, else the title) on that item instead; a part or plan-document item is refused.",
       inputSchema: askHumanShape,
     },
     (args) => run(ctx, Need.Write, () => askHuman(ctx.repo, args, ctx.clock)),

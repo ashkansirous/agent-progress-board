@@ -133,14 +133,41 @@ describe("report_progress with a question", () => {
     expect(reply.isError).toBe(true);
   });
 
-  it("refuses a blank question, and ask_human falls back to the title for a blank why", async () => {
+  it("refuses a blank question, and a blank why on ask_human keeps the open question", async () => {
     await callTool("report_progress", { ...SESSION, needs_you: QUESTION });
     for (const blank of ["", "   "]) {
       expect((await callTool("report_progress", { key: KEY, needs_you: blank })).isError).toBe(true);
     }
     expect((await stored()).needs_you).toBe(QUESTION);
+    const before = await stored();
+    await callTool("ask_human", { key: KEY, project: "example-app", title: "Pick one", why: "  " });
+    expect(await stored()).toMatchObject({ needs_you: QUESTION, needs_you_at: before.needs_you_at });
+  });
+
+  it("ask_human refuses a part and a doc-synced item, and asks with the title when nothing is open", async () => {
+    const PART = { key: "example-app/slice-1/part-A", project: "example-app", type: "part", title: "Part A" };
+    await callTool("report_progress", PART);
+    const part = await callTool("ask_human", { key: PART.key, project: "example-app", title: "Q" });
+    expect(part.isError).toBe(true);
+    await callTool("report_progress", { ...SESSION, status: "in_progress" });
+    await env.DB.prepare("UPDATE items SET in_doc_sync = 1 WHERE key = ?1").bind(KEY).run();
+    expect((await callTool("ask_human", { key: KEY, project: "example-app", title: "Q" })).isError).toBe(true);
+    await env.DB.prepare("UPDATE items SET in_doc_sync = 0 WHERE key = ?1").bind(KEY).run();
     await callTool("ask_human", { key: KEY, project: "example-app", title: "Pick one", why: "  " });
     expect((await stored()).needs_you).toBe("Pick one");
+  });
+
+  it("ask_human sets needs_you and links on its own waiting_for_me item", async () => {
+    const key = "example-app/waiting-1";
+    await callTool("ask_human", { key, project: "example-app", title: "Approve", needs_you: "Merge it?", links: [{ label: "PR", url: "https://example.com/pr" }] });
+    const row = await env.DB.prepare("SELECT needs_you, links FROM items WHERE key = ?1").bind(key).first<{ needs_you: string; links: string }>();
+    expect(row?.needs_you).toBe("Merge it?");
+    expect(row?.links).toContain("https://example.com/pr");
+  });
+
+  it("does not store a question on an item reported done", async () => {
+    await callTool("report_progress", { ...SESSION, status: "done", needs_you: QUESTION });
+    expect((await stored()).needs_you).toBeNull();
   });
 });
 
@@ -159,7 +186,7 @@ describe("the board DTO carries the question and the card's data", () => {
     const [item] = (await board()).items;
     expect(item).toMatchObject({
       needs_you: QUESTION, after_answer: "Read it.", parent: "session 4f2a", environment: "laptop", agent: SESSION_AGENT,
-      details_md: "Found two devices", why: "For Slice 12", working: false,
+      details_md: "Found two devices", why: "For Slice 12", working: true,
     });
     expect(item?.needs_you_at).toEqual(expect.any(String));
     expect(item?.heartbeat_at).toEqual(expect.any(String));
@@ -181,14 +208,17 @@ describe("the board DTO carries the question and the card's data", () => {
     expect((await board()).items[0]).toMatchObject({ status: "done", needs_you: null, working: false });
   });
 
-  it("counts a card with an open question under needs you, never in working_count", async () => {
+  it("counts a working card with an open question in working_count too, and never counts a check", async () => {
     await callTool("report_progress", { ...SESSION, status: "in_progress", steps: [{ label: "Ask", state: "active" }], needs_you: QUESTION });
     const asking = await board();
-    expect(asking.items[0]).toMatchObject({ needs_you: QUESTION, working: false });
-    expect(asking.working_count).toBe(0);
-    await callTool("report_progress", { ...SESSION, status: "done" });
-    await callTool("report_progress", { ...SESSION, key: "example-app/session-9", status: "in_progress", steps: [{ label: "Go", state: "active" }] });
-    expect((await board()).working_count).toBe(1);
+    expect(asking.items[0]).toMatchObject({ needs_you: QUESTION, working: true });
+    expect(asking.working_count).toBe(1);
+    await callTool("report_progress", { key: "example-app/slice-1", project: "example-app", type: "slice", title: "Slice 1" });
+    const check = { key: "example-app/slice-1/check-1", project: "example-app", type: "check", parent_key: "example-app/slice-1", title: "Check", agent: "session", status: "in_progress", steps: [{ label: "Go", state: "active" }], needs_you: "Which?" };
+    await callTool("report_progress", check);
+    const after = await board();
+    expect(after.items.find((item) => item.key === check.key)).toMatchObject({ working: false, parent_slice: { key: "example-app/slice-1" } });
+    expect(after.working_count).toBe(1);
   });
 
   it("takes a session card out of working now after 15 minutes", async () => {

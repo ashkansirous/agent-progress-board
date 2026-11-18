@@ -141,6 +141,9 @@ export const askHumanShape = {
   key,
   project: label.describe("Project the question belongs to"),
   title: label,
+  needs_you: reportProgressShape.needs_you.describe(
+    "The question for the owner; on a waiting_for_me item it shows under Needs you until it is cleared. On another type the question is this, else why, else the title",
+  ),
   after_answer: z
     .string()
     .max(MAX_AFTER_ANSWER)

@@ -38,7 +38,11 @@ export async function reportProgress(
   input: ReportInput,
   clock: Clock,
 ): Promise<Item> {
-  const existing = await repo.find(input.key);
+  return saveReport(repo, input, await repo.find(input.key), clock);
+}
+
+/** `reportProgress` for a caller that has already read the stored item (one find per call). */
+async function saveReport(repo: ItemRepository, input: ReportInput, existing: Item | null, clock: Clock): Promise<Item> {
   const now = clock.now().toISOString();
   const checked = withQuestion(checkReport(input), existing, now);
   await assertItemFits(repo, checked, existing);
@@ -81,21 +85,32 @@ export async function askHuman(
   const existing = await repo.find(input.key);
   if (existing && existing.type !== ItemType.WaitingForMe) return askOnItem(repo, existing, input, clock);
   const report: ReportInput = { ...input, type: ItemType.WaitingForMe, status: ItemStatus.Open };
-  return reportProgress(repo, report, clock);
+  return saveReport(repo, report, existing, clock);
 }
 
 /**
  * A question on an item of another type (Slice 13): the item keeps its type, status and title and
- * gets `needs_you` (the question, from `why`, else the title) and `after_answer`, so the session
- * stays one card. Every other field the ask sends follows the rules of `report_progress`; a field it
- * leaves out keeps its stored value. A done item cannot be asked on.
+ * gets `needs_you` (the question: `needs_you`, else `why`, else the title) and `after_answer`, so the
+ * session stays one card. Every other field the ask sends follows the rules of `report_progress`; a
+ * field it leaves out keeps its stored value. A done item, a part and a doc-synced item cannot be asked
+ * on (the documents own them). With no text of its own the ask keeps an open question as stored.
  */
 async function askOnItem(repo: ItemRepository, existing: Item, input: AskHumanInput, clock: Clock): Promise<Item> {
   if (existing.status === ItemStatus.Done) {
     throw new DomainError("key", `field key: item ${input.key} is done, so ask_human cannot ask on it`);
   }
-  const { title, why, ...rest } = input;
-  return reportProgress(repo, { ...rest, needs_you: why?.trim() ? why : title, after_answer: rest.after_answer ?? null }, clock);
+  if (existing.type === ItemType.Part || (await isDocSynced(repo, existing))) {
+    throw new DomainError("key", `field key: item ${input.key} is a part or comes from the plan documents, so ask_human cannot ask on it`);
+  }
+  const { title, why, needs_you, ...rest } = input;
+  const own = [needs_you, why].find((text) => text?.trim());
+  const question = own ?? existing.needs_you ?? title;
+  return saveReport(repo, { ...rest, needs_you: question, after_answer: rest.after_answer ?? null }, existing, clock);
+}
+
+async function isDocSynced(repo: ItemRepository, item: Item): Promise<boolean> {
+  const rows = await repo.loadForSync(item.project, [item.key]);
+  return rows.some((row) => row.key === item.key && row.in_doc_sync);
 }
 
 export interface SyncSnapshotInput {

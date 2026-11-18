@@ -3,9 +3,13 @@
 *Planned 2026-11-18 (owner: "double check and plan the follow up work"). Grouping decided by the planning session of
 2026-11-18; items re-checked against `origin/main` (d654e9b).* Wave 1.
 
+*In progress (wave 2026-11-18), draft PR.* Touches widened with `plugin/scripts/hooks/hooks.test.mjs`: there is no
+session-waiting test file, so its tests go there (Slice 29 adds tests there too, in separate blocks).
+
 **Touches:** `plugin/scripts/sync-docs.mjs`, `plugin/scripts/sync-docs.test.mjs`,
 `plugin/scripts/hooks/waiting-card.mjs`, `plugin/scripts/hooks/waiting-card.test.mjs`,
-`plugin/scripts/hooks/session-waiting.mjs`, `docs/setup/plan-sync.md`, `docs/plan/slices/31-sync-and-waiting-text.md`
+`plugin/scripts/hooks/session-waiting.mjs`, `plugin/scripts/hooks/hooks.test.mjs`, `docs/setup/plan-sync.md`,
+`docs/plan/slices/31-sync-and-waiting-text.md`
 
 **Migrations:** none
 

@@ -125,11 +125,12 @@ Undelivered Work items (`reviews/pr-144-high.md` #5):
 
 Open from review (`reviews/pr-144-check-3-medium.md` #1-#4, listed under *From review*): not yet planned as a slice; the medium one (stale cache closes the drawer before the refresh starts) needs one first.
 
-#### Waiting on the user
+#### Settled (2026-11-18, starter session; not asked)
 
-- The phone tab bar is at the top in `PhoneV2` and `ActiveV3Phone` but at the bottom in `PhoneUsage.dc.html`, so which
-  mock wins for Usage is the owner's call. Today's Usage bar (bottom) is kept; `e2e/usage.spec.ts:200` pins it
-  (`reviews/pr-144-high.md` #5).
+- The phone tab bar: `PhoneV2` and `ActiveV3Phone` (the newer mocks, drawn 2026-11-18) put it at the top, and only
+  the older `PhoneUsage.dc.html` puts it at the bottom. The newer mocks win, so Usage moves its bar to the top too.
+  This is built in [Slice 43](43-owner-cards-read-right.md). The owner was angry at this being a question: "what the
+  fuck are these 4?"
 
 #### From review
 

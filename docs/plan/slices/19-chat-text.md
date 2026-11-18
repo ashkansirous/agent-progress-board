@@ -72,3 +72,5 @@ Applied from `reviews/pr-110-high.md`: #1, #2, #3, #6, #7. From `reviews/pr-110-
 #### Not yet verified
 
 - On the deployed board, open the panel (`#/setup`), copy, paste into claude.ai Instructions and see a chat report.
+  The first part is done (owner, 2026-11-18: "I've updated the instructions with the 2 texts"; the page loaded and
+  the owner copied both pieces from it). Seeing a chat report is still open, and it is read from the board.

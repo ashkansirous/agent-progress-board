@@ -56,6 +56,7 @@ owner confirms, is removed here and its slice marked `verified`.
 
 ### Slice 28: Cloud and VM sessions report their usage under their own label ([slice](slices/28-cloud-usage.md))
 
+- **You:** in the cloud environment's settings at https://claude.ai/code (the settings icon on your environment's row under **Cloud**), add under **Environment variables** `AGENT_BOARD_URL=<board address>`, `AGENT_BOARD_TOKEN=<a rotatable write token>` and `AGENT_BOARD_ENV=cloud`, add the board host under **Allowed domains**, and save. The scripts and hooks come from the owner's config repo (its Slice 27); without these values the cloud hook stays silent.
 - A real cloud session's usage shows on the usage page under its own label.
 - The owner's main machine shows its new label after the plugin switch.
 - The cloud records path `/root/.claude` is untried in a real cloud session.

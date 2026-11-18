@@ -59,7 +59,7 @@ tested; the pipe form was), then the person deletes the file.
 
 The plugin also sends token counts to the board (option `report_usage`, on by default; false turns it off). The
 plan's cap percentage is a separate option, `read_plan_cap`, off by default: it reads Claude Code's own sign-in file
-(`.credentials.json` in the Claude folder) to ask Anthropic for that percentage, so tell the person before they turn
+(`.credentials.json` in the Claude folder) to ask Anthropic for that percentage, and sends the percentage, the plan's name and the window reset times to the board, so tell the person before they turn
 it on. Both are set in the same `/plugin` menu, and `report_usage` off stops both.
 
 ### Name this machine (the `environment` option)

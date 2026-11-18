@@ -196,6 +196,28 @@ describe("GET /api/board", () => {
     expect(data.config.palettes.light?.text).toBe("#14171C");
   });
 
+  it("counts an in-progress item with an open question as working", async () => {
+    await callTool("report_progress", {
+      key: "a/q", project: "a", type: "bug", title: "Asks", status: "in_progress", agent: "builder", needs_you: "Which one?",
+    });
+    const data = await board();
+    expect(data.items[0]!.needs_you).toBe("Which one?");
+    expect(data.items[0]!.working).toBe(true);
+    expect(data.working_count).toBe(1);
+  });
+
+  it("lists a check that holds a question but never counts it as working, and names its slice", async () => {
+    await callTool("report_progress", { key: "a/s1", project: "a", type: "slice", title: "Slice one" });
+    await callTool("report_progress", {
+      key: "a/s1/c1", project: "a", type: "check", title: "Check", status: "in_progress", parent_key: "a/s1", needs_you: "Ok?",
+    });
+    const data = await board();
+    const check = data.items.find((item) => item.key === "a/s1/c1")!;
+    expect(check.working).toBe(false);
+    expect(check.parent_slice).toEqual({ key: "a/s1", number: null, title: "Slice one" });
+    expect(data.working_count).toBe(0);
+  });
+
   it("drops items finished before the window", async () => {
     await callTool("report_progress", { key: "a/open", project: "a", type: "bug", title: "Open one" });
     await callTool("report_progress", { key: "a/old", project: "a", type: "bug", title: "Old", status: "done" });

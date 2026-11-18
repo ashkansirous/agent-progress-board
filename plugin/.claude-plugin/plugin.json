@@ -24,13 +24,13 @@
     "read_plan_cap": {
       "type": "boolean",
       "title": "Read the plan cap",
-      "description": "Read Claude Code's own sign-in file to ask Anthropic for your plan's cap percentage, and send that percentage to the board. Off by default; works only while report_usage is on",
+      "description": "Read Claude Code's own sign-in file to ask Anthropic for your plan's cap percentage, and send the percentage, your plan's name and the window reset times to the board. Off by default; works only while report_usage is on",
       "default": false
     },
     "environment": {
       "type": "string",
       "title": "Environment label",
-      "description": "Name of this machine, shown on usage reports (for example your host name; the board keeps at most 40 characters); leave empty to send none: once any machine is named, unlabelled usage joins the busiest named environment, so name your main machine first; with none named it shows as No label (main machine)"
+      "description": "Name of this machine on usage reports (at most 40 characters); name your main machine first, or leave empty to send none"
     }
   }
 }

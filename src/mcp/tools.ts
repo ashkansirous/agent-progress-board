@@ -19,6 +19,150 @@ import {
 
 const INTERNAL_ERROR = "internal error: the board could not complete the request";
 
+/**
+ * The most JSON characters list_open and get_item return; what does not fit is left out and said so in a
+ * second text block (Slice 32). Claude Code saves a text result over 50,000 characters to a file instead of
+ * showing it (https://code.claude.com/docs/en/mcp, "MCP output limits and warnings"), so the whole reply,
+ * note included, stays under that.
+ */
+export const MAX_RESULT_CHARS = 50_000;
+
+/** Room kept for the second text block that says what was left out. */
+const NOTE_RESERVE = 500;
+
+/** The longest a string field may be, tried in turn, when the first entry alone is over the limit. */
+const STRING_CLIPS = [2000, 500, 100, 20];
+
+/** A result that was cut to the size limit: the data that fits and the sentence that says what is missing. */
+class Truncated {
+  constructor(
+    readonly data: unknown,
+    readonly note: string,
+  ) {}
+}
+
+/** Identity and time fields a clip never touches: cutting one makes a key that names no item or a time that is no time. */
+const UNCLIPPED_FIELDS = new Set(["key", "parent_key", "project", "type", "status", "at"]);
+
+function isUnclipped(name: string): boolean {
+  return UNCLIPPED_FIELDS.has(name) || name.endsWith("_at");
+}
+
+function clipText(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, max)}...` : text;
+}
+
+/** Free text cut to `max` characters; key, parent_key, project, type, status and every time field stay whole. */
+function clipStrings(value: unknown, max: number): unknown {
+  if (typeof value === "string") return clipText(value, max);
+  if (Array.isArray(value)) return value.map((entry) => clipStrings(entry, max));
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([name, field]) => [name, isUnclipped(name) ? field : clipStrings(field, max)]),
+    );
+  }
+  return value;
+}
+
+/** How a reply is cut: its JSON size parts, how to build the reply for `shown` entries (long strings cut to `clip` when given), and the tiny reply of last resort. */
+interface CutPlan {
+  /** JSON length of each droppable entry, in order. */
+  sizes: number[];
+  /** JSON length of everything that is not an entry (the brackets, or the item without its events). */
+  fixed: number;
+  /** The fewest entries shown before long strings are cut instead. */
+  minShown: number;
+  build: (shown: number, clip: number | null) => Truncated;
+  fallback: Truncated;
+}
+
+/** The length of the reply as the client receives it: the data block plus the note block. */
+function replyLength(reply: Truncated): number {
+  return JSON.stringify(reply.data).length + reply.note.length;
+}
+
+/** The most leading entries that fit with the note's reserve, estimated from the sizes already measured. */
+function estimateShown(plan: CutPlan): number {
+  let used = plan.fixed + NOTE_RESERVE;
+  let shown = 0;
+  for (const size of plan.sizes) {
+    used += size + (shown > 0 ? 1 : 0);
+    if (used > MAX_RESULT_CHARS) break;
+    shown++;
+  }
+  return shown;
+}
+
+/**
+ * The reply cut to the limit by construction: it drops the last entry while the measured reply is over,
+ * then, with the fewest entries left, cuts long strings to shorter and shorter lengths; only a reply whose
+ * measured length is within MAX_RESULT_CHARS is returned, the fixed small fallback when nothing else is.
+ */
+function cutReply(plan: CutPlan): Truncated {
+  const start = Math.max(estimateShown(plan), plan.minShown);
+  for (let shown = start; shown >= plan.minShown; shown--) {
+    const reply = plan.build(shown, null);
+    if (replyLength(reply) <= MAX_RESULT_CHARS) return reply;
+  }
+  for (const clip of STRING_CLIPS) {
+    const reply = plan.build(plan.minShown, clip);
+    if (replyLength(reply) <= MAX_RESULT_CHARS) return reply;
+  }
+  return plan.fallback;
+}
+
+/** The note: how many were shown and dropped, the first dropped key when the entries have one (ask for it with get_item), and whether text was cut. */
+function cutNote(shown: number, total: number, clip: number | null, what: string, advice: string, firstDroppedKey: string | null = null): string {
+  const dropped = total - shown;
+  const first = firstDroppedKey === null ? "" : `, first dropped key ${firstDroppedKey}; ask for it with get_item`;
+  const droppedText = dropped > 0 ? ` (${dropped} dropped${first})` : "";
+  return `truncated: ${shown} of ${total} ${what} shown${droppedText}${advice}${clip === null ? "" : "; long text is cut"}`;
+}
+
+function keyOf(entry: unknown): string | null {
+  const key = (entry as { key?: unknown } | undefined)?.key;
+  return typeof key === "string" ? key : null;
+}
+
+/** The entries as they are when they fit the limit, else a `Truncated` whose measured reply fits it. */
+export function fitList<T>(entries: T[]): unknown {
+  const sizes = entries.map((entry) => JSON.stringify(entry).length);
+  const whole = 2 + sizes.reduce((sum, size) => sum + size, 0) + Math.max(entries.length - 1, 0);
+  if (whole <= MAX_RESULT_CHARS) return entries;
+  const advice = "; narrow the call with project, type or window_hours";
+  return cutReply({
+    sizes,
+    fixed: 2,
+    minShown: 1,
+    build: (shown, clip) => {
+      const kept = entries.slice(0, shown);
+      const data = clip === null ? kept : kept.map((entry) => clipStrings(entry, clip));
+      return new Truncated(data, cutNote(shown, entries.length, clip, "items", advice, keyOf(entries[shown])));
+    },
+    fallback: new Truncated([], cutNote(0, entries.length, null, "items", `; the first item alone is over the size limit${advice}`, keyOf(entries[0]))),
+  });
+}
+
+/** The item as it is when it fits the limit, else a `Truncated` (newest events kept) whose measured reply fits it. */
+export function fitItem<T extends { key: string; events: unknown[] }>(item: T): unknown {
+  const bareLength = JSON.stringify({ ...item, events: [] }).length;
+  const sizes = item.events.map((event) => JSON.stringify(event).length);
+  const whole = bareLength + sizes.reduce((sum, size) => sum + size, 0) + Math.max(sizes.length - 1, 0);
+  if (whole <= MAX_RESULT_CHARS) return item;
+  const advice = " (newest first)";
+  return cutReply({
+    sizes,
+    fixed: bareLength,
+    minShown: 0,
+    build: (shown, clip) => {
+      const kept = item.events.slice(0, shown);
+      const data = { ...item, events: kept };
+      return new Truncated(clip === null ? data : clipStrings(data, clip), cutNote(shown, item.events.length, clip, "events", advice));
+    },
+    fallback: new Truncated({ key: item.key }, `truncated: 0 of ${item.events.length} events shown; the item alone is over the size limit${advice}`),
+  });
+}
+
 export interface ToolContext {
   scope: Scope;
   repo: ItemRepository & UsageRepository;
@@ -110,10 +254,10 @@ function registerAskHuman(server: McpServer, ctx: ToolContext): void {
     ToolName.AskHuman,
     {
       description:
-        "Create or update a waiting_for_me item: a step only the human can do. On a key of another type it sets needs_you (from why, else the title) on that item instead.",
+        "Create or update a waiting_for_me item: a step only the human can do. Set needs_you to put the question under Needs you on a waiting_for_me item (links say where to act). On a key of another type it sets needs_you (from needs_you, else why, else the title) on that item instead; a part or plan-document item is refused.",
       inputSchema: askHumanShape,
     },
-    (args) => run(ctx, Need.Write, () => askHuman(ctx.repo, args, ctx.clock)),
+    (args) => run(ctx, Need.Write, () => askHuman(ctx.repo, args, ctx.clock, parseConfig(ctx.rawConfig).staleAfterMinutes)),
   );
 }
 
@@ -125,7 +269,7 @@ function registerListOpen(server: McpServer, ctx: ToolContext): void {
         "The board window: open items plus items done inside the window, with their latest events.",
       inputSchema: listOpenShape,
     },
-    (args) => run(ctx, Need.Read, () => listOpen(ctx.repo, args, parseConfig(ctx.rawConfig).window, ctx.clock)),
+    (args) => run(ctx, Need.Read, async () => fitList(await listOpen(ctx.repo, args, parseConfig(ctx.rawConfig).window, ctx.clock))),
   );
 }
 
@@ -133,7 +277,7 @@ function registerGetItem(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
     ToolName.GetItem,
     { description: "One item with its full event history.", inputSchema: getItemShape },
-    (args) => run(ctx, Need.Read, () => getItem(ctx.repo, args.key)),
+    (args) => run(ctx, Need.Read, async () => fitItem(await getItem(ctx.repo, args.key))),
   );
 }
 
@@ -154,6 +298,9 @@ function refusal(held: Scope, needed: Need): string {
 }
 
 function success(data: unknown): CallToolResult {
+  if (data instanceof Truncated) {
+    return { content: [{ type: "text", text: JSON.stringify(data.data) }, { type: "text", text: data.note }] };
+  }
   return { content: [{ type: "text", text: JSON.stringify(data) }] };
 }
 

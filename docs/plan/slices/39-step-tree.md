@@ -16,7 +16,12 @@ Runs after Slice 32, because both edit `src/domain/steps.ts`, `src/mcp/schemas.t
 `docs/clients.md`, `web/src/stepsView.tsx`, `web/src/stepsText.ts`, `web/src/ActiveCard.tsx`, `web/src/strings.ts`,
 `web/src/active.css`, `test/steps.test.ts`, `test/stepsTools.test.ts`, `test/mcpInstructions.test.ts`,
 `test/pluginRules.test.ts`, `test/web.test.ts`, `e2e/active.spec.ts`, `e2e/activeFixture.ts`,
-`docs/plan/slices/39-step-tree.md`
+`plugin/scripts/report-progress.mjs`, `plugin/scripts/report-progress.test.mjs`, `src/infrastructure/d1Repository.ts`,
+`src/api/boardDto.ts`, `web/src/**` (any reader of `Step`), `test/**` (step tests), `docs/plan/slices/39-step-tree.md`
+
+*In progress (wave 2026-11-18), draft PR.* Touches widened at claim (premise check, wave 19): the plugin reporter
+builds and forwards `steps` (`keepStep`, the step filter, `currentStep`), the repository stores and diffs them, the DTO
+and `StepProgress.current` carry one label, and `progressOf` in `steps.ts` finds one active step.
 
 **Migrations:** none (steps stay JSON in `items.steps`)
 

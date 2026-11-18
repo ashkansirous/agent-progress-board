@@ -22,8 +22,6 @@ owner's config repo. Decisions in [Slice 20](docs/plan/slices/20-plugin-connect.
 
 | Slice | Title | Status | PR | Issue | File |
 | --- | --- | --- | --- | --- | --- |
-| 29 | Session cards keep background agents' state right | planned | | | [29](docs/plan/slices/29-agent-state-fixes.md) |
-| 30 | The plugin's usage and cap scripts: review leftovers | planned | | | [30](docs/plan/slices/30-usage-script-fixes.md) |
 | 31 | Plan sync and waiting cards read the documents and transcripts right | planned | | | [31](docs/plan/slices/31-sync-and-waiting-text.md) |
 | 32 | Open questions are counted and kept right; ask_human can set needs_you | planned | | | [32](docs/plan/slices/32-questions-and-rules.md) |
 | 33 | Doc sync never retypes live work, and checks and parts count right | planned | | | [33](docs/plan/slices/33-sync-and-checks-rules.md) |
@@ -73,7 +71,7 @@ Notes:
 
 ## Outstanding work
 
-- **Not yet tried on a device:** 76 checks across 23 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
+- **Not yet tried on a device:** 79 checks across 25 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
 - Done 2026-11-18 (Slices 16, 18, 19): the owner pasted the connector line and the instruction text from the board's "Set up a chat" page into claude.ai Instructions ("I've updated the instructions with the 2 texts"). Whether a chat now opens a card is read from the board, not asked ([Slice 19](docs/plan/slices/19-chat-text.md)). The page will give one Copy for both pieces ([Slice 37](docs/plan/slices/37-access-and-grants.md)).
 - Slices 1 to 28 are built (19 merged as PR #110, 27 as PR #109, 28 as PR #114, 26 as PR #115, all four live since the night 2026-11-17-2023 batched release): that release called the deploy hook at 22:53:22Z and `wrangler deployments list` (read 23:00Z) shows a deployment created 2026-11-17T22:54:43Z; `batch-release.mjs worker-deployed` was run after it ([note](docs/plan/notes/2026-11-17-2023-feedback-loop.md)). The plugin (Slices 20 to 23) ships from the repo, not the Worker.
 - **Review follow-ups are planned as Slices 29 to 38** (re-checked against `origin/main` d654e9b on 2026-11-18, owner: "double check and plan the follow up work"). Waves, decided by the planning session: 1 = 29, 30, 31, 38; 2 = 32, 35; 3 = 33, 36; 4 = 34, 37. Already fixed or gone, so not planned: Slice 13 #9b (heartbeat advice), Slice 18 #2, Slice 22 c2 #5 and high #4, Slice 27 chk #4, chk #7, high #9, Slice 19 chk #2; Slice 26 chk #1 is probably gone and gets a closing test in Slice 35.

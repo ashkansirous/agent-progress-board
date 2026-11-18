@@ -123,3 +123,9 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
   is, and the "No label (main machine)" string shows only while none is named (Slice 28: docs/plan/slices/28-cloud-usage.md).
 - Cloud sessions load no plugin; `docs/setup/cloud.md` runs the plugin's usage scripts from a pinned download, so a
   change to those script paths or imports must be mirrored there (Slice 28: docs/plan/slices/28-cloud-usage.md).
+- Plugin hook state needs no lock: one stop file per agent id under `<id>.stopped/`, and goal-file writes re-read and merge
+  only their own fields, then rename (`plugin/scripts/hooks/hook-input.mjs`); never add a read-modify-write of a shared
+  state file. No hook sends title or why on a session card (Slice 29: docs/plan/slices/29-agent-state-fixes.md).
+- `planSince` in `plugin/scripts/cap-reading.mjs` is the one plan-guard rule: a status-line file is sent only when it was
+  written after the plan was first seen. Never guard on the board's last accepted plan (Slice 30:
+  docs/plan/slices/30-usage-script-fixes.md).

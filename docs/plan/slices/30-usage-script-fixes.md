@@ -3,6 +3,8 @@
 *Planned 2026-11-18 (owner: "double check and plan the follow up work"). Grouping decided by the planning session of
 2026-11-18; items re-checked against `origin/main` (d654e9b).* Wave 1.
 
+*In progress (wave 2026-11-18), draft PR.*
+
 **Touches:** `plugin/scripts/cap-reading.mjs`, `plugin/scripts/cap-reading.test.mjs`, `plugin/scripts/usage-tick.mjs`,
 `plugin/scripts/usage-tick.test.mjs`, `plugin/hooks/hooks.json`, `docs/setup/cloud.md`,
 `docs/plan/slices/30-usage-script-fixes.md`

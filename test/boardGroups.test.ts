@@ -50,7 +50,7 @@ const only = (items: GroupItem[], checks: CheckRow[] = []) => groupBoard(items, 
 describe("groupBoard", () => {
   it("gives the numbers of a quiet project: 1 needs you, nothing running, 2 planned", () => {
     const group = only([question("q", 3), slice(1), slice(2)]);
-    expect(group.summary).toEqual({ needs_you: 1, working: 0, planned: 2, problems: 0, checks_not_tried: 0 });
+    expect(group.summary).toEqual({ needs_you: 1, working: 0, planned: 2, built: 0, problems: 0, checks_not_tried: 0 });
     expect(group.needs_you).toEqual(["q"]);
     expect(group.working_now).toEqual([]);
   });
@@ -110,11 +110,34 @@ describe("groupBoard", () => {
     expect(group.summary.checks_not_tried).toBe(3);
   });
 
-  it("treats the checks of a finished slice as loose", () => {
-    const done = slice(7, { status: ItemStatus.Done, done_at: minutesAgo(30) });
-    const group = only([done], [check("c", done.key)]);
+  it("lists a done slice with open checks under built, not planned, done or loose", () => {
+    const built = slice(7, { status: ItemStatus.Done, done_at: minutesAgo(30) });
+    const later = slice(3, { status: ItemStatus.Done, done_at: minutesAgo(30) });
+    const group = only([built, later], [check("c1", built.key), check("c2", built.key), check("c3", later.key)]);
     expect(group.planned).toEqual([]);
-    expect(group.loose_checks.map((c) => c.key)).toEqual(["c"]);
+    expect(group.built.map((s) => [s.number, s.state, s.checks.length])).toEqual([[3, SliceState.Built, 1], [7, SliceState.Built, 2]]);
+    expect(group.loose_checks).toEqual([]);
+    expect(group.done.count).toBe(0);
+    expect(group.summary.planned).toBe(0);
+    expect(group.summary.checks_not_tried).toBe(3);
+  });
+
+  it("treats a built slice with an open question or active work like an open slice: Needs you and Working now", () => {
+    const asking = slice(7, { status: ItemStatus.Done, done_at: minutesAgo(30), needs_you: "Which one?", needs_you_at: minutesAgo(3) });
+    const busy = slice(8, { status: ItemStatus.Done, done_at: minutesAgo(30), working: true });
+    const group = only([asking, busy], [check("c1", asking.key), check("c2", busy.key)]);
+    expect(group.built.map((s) => s.number)).toEqual([7, 8]);
+    expect(group.needs_you).toEqual([asking.key]);
+    expect(group.working_now).toEqual([busy.key]);
+    expect(group.summary).toMatchObject({ needs_you: 1, working: 1, built: 2 });
+  });
+
+  it("sends a done slice whose checks are all tried to done, and keeps the checks of an unknown slice loose", () => {
+    const done = slice(7, { status: ItemStatus.Done, done_at: minutesAgo(30) });
+    const group = only([done], [check("c", done.key, { status: ItemStatus.Done }), check("l", `${PROJECT}/slice-99`)]);
+    expect(group.built).toEqual([]);
+    expect(group.done.count).toBe(1);
+    expect(group.loose_checks.map((c) => c.key)).toEqual(["l"]);
   });
 
   it("holds the done count, the newest five and a stopped session card as stale", () => {

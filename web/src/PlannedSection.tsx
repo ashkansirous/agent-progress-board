@@ -1,7 +1,8 @@
 import type { BoardItemDto, BoardPartDto } from "../../src/api/boardDto";
 import { type PlannedSlice, SliceState } from "../../src/domain/boardGroups";
 import { PartState } from "../../src/domain/parts";
-import { PhoneIcon } from "./icons";
+import { useState } from "react";
+import { ChevronIcon, PhoneIcon } from "./icons";
 import { FollowLink } from "./PartsView";
 import { checksLine, looseLine, nowLine, partsCountText, pillText, sliceNumberText } from "./planningText";
 import { useView } from "./view";
@@ -65,7 +66,7 @@ function SliceCard({ slice, item, onOpenItem }: { slice: PlannedSlice; item: Boa
   );
 }
 
-/** The dashed card for checks whose slice is closed: they are never cards of their own. */
+/** The dashed card for checks whose slice is not on the board: they are never cards of their own. */
 function LooseCard({ count, onOpen }: { count: number; onOpen: () => void }) {
   const { t } = useView();
   return (
@@ -73,6 +74,33 @@ function LooseCard({ count, onOpen }: { count: number; onOpen: () => void }) {
       <span className="loose-line">{looseLine(count, t)}</span>
       <span className="loose-note">{t("looseChecksNote")}</span>
     </button>
+  );
+}
+
+/**
+ * "Built · {n}": done slices that still have checks not tried on a device. Folded on load, like Done work; the
+ * header button opens the cards, which are the planned cards with the "Built" pill.
+ */
+export function BuiltSection({ slices, items, onOpenItem }: Omit<PlannedProps, "looseCount" | "onOpen">) {
+  const { t } = useView();
+  const [open, setOpen] = useState(false);
+  if (slices.length === 0) return null;
+  return (
+    <div className="section built-section">
+      <button type="button" className="done-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <span className={open ? "done-chevron done-chevron-open" : "done-chevron"}>
+          <ChevronIcon size={16} stroke="currentColor" />
+        </span>
+        <span className="done-toggle-text">{t("builtN", { n: slices.length })}</span>
+      </button>
+      {open && (
+        <div className="plan-grid">
+          {slices.map((slice) => (
+            <SliceCard key={slice.key} slice={slice} item={items.get(slice.key)} onOpenItem={onOpenItem} />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

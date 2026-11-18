@@ -14,22 +14,28 @@ function part(letter: string, state: PartState, title = `T${letter}`): BoardPart
 
 describe("summaryText", () => {
   it("puts needs you first and joins the pieces the mock lists", () => {
-    const summary = { needs_you: 1, working: 3, planned: 3, problems: 2, checks_not_tried: 30 };
+    const summary = { needs_you: 1, working: 3, planned: 3, built: 0, problems: 2, checks_not_tried: 30 };
     expect(summaryText(summary, en)).toBe("1 needs you · 3 working · 3 planned · 2 problems · 30 checks not tried");
   });
 
+  it("counts built slices after planned, so a project with only built work shows them", () => {
+    const summary = { needs_you: 0, working: 0, planned: 0, built: 4, problems: 0, checks_not_tried: 9 };
+    expect(summaryText(summary, en)).toBe("nothing running · 4 built · 9 checks not tried");
+    expect(summaryText(summary, de)).toBe("nichts läuft · 4 gebaut · 9 Prüfungen offen");
+  });
+
   it("says nothing running and leaves out what is 0, with singular forms", () => {
-    expect(summaryText({ needs_you: 0, working: 0, planned: 0, problems: 1, checks_not_tried: 1 }, en)).toBe(
+    expect(summaryText({ needs_you: 0, working: 0, planned: 0, built: 0, problems: 1, checks_not_tried: 1 }, en)).toBe(
       "nothing running · 1 problem · 1 check not tried",
     );
-    expect(summaryText({ needs_you: 1, working: 0, planned: 2, problems: 0, checks_not_tried: 0 }, en)).toBe(
+    expect(summaryText({ needs_you: 1, working: 0, planned: 2, built: 0, problems: 0, checks_not_tried: 0 }, en)).toBe(
       "1 needs you · nothing running · 2 planned",
     );
   });
 
   it("uses the singular and plural forms of needs you and working with counts 1 and 2", () => {
-    const one = { needs_you: 1, working: 1, planned: 0, problems: 0, checks_not_tried: 0 };
-    const two = { needs_you: 2, working: 2, planned: 0, problems: 0, checks_not_tried: 0 };
+    const one = { needs_you: 1, working: 1, planned: 0, built: 0, problems: 0, checks_not_tried: 0 };
+    const two = { needs_you: 2, working: 2, planned: 0, built: 0, problems: 0, checks_not_tried: 0 };
     expect(summaryText(one, en)).toBe("1 needs you · 1 working");
     expect(summaryText(two, en)).toBe("2 need you · 2 working");
     expect(summaryText(one, de)).toBe("1 braucht dich · 1 arbeitet");
@@ -37,7 +43,7 @@ describe("summaryText", () => {
   });
 
   it("is worded in German too", () => {
-    expect(summaryText({ needs_you: 0, working: 0, planned: 2, problems: 0, checks_not_tried: 0 }, de)).toBe("nichts läuft · 2 geplant");
+    expect(summaryText({ needs_you: 0, working: 0, planned: 2, built: 0, problems: 0, checks_not_tried: 0 }, de)).toBe("nichts läuft · 2 geplant");
   });
 });
 
@@ -56,6 +62,8 @@ describe("nowLine", () => {
     expect(nowLine(parked, SliceState.Parked, en)).toBe("Parked after part A");
     expect(nowLine(parked, SliceState.InProgress, en)).toBe("Next: part B");
     expect(nowLine([part("A", PartState.Done)], SliceState.InProgress, en)).toBe("All parts done");
+    expect(nowLine([part("A", PartState.Done)], SliceState.Built, en)).toBe("All parts done");
+    expect(nowLine([part("A", PartState.Done), part("B", PartState.Pending)], SliceState.Built, en)).toBe("Next: part B");
   });
 
   it("is null for a slice with no parts", () => {

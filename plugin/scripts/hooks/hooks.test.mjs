@@ -2,13 +2,14 @@
 // Tests for the board hooks and background-agent reading. A local fake HTTP server stands in for the board.
 // Run: node --test "plugin/**/*.test.mjs"
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, test } from 'node:test';
+import { setTimeout } from 'node:timers';
 import { fileURLToPath } from 'node:url';
 import { AGENT_FRESH_MS, mergeSteps, readBackgroundAgents, subagentsDir } from './background-agents.mjs';
 import { closeAnsweredWaiting, handle as remind, REMINDER_TEXT } from './goal-reminder.mjs';
-import { hasMarker, listMarkers, readGoal, readStdinText, touchSeen, writeGoal, writeMarker, writePrompt } from './hook-input.mjs';
+import { addStoppedAgent, hasMarker, listMarkers, readGoal, readStdinText, readStoppedAt, removeGoal, touchSeen, updateGoal, writeGoal, writeJson, writeMarker, writePrompt } from './hook-input.mjs';
 import { DEAD_SESSION_MS, run as runDone } from './session-done.mjs';
 import { run as runWaiting } from './session-waiting.mjs';
 import { cleanUpAfterTests, envFor, callsOf, replyOk, runNode, startFakeBoard, trackedTemp } from '../test-helpers.mjs';
@@ -43,6 +44,10 @@ function sessionWithAgents(agents, now = NOW) {
   return transcript;
 }
 
+function stoppedIds(root) {
+  return Object.keys(readStoppedAt('sess-1', root));
+}
+
 function withCard(root, extra = {}) {
   writeGoal('sess-1', { key: CARD, project: 'demo-app', title: 'Translate', why: 'for release', steps: [{ label: 'Write text', state: 'active' }, { label: 'Ship', state: 'pending' }], ...extra }, root, NOW);
 }
@@ -69,7 +74,7 @@ describe('background agents', () => {
       { id: 'a1', description: 'Translate texts', ageMs: MINUTE },
       { id: 'a2', description: 'Draw pictures', ageMs: MINUTE, finished: true },
     ]);
-    const agents = readBackgroundAgents({ transcript_path: transcript }, NOW, 'a1');
+    const agents = readBackgroundAgents({ transcript_path: transcript }, NOW, { a1: NOW });
     assert.deepEqual(agents.map((agent) => agent.state), ['done', 'done']);
   });
 
@@ -540,5 +545,304 @@ describe('hook processes', () => {
     board.server.close();
     assert.equal(existsSync(join(data, 'state', 'sess-1')), true);
     assert.match(readFileSync(join(data, 'state', 'sess-1'), 'utf8'), /waiting-sess-1/);
+  });
+});
+
+describe('Slice 29: background-agent state', () => {
+  const stopInput = (transcript, event, extra = {}) => ({ session_id: 'sess-1', cwd: process.cwd(), hook_event_name: event, transcript_path: transcript, ...extra });
+
+  test('parallel SubagentStop hooks each keep their agent id', async () => {
+    const root = folder();
+    const code = `import { addStoppedAgent } from ${JSON.stringify(new URL('./hook-input.mjs', import.meta.url).href)}; addStoppedAgent('sess-1', process.env.TEST_AGENT, ${JSON.stringify(root)});`;
+    const names = Array.from({ length: 8 }, (_, index) => `agent${index}`);
+    await Promise.all(names.map((name) => runNode('--input-type=module', ['-e', code], { ...process.env, TEST_AGENT: name })));
+    assert.deepEqual(stoppedIds(root).sort(), names);
+  });
+
+  test('a stopped agent whose record is older than 10 minutes is not listed', () => {
+    const transcript = sessionWithAgents([{ id: 'old', description: 'Old helper', ageMs: AGENT_FRESH_MS + MINUTE }, { id: 'new', description: 'New helper', ageMs: MINUTE }]);
+    const agents = readBackgroundAgents({ transcript_path: transcript }, NOW, { old: NOW - 20 * MINUTE, new: NOW });
+    assert.deepEqual(agents.map((agent) => `${agent.id}:${agent.state}`), ['new:done']);
+  });
+
+  test('an agent that wrote after its stop is working again, and a new stop time makes it done', () => {
+    const transcript = sessionWithAgents([{ id: 'a1', description: 'Translate texts', ageMs: MINUTE }]);
+    const state = (stopped) => readBackgroundAgents({ transcript_path: transcript }, NOW, stopped)[0].state;
+    assert.equal(state({ a1: NOW - 5 * MINUTE }), 'active');
+    assert.equal(state({ a1: NOW }), 'done');
+  });
+
+  test('a resumed agent shows active in the Stop report', async () => {
+    const board = await startFakeBoard(replyOk);
+    const root = folder();
+    const env = envFor(board.url, root);
+    withCard(root);
+    const transcript = sessionWithAgents([{ id: 'a1', description: 'Translate texts', ageMs: MINUTE }]);
+    addStoppedAgent('sess-1', 'a1', root, NOW - 5 * MINUTE);
+    await runDone(stopInput(transcript, 'Stop'), env, {}, NOW);
+    board.server.close();
+    const [call] = callsOf(board);
+    assert.equal(call.tool, 'report_progress');
+    assert.equal(call.args.steps.find((step) => step.label === 'Translate texts').state, 'active');
+  });
+
+  test('mergeSteps keeps one active step when the running agent has the label of the session\'s active step', () => {
+    const merged = mergeSteps([{ label: 'Translate texts', state: 'active' }, { label: 'Ship', state: 'pending' }], [{ id: 'a1', label: 'Translate texts', state: 'active' }]);
+    assert.deepEqual(merged.map((step) => `${step.label}:${step.state}`), ['Translate texts:active', 'Ship:pending']);
+  });
+
+  test('a goal file removed during the call is not brought back, and a question asked during a resume call stays', async () => {
+    const root = folder();
+    let during = () => {};
+    const board = await startFakeBoard((record, res) => { during(); replyOk(record, res); });
+    const env = envFor(board.url, root);
+    const transcript = sessionWithAgents([]);
+    withCard(root, { closed: true, closedBy: 'stop', sig: 'old' });
+    during = () => writeGoal('sess-1', { ...readGoal('sess-1', root, NOW), needsYou: 'New question?' }, root, NOW);
+    await runDone(stopInput(transcript, 'UserPromptSubmit'), env, {}, NOW);
+    const goal = readGoal('sess-1', root, NOW);
+    assert.equal(goal.needsYou, 'New question?');
+    assert.equal(goal.closed, false);
+    assert.equal(goal.sig, '', 'a resume resets the list last sent');
+    withCard(root);
+    during = () => removeGoal('sess-1', root);
+    await runDone(stopInput(transcript, 'Stop'), env, {}, NOW);
+    board.server.close();
+    assert.equal(readGoal('sess-1', root, NOW), null);
+  });
+
+  test('the last background agent stopping after Stop closes the card, once', async () => {
+    const board = await startFakeBoard(replyOk);
+    const root = folder();
+    const env = envFor(board.url, root);
+    withCard(root);
+    const running = sessionWithAgents([{ id: 'a1', description: 'Translate texts', ageMs: MINUTE }]);
+    await runDone(stopInput(running, 'Stop'), env, {}, NOW);
+    assert.equal(readGoal('sess-1', root, NOW).held, true);
+    await runDone(stopInput(running, 'SubagentStop', { agent_id: 'a1' }), env, {}, NOW);
+    await runDone(stopInput(running, 'SubagentStop', { agent_id: 'a1' }), env, {}, NOW);
+    board.server.close();
+    assert.deepEqual(callsOf(board).map((call) => call.tool), ['report_progress', 'mark_done']);
+    const goal = readGoal('sess-1', root, NOW);
+    assert.deepEqual([goal.closed, goal.held], [true, false]);
+  });
+
+  test('a SubagentStop while another agent still runs does not close the card', async () => {
+    const board = await startFakeBoard(replyOk);
+    const root = folder();
+    const env = envFor(board.url, root);
+    withCard(root);
+    const running = sessionWithAgents([{ id: 'a1', description: 'Translate texts', ageMs: MINUTE }, { id: 'a2', description: 'Draw pictures', ageMs: MINUTE }]);
+    await runDone(stopInput(running, 'Stop'), env, {}, NOW);
+    await runDone(stopInput(running, 'SubagentStop', { agent_id: 'a1' }), env, {}, NOW);
+    board.server.close();
+    assert.deepEqual(callsOf(board).map((call) => call.tool), ['report_progress', 'report_progress']);
+    assert.equal(readGoal('sess-1', root, NOW).closed, false);
+  });
+
+  test('a resume after Stop reopens the card with no title or why', async () => {
+    const board = await startFakeBoard(replyOk);
+    const root = folder();
+    const env = envFor(board.url, root);
+    withCard(root);
+    const transcript = sessionWithAgents([]);
+    await runDone(stopInput(transcript, 'Stop'), env, {}, NOW);
+    await runDone(stopInput(transcript, 'UserPromptSubmit'), env, {}, NOW);
+    board.server.close();
+    const calls = callsOf(board);
+    assert.deepEqual(calls.map((call) => call.tool), ['mark_done', 'report_progress']);
+    for (const call of calls) assert.deepEqual([call.args.title, call.args.why], [undefined, undefined]);
+    assert.equal(calls[1].args.note, 'Session resumed');
+  });
+
+  test('the last SubagentStop does not close a held card when the main thread wrote after Stop', async () => {
+    const board = await startFakeBoard(replyOk);
+    const root = folder();
+    const env = envFor(board.url, root);
+    withCard(root);
+    const running = sessionWithAgents([{ id: 'a1', description: 'Translate texts', ageMs: MINUTE }]);
+    await runDone(stopInput(running, 'Stop'), env, {}, NOW);
+    writeFileSync(running, '{}\n'); // the main transcript: written now, after the hold at NOW - 10 s
+    writeGoal('sess-1', { ...readGoal('sess-1', root, NOW), heldAt: NOW - 10000 }, root, NOW);
+    await runDone(stopInput(running, 'SubagentStop', { agent_id: 'a1' }), env, {}, NOW);
+    board.server.close();
+    assert.deepEqual(callsOf(board).map((call) => call.tool), ['report_progress']);
+    const goal = readGoal('sess-1', root, NOW);
+    assert.deepEqual([goal.closed, goal.held], [false, false]);
+  });
+
+  test('a prompt on a held card with no question ends the hold', async () => {
+    const board = await startFakeBoard(replyOk);
+    const root = folder();
+    const env = envFor(board.url, root);
+    withCard(root, { held: true, heldAt: NOW });
+    const running = sessionWithAgents([{ id: 'a1', description: 'Translate texts', ageMs: MINUTE }]);
+    await runDone(stopInput(running, 'UserPromptSubmit'), env, {}, NOW);
+    await runDone(stopInput(running, 'SubagentStop', { agent_id: 'a1' }), env, {}, NOW);
+    board.server.close();
+    assert.equal(callsOf(board).some((call) => call.tool === 'mark_done'), false);
+    assert.equal(readGoal('sess-1', root, NOW).held, false);
+  });
+
+  test('an agent that stops after a long silent call is still listed, done', () => {
+    const transcript = sessionWithAgents([{ id: 'a1', description: 'Translate texts', ageMs: AGENT_FRESH_MS + 5 * MINUTE }]);
+    const agents = readBackgroundAgents({ transcript_path: transcript }, NOW, { a1: NOW });
+    assert.deepEqual(agents.map((agent) => `${agent.id}:${agent.state}`), ['a1:done']);
+  });
+
+  test('a stop time is kept past the freshness window, and only files older than the keep window are pruned', () => {
+    const root = folder();
+    addStoppedAgent('sess-1', 'a1', root, NOW - 11 * MINUTE);
+    addStoppedAgent('sess-1', 'a2', root, NOW);
+    assert.deepEqual(stoppedIds(root).sort(), ['a1', 'a2']);
+    addStoppedAgent('sess-1', 'a3', root, NOW + 2 * MINUTE);
+    assert.deepEqual(stoppedIds(root).sort(), ['a2', 'a3']);
+  });
+
+  test('a resumed agent loses only its own stop file, and a Stop reports it active', async () => {
+    const board = await startFakeBoard(replyOk);
+    const root = folder();
+    const env = envFor(board.url, root);
+    withCard(root);
+    const transcript = sessionWithAgents([{ id: 'a1', description: 'Translate texts', ageMs: MINUTE }, { id: 'a2', description: 'Draw pictures', ageMs: 30 * 1000 }]);
+    addStoppedAgent('sess-1', 'a1', root, NOW - 5 * MINUTE);
+    addStoppedAgent('sess-1', 'a2', root, NOW);
+    await runDone(stopInput(transcript, 'Stop'), env, {}, NOW);
+    board.server.close();
+    assert.deepEqual(stoppedIds(root), ['a2']);
+  });
+
+  test('a stop file of a removed state folder or an unreadable one is ignored, and no lock folder is made', () => {
+    const root = folder();
+    assert.deepEqual(stoppedIds(root), []);
+    addStoppedAgent('sess-1', 'a1', root, NOW);
+    writeFileSync(join(root, 'sess-1.stopped', 'broken.json'), '{nope');
+    assert.deepEqual(stoppedIds(root), ['a1']);
+    assert.equal(existsSync(join(root, 'sess-1.lock')), false);
+  });
+
+  test('the Stop hold time is taken after its own call returns, and `at` never moves back', async () => {
+    const board = await startFakeBoard((record, res) => setTimeout(() => replyOk(record, res), 300));
+    const root = folder();
+    const env = envFor(board.url, root);
+    withCard(root);
+    const running = sessionWithAgents([{ id: 'a1', description: 'Translate texts', ageMs: MINUTE }]);
+    await runDone(stopInput(running, 'Stop'), env, {}, NOW);
+    board.server.close();
+    const goal = readGoal('sess-1', root, NOW + 10000);
+    assert.equal(goal.heldAt >= NOW + 250, true, `heldAt ${goal.heldAt - NOW} ms after the start`);
+    writeGoal('sess-1', { ...goal, at: NOW + 5000 }, root, NOW);
+    updateGoal('sess-1', root, NOW, (current) => ({ ...current, at: NOW }));
+    assert.equal(readGoal('sess-1', root, NOW + 10000).at, NOW + 5000);
+  });
+
+  test('a prompt clears a stale hold on a card the session finished', async () => {
+    const board = await startFakeBoard(replyOk);
+    const root = folder();
+    const env = envFor(board.url, root);
+    withCard(root, { closed: true, closedBy: 'session', held: true, heldAt: NOW });
+    await runDone(stopInput(sessionWithAgents([]), 'UserPromptSubmit'), env, {}, NOW);
+    board.server.close();
+    assert.deepEqual([readGoal('sess-1', root, NOW).held, callsOf(board).length], [false, 0]);
+  });
+
+  test('the hold is on the goal file while the Stop call is still in flight', async () => {
+    const root = folder();
+    let heldDuringCall = null;
+    const board = await startFakeBoard((record, res) => {
+      heldDuringCall = readGoal('sess-1', root, NOW).held;
+      replyOk(record, res);
+    });
+    withCard(root);
+    const running = sessionWithAgents([{ id: 'a1', description: 'Translate texts', ageMs: MINUTE }]);
+    await runDone(stopInput(running, 'Stop'), envFor(board.url, root), {}, NOW);
+    board.server.close();
+    assert.equal(heldDuringCall, true);
+  });
+
+  test('a close skipped for an open question ends the hold', async () => {
+    const board = await startFakeBoard(replyOk);
+    const root = folder();
+    withCard(root, { needsYou: 'Which one?', held: true, heldAt: NOW });
+    const finished = sessionWithAgents([{ id: 'a1', description: 'Translate texts', ageMs: MINUTE, finished: true }]);
+    await runDone(stopInput(finished, 'SubagentStop', { agent_id: 'a1' }), envFor(board.url, root), {}, NOW);
+    board.server.close();
+    const goal = readGoal('sess-1', root, NOW);
+    assert.deepEqual([goal.held, goal.closed, callsOf(board).length], [false, false, 0]);
+  });
+
+  test('a record flushed shortly after the stop is not a resume and keeps its stop file', async () => {
+    const board = await startFakeBoard(replyOk);
+    const root = folder();
+    withCard(root);
+    const transcript = sessionWithAgents([{ id: 'a1', description: 'Translate texts', ageMs: MINUTE }]);
+    addStoppedAgent('sess-1', 'a1', root, NOW - MINUTE - 2500);
+    await runDone(stopInput(transcript, 'Stop'), envFor(board.url, root), {}, NOW);
+    board.server.close();
+    assert.deepEqual([stoppedIds(root), callsOf(board).map((call) => call.tool)], [['a1'], ['mark_done']]);
+  });
+
+  test('agent ids that differ only in punctuation keep separate stop files, and removing the goal removes them', () => {
+    const root = folder();
+    addStoppedAgent('sess-1', 'a.b', root, NOW);
+    addStoppedAgent('sess-1', 'a b', root, NOW);
+    assert.deepEqual(stoppedIds(root).sort(), ['a b', 'a.b']);
+    removeGoal('sess-1', root);
+    assert.equal(existsSync(join(root, 'sess-1.stopped')), false);
+  });
+
+  test('a session step with the agent\'s label keeps its own note', () => {
+    const merged = mergeSteps([{ label: 'Review', state: 'pending', note: 'my note' }], [{ id: 'a1', label: 'Review', state: 'active' }]);
+    assert.deepEqual(merged, [{ label: 'Review', state: 'active', note: 'my note' }]);
+  });
+
+  test('one session\'s hooks never write another session\'s card, and no hook report sends a title or why on a session card', async () => {
+    const board = await startFakeBoard(replyOk);
+    const root = folder();
+    const env = envFor(board.url, root);
+    const other = 'demo-app/session-other';
+    writeGoal('sess-other', { key: other, project: 'demo-app', title: 'Research tools', why: 'other goal', steps: [] }, root, NOW);
+    withCard(root);
+    const transcript = sessionWithAgents([{ id: 'a1', description: 'Translate texts', ageMs: MINUTE }]);
+    for (const event of ['UserPromptSubmit', 'Stop', 'SubagentStop', 'Stop']) await runDone(stopInput(transcript, event, { agent_id: 'a1' }), env, {}, NOW);
+    await runWaiting({ session_id: 'sess-1', cwd: process.cwd(), notification_type: 'permission_prompt', message: 'Allow it?' }, env);
+    board.server.close();
+    for (const call of callsOf(board)) {
+      assert.notEqual(call.args.key, other);
+      if (call.args.key === CARD) assert.deepEqual([call.args.title, call.args.why], [undefined, undefined]);
+    }
+    const otherGoal = readGoal('sess-other', root, NOW);
+    assert.deepEqual([otherGoal.title, otherGoal.why], ['Research tools', 'other goal']);
+  });
+});
+
+describe('writeJson rename retry', () => {
+  function busy() {
+    return Object.assign(new Error('busy'), { code: 'EBUSY' });
+  }
+
+  test('a rename that fails twice with EBUSY then succeeds still writes the file', () => {
+    const root = folder();
+    const file = join(root, 'x.json');
+    let calls = 0;
+    writeJson(file, { a: 1 }, (from, to) => {
+      calls += 1;
+      if (calls <= 2) throw busy();
+      renameSync(from, to);
+    });
+    assert.equal(calls, 3);
+    assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), { a: 1 });
+    assert.deepEqual(readdirSync(root), ['x.json']);
+  });
+
+  test('a rename that always fails gives up within about 100 ms and leaves no temp file', () => {
+    const root = folder();
+    const file = join(root, 'x.json');
+    const started = Date.now();
+    writeJson(file, { a: 1 }, () => {
+      throw busy();
+    });
+    assert.ok(Date.now() - started < 1000);
+    assert.deepEqual(readdirSync(root), []);
   });
 });

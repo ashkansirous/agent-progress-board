@@ -38,25 +38,47 @@ function modifiedAt(file) {
   }
 }
 
+// A record written this long after the stop still belongs to the stop (a late flush), not to new work; the same
+// window as the Stop hold's slack in session-done.mjs.
+export const RESUME_SLACK_MS = 3000;
+
+// The stops as a Map of agent id to stop time. `stopped` is an object of `{ id: stoppedAtMs }` (what
+// hook-input.readStoppedAt returns), the only shape.
+function stopTimes(stopped) {
+  return new Map(stopped && typeof stopped === 'object' ? Object.entries(stopped) : []);
+}
+
+// An agent whose record changed after its stop was resumed: it is working again, not stopped.
+function stoppedAfterLastWrite(stops, id, atMs) {
+  return stops.has(id) && atMs <= stops.get(id) + RESUME_SLACK_MS;
+}
+
+// An agent that stopped within AGENT_FRESH_MS and wrote nothing since is listed (done) even when its record is older
+// than AGENT_FRESH_MS: a long silent tool call must not drop it at the moment it stops.
+function stoppedRecently(stops, agent, now) {
+  const at = stops.get(agent.id);
+  return Number.isFinite(at) && now - at <= AGENT_FRESH_MS && stoppedAfterLastWrite(stops, agent.id, agent.atMs);
+}
+
 // [{ id, label, state, atMs }] of the agents whose record changed within AGENT_FRESH_MS, oldest change first.
-// An agent is `done` when its meta file says `finished` or it is the one that just stopped (`stoppedId`,
-// the SubagentStop hook's agent_id, one id or a list: that hook may run before the meta file is updated); else
-// it is `active`.
-export function readBackgroundAgents(input, now = Date.now(), stopped = []) {
+// An agent is `done` when its meta file says `finished` or it stopped (`stopped`, from the SubagentStop hook's
+// agent_id: that hook may run before the meta file is updated) and its record did not change since; else it is
+// `active`. A stopped agent with an old record is not listed.
+export function readBackgroundAgents(input, now = Date.now(), stopped = {}) {
   const dir = subagentsDir(input);
   if (!dir) return [];
-  const stoppedIds = new Set(Array.isArray(stopped) ? stopped : [stopped]);
+  const stops = stopTimes(stopped);
   try {
     return readdirSync(dir)
       .map((name) => AGENT_FILE.exec(name))
       .filter(Boolean)
       .map(([name, id]) => ({ id, meta: readMeta(join(dir, name)), atMs: modifiedAt(join(dir, `agent-${id}.jsonl`)) }))
-      .filter((agent) => now - agent.atMs <= AGENT_FRESH_MS || stoppedIds.has(agent.id))
+      .filter((agent) => now - agent.atMs <= AGENT_FRESH_MS || stoppedRecently(stops, agent, now))
       .map(({ id, meta, atMs }) => ({
         id,
         atMs,
         label: clip(meta.description || meta.agentType || id, STEP_LABEL_MAX),
-        state: meta.finished === true || stoppedIds.has(id) ? AGENT_STATE.done : AGENT_STATE.active,
+        state: meta.finished === true || stoppedAfterLastWrite(stops, id, atMs) ? AGENT_STATE.done : AGENT_STATE.active,
       }))
       .sort((left, right) => left.atMs - right.atMs);
   } catch {
@@ -68,6 +90,17 @@ export function hasActiveAgent(agents) {
   return agents.some((agent) => agent.state === AGENT_STATE.active);
 }
 
+// The first running agent takes the active slot. When the session sent a step with the agent's own label, that step
+// (which was just made pending) is the agent's step and becomes the active one, since the label filter below drops
+// the agent itself; true when the slot is taken this way.
+function takeActiveSlot(own, agents) {
+  const first = agents.find((agent) => agent.state === AGENT_STATE.active);
+  const index = first ? own.findIndex((step) => step.label === first.label && step.state !== 'done') : -1;
+  if (index < 0) return false;
+  own[index] = { ...own[index], state: 'active', note: own[index].note || AGENT_NOTE }; // the session's own note stays
+  return true;
+}
+
 // The step list to send: the steps the session sent, then one step per background agent. The board accepts one
 // active step at most (src/domain/steps.ts), so the first running agent takes the active slot (the session is
 // idle while its agents work) and a step the session had active goes back to pending; further running agents
@@ -77,7 +110,7 @@ export function mergeSteps(sent, agents) {
   const hasRunning = hasActiveAgent(agents);
   const own = sent.map((step) => (hasRunning && step.state === 'active' ? { ...step, state: 'pending' } : step));
   const known = new Set(own.map((step) => step.label));
-  let activeTaken = false;
+  let activeTaken = takeActiveSlot(own, agents);
   const added = agents
     .filter((agent) => !known.has(agent.label))
     .map((agent) => {

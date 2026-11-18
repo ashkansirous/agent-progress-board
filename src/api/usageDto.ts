@@ -14,6 +14,13 @@ export interface UsageSeriesDto {
   values: number[];
 }
 
+/** One bucket of the chart: its key (`YYYY-MM-DD`, or `YYYY-MM-DDTHH` for hours, in the viewer's time) and its real span in UTC ISO. */
+export interface UsageBucketDto {
+  key: string;
+  start: string;
+  end: string;
+}
+
 export interface UsageEnvironmentDto {
   value: string;
   label: string;
@@ -164,11 +171,14 @@ export interface UsageResponse {
   environments: UsageEnvironmentDto[];
   /** The environment null counts as: from config, else the busiest one. */
   base_environment: string | null;
+  /** The offset the buckets used at `server_time`; with `time_zone` it changes across a daylight-saving change. */
   utc_offset_minutes: number;
+  /** The time zone the buckets followed (the one the caller sent), or null when they used the fixed offset. */
+  time_zone: string | null;
   palette: SeriesColor[];
   bucket_unit: BucketUnit;
-  /** `YYYY-MM-DD`, or `YYYY-MM-DDTHH` for hours, in the viewer's time. */
-  buckets: string[];
+  /** The Worker's own bucket list, oldest first: the page uses exactly this list for positions and labels and never rebuilds it. */
+  buckets: UsageBucketDto[];
   splits: Record<Split, UsageSeriesDto[]>;
   totals_by_model: ModelTotalsDto[];
   totals_by_token_kind: Record<TokenKind, number> & { total: number };

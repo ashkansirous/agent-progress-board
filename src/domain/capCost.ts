@@ -552,7 +552,7 @@ interface TimedWindow {
   to: number;
 }
 
-/** The windows' parts inside the stretch (empty ones left out), in window order. */
+/** The windows' parts inside the stretch (empty ones left out), in window order (the order of `windows`, which `boundedWindows` leaves sorted by end, as before Slice 35). */
 function overlapsOf(windows: TimedWindow[], from: number, to: number): Array<{ environment: string; from: number; to: number }> {
   const inside: Array<{ environment: string; from: number; to: number }> = [];
   for (const w of windows) {
@@ -586,7 +586,8 @@ function coveredMs(parts: Array<{ from: number; to: number }>): number {
 export function placeInWindows(fit: CapCostFit, allWindows: WorkWindow[], since: string): PlacedGrowth {
   const byEnvironment = new Map<string, number>();
   if (allWindows.length === 0) return { fit, byEnvironment };
-  const windows = boundedWindows(allWindows).map((w): TimedWindow => ({ environment: w.environment, from: Date.parse(w.start), to: Date.parse(w.end) }));
+  const windows = boundedWindows(allWindows);
+  if (windows.length === 0) return { fit, byEnvironment };
   const residuals = fit.stretches.map((stretch, i) => {
     const left = Math.max(0, fit.residuals[i] ?? 0);
     const start = Date.parse(stretch.start);
@@ -601,17 +602,20 @@ export function placeInWindows(fit: CapCostFit, allWindows: WorkWindow[], since:
   return { fit: { ...fit, residuals, leftoverShare: shareOfGrowth(fit.stretches, residuals) }, byEnvironment };
 }
 
-/** Overlapping windows of one environment merged once, then the newest MAX_PLACE_WINDOWS kept. */
-function boundedWindows(windows: WorkWindow[]): WorkWindow[] {
-  const sorted = [...windows].sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
-  const open = new Map<string, WorkWindow>();
-  const merged: WorkWindow[] = [];
+/** Overlapping windows of one environment merged once (times compared as parsed numbers), then the newest MAX_PLACE_WINDOWS kept. Empty and unreadable windows are dropped. */
+function boundedWindows(windows: WorkWindow[]): TimedWindow[] {
+  const timed = windows
+    .map((w): TimedWindow => ({ environment: w.environment, from: Date.parse(w.start), to: Date.parse(w.end) }))
+    .filter((w) => Number.isFinite(w.from) && Number.isFinite(w.to) && w.to > w.from)
+    .sort((a, b) => a.from - b.from);
+  const open = new Map<string, TimedWindow>();
+  const merged: TimedWindow[] = [];
   const names = new Map<string, string>();
-  for (const w of sorted) {
+  for (const w of timed) {
     const identity = environmentIdentity(w.environment);
     const last = open.get(identity);
-    if (last && w.start <= last.end) {
-      if (w.end > last.end) last.end = w.end;
+    if (last && w.from <= last.to) {
+      if (w.to > last.to) last.to = w.to;
       continue;
     }
     if (!names.has(identity)) names.set(identity, w.environment);
@@ -619,5 +623,5 @@ function boundedWindows(windows: WorkWindow[]): WorkWindow[] {
     open.set(identity, copy);
     merged.push(copy);
   }
-  return merged.sort((a, b) => (a.end < b.end ? -1 : a.end > b.end ? 1 : 0)).slice(-MAX_PLACE_WINDOWS);
+  return merged.sort((a, b) => a.to - b.to).slice(-MAX_PLACE_WINDOWS);
 }

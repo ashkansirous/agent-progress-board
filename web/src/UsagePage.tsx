@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { UsagePageResponse } from "../../src/api/usageDto";
-import { UsageRange } from "../../src/domain/usage";
+import { offsetForZone, UsageRange } from "../../src/domain/usage";
 import { AgentKindCost } from "./AgentKindCost";
 import type { Environment } from "./BoardPage";
 import { CapCostSection } from "./CapCostSection";
@@ -14,7 +14,7 @@ import { paletteVars } from "./theme";
 import { EnvironmentFilter, PlanPicker, RangeSwitch } from "./UsageControls";
 import { UsageEmptyCard, UsageErrorCard, UsageLoadingCard } from "./UsageStates";
 import { clockTime } from "./time";
-import { viewerOffsetMinutes } from "./usageApi";
+import { viewerOffsetAt, viewerOffsetMinutes } from "./usageApi";
 import type { UsageParams } from "./usageQuery";
 import type { UsageControls } from "./usageState";
 import { useUsageView, UsageViewProvider, type UsageView } from "./usageView";
@@ -113,9 +113,16 @@ export function UsagePage({ env }: { env: Environment }) {
   const { state, retry } = useUsage(params);
   // The tab bar's Active work count comes from the board read; a failed read just leaves the pill out.
   const activeCount = useBoard().state.data?.working_count;
+  const answered = state.data !== null;
+  const zone = state.data?.time_zone ?? null;
+  const fixedMinutes = state.data?.utc_offset_minutes ?? viewerOffsetMinutes();
   const view: UsageView = useMemo(
-    () => ({ t: env.t, phone: env.phone, scheme: env.scheme, locale: env.locale, offsetMinutes: state.data?.utc_offset_minutes ?? viewerOffsetMinutes() }),
-    [env, state.data?.utc_offset_minutes],
+    () => {
+      // The zone the Worker bucketed by, so the bars and every label agree; before the first answer, the viewer's own.
+      const offsetAt = answered ? offsetForZone(zone, fixedMinutes) : viewerOffsetAt(fixedMinutes);
+      return { t: env.t, phone: env.phone, scheme: env.scheme, locale: env.locale, offsetAt };
+    },
+    [env, answered, zone, fixedMinutes],
   );
   return (
     <UsageViewProvider value={view}>

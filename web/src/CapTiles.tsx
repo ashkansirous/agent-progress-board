@@ -48,20 +48,20 @@ function UnexplainedTile({ data }: { data: UsageResponse }) {
 }
 
 function weeklyNote(line: CapLineDto, view: UsageView): string {
-  const { t, locale, offsetMinutes } = view;
+  const { t, locale, offsetAt } = view;
   const latest = line.latest;
   if (!latest) return t("noReading");
-  const resets = latest.reset_at ? t("resetsAt", { when: longReset(locale, latest.reset_at, offsetMinutes) }) : null;
-  return [resets, t("readingTaken", { time: clockAt(latest.taken_at, offsetMinutes) })].filter(Boolean).join(" · ");
+  const resets = latest.reset_at ? t("resetsAt", { when: longReset(locale, latest.reset_at, offsetAt) }) : null;
+  return [resets, t("readingTaken", { time: clockAt(latest.taken_at, offsetAt) })].filter(Boolean).join(" · ");
 }
 
 function shortNote(line: CapLineDto, serverTime: string, view: UsageView): string {
-  const { t, locale, offsetMinutes } = view;
+  const { t, locale, offsetAt } = view;
   const latest = line.latest;
-  if (!latest?.reset_at) return latest ? t("readingTaken", { time: clockAt(latest.taken_at, offsetMinutes) }) : "";
+  if (!latest?.reset_at) return latest ? t("readingTaken", { time: clockAt(latest.taken_at, offsetAt) }) : "";
   const left = timeUntil(latest.reset_at, serverTime);
   if (left) return t("resetsIn", { h: left.hours, m: left.minutes });
-  return t("resetsAt", { when: longReset(locale, latest.reset_at, offsetMinutes) });
+  return t("resetsAt", { when: longReset(locale, latest.reset_at, offsetAt) });
 }
 
 /** The weekly tile, and the shorter-window tile when a shorter window was reported. */
@@ -80,11 +80,11 @@ export function CapTiles({ data }: { data: UsageResponse }) {
 
 /** The phone's one card: the weekly value and, in its line, the reset and the shorter window. */
 export function PhoneCapCard({ data }: { data: UsageResponse }) {
-  const { t, locale, offsetMinutes } = useUsageView();
+  const { t, locale, offsetAt } = useUsageView();
   const weekly = data.cap.weekly.latest;
   const short = data.cap.short.latest;
   const parts = [
-    weekly?.reset_at ? t("resetsAt", { when: weekdayClock(locale, weekly.reset_at, offsetMinutes) }) : null,
+    weekly?.reset_at ? t("resetsAt", { when: weekdayClock(locale, weekly.reset_at, offsetAt) }) : null,
     short ? t("shorterWindow", { pct: percentText(short.percent) }) : null,
     data.cap_cost.unexplained ? t("unexplainedPhone", { pct: shareText(data.cap_cost.unexplained.share) }) : null,
   ].filter(Boolean);

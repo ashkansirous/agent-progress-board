@@ -1,4 +1,3 @@
-import exampleConfig from "../config/board.example.json" with { type: "json" };
 import { ItemStatus, ItemType, Priority } from "./domain/item";
 import {
   DEFAULT_STALE_AFTER_MINUTES,
@@ -210,7 +209,7 @@ export function configFromRecord(parsed: Record<string, unknown>): BoardConfig {
     types: readTypes(parsed.types),
     statuses: readNamed("statuses", parsed.statuses, Object.values(ItemStatus), isStatusEntry),
     priorities: readNamed("priorities", parsed.priorities, Object.values(Priority), isPriorityEntry),
-    palettes: palettesWithDefaults(parsed.palettes),
+    palettes: readPalettes(parsed.palettes),
     oauthRedirectUris: readRedirectUris(parsed.oauth_redirect_uris),
     publicOrigin: readPublicOrigin(parsed.public_origin),
     usage: readUsage(asRecord(parsed.usage)),
@@ -328,13 +327,7 @@ function readNamed<K extends string, V>(
   return {};
 }
 
-/** The configured palettes laid over the example config's, so a config written before a colour name existed still paints it. */
-function palettesWithDefaults(raw: unknown): BoardConfig["palettes"] {
-  const given = readPalettes(raw);
-  const defaults = readPalettes(exampleConfig.palettes);
-  return { light: { ...defaults.light, ...given.light }, dark: { ...defaults.dark, ...given.dark } };
-}
-
+/** Only what the config sets; the defaults are laid under it at read (`pageConfigOf`), never stored. */
 function readPalettes(raw: unknown): BoardConfig["palettes"] {
   if (raw === undefined) return {};
   const record = asRecord(raw);

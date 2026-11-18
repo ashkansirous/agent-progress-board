@@ -93,7 +93,7 @@ test.describe("usage page", () => {
 
   test("the range switch, environment filter and plan picker change the request", async ({ page }) => {
     const urls = await openUsage(page);
-    expect(query(urls[0])).toEqual({ range: "window", utc_offset: "0" });
+    expect(query(urls[0])).toEqual({ range: "window", utc_offset: "0", time_zone: "UTC" });
     await expect(pressed(page, "This window", "Time range")).toHaveAttribute("aria-pressed", "true");
     await pressed(page, "24 h", "Time range").click();
     await expect.poll(() => query(urls.at(-1)).range).toBe("24h");
@@ -102,7 +102,7 @@ test.describe("usage page", () => {
     await expect(pressed(page, ENV_TWO.label, "Environment")).toHaveAttribute("aria-pressed", "true");
     await page.getByLabel("Plan").selectOption(PLANS[1] ?? "");
     await expect.poll(() => query(urls.at(-1)).plan).toBe(PLANS[1]);
-    expect(query(urls.at(-1))).toEqual({ range: "24h", environment: ENV_TWO.value, plan: PLANS[1], utc_offset: "0" });
+    expect(query(urls.at(-1))).toEqual({ range: "24h", environment: ENV_TWO.value, plan: PLANS[1], utc_offset: "0", time_zone: "UTC" });
   });
 
   test("the environment group lists All and one button per environment in the data", async ({ page }) => {
@@ -128,11 +128,19 @@ test.describe("usage page", () => {
   test("a series with no environment (only sent while no environment on the board is named) is named for the main machine, with a hint to label it, never Not set (Slice 28)", async ({ page }) => {
     const base = demoUsage();
     const unlabelled = { name: null, label: null, color_index: 0, values: base.buckets.map(() => 1_000_000) };
-    await openUsage(page, () => ({ ...base, splits: { ...base.splits, environment: [unlabelled] } }));
+    await openUsage(page, () => ({ ...base, base_environment: null, splits: { ...base.splits, environment: [unlabelled] } }));
     await pressed(page, isPhone() ? "Env" : "Environment", "Split tokens by").click();
     await expect(page.locator(".series-legend li")).toHaveText(["No label (main machine)"]);
     await expect(page.getByText("To label a machine, set the plugin's environment option")).toBeVisible();
     await expect(page.getByText("Not set")).toHaveCount(0);
+  });
+
+  test("the unlabelled-machine hint is not shown once an environment is named (Slice 35)", async ({ page }) => {
+    const base = demoUsage();
+    const unlabelled = { name: null, label: null, color_index: 0, values: base.buckets.map(() => 1_000_000) };
+    await openUsage(page, () => ({ ...base, base_environment: ENV_ONE.value, splits: { ...base.splits, environment: [unlabelled] } }));
+    await pressed(page, isPhone() ? "Env" : "Environment", "Split tokens by").click();
+    await expect(page.getByText("To label a machine, set the plugin's environment option")).toHaveCount(0);
   });
 
   test("the chart has its numbers in a table, and an alt text that names the biggest series", async ({ page }) => {
@@ -352,6 +360,16 @@ test.describe("what 1% of the cap costs", () => {
     expect(await rows.first().locator("td").allTextContents()).toEqual(["1.0×", "1.2×", "0.10×", "5.0×"]);
     await expect(rows.last().locator("td")).toHaveText("Not split by kind yet");
     await expect(page.getByText("A cache read costs a tenth of a fresh input token; output costs five times as much.")).toBeVisible();
+  });
+
+  test("phone kinds card says every model is not split when no model has ratios (Slice 35)", async ({ page }) => {
+    test.skip(!isPhone(), "the kinds card is the phone layout");
+    const ready = readyUsage();
+    const models = ready.cap_cost.models.map((m) => ({ ...m, kind_ratios: null }));
+    await openUsage(page, () => ({ ...ready, cap_cost: { ...ready.cap_cost, models } }));
+    const card = page.locator(".usage-card", { hasText: "Kinds compared with fresh input" });
+    await expect(card.locator(".kind-ratio-group")).toHaveCount(0);
+    await expect(card.getByText("model-alpha and model-beta and model-gamma is not split by kind yet.")).toBeVisible();
   });
 
   test("phone kinds card never says same for models whose ratios differ", async ({ page }) => {

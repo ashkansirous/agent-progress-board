@@ -1,4 +1,4 @@
-import type { CapCostDto, CapCostModelDto, UsagePageResponse, UsageSeriesDto } from "../src/api/usageDto";
+import type { CapCostDto, CapCostModelDto, UsageBucketDto, UsagePageResponse, UsageSeriesDto } from "../src/api/usageDto";
 import { configFromRecord } from "../src/config";
 import { FitMode, HowSure, MixSource, MultiplierState } from "../src/domain/capCost";
 import { BucketUnit, Split, TOKEN_KINDS, TokenKind, UsageRange } from "../src/domain/usage";
@@ -35,6 +35,17 @@ const toTokens = (millions: number[]) => millions.map((m) => Math.round(m * MILL
 
 function series(name: string | null, label: string | null, colorIndex: number, values: number[]): UsageSeriesDto {
   return { name, label, color_index: colorIndex, values };
+}
+
+const MS_PER_DAY = 86_400_000;
+
+/** The Worker's bucket list for the demo week: whole UTC days, the first starting at the window start. */
+function bucketList(): UsageBucketDto[] {
+  return BUCKETS.map((key, i) => {
+    const midnight = Date.parse(`${key}T00:00:00.000Z`);
+    const start = i === 0 ? WINDOW_START : new Date(midnight).toISOString();
+    return { key, start, end: new Date(midnight + MS_PER_DAY).toISOString() };
+  });
 }
 
 function sumOf(values: number[]): number {
@@ -112,9 +123,10 @@ export function demoUsage(over: Partial<UsagePageResponse> = {}): UsagePageRespo
     ],
     base_environment: ENV_ONE.value,
     utc_offset_minutes: 0,
+    time_zone: null,
     palette: example.usage.series,
     bucket_unit: BucketUnit.Day,
-    buckets: BUCKETS,
+    buckets: bucketList(),
     splits: splits(),
     totals_by_model: modelTotals(),
     totals_by_token_kind: kindTotals(),

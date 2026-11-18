@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
+import { parseUsageQuery } from "../src/application/usage";
 import {
   BucketUnit,
-  bucketKey,
+  bucketIndexAt,
   bucketKeys,
+  bucketsBetween,
   busiestEnvironment,
   deltasOfSeries,
+  offsetForZone,
+  offsetOf,
+  type OffsetAt,
   rankTasks,
   Split,
   splitByBucket,
@@ -14,7 +19,16 @@ import {
   usageDeltas,
   useBetween,
   withBaseEnvironment,
+  xOfMoment,
+  zoneOffsetAt,
 } from "../src/domain/usage";
+
+/** The key of the bucket holding a time, from the range's own bucket list (the rule the Worker uses). */
+function bucketKey(iso: string, offset: OffsetAt, unit: BucketUnit, from = Date.parse(iso) - 3 * 24 * 3_600_000): string {
+  const at = Date.parse(iso);
+  const buckets = bucketsBetween(from, at + 3_600_000, offset, unit);
+  return buckets[bucketIndexAt(at, buckets)]?.key ?? "";
+}
 
 const T = (minute: number): string => new Date(Date.UTC(2026, 10, 16, 8, minute)).toISOString();
 
@@ -119,6 +133,122 @@ describe("buckets and splits", () => {
       "2026-11-15",
       "2026-11-16",
     ]);
+  });
+
+  it("works the offset out per bucket across a daylight-saving change (Slice 35 #1)", () => {
+    const berlin = zoneOffsetAt("Europe/Berlin") as (ms: number) => number;
+    expect(berlin(Date.parse("2026-10-24T12:00:00Z"))).toBe(120);
+    expect(berlin(Date.parse("2026-10-26T12:00:00Z"))).toBe(60);
+    // 22:30 UTC is already the next day under +02:00 before the change and not yet under +01:00 after it.
+    expect(bucketKey("2026-10-24T22:30:00.000Z", berlin, BucketUnit.Day)).toBe("2026-10-25");
+    expect(bucketKey("2026-10-25T22:30:00.000Z", berlin, BucketUnit.Day)).toBe("2026-10-25");
+    expect(bucketKey("2026-10-25T23:30:00.000Z", berlin, BucketUnit.Day)).toBe("2026-10-26");
+    const buckets = bucketsBetween(Date.parse("2026-10-20T10:00:00.000Z"), Date.parse("2026-11-05T10:00:00.000Z"), berlin, BucketUnit.Day);
+    const keys = buckets.map((b) => b.key);
+    expect(keys).toHaveLength(17);
+    const hours = (key: string): number => {
+      const b = buckets.find((x) => x.key === key) as { startMs: number; endMs: number };
+      return (b.endMs - b.startMs) / 3_600_000;
+    };
+    expect(hours("2026-10-25")).toBe(25);
+    expect(hours("2026-10-24")).toBe(24);
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(keys.slice(4, 8)).toEqual(["2026-10-24", "2026-10-25", "2026-10-26", "2026-10-27"]);
+  });
+
+  it("never skips a short day at the spring change, and knows no zone it cannot read", () => {
+    const berlin = zoneOffsetAt("Europe/Berlin") as (ms: number) => number;
+    const keys = bucketKeys("2026-03-28T22:30:00.000Z", "2026-03-30T22:30:00.000Z", berlin, BucketUnit.Day);
+    expect(keys).toEqual(["2026-03-28", "2026-03-29", "2026-03-30", "2026-03-31"]);
+    const spring = bucketsBetween(Date.parse("2026-03-28T22:30:00.000Z"), Date.parse("2026-03-30T22:30:00.000Z"), berlin, BucketUnit.Day);
+    expect(((spring[1]?.endMs ?? 0) - (spring[1]?.startMs ?? 0)) / 3_600_000).toBe(23);
+    expect(zoneOffsetAt("Not/AZone")).toBeNull();
+  });
+
+  it("keys hours by the real hour across both clock changes (review finding 3)", () => {
+    const berlin = offsetForZone("Europe/Berlin", 0);
+    // Fall back on 2026-10-25: 02:xx happens twice (00:30Z in +02:00, 01:30Z in +01:00).
+    const fall = bucketKeys("2026-10-24T23:10:00.000Z", "2026-10-25T03:10:00.000Z", berlin, BucketUnit.Hour);
+    expect(fall).toEqual(["2026-10-25T01", "2026-10-25T02", "2026-10-25T02#2", "2026-10-25T03", "2026-10-25T04"]);
+    expect(bucketKey("2026-10-25T00:30:00.000Z", berlin, BucketUnit.Hour)).toBe("2026-10-25T02");
+    expect(bucketKey("2026-10-25T01:30:00.000Z", berlin, BucketUnit.Hour)).toBe("2026-10-25T02#2");
+    // Spring forward on 2026-03-29: 02:xx never happens.
+    const spring = bucketKeys("2026-03-29T00:10:00.000Z", "2026-03-29T02:10:00.000Z", berlin, BucketUnit.Hour);
+    expect(spring).toEqual(["2026-03-29T01", "2026-03-29T03", "2026-03-29T04"]);
+    // Hours are consecutive real hours: no gap and no overlap.
+    const walked = bucketsBetween(Date.parse("2026-10-24T23:10:00.000Z"), Date.parse("2026-10-25T03:10:00.000Z"), berlin, BucketUnit.Hour);
+    walked.slice(1).forEach((b, i) => expect(b.startMs).toBe((walked[i] as { endMs: number }).endMs));
+    // A fixed offset never repeats an hour.
+    expect(bucketKeys("2026-10-25T00:00:00.000Z", "2026-10-25T03:00:00.000Z", 120, BucketUnit.Hour)).toHaveLength(4);
+  });
+
+  it("walks a 30-minute shift zone by real hours and keeps every key distinct (review finding 4)", () => {
+    const lordHowe = offsetForZone("Australia/Lord_Howe", 0);
+    // Fall back on 2026-04-05 at 02:00 local (+11:00 -> +10:30): the clocks repeat half an hour.
+    const buckets = bucketsBetween(Date.parse("2026-04-04T13:00:00.000Z"), Date.parse("2026-04-05T00:00:00.000Z"), lordHowe, BucketUnit.Hour);
+    const keys = buckets.map((b) => b.key);
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(buckets).toHaveLength(12);
+    buckets.slice(1).forEach((b, i) => expect(b.startMs).toBe((buckets[i] as { endMs: number }).endMs));
+  });
+
+  it("ends a walk on milliseconds even when the end falls in a skipped hour or a skipped day", () => {
+    const berlin = offsetForZone("Europe/Berlin", 0);
+    const toSkipped = bucketsBetween(Date.parse("2026-03-29T00:10:00.000Z"), Date.parse("2026-03-29T01:00:00.000Z"), berlin, BucketUnit.Hour);
+    expect(toSkipped.map((b) => b.key)).toEqual(["2026-03-29T01", "2026-03-29T03"]);
+    const apia = offsetForZone("Pacific/Apia", 0);
+    const days = bucketsBetween(Date.parse("2011-12-28T12:00:00.000Z"), Date.parse("2012-01-02T12:00:00.000Z"), apia, BucketUnit.Day);
+    expect(new Set(days.map((b) => b.key)).size).toBe(days.length);
+    days.slice(1).forEach((b, i) => expect(b.startMs).toBeGreaterThanOrEqual((days[i] as { endMs: number }).endMs));
+  });
+
+  it("finds the bucket holding a moment, and its position along the buckets", () => {
+    const berlin = offsetForZone("Europe/Berlin", 0);
+    const hours = bucketsBetween(Date.parse("2026-10-24T23:10:00.000Z"), Date.parse("2026-10-25T03:10:00.000Z"), berlin, BucketUnit.Hour);
+    expect(hours.map((b) => b.key)).toEqual(["2026-10-25T01", "2026-10-25T02", "2026-10-25T02#2", "2026-10-25T03", "2026-10-25T04"]);
+    // 00:30Z is 02:30 CEST (bar 1, half way); 01:30Z is 02:30 CET (bar 2, half way): two bars, one wall time.
+    expect(xOfMoment(Date.parse("2026-10-25T00:30:00.000Z"), hours)).toBeCloseTo(1.5, 9);
+    expect(xOfMoment(Date.parse("2026-10-25T01:30:00.000Z"), hours)).toBeCloseTo(2.5, 9);
+    expect(xOfMoment(Date.parse("2020-01-01T00:00:00.000Z"), hours)).toBe(0);
+    expect(xOfMoment(Date.parse("2030-01-01T00:00:00.000Z"), hours)).toBe(hours.length);
+    expect(bucketIndexAt(Date.parse("2026-10-25T01:30:00.000Z"), hours)).toBe(2);
+    expect(bucketIndexAt(Date.parse("2020-01-01T00:00:00.000Z"), hours)).toBe(-1);
+    // A 25 hour day: 10:30Z is 12.5 hours after local midnight (22:00Z), of 25.
+    const days = bucketsBetween(Date.parse("2026-10-24T10:00:00.000Z"), Date.parse("2026-10-26T10:00:00.000Z"), berlin, BucketUnit.Day);
+    expect(xOfMoment(Date.parse("2026-10-25T10:30:00.000Z"), days)).toBeCloseTo(1 + 12.5 / 25, 9);
+  });
+
+  it("uses one offset rule: the zone when one is known, else the fixed offset", () => {
+    expect(offsetForZone(null, 90)).toBe(90);
+    expect(offsetForZone("Not/AZone", 90)).toBe(90);
+    const berlin = offsetForZone("Europe/Berlin", 0);
+    expect(offsetOf(berlin, Date.parse("2026-07-01T00:00:00Z"))).toBe(120);
+    expect(offsetOf(berlin, Date.parse("2026-12-01T00:00:00Z"))).toBe(60);
+    // The same answer for every moment of a quarter hour, and across a repeated lookup.
+    expect(offsetOf(berlin, Date.parse("2026-12-01T00:07:00Z"))).toBe(60);
+    expect(offsetOf(berlin, Date.parse("2026-12-01T00:07:00Z"))).toBe(60);
+  });
+
+  it("keeps working when callers name more zone spellings than the formatter cache holds", () => {
+    const names = Array.from({ length: 14 }, (_, i) => [`Etc/GMT-${i + 1}`, `etc/gmt-${i + 1}`, `ETC/GMT-${i + 1}`]).flat();
+    for (const name of names) {
+      const zone = zoneOffsetAt(name);
+      expect(zone).not.toBeNull();
+    }
+    expect(offsetOf(zoneOffsetAt("Etc/GMT-5") as OffsetAt, Date.parse("2026-07-01T00:00:00Z"))).toBe(300);
+  });
+
+  it("reads a time zone from the query and refuses one it cannot read", () => {
+    expect(parseUsageQuery(new URLSearchParams("time_zone=Europe/Berlin")).timeZone).toBe("Europe/Berlin");
+    expect(parseUsageQuery(new URLSearchParams("")).timeZone).toBeNull();
+    expect(() => parseUsageQuery(new URLSearchParams("time_zone=Not/AZone"))).toThrow(/time_zone/);
+  });
+
+  it("puts a day with a far-off time in a bucket once, and sums a large series at once", () => {
+    const keys = bucketKeys("2026-11-14T10:00:00.000Z", "2026-11-16T01:00:00.000Z", 0, BucketUnit.Day);
+    const deltas = usageDeltas([sample(0, totals(0, 0, 0, 0)), sample(10, totals(5, 0, 0, 0))]);
+    const [series] = splitByBucket(deltas, keys, () => keys[1] as string, Split.Model);
+    expect(series?.values).toEqual([0, 5, 0]);
   });
 
   it("splits tokens by model and by token kind into aligned series", () => {

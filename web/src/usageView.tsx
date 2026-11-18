@@ -1,7 +1,7 @@
 import { createContext, useContext } from "react";
 import type { UsageSeriesDto } from "../../src/api/usageDto";
 import type { SeriesColor } from "../../src/config";
-import { Split, TokenKind } from "../../src/domain/usage";
+import { Split, TokenKind, type OffsetAt } from "../../src/domain/usage";
 import type { StringKey, Translate } from "./strings";
 import type { SchemeName } from "./theme";
 
@@ -11,7 +11,8 @@ export interface UsageView {
   phone: boolean;
   scheme: SchemeName;
   locale: string;
-  offsetMinutes: number;
+  /** The one offset rule of the page and the Worker (`offsetForZone`): every clock label and chart position asks it per moment. */
+  offsetAt: OffsetAt;
 }
 
 const UsageViewContext = createContext<UsageView | null>(null);
@@ -39,6 +40,6 @@ export const TOKEN_KIND_LABELS: Record<TokenKind, StringKey> = {
 /** What a series is called on the page: a token kind in words, an environment by its label, else the name. */
 export function seriesName(series: UsageSeriesDto, split: Split, t: Translate): string {
   if (split === Split.TokenKind) return t(TOKEN_KIND_LABELS[series.name as TokenKind] ?? "noValue");
-  if (split === Split.Environment) return series.label || series.name || t("noEnvironment");
-  return series.label || series.name || t("noValue");
+  if (split === Split.Environment) return series.label ?? series.name ?? t("noEnvironment");
+  return series.label ?? series.name ?? t("noValue");
 }

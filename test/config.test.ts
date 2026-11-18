@@ -43,8 +43,10 @@ describe("parseConfig", () => {
     expect(config.palettes.dark?.page).toBe("#0E1014");
   });
 
-  it("fills palette colours a config lacks (the newer names too) from the example defaults, light and dark", () => {
-    const config = parseConfig('{"palettes":{"light":{"page":"#FFFFFF"}}}');
+  it("stores only the palette colours a config sets; the page config fills the rest from the example defaults, light and dark", () => {
+    const parsed = parseConfig('{"palettes":{"light":{"page":"#FFFFFF"}}}');
+    expect(parsed.palettes).toEqual({ light: { page: "#FFFFFF" } });
+    const config = pageConfigOf(parsed);
     expect(config.palettes.light?.page).toBe("#FFFFFF");
     for (const scheme of ["light", "dark"] as const) {
       for (const key of ["pillSureBg", "pillRoughFg", "pillNoneBg", "mergedCellBg", "markInk"] as const) {

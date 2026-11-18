@@ -44,8 +44,9 @@ import { DomainError } from "../domain/upsert";
 import {
   addTotals,
   BucketUnit,
-  bucketKey,
-  bucketKeys,
+  type Bucket,
+  bucketIndexAt,
+  bucketsBetween,
   busiestEnvironment,
   daysBefore,
   environmentTotals,
@@ -58,6 +59,9 @@ import {
   tokensByKey,
   totalOf,
   totalsByModel,
+  offsetForZone,
+  offsetOf,
+  zoneOffsetAt,
   type UsageDelta,
   UsageRange,
   type UsageSample,
@@ -72,7 +76,9 @@ import { SeriesKind, type SeriesName, type SessionWindow, type UsageRepository }
 const RANGE_DAYS: Record<UsageRange, number> = { [UsageRange.Day]: 1, [UsageRange.Window]: 7, [UsageRange.Month]: 30 };
 /** The cap readings are read this far back at least, so a window's state is known (and never fewer than keepDays). */
 const MIN_READING_DAYS = 30;
+const MAX_RANGE_DAYS = Math.max(...Object.values(RANGE_DAYS));
 const MAX_UTC_OFFSET_MINUTES = 14 * 60;
+const MAX_TIME_ZONE_LENGTH = 64;
 /** Placed growth below this many points is not listed as an environment's cost. */
 const NO_PLACED_POINTS = 0.05;
 
@@ -104,6 +110,8 @@ export interface UsageQuery {
   /** null: all environments. */
   environment: string | null;
   utcOffsetMinutes: number;
+  /** An IANA time zone name (Slice 35 #1): buckets then use its offset at each moment, daylight saving included; null: the fixed offset above. */
+  timeZone: string | null;
 }
 
 function normalizeTime(field: string, value: string): string {
@@ -165,7 +173,16 @@ export function parseUsageQuery(params: URLSearchParams): UsageQuery {
     plan: params.get("plan") || null,
     environment: params.get("environment") || null,
     utcOffsetMinutes: parseOffset(params.get("utc_offset")),
+    timeZone: parseTimeZone(params.get("time_zone")),
   };
+}
+
+function parseTimeZone(raw: string | null): string | null {
+  if (raw === null || raw === "") return null;
+  if (raw.length > MAX_TIME_ZONE_LENGTH || zoneOffsetAt(raw) === null) {
+    throw new DomainError("time_zone", "field time_zone: an IANA time zone name such as Europe/Berlin");
+  }
+  return raw;
 }
 
 function parseOffset(raw: string | null): number {
@@ -192,18 +209,24 @@ export async function readUsage(
 ): Promise<UsageResponse> {
   const now = clock.now();
   const cap = await loadCap(repo, query, config, now);
-  const from = rangeStart(query.range, now, cap);
+  const from = clampedStart(rangeStart(query.range, now, cap), now);
   const history = usageDeltas(await repo.usageSamplesFrom(historyStart(from, now, config)));
   // One base for the page and the fit: the busiest environment of the whole history, never of the range.
   const base = config.baseEnvironment ?? busiestEnvironment(history);
   const knownHistory = withBaseEnvironment(history, base);
   const known = rangeDeltas(knownHistory, cap, from, now.toISOString());
   const shown = query.environment === null ? known : known.filter(({ sample }) => sample.environment === query.environment);
-  const [order, sessionWindows] = await Promise.all([repo.seriesNames(), repo.sessionWindowsFrom(historyStart(from, now, config), MAX_PLACE_WINDOWS)]);
-  const costing = placeChatGrowth(fitFor(cap, knownHistory, config, base), knownHistory, order, windowsInFilter(sessionWindows, query.environment), from);
+  const fitted = fitFor(cap, knownHistory, config, base);
+  const [order, sessionWindows] = await Promise.all([
+    repo.seriesNames(),
+    fitted.fit === null ? Promise.resolve([]) : repo.sessionWindowsFrom(historyStart(from, now, config), MAX_PLACE_WINDOWS),
+  ]);
+  const costing = placeChatGrowth(fitted, knownHistory, order, windowsInFilter(sessionWindows, query.environment), from);
   const tasks = await taskCosts(repo, shown, config.topTasks, costing);
   const unit = query.range === UsageRange.Day ? BucketUnit.Hour : BucketUnit.Day;
-  const buckets = bucketKeys(from, now.toISOString(), query.utcOffsetMinutes, unit);
+  // Built once per request: the same rule as the page's (`offsetForZone`), and its per-hour lookups are cached.
+  const offset = offsetForZone(query.timeZone, query.utcOffsetMinutes);
+  const buckets = bucketsBetween(Date.parse(from), now.getTime(), offset, unit);
   return {
     server_time: now.toISOString(),
     range: query.range,
@@ -213,11 +236,16 @@ export async function readUsage(
     environment: query.environment,
     environments: environmentList(known, order, config),
     base_environment: base,
-    utc_offset_minutes: query.utcOffsetMinutes,
+    utc_offset_minutes: offsetOf(offset, now.getTime()),
+    time_zone: query.timeZone,
     palette: config.series,
     bucket_unit: unit,
-    buckets,
-    splits: buildSplits(shown, buckets, unit, query.utcOffsetMinutes, order, config),
+    buckets: buckets.map(({ key, startMs, endMs }) => ({
+      key,
+      start: new Date(startMs).toISOString(),
+      end: new Date(endMs).toISOString(),
+    })),
+    splits: buildSplits(shown, buckets, order, config),
     totals_by_model: modelTotals(shown, order),
     totals_by_token_kind: kindTotals(shown, now.toISOString()),
     top_tasks: tasks.top,
@@ -258,6 +286,12 @@ function rangeStart(range: UsageRange, now: Date, cap: CapState): string {
   return daysBefore(now, RANGE_DAYS[range]);
 }
 
+/** The range never starts earlier than the longest range, so a stray reading time cannot make the bucket list huge. */
+function clampedStart(from: string, now: Date): string {
+  const earliest = daysBefore(now, MAX_RANGE_DAYS);
+  return from < earliest ? earliest : from;
+}
+
 /** Deltas of the range, only those that fall in the chosen plan's time (no readings: every plan). */
 function rangeDeltas(history: UsageDelta[], cap: CapState, from: string, to: string): UsageDelta[] {
   return history.filter(({ sample }) => {
@@ -280,13 +314,19 @@ function environmentList(deltas: UsageDelta[], order: SeriesName[], config: Usag
 
 function buildSplits(
   deltas: UsageDelta[],
-  buckets: string[],
-  unit: BucketUnit,
-  offset: number,
+  buckets: Bucket[],
   order: SeriesName[],
   config: UsageConfig,
 ): Record<Split, UsageSeriesDto[]> {
-  const bucketOf = (delta: UsageDelta): string => bucketKey(delta.sample.recordAt, offset, unit);
+  // Each delta's bucket is worked out once, not once per split: the bucket holding its moment, by real time.
+  const bucketsOfDeltas = new Map<UsageDelta, string>();
+  const bucketOf = (delta: UsageDelta): string => {
+    const known = bucketsOfDeltas.get(delta);
+    if (known !== undefined) return known;
+    const key = buckets[bucketIndexAt(Date.parse(delta.sample.recordAt), buckets)]?.key ?? "";
+    bucketsOfDeltas.set(delta, key);
+    return key;
+  };
   const indexers: Record<Split, (name: string | null) => number> = {
     [Split.Model]: colorIndexer(order, SeriesKind.Model),
     [Split.AgentKind]: colorIndexer(order, SeriesKind.AgentKind),
@@ -294,7 +334,7 @@ function buildSplits(
     [Split.TokenKind]: (name) => TOKEN_KINDS.indexOf(name as TokenKind),
   };
   const build = (split: Split): UsageSeriesDto[] =>
-    splitByBucket(deltas, buckets, bucketOf, split)
+    splitByBucket(deltas, buckets.map(({ key }) => key), bucketOf, split)
       .map(({ name, values }) => ({
         name,
         label: split === Split.Environment && name !== null ? (config.environmentLabels[name] ?? name) : name,

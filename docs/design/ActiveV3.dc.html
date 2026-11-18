@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Active work with step trees, light</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F6F8}
+a{color:#1D4ED8}a:hover{color:#3B424D}
+button{font:inherit;color:inherit}
+@keyframes ring-turn{to{transform:rotate(360deg)}}
+.ring{transform-origin:50% 50%;animation:ring-turn 1.4s linear infinite}
+@media (prefers-reduced-motion: reduce){.ring{animation:none}}
+</style>
+</helmet>
+<div style="position: relative; min-height: 2300px; box-sizing: border-box; background: #F5F6F8; color: #14171C; font-family: Inter, system-ui, sans-serif; font-size: 14px; line-height: 1.45">
+<div style="max-width: 1080px; margin: 0 auto; padding: 32px 32px 64px; display: flex; flex-direction: column; gap: 20px">
+
+<nav aria-label="Views" style="display: flex; gap: 4px; padding: 4px; background: #E9ECF0; border-radius: 12px; align-self: flex-start">
+<a href="#" style="min-height: 40px; padding: 0 14px; display: inline-flex; align-items: center; border-radius: 9px; color: #3B424D; font-weight: 500; text-decoration: none">Board</a>
+<a href="#" aria-current="page" style="min-height: 40px; padding: 0 14px; display: inline-flex; align-items: center; gap: 8px; border-radius: 9px; background: #FFFFFF; color: #14171C; font-weight: 600; text-decoration: none">Active work <span style="font-size: 12px; font-weight: 600; padding: 0 7px; border-radius: 999px; background: #14171C; color: #F5F6F8">3</span></a>
+<a href="#" style="min-height: 40px; padding: 0 14px; display: inline-flex; align-items: center; border-radius: 9px; color: #3B424D; font-weight: 500; text-decoration: none">Usage</a>
+</nav>
+
+<header style="display: flex; flex-direction: column; gap: 4px">
+<h1 style="margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.02em">Active work</h1>
+<p style="margin: 0; color: #5B6370; font-size: 13px">Tasks with an outcome that an agent is working on now · updated 14:12</p>
+<p style="margin: 0; color: #5B6370; font-size: 13px">Plain chats and wave runners get no card here; each slice a wave builds has its own.</p>
+</header>
+
+<a href="#" style="align-self: flex-start; min-height: 44px; display: inline-flex; align-items: center; gap: 8px; padding: 0 14px; border-radius: 10px; background: #FDEBD8; border: 1px solid #F0C9A0; color: #9A3F00; font-weight: 600; text-decoration: none">2 questions are waiting on the board <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9A3F00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></a>
+
+<ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 16px">
+<sc-for list="{{ cards }}" as="c" hint-placeholder-count="3">
+<li style="background: #FFFFFF; border: 1px solid #E3E6EB; border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-size: 12px; color: #5B6370">
+<span style="font-weight: 600; color: #14171C">{{ c.project }}</span>
+<span style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: {{ c.kindFg }}">{{ c.kind }}</span>
+<span style="padding: 1px 8px; border-radius: 6px; background: #F0F2F5; color: #3B424D">{{ c.env }}</span>
+<span style="padding: 2px 8px; border-radius: 6px; background: #F0F2F5; color: #3B424D; font-family: 'JetBrains Mono', monospace; font-size: 11px">{{ c.model }}</span>
+<span style="margin-left: auto">last activity {{ c.last }}</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<h2 style="margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.3">{{ c.title }}</h2>
+<span style="display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; color: #0B6B4B"><svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0B6B4B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5"></circle><circle cx="12" cy="12" r="1"></circle></svg>Outcome: {{ c.outcome }}</span>
+<span style="font-size: 13px; color: #3B424D">{{ c.why }}</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px">
+<span style="font-size: 15px; font-weight: 700; color: #1D4ED8">{{ c.head }}</span>
+<span style="margin-left: auto; font-size: 13px; color: #3B424D; font-variant-numeric: tabular-nums">{{ c.progress }}</span>
+</div>
+<span aria-hidden="true" style="display: block; height: 8px; border-radius: 4px; background: #E9ECF0; overflow: hidden"><span style="display: block; height: 100%; width: {{ c.pct }}; background: #1D4ED8; border-radius: 4px"></span></span>
+</div>
+<ol aria-label="Steps" style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; border-top: 1px solid #E3E6EB; padding-top: 10px">
+<sc-for list="{{ c.rows }}" as="r" hint-placeholder-count="5">
+<li style="display: flex; flex-direction: column; padding-left: {{ r.indent }}">
+<button onClick="{{ r.toggle }}" aria-expanded="{{ r.open }}" style="width: 100%; min-height: 44px; text-align: left; cursor: pointer; border: 0; border-radius: 8px; background: {{ r.rowBg }}; padding: 6px 8px; display: grid; grid-template-columns: 16px 30px minmax(0, 1fr) auto; align-items: center; gap: 8px">
+<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="{{ r.chevColor }}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="transform: rotate({{ r.chevron }})"><path d="M9 6l6 6-6 6"></path></svg>
+<span style="position: relative; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center">
+<span style="width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; background: {{ r.mBg }}; color: {{ r.mFg }}; border: 1.5px solid {{ r.mBd }}; box-sizing: border-box">{{ r.num }}</span>
+<sc-if value="{{ r.running }}" hint-placeholder-val="{{ false }}"><svg class="ring" aria-hidden="true" width="28" height="28" viewBox="0 0 28 28" style="position: absolute; inset: 0"><circle cx="14" cy="14" r="12.5" fill="none" stroke="#1D4ED8" stroke-width="2" stroke-linecap="round" stroke-dasharray="20 59"></circle></svg></sc-if>
+</span>
+<span style="display: flex; flex-direction: column; min-width: 0">
+<span style="font-weight: {{ r.weight }}; color: {{ r.fg }}">{{ r.label }}</span>
+<span style="font-size: 12px; color: #5B6370; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ r.noteLine }}</span>
+</span>
+<span style="font-size: 12px; font-weight: 600; color: {{ r.sFg }}; white-space: nowrap; font-variant-numeric: tabular-nums">{{ r.stateText }}</span>
+</button>
+<sc-if value="{{ r.open }}" hint-placeholder-val="{{ false }}">
+<div style="margin: 2px 0 6px 62px; padding: 10px 12px; border-radius: 8px; border: 1px solid #E3E6EB; display: flex; flex-direction: column; gap: 4px; font-size: 13px">
+<sc-if value="{{ r.hasNote }}" hint-placeholder-val="{{ true }}"><span>{{ r.note }}</span></sc-if>
+<span style="color: #3B424D; font-variant-numeric: tabular-nums">{{ r.times }}</span>
+<sc-if value="{{ r.hasKids }}" hint-placeholder-val="{{ false }}"><span style="color: #5B6370">{{ r.kidsLine }}</span></sc-if>
+</div>
+</sc-if>
+</li>
+</sc-for>
+</ol>
+</li>
+</sc-for>
+</ul>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":2300}}'>
+var CONFIG = {"theme": {"ground": "#F5F6F8", "card": "#FFFFFF", "border": "#E3E6EB", "text": "#14171C", "muted": "#5B6370", "sub": "#3B424D", "track": "#E9ECF0", "needBg": "#FDEBD8", "needBd": "#F0C9A0", "needFg": "#9A3F00", "sliceBg": "#E6EEFC", "sliceBd": "#BFD0F5", "sliceFg": "#1D4ED8", "bugBg": "#FCE4E4", "bugBd": "#F3BDBA", "bugFg": "#B42318", "probBg": "#EFE7FB", "probBd": "#D6C4F2", "probFg": "#6B2FBF", "nowBg": "#1D4ED8", "nowFg": "#FFFFFF", "doneFg": "#0B6B4B", "chip": "#F0F2F5", "tabBg": "#E9ECF0", "tabOn": "#FFFFFF", "scrim": "rgba(20,23,28,0.32)", "shadow": "-12px 0 32px rgba(20,23,28,0.12)", "link": "#1D4ED8", "btnBg": "#14171C", "btnFg": "#FFFFFF"}, "phone": false, "init": {"open": {"a:3": true, "a:3.2": true, "b:1": false}}};
+var T = CONFIG.theme;
+function L(label, state, extra) { return Object.assign({ label: label, state: state }, extra || {}); }
+var LANGS = [['English', 'done', '13:12', '13:20', '8 min'], ['French', 'active', '13:20'], ['German', 'active', '13:21'], ['Spanish', 'active', '13:22'], ['Italian', 'done', '13:20', '13:31', '11 min'], ['Dutch', 'done', '13:31', '13:40', '9 min'],
+  ['Portuguese', 'pending'], ['Polish', 'pending'], ['Swedish', 'pending'], ['Danish', 'pending'], ['Norwegian', 'pending'], ['Finnish', 'pending'], ['Turkish', 'pending'], ['Greek', 'pending'], ['Japanese', 'pending']];
+var CARDS = [
+  { key: 'a', project: 'example-app', kind: 'Slice 7', kindFg: T.sliceFg, env: 'cloud VM', model: 'model-large', last: '1 min ago',
+    title: 'Implement Slice 7: audio in every language', outcome: 'Code merged to main', why: 'Slice 7 of example-app, parts A to C',
+    steps: [
+      L('Read the slice', 'done', { start: '13:00', end: '13:02', dur: '2 min' }),
+      L('Write the script text', 'done', { start: '13:02', end: '13:10', dur: '8 min', note: 'Text for 15 languages, 42 lines each' }),
+      L('Record audio, 15 languages', 'active', { id: 'rec', start: '13:10', dur: '1 h 02 min', note: 'Helper agent: audio-recorder · model-small · three languages at a time',
+        children: LANGS.map(function (l) {
+          var s = L(l[0], l[1], { id: 'lang-' + l[0], start: l[2], end: l[3], dur: l[4] || (l[1] === 'active' ? (72 - parseInt(l[2].slice(3), 10)) + ' min' : undefined) });
+          if (l[0] === 'French') { s.note = 'Retrying line 31 after a timeout'; s.dur = '52 min';
+            s.children = [L('Generate the lines', 'done', { start: '13:20', end: '13:58', dur: '38 min' }), L('Check pronunciation', 'active', { start: '13:58', dur: '14 min', note: 'Line 31 of 42' }), L('Save the file', 'pending')]; }
+          return s;
+        }) }),
+      L('Review the diff', 'pending', { note: 'Helper agent: reviewer' }),
+      L('Merge', 'pending')
+    ] },
+  { key: 'b', project: 'notes-site', kind: 'Task', kindFg: T.muted, env: 'laptop', model: 'model-large', last: '3 min ago',
+    title: 'Refine the offline-mode idea', outcome: 'A plan with slices', why: 'RefineScope run on an idea from the phone',
+    steps: [
+      L('Research similar apps', 'done', { id: 'res', start: '13:40', end: '13:58', dur: '18 min', children: [L('Read four reader apps’ docs', 'done', { start: '13:40', end: '13:49', dur: '9 min' }), L('Check how they sync', 'done', { start: '13:49', end: '13:55', dur: '6 min' }), L('Note what to copy', 'done', { start: '13:55', end: '13:58', dur: '3 min' })] }),
+      L('Draft the scope', 'active', { start: '13:58', dur: '14 min', note: 'Two options: sync first or cache first' }),
+      L('Ask up to 4 questions', 'pending'),
+      L('Write the slices into the plan', 'pending')
+    ] },
+  { key: 'c', project: 'example-app', kind: 'Task', kindFg: T.muted, env: 'laptop', model: 'model-mid', last: '30 s ago',
+    title: 'Fix the lint timeout on main', outcome: 'Build passes on main', why: 'For the problem “Build fails on main: the lint step times out”',
+    steps: [
+      L('Reproduce', 'done', { start: '13:50', end: '13:54', dur: '4 min' }),
+      L('Find the cause', 'done', { start: '13:54', end: '14:03', dur: '9 min', note: 'Lint runs over the generated files' }),
+      L('Exclude the generated files', 'active', { start: '14:03', dur: '9 min' }),
+      L('Run the build twice', 'pending')
+    ] }
+];
+function leaves(nodes) { var n = []; nodes.forEach(function (s) { if (s.children && s.children.length) n = n.concat(leaves(s.children)); else n.push(s); }); return n; }
+class Component extends DCLogic {
+  renderVals() {
+    var self = this, cur = this.state || {};
+    var open = cur.open || CONFIG.init.open || {};
+    var cards = CARDS.map(function (c) {
+      var rows = [];
+      var walk = function (nodes, depth, prefix) {
+        var seenNext = false;
+        nodes.forEach(function (s, i) {
+          var num = prefix ? prefix + '.' + (i + 1) : String(i + 1);
+          var id = c.key + ':' + num;
+          var kids = s.children || [];
+          var isOpen = !!open[id];
+          var st = s.state;
+          var stateText = st === 'done' ? 'Done · ' + s.dur : st === 'active' ? 'Running · ' + s.dur : (seenNext ? 'Later' : 'Next');
+          if (st === 'pending') seenNext = true;
+          var kl = leaves(kids);
+          var kd = kl.filter(function (x) { return x.state === 'done'; }).length;
+          var kr = kl.filter(function (x) { return x.state === 'active'; }).length;
+          rows.push({
+            num: num, label: s.label, indent: (depth * 26) + 'px', open: isOpen,
+            running: st === 'active', weight: st === 'active' ? '600' : '400', fg: st === 'done' ? T.muted : T.text,
+            mBg: st === 'done' ? T.doneFg : T.card, mFg: st === 'done' ? T.card : st === 'active' ? T.sliceFg : T.muted, mBd: st === 'done' ? T.doneFg : st === 'active' ? 'transparent' : T.border,
+            rowBg: st === 'active' ? T.sliceBg : 'transparent', sFg: st === 'done' ? T.doneFg : st === 'active' ? T.sliceFg : T.muted,
+            stateText: stateText,
+            noteLine: kids.length ? (kd + ' of ' + kl.length + ' sub-steps done' + (kr ? ' · ' + kr + ' running' : '') + (s.note ? ' · ' + s.note : '')) : (s.note || ''),
+            chevron: isOpen ? '90deg' : '0deg', chevColor: kids.length ? T.text : 'transparent',
+            hasNote: !!s.note, note: s.note || '',
+            times: st === 'done' ? 'Started ' + s.start + ' · finished ' + s.end + ' · took ' + s.dur : st === 'active' ? 'Started ' + s.start + ' · running for ' + s.dur : 'Not started yet',
+            hasKids: kids.length > 0, kidsLine: kids.length + ' sub-steps below; tap one to open it',
+            toggle: function () { var o = Object.assign({}, open); o[id] = !isOpen; self.setState({ open: o }); }
+          });
+          if (isOpen && kids.length) walk(kids, depth + 1, num);
+        });
+      };
+      walk(c.steps, 0, '');
+      var lv = leaves(c.steps);
+      var done = lv.filter(function (x) { return x.state === 'done'; }).length;
+      var running = lv.filter(function (x) { return x.state === 'active'; });
+      var head = running.length > 1 ? running.length + ' running' : running.length === 1 ? running[0].label : (done ? 'Waiting for the next step' : 'Starting');
+      return Object.assign({}, c, { rows: rows, head: head, pct: Math.round(done / lv.length * 100) + '%', progress: done + ' of ' + lv.length + ' steps · ' + Math.round(done / lv.length * 100) + '%' });
+    });
+    return { cards: cards };
+  }
+}
+</script>
+</body>
+</html>

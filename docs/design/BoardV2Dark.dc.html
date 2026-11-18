@@ -31,7 +31,7 @@ button{font:inherit;color:inherit}
 </div>
 <p style="margin: 0; display: flex; flex-wrap: wrap; gap: 8px; font-size: 13px">
 <span style="padding: 4px 10px; border-radius: 999px; background: #2A1C0E; color: #FFB672; font-weight: 600">2 need you</span>
-<span style="padding: 4px 10px; border-radius: 999px; background: #232833; color: #C7CDD8; font-weight: 600">3 working</span>
+<span style="padding: 4px 10px; border-radius: 999px; background: #232833; color: #C7CDD8; font-weight: 600">2 working</span>
 <span style="padding: 4px 10px; border-radius: 999px; background: #232833; color: #C7CDD8; font-weight: 600">2 problems</span>
 </p>
 </header>
@@ -93,15 +93,13 @@ button{font:inherit;color:inherit}
 <span style="display: flex; flex-wrap: wrap; gap: 6px 10px; font-size: 12px; color: #9AA3B2"><span>{{ w.session }}</span><span style="margin-left: auto">{{ w.last }}</span></span>
 <sc-if value="{{ w.hasGoal }}" hint-placeholder-val="{{ true }}">
 <span style="font-size: 16px; font-weight: 700; line-height: 1.3">{{ w.goal }}</span>
+<span style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: #7FD8B4"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7FD8B4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5"></circle><circle cx="12" cy="12" r="1"></circle></svg>Outcome: {{ w.outcome }}</span>
 <span style="font-size: 13px; color: #C7CDD8">{{ w.why }}</span>
 <ol aria-label="Steps" style="margin: 2px 0 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px">
 <sc-for list="{{ w.steps }}" as="st" hint-placeholder-count="5">
 <li style="display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: {{ st.weight }}; background: {{ st.bg }}; color: {{ st.fg }}; border: 1px solid {{ st.bd }}"><span>{{ st.mark }}</span>{{ st.label }}</li>
 </sc-for>
 </ol>
-</sc-if>
-<sc-if value="{{ w.noGoal }}" hint-placeholder-val="{{ false }}">
-<span style="font-size: 14px; font-style: italic; color: #9AA3B2">Started 2 min ago, no goal reported yet</span>
 </sc-if>
 </button>
 </sc-for>
@@ -249,9 +247,8 @@ var PROJECTS = [
   { id: 'ex', name: 'example-app',
     needs: [{ id: 'n1', question: 'Which iPhone should I read the crash log from: the iPhone 8 or the iPad?', after: 'Then I read the log and write the cause into Slice 12.', session: 'session 4f2a · laptop', waited: 'waiting 6 min' }],
     working: [
-      { id: 'w1', goal: 'Read the crash log on the iPhone 8', why: 'For Slice 12: app crashes on start', session: 'session 9c1e · laptop', last: 'last activity 2 min ago', steps: [['Connect the phone', 'done'], ['Read the logs', 'now'], ['Analyse', 'next'], ['Conclude', 'next'], ['Plan or fix', 'next']] },
-      { id: 'w2', goal: 'Build Slices 9 and 10 overnight', why: 'For the night run, wave 3', session: 'wave 3 · cloud VM', last: 'last activity 4 min ago', steps: [['Build Slice 9', 'done'], ['Review Slice 9', 'done'], ['Build Slice 10', 'now'], ['Review Slice 10', 'next'], ['Merge', 'next']] },
-      { id: 'w3', noGoal: true, session: 'session a71b · cloud VM', last: 'last activity 1 min ago' }
+      { id: 'w1', goal: 'Read the crash log on the iPhone 8', outcome: 'The cause written into Slice 12', why: 'For Slice 12: app crashes on start', session: 'task · laptop', last: 'last activity 2 min ago', steps: [['Connect the phone', 'done'], ['Read the logs', 'now'], ['Analyse', 'next'], ['Conclude', 'next'], ['Plan or fix', 'next']] },
+      { id: 'w2', goal: 'Implement Slice 9: export to PDF', outcome: 'Code merged to main', why: 'Slice 9 of example-app, built in tonight’s wave', session: 'slice card · cloud VM', last: 'last activity 4 min ago', steps: [['Build part A', 'done'], ['Build part B', 'now'], ['Review part A', 'now'], ['Merge', 'next']] }
     ],
     planned: [
       { id: 's12', num: 'Slice 12', title: 'App crashes on start', status: 'In progress', parts: [['A', 'd'], ['B', 'd'], ['C', 'a'], ['D', 'p'], ['E', 'p']], nowLine: 'Now: part C, fix the start-up race', checks: 3 },
@@ -288,7 +285,7 @@ var DRAWERS = {
   n2: { kicker: 'Needs you', kind: 'need', title: 'Should I delete the 40 old backups in the backups folder, or move them to the archive drive?', purpose: 'For the cleanup slice of tools', meta: 'session 51e0 · laptop · waiting 42 min', after: 'I free the space and close the cleanup slice.',
     doneSoFar: ['Listed 40 backups older than a year, 18 GB in all'], steps: [['List old backups', 'done'], ['Ask what to do with them', 'now'], ['Delete or move', 'next'], ['Close the slice', 'next']],
     links: ['Slice file'], history: [['12:51', 'Started'], ['13:06', 'Needs you: should I delete the 40 old backups…']] },
-  w1: { kicker: 'Working now', kind: 'work', title: 'Read the crash log on the iPhone 8', purpose: 'For Slice 12: app crashes on start', meta: 'session 9c1e · laptop · last activity 2 min ago',
+  w1: { kicker: 'Working now', kind: 'work', title: 'Read the crash log on the iPhone 8', purpose: 'Outcome: the cause written into Slice 12 · for Slice 12: app crashes on start', meta: 'task · laptop · last activity 2 min ago',
     doneSoFar: ['Connected the iPhone 8 over USB', 'Found 3 crash logs from release 2.3.1, all at start-up'],
     steps: [['Connect the phone', 'done'], ['Read the logs', 'now'], ['Analyse', 'next'], ['Conclude', 'next'], ['Plan or fix', 'next']],
     partsHead: 'Slice 12 parts · 2 of 5 done', parts: [['A · Reproduce on a device', 'd'], ['B · Add crash reporting', 'd'], ['C · Fix the start-up race', 'a'], ['D · Test on iOS 16 and 17', 'p'], ['E · Release 2.3.2', 'p']],

@@ -14,6 +14,13 @@ export interface UsageSeriesDto {
   values: number[];
 }
 
+/** One bucket of the chart: its key (`YYYY-MM-DD`, or `YYYY-MM-DDTHH` for hours, in the viewer's time) and its real span in UTC ISO. */
+export interface UsageBucketDto {
+  key: string;
+  start: string;
+  end: string;
+}
+
 export interface UsageEnvironmentDto {
   value: string;
   label: string;
@@ -170,8 +177,8 @@ export interface UsageResponse {
   time_zone: string | null;
   palette: SeriesColor[];
   bucket_unit: BucketUnit;
-  /** `YYYY-MM-DD`, or `YYYY-MM-DDTHH` for hours, in the viewer's time. */
-  buckets: string[];
+  /** The Worker's own bucket list, oldest first: the page uses exactly this list for positions and labels and never rebuilds it. */
+  buckets: UsageBucketDto[];
   splits: Record<Split, UsageSeriesDto[]>;
   totals_by_model: ModelTotalsDto[];
   totals_by_token_kind: Record<TokenKind, number> & { total: number };

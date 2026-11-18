@@ -142,16 +142,33 @@ describe("geometry", () => {
   });
 
   it("shows the two passes through a repeated hour with distinct labels", () => {
-    const view = { offsetAt: offsetForZone("Europe/Berlin", 0), locale: "en-US", t: translator("en") } as const;
+    const view = { locale: "en-US", t: translator("en") } as const;
+    const list = bucketsBetween(Date.parse("2026-10-24T23:10:00Z"), Date.parse("2026-10-25T03:10:00Z"), offsetForZone("Europe/Berlin", 0), BucketUnit.Hour);
     const data = {
       ...demoUsage(),
       bucket_unit: BucketUnit.Hour,
-      from: "2026-10-24T23:10:00.000Z",
-      server_time: "2026-10-25T03:10:00.000Z",
+      buckets: list.map((b) => ({ key: b.key, start: new Date(b.startMs).toISOString(), end: new Date(b.endMs).toISOString() })),
     };
     const labels = chartBuckets(data, view).map((b) => b.label);
     expect(labels).toEqual(["01:00", "02:00", "02:00 (2nd)", "03:00", "04:00"]);
     expect(new Set(chartBuckets(data, view).map((b) => b.letter)).size).toBe(5);
+  });
+
+  it("uses exactly the Worker's bucket list, whatever the page's own clock rule says (review finding 1)", () => {
+    const view = { locale: "en-US", t: translator("en") } as const;
+    const data = {
+      ...demoUsage(),
+      bucket_unit: BucketUnit.Hour,
+      buckets: [
+        { key: "2026-11-16T09", start: "2026-11-16T08:00:00.000Z", end: "2026-11-16T09:00:00.000Z" },
+        { key: "2026-11-16T10", start: "2026-11-16T09:00:00.000Z", end: "2026-11-16T10:00:00.000Z" },
+      ],
+    };
+    const made = chartBuckets(data, view);
+    expect(made.map((b) => [b.key, b.startMs, b.endMs])).toEqual([
+      ["2026-11-16T09", Date.parse("2026-11-16T08:00:00Z"), Date.parse("2026-11-16T09:00:00Z")],
+      ["2026-11-16T10", Date.parse("2026-11-16T09:00:00Z"), Date.parse("2026-11-16T10:00:00Z")],
+    ]);
   });
 
   it("keeps the range-start filter in milliseconds, so a first-pass point is out of a range that starts in the second pass (review finding 2)", () => {

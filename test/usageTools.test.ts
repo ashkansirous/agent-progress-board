@@ -218,7 +218,7 @@ describe("GET /api/usage", () => {
     expect(usage.bucket_unit).toBe("hour");
     expect(usage.totals_by_model.find((m) => m.model === "model-large")?.total).toBe(1240);
     const hour = usage.splits.model.find((s) => s.name === "model-large")?.values;
-    expect(hour?.[usage.buckets.indexOf("2026-11-16T09")]).toBe(1240);
+    expect(hour?.[usage.buckets.findIndex((b) => b.key === "2026-11-16T09")]).toBe(1240);
   });
 
   it("covers the last 7 days with empty cap parts when no weekly reading exists", async () => {
@@ -293,18 +293,21 @@ describe("time zone and clock changes (Slice 35 #1, review findings 3, 8)", () =
     ]);
     const usage = await getUsageAt("2026-10-25T12:00:00.000Z", "?range=24h&time_zone=Europe/Berlin");
     expect(usage.buckets).toHaveLength(25);
-    expect(new Set(usage.buckets).size).toBe(25);
+    const keys = usage.buckets.map((b) => b.key);
+    expect(new Set(keys).size).toBe(25);
     const values = usage.splits.model[0]?.values ?? [];
-    const at = (key: string): number => values[usage.buckets.indexOf(key)] ?? -1;
+    const at = (key: string): number => values[keys.indexOf(key)] ?? -1;
+    expect(usage.buckets.every((b) => Date.parse(b.end) - Date.parse(b.start) === 3_600_000)).toBe(true);
     expect([at("2026-10-25T02"), at("2026-10-25T02#2"), at("2026-10-25T03")]).toEqual([4, 10, 3]);
   });
 
   it("gives the hour the clocks skip no bucket", async () => {
     const usage = await getUsageAt("2026-03-29T12:00:00.000Z", "?range=24h&time_zone=Europe/Berlin");
     expect(usage.buckets).toHaveLength(25);
-    expect(usage.buckets).not.toContain("2026-03-29T02");
-    expect(usage.buckets).toContain("2026-03-29T01");
-    expect(usage.buckets).toContain("2026-03-29T03");
+    const keys = usage.buckets.map((b) => b.key);
+    expect(keys).not.toContain("2026-03-29T02");
+    expect(keys).toContain("2026-03-29T01");
+    expect(keys).toContain("2026-03-29T03");
   });
 });
 
@@ -322,7 +325,7 @@ describe("a window older than the longest range (review finding 5)", () => {
     const usage = await getUsageAt("2026-11-16T12:00:00.000Z", "", kept);
     expect(usage.from).toBe("2026-10-17T12:00:00.000Z");
     expect(usage.cap.weekly.windows).toEqual([]);
-    expect(usage.buckets[0]).toBe("2026-10-17");
+    expect(usage.buckets[0]?.key).toBe("2026-10-17");
     expect(usage.totals_by_token_kind.input).toBe(40);
   });
 });

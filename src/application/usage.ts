@@ -240,7 +240,11 @@ export async function readUsage(
     time_zone: query.timeZone,
     palette: config.series,
     bucket_unit: unit,
-    buckets: buckets.map(({ key }) => key),
+    buckets: buckets.map(({ key, startMs, endMs }) => ({
+      key,
+      start: new Date(startMs).toISOString(),
+      end: new Date(endMs).toISOString(),
+    })),
     splits: buildSplits(shown, buckets, order, config),
     totals_by_model: modelTotals(shown, order),
     totals_by_token_kind: kindTotals(shown, now.toISOString()),

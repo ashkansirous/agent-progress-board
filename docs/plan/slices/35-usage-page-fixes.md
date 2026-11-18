@@ -1,6 +1,6 @@
 ### Slice 35 — Usage page and cost figures: review leftovers
 
-*In progress (wave 2026-11-18), draft PR.*
+*Built 2026-11-18 (night 2026-11-18-1602, wave 2), PR #138, not merged. Placement cloud: the cloud run `cse_012UYzYVMY9PDqmtfMWRDKrB` pushed 5545c0f partially (no CLOUD DONE line; e2e could not run there) and the slice was finished locally. Checks on the final tree: lint, typecheck, vitest 581, plugin 341, e2e 280 passed 4 skipped. Not yet verified on a device in a daylight-saving zone.*
 
 *Planned 2026-11-18 (owner: "double check and plan the follow up work"). Grouping decided by the planning session of
 2026-11-18; items re-checked against `origin/main` (d654e9b).* Wave 2.
@@ -75,11 +75,36 @@ Page (Slices 9, 28, 2):
   `record_at` ten years out returns at once; residual sums; a German percent with a comma; a negative bar clamped at 0.
 - `npm run test:e2e`: the usage page with no ratios shows the "not split" note.
 
+#### Changed while building
+
+- The `touches` list widened: `web/src/TaskCost.tsx`, `web/src/usageApi.ts`, `web/src/usageQuery.ts`, `src/api/usageDto.ts`, `e2e/usage.spec.ts`, `test/capCostRoute.test.ts`, `web/src/chartGeometry.ts`, `src/api/router.ts` (palette line only), `test/usageTools.test.ts`, `web/src/UsagePage.tsx`, `web/src/CapTiles.tsx`, `e2e/usageFixture.ts`.
+- Designs: the page sends `time_zone`; one offset rule, `offsetForZone`, serves the Worker and the page; buckets are walked in real time (`bucketsBetween` in `src/domain/usage.ts`) and the Worker sends each bucket as `{key, start, end}`; the page draws exactly that list, and `xOfMoment` is the one position rule; the repeated fall-back hour is keyed `#2` and labelled "(2nd)"; palette defaults are laid under at read (`pageConfigOf`) and only set colours are stored; `placeInWindows` keeps main's end order.
+- API change: `GET /api/usage` `buckets` is now a list of objects `{key, start, end}`, not a list of keys.
+
 #### From review
 
+- Applied: every finding of `reviews/pr-138-high.md` except two (the two left out are listed next); 3 and 8 came by the bucket design and the echoed `time_zone` above.
 - Skipped #6 (`reviews/pr-138-high.md`): "seriesName changed || to ??, so an empty-string label or name no longer falls back to the placeholder" - the slice item itself asked for `??` in `web/src/usageView.tsx`; an empty label is not a value the Worker sends.
 - Skipped #7 (`reviews/pr-138-high.md`): "sessionWindowsFrom is skipped when fitted.fit === null, safe only because placeChatGrowth is the sole consumer" - low; the null-fit skip is correct today and covered by the existing test.
 - Applied #5 as a test: the cap line and the use already share the one clamped `from`; readings are read only as far back as `keepDays`, and a test (`a window older than the longest range`) pins that they agree.
 - Skipped #6 (`reviews/pr-138-medium.md`): "clampedStart silently shortens range for a cap window older than 30 days; fit/chart and rangeDeltas/cap tiles can cover different spans with no indication" - low; the cap tiles and the chart use the same clamped `from`, and the fix-1 test in `test/usageTools.test.ts` shows they agree.
 - Skipped #8 (`reviews/pr-138-medium.md`): "zoneOffsetAt/bucketKey allocate Date and ISO string twice per delta even when offset is a fixed number" - low; two short string builds per delta, bounded by the range, no failure. (The second `localKey` call is gone anyway: buckets now come from one real-time walk.)
 - Reopened #1, #2, #3, #4 and #7 of `reviews/pr-138-medium.md` as one design: buckets are walked in real time (`bucketsBetween`, `{key, startMs, endMs}`, repeated keys get `#2`), and every position and range test uses `xOfMoment` / milliseconds. #5: `placeInWindows` is back in end order, pinned by a test.
+- Applied #1 of `reviews/pr-138-check-medium.md` by construction (the Worker's list, not a page rebuild): the Worker sends each bucket as `{key, start, end}` (UTC ISO, the `bucketsBetween` list) and the page uses exactly that list; `chartBuckets` only adds labels.
+- Skipped #2 (`reviews/pr-138-check-medium.md`): "hourBuckets steps fixed 3,600,000 ms; 30-minute offset change (Lord_Howe) misaligns later buckets" - buckets are one real hour each, which is the slice bucket rule; a 30-minute zone shows half-hour local labels, which is that zone's clock.
+- `reviews/pr-138-medium.md`: the rest (1 to 5 and 7) were applied by the one bucket design above.
+- `reviews/pr-138-check-2-medium.md` (second check pass, converged, 4 low findings, none fixed, all four on the follow-up list below): #1 hourBuckets 3,600,000 ms steps in a 30-minute-shift zone (Lord_Howe); #2 a repeated day key `2026-10-25#2` is read as an hour by key length 10; #3 caller-controlled `time_zone` builds a formatter past the 32-entry cache; #4 `clampedStart` compares ISO strings lexicographically.
+
+#### Open items (follow-up list)
+
+- The four low findings of `reviews/pr-138-check-2-medium.md` above have no slice yet; they need one planned.
+
+#### For CLAUDE.md
+
+- The usage buckets are built once, in real time, by `bucketsBetween` in `src/domain/usage.ts`; the page draws the Worker's `{key, start, end}` list as sent and never rebuilds it, and positions come from `xOfMoment`. Every surface asks one offset rule, `offsetForZone`, for the zone's offset at each moment (Slice 35: docs/plan/slices/35-usage-page-fixes.md).
+
+#### Not yet verified
+
+- On a phone or desktop in a zone with daylight saving, the Usage page's bars, reset markers and labels line up across a clock change (next change: late March).
+- The German strings `kindsSecondFraction`, `kindsSecondMultiple`, `multipleOther` and `hourAgain` need the owner's native read.
+- Skipped #3 (`reviews/pr-138-check-medium.md`): "public time_zone spellings defeat the 32-entry formatter cache; two constructions per request" - low; the cache is capped at 32 entries and each miss is one formatter build, no failure.

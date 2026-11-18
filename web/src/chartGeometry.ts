@@ -1,5 +1,5 @@
 import type { UsageResponse } from "../../src/api/usageDto";
-import { BucketUnit, bucketsBetween, REPEATED_HOUR_MARK, xOfMoment, type Bucket, type OffsetAt } from "../../src/domain/usage";
+import { BucketUnit, REPEATED_HOUR_MARK, xOfMoment, type Bucket } from "../../src/domain/usage";
 import type { Translate } from "./strings";
 import { bucketLabel, bucketLetter, type NiceScale } from "./usageFormat";
 
@@ -7,9 +7,8 @@ const SEGMENT_GAP = 2;
 const MIN_SEGMENT = 1;
 const CAP_QUARTER = 25;
 
-/** What the words of a bucket need: the clock rule, the locale and the translator. */
+/** What the words of a bucket need: the locale and the translator. */
 export interface BucketView {
-  offsetAt: OffsetAt;
   locale: string;
   t: Translate;
 }
@@ -23,17 +22,19 @@ export interface ChartBucket extends Bucket {
 const SECOND_PASS_LETTER = "²";
 
 /**
- * The chart's buckets, made by the same walk of real time as the Worker's (from `from` to `server_time`, with the answer's
- * own offset rule), so every position and label takes its bucket from one list. A repeated hour reads "02:00 (2nd)".
+ * The chart's buckets are exactly the Worker's list (`data.buckets`), never rebuilt on the page, so every position and
+ * label takes its bucket from the one list the values were made for. This only adds the words. A repeated hour reads
+ * "02:00 (2nd)".
  */
 export function chartBuckets(data: UsageResponse, view: BucketView): ChartBucket[] {
-  const buckets = bucketsBetween(Date.parse(data.from), Date.parse(data.server_time), view.offsetAt, data.bucket_unit);
-  return buckets.map((bucket) => {
-    const again = data.bucket_unit === BucketUnit.Hour && bucket.key.includes(REPEATED_HOUR_MARK);
-    const label = bucketLabel(view.locale, bucket.key);
-    const letter = bucketLetter(view.locale, bucket.key);
+  return data.buckets.map(({ key, start, end }) => {
+    const again = data.bucket_unit === BucketUnit.Hour && key.includes(REPEATED_HOUR_MARK);
+    const label = bucketLabel(view.locale, key);
+    const letter = bucketLetter(view.locale, key);
     return {
-      ...bucket,
+      key,
+      startMs: Date.parse(start),
+      endMs: Date.parse(end),
       label: again ? view.t("hourAgain", { hour: label }) : label,
       letter: again ? `${letter}${SECOND_PASS_LETTER}` : letter,
     };

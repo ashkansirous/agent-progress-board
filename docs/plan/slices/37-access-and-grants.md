@@ -1,5 +1,7 @@
 ### Slice 37 — Access answers, ending a grant, and the setup page's leftovers
 
+*In progress (wave 2026-11-18), draft PR.* Built before Slice 36 (night 2026-11-18-1602 wave 2); 36 now goes after it.
+
 *Planned 2026-11-18 (owner: "double check and plan the follow up work"). Grouping decided by the planning session of
 2026-11-18; items re-checked against `origin/main` (d654e9b).* Wave 4, after Slice 36 (both edit
 `web/src/SetupPage.tsx` and `web/src/strings.ts`).

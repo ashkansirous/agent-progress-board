@@ -1,6 +1,6 @@
 ### Slice 35 — Usage page and cost figures: review leftovers
 
-*Built 2026-11-18 (night 2026-11-18-1602, wave 2), PR #138, not merged. Placement cloud: the cloud run `cse_012UYzYVMY9PDqmtfMWRDKrB` pushed 5545c0f partially (no CLOUD DONE line; e2e could not run there) and the slice was finished locally. Checks on the final tree: lint, typecheck, vitest 581, plugin 341, e2e 280 passed 4 skipped. Not yet verified on a device in a daylight-saving zone.*
+*Built 2026-11-18 (night 2026-11-18-1602, wave 2), PR #138, merged 2026-11-18 as eede63a. Placement cloud: the cloud run `cse_012UYzYVMY9PDqmtfMWRDKrB` pushed 5545c0f partially (no CLOUD DONE line; e2e could not run there) and the slice was finished locally. Checks on the final tree: lint, typecheck, vitest 581, plugin 341, e2e 280 passed 4 skipped. Not yet verified on a device in a daylight-saving zone.*
 
 *Planned 2026-11-18 (owner: "double check and plan the follow up work"). Grouping decided by the planning session of
 2026-11-18; items re-checked against `origin/main` (d654e9b).* Wave 2.
@@ -92,6 +92,7 @@ Page (Slices 9, 28, 2):
 - Reopened #1, #2, #3, #4 and #7 of `reviews/pr-138-medium.md` as one design: buckets are walked in real time (`bucketsBetween`, `{key, startMs, endMs}`, repeated keys get `#2`), and every position and range test uses `xOfMoment` / milliseconds. #5: `placeInWindows` is back in end order, pinned by a test.
 - Applied #1 of `reviews/pr-138-check-medium.md` by construction (the Worker's list, not a page rebuild): the Worker sends each bucket as `{key, start, end}` (UTC ISO, the `bucketsBetween` list) and the page uses exactly that list; `chartBuckets` only adds labels.
 - Skipped #2 (`reviews/pr-138-check-medium.md`): "hourBuckets steps fixed 3,600,000 ms; 30-minute offset change (Lord_Howe) misaligns later buckets" - buckets are one real hour each, which is the slice bucket rule; a 30-minute zone shows half-hour local labels, which is that zone's clock.
+- Skipped #3 (`reviews/pr-138-check-medium.md`): "public time_zone spellings defeat the 32-entry formatter cache; two constructions per request" - low; the cache is capped at 32 entries and each miss is one formatter build, no failure.
 - `reviews/pr-138-medium.md`: the rest (1 to 5 and 7) were applied by the one bucket design above.
 - `reviews/pr-138-check-2-medium.md` (second check pass, converged, 4 low findings, none fixed, all four on the follow-up list below): #1 hourBuckets 3,600,000 ms steps in a 30-minute-shift zone (Lord_Howe); #2 a repeated day key `2026-10-25#2` is read as an hour by key length 10; #3 caller-controlled `time_zone` builds a formatter past the 32-entry cache; #4 `clampedStart` compares ISO strings lexicographically.
 
@@ -99,7 +100,7 @@ Page (Slices 9, 28, 2):
 
 - The four low findings of `reviews/pr-138-check-2-medium.md` above have no slice yet; they need one planned.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-18)
 
 - The usage buckets are built once, in real time, by `bucketsBetween` in `src/domain/usage.ts`; the page draws the Worker's `{key, start, end}` list as sent and never rebuilds it, and positions come from `xOfMoment`. Every surface asks one offset rule, `offsetForZone`, for the zone's offset at each moment (Slice 35: docs/plan/slices/35-usage-page-fixes.md).
 
@@ -107,4 +108,3 @@ Page (Slices 9, 28, 2):
 
 - On a phone or desktop in a zone with daylight saving, the Usage page's bars, reset markers and labels line up across a clock change (next change: late March).
 - The German strings `kindsSecondFraction`, `kindsSecondMultiple`, `multipleOther` and `hourAgain` need the owner's native read.
-- Skipped #3 (`reviews/pr-138-check-medium.md`): "public time_zone spellings defeat the 32-entry formatter cache; two constructions per request" - low; the cache is capped at 32 entries and each miss is one formatter build, no failure.

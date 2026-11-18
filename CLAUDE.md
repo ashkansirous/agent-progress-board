@@ -139,6 +139,10 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
 - Plugin hook state needs no lock: one stop file per agent id under `<id>.stopped/`, and goal-file writes re-read and merge
   only their own fields, then rename (`plugin/scripts/hooks/hook-input.mjs`); never add a read-modify-write of a shared
   state file. No hook sends title or why on a session card (Slice 29: docs/plan/slices/29-agent-state-fixes.md).
+- The usage buckets are built once, in real time, by `bucketsBetween` in `src/domain/usage.ts`; the page draws the
+  Worker's `{key, start, end}` list as sent and never rebuilds it, and positions come from `xOfMoment`. Every surface
+  asks one offset rule, `offsetForZone`, for the zone's offset at each moment (Slice 35:
+  docs/plan/slices/35-usage-page-fixes.md).
 - `planSince` in `plugin/scripts/cap-reading.mjs` is the one plan-guard rule: a status-line file is sent only when it was
   written after the plan was first seen. Never guard on the board's last accepted plan (Slice 30:
   docs/plan/slices/30-usage-script-fixes.md).

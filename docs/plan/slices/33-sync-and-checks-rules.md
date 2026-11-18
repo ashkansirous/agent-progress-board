@@ -32,34 +32,34 @@ These are the domain-rule mediums of Slice 14 (*Follow-ups*) and the open follow
 
 #### Work
 
-- [ ] Slice 14 c3 #5 (medium): `planItem` (`src/domain/docSync.ts:200`) overwrites the stored type on every sync.
+- [x] Slice 14 c3 #5 (medium): `planItem` (`src/domain/docSync.ts:200`) overwrites the stored type on every sync.
   Skip a live non-doc item that shares the key. Also Slice 14 pass-2 #1: the schema text (`src/mcp/schemas.ts:175`)
   says `type` is used only when the key is new; make the text and the code agree.
-- [ ] Slice 14 c3 #7 (medium): `isKeptChild` (`docSync.ts:~254-259`) keeps the bug and problem children of a slice
+- [x] Slice 14 c3 #7 (medium): `isKeptChild` (`docSync.ts:~254-259`) keeps the bug and problem children of a slice
   with no parts forever. Close the doc-synced ones the document dropped.
-- [ ] Slice 14 c3 #4 (medium): checks of done or never-synced slices count as loose
+- [x] Slice 14 c3 #4 (medium): checks of done or never-synced slices count as loose
   (`src/domain/boardGroups.ts:~165`) and inflate `checks_not_tried`. Also Slice 14 check #5: a filtered listing
   counts a check whose slice is missing as loose.
-- [ ] Slice 14 c3 #6: `checksBySlice` (`src/domain/checks.ts:75-84`) counts stale and blocked checks.
-- [ ] Slice 14 pass-2 #4: `topLevelProblem` checks a check's parent against a sibling that may itself be skipped.
+- [x] Slice 14 c3 #6: `checksBySlice` (`src/domain/checks.ts:75-84`) counts stale and blocked checks.
+- [x] Slice 14 pass-2 #4: `topLevelProblem` checks a check's parent against a sibling that may itself be skipped.
 - [ ] Slice 14 pass-2 #5: `syncSnapshot` validates only `input.items`, not the expanded set
   (`src/application/board.ts:127`).
 - [ ] Slice 11 check-med #1: `partStateOf` (`src/domain/parts.ts:~100`) has no blocked state, so a blocked part
   reads as Next or Later.
-- [ ] Slice 11 #2: a `parent_key` cycle, a parent that is not a slice, or a key-prefix mismatch is not refused
+- [x] Slice 11 #2: a `parent_key` cycle, a parent that is not a slice, or a key-prefix mismatch is not refused
   (`src/domain/checks.ts:38-43`, through `assertItemFits`, `src/application/board.ts:53-60`).
-- [ ] Slice 11 #3: a part key built from a 200-character slice key goes over `MAX_KEY` (`src/mcp/schemas.ts:10`).
+- [x] Slice 11 #3: a part key built from a 200-character slice key goes over `MAX_KEY` (`src/mcp/schemas.ts:10`).
   Refuse such a slice key with a clear message.
-- [ ] Slice 11 #4: the 1000 expanded-items bound (`src/domain/docSync.ts:13`) is not in the schema text. Write it
+- [x] Slice 11 #4: the 1000 expanded-items bound (`src/domain/docSync.ts:13`) is not in the schema text. Write it
   there.
-- [ ] Slice 11 med #5: sync can't clear a stored `parent_key` (`docSync.ts:206`).
-- [ ] Slice 14 check-4 #3: `firstPendingKey` (`src/domain/parts.ts`) is used only by a test
+- [x] Slice 11 med #5: sync can't clear a stored `parent_key` (`docSync.ts:206`).
+- [x] Slice 14 check-4 #3: `firstPendingKey` (`src/domain/parts.ts`) is used only by a test
   (`test/parts.test.ts:93`). Remove both.
-- [ ] Slice 4 #3: a closed key returned as done is not a docs change (`docSync.ts:173-186`). Trace it and fix it, or
+- [x] Slice 4 #3: a closed key returned as done is not a docs change (`docSync.ts:173-186`). Trace it and fix it, or
   write down why it is right.
-- [ ] Slice 4 #4: the first sync replaces a live `why`, `parent` or `links` when the snapshot leaves them out
+- [x] Slice 4 #4: the first sync replaces a live `why`, `parent` or `links` when the snapshot leaves them out
   (`docSync.ts:~203-206`). Keep the live values when a field is absent.
-- [ ] Slice 4 med #6: `docFieldsDiffer` doesn't compare `done_at`. Slice 4 med #9: the snapshot fields are declared a
+- [x] Slice 4 med #6: `docFieldsDiffer` doesn't compare `done_at`. Slice 4 med #9: the snapshot fields are declared a
   second time in `src/mcp/schemas.ts:172`; build them from one shape.
 - [ ] Slice 27 chk #6, carried from Slice 31 (Slice 31 could not build it):
   the rest of a clipped title goes to `details_md`, so it reaches the card. Add `details_md` to `snapshotItem` in

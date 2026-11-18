@@ -25,6 +25,8 @@ export interface SnapshotItem {
   priority?: Priority;
   parent?: string | null;
   why?: string | null;
+  /** The rest of a clipped title, so it reaches the card; set only when the item is first stored. */
+  details_md?: string | null;
   links?: ItemLink[];
   /** The slice's lettered parts as the documents list them (Slice 11). */
   parts?: SnapshotPart[];
@@ -32,9 +34,9 @@ export interface SnapshotItem {
   checks?: SnapshotCheck[];
   /**
    * Set by `expandParts` on a part's own item and by `nestedChecks` on a check's; a client sends it
-   * only on a top-level check item, to name a slice that is not in the snapshot.
+   * only on a top-level check item, to name a slice that is not in the snapshot; null clears a stored one.
    */
-  parent_key?: string;
+  parent_key?: string | null;
 }
 
 /** One check line of a slice: the client owns its key (stable across syncs) and the document owns its text. */
@@ -151,7 +153,7 @@ function newRow(snap: SnapshotItem, project: string, now: string): SyncRow {
     status: snap.status,
     title: snap.title,
     why: snap.why ?? null,
-    details_md: null,
+    details_md: snap.details_md ?? null,
     links: snap.links ?? [],
     source: DOC_SYNC_SOURCE,
     heartbeat_at: now,
@@ -181,13 +183,21 @@ function docFieldsDiffer(stored: SyncRow, next: SyncRow): boolean {
     stored.in_doc_sync !== next.in_doc_sync ||
     stored.doc_status !== next.doc_status ||
     stored.doc_status_at !== next.doc_status_at ||
-    stored.status !== next.status
+    stored.status !== next.status ||
+    stored.done_at !== next.done_at
   );
 }
 
+/** Why a snapshot item may not be merged into the stored row: the store holds a live item of another type under its key. */
+export function typeConflict(stored: SyncRow | undefined, snap: SnapshotItem): string | null {
+  if (!stored || stored.in_doc_sync || stored.type === snap.type) return null;
+  return `type: ${snap.key} is a stored ${stored.type} item the documents do not own, so a sync does not retype it to ${snap.type}`;
+}
+
 /**
- * Merges one snapshot item into the stored row (or none). Title, why, parent and links always
- * take the snapshot's values; the status shown is the live one only while it is newer than the
+ * Merges one snapshot item into the stored row (or none). Title takes the snapshot's value; why, parent and
+ * links do too, except that the first sync of a live item keeps the live value of a field the snapshot leaves
+ * out (an item the docs already own loses it, since the docs left it out); the status shown is the live one only while it is newer than the
  * docs' last status change. Returns null when nothing would change (idempotent).
  */
 export function planItem(stored: SyncRow | undefined, snap: SnapshotItem, project: string, now: string): SyncWrite | null {
@@ -195,16 +205,17 @@ export function planItem(stored: SyncRow | undefined, snap: SnapshotItem, projec
     const event = { at: now, status: snap.status, note: SYNC_ADDED_NOTE };
     return { item: newRow(snap, project, now), event, read: null };
   }
+  const claimed = !stored.in_doc_sync;
   const docStatusAt = nextDocStatusAt(stored, snap, now);
   const status = showsLiveStatus(stored.live_status_at, docStatusAt) ? stored.status : snap.status;
   const next: SyncRow = {
     ...stored,
     type: snap.type,
     title: snap.title,
-    why: snap.why ?? null,
-    parent: snap.parent ?? null,
-    parent_key: snap.parent_key ?? stored.parent_key ?? null,
-    links: snap.links ?? [],
+    why: snap.why === undefined ? (claimed ? stored.why : null) : snap.why,
+    parent: snap.parent === undefined ? (claimed ? stored.parent : null) : snap.parent,
+    parent_key: snap.parent_key === undefined ? (stored.parent_key ?? null) : snap.parent_key,
+    links: snap.links ?? (claimed ? stored.links : []),
     status,
     in_doc_sync: true,
     doc_status: snap.status,
@@ -233,6 +244,10 @@ function nextDocStatusAt(stored: SyncRow, snap: SnapshotItem, now: string): stri
   return stored.doc_status === snap.status ? stored.doc_status_at : now;
 }
 
+// A closed key that returns as done (Slice 4 #3): the close wrote status done with in_doc_sync off, so the
+// return flips in_doc_sync, which `docFieldsDiffer` sees; the row is saved, with no history row (the status
+// did not change) and its done_at kept. That is the right outcome: the item is in the docs again.
+
 /** The stored doc-sync items of the project that the snapshot no longer lists. */
 export function closeTargets(
   stored: SyncRow[],
@@ -248,10 +263,16 @@ export function closeTargets(
       item.project === project &&
       item.in_doc_sync &&
       !listed.has(item.key) &&
-      !isKeptChild(item, item.type === ItemType.Check ? keepChecksOf : keepPartsOf),
+      !isKeptChild(item, keepPartsOf, keepChecksOf),
   );
 }
 
-function isKeptChild(item: SyncRow, keepOf: Set<string>): boolean {
-  return Boolean(item.parent_key) && keepOf.has(item.parent_key!);
+/**
+ * A part or check whose slice sent no list of its kind is kept as it is. A bug or problem names its slice in
+ * `parent_key` too, but the slice does not own it: the document dropped it, so it closes.
+ */
+function isKeptChild(item: SyncRow, keepParts: Set<string>, keepChecks: Set<string>): boolean {
+  if (!item.parent_key) return false;
+  if (item.type === ItemType.Check) return keepChecks.has(item.parent_key);
+  return item.type === ItemType.Part && keepParts.has(item.parent_key);
 }

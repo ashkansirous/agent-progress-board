@@ -96,7 +96,7 @@ export interface ProjectGroups {
   planned: PlannedSlice[];
   /** Done slices with at least one check not tried, by slice number; counted in no other list but their checks in the summary. */
   built: PlannedSlice[];
-  /** Checks whose slice is neither an open nor a built one: never a card, a dashed entry under Planned. */
+  /** Checks whose slice is not on the board at all (never synced, or not listed): never a card, a dashed entry under Planned. A check of a finished or stopped slice that is on the board is that slice's, not loose. */
   loose_checks: CheckView[];
   problems: ProblemEntry[];
   /** Open items that are none of the above (an unplanned item nobody holds); the page lists them plainly. */
@@ -192,7 +192,8 @@ function groupProject(id: string, items: GroupItem[], checkRows: CheckRow[]): Pr
   const planned = slices.map((item) => plannedOf(item, checks)).sort(bySlice);
   const built = builtItems.map((item) => plannedOf(item, checks)).sort(bySlice);
   const plannedKeys = new Set([...planned, ...built].map((slice) => slice.key));
-  const loose = [...checks].filter(([slice]) => !plannedKeys.has(slice)).flatMap(([, list]) => list);
+  const knownKeys = new Set(items.map((item) => item.key));
+  const loose = [...checks].filter(([slice]) => !plannedKeys.has(slice) && !knownKeys.has(slice)).flatMap(([, list]) => list);
   const live = [...open, ...builtItems];
   const questions = [...live, ...openUncarded(items)].filter((item) => item.needs_you !== null).sort(oldestQuestion);
   const waiting = live

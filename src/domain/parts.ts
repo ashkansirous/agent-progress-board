@@ -135,8 +135,3 @@ export function partNow<T extends PartView>(parts: readonly T[]): PartNow<T> {
 export function activePartOf<T extends PartView>(parts: readonly T[]): T | null {
   return parts.find((part) => part.state === PartState.Active) ?? null;
 }
-
-/** The first pending part reads "Next" in a list, the rest "Later". */
-export function firstPendingKey(parts: readonly PartView[]): string | null {
-  return parts.find((part) => part.state === PartState.Pending)?.key ?? null;
-}

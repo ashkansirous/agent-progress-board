@@ -4,7 +4,6 @@ import { ItemStatus, ItemType } from "../src/domain/item";
 import {
   activePartOf,
   expandParts,
-  firstPendingKey,
   MAX_PARTS,
   partKey,
   partLetterOf,
@@ -91,7 +90,6 @@ describe("partNow", () => {
   it("reads Next with the first pending part, and all done with none left", () => {
     const parts = [part("A", D), part("B", P), part("C", P)];
     expect(partNow(parts)).toMatchObject({ kind: PartNowKind.Next, part: { letter: "B" } });
-    expect(firstPendingKey(parts)).toBe("p/slice-1/part-B");
     expect(partNow([part("A", D)])).toEqual({ kind: PartNowKind.AllDone, part: null });
   });
 });

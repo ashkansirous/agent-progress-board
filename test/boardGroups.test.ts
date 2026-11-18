@@ -186,3 +186,18 @@ describe("groupBoard", () => {
     expect(group.needs_you.sort()).toEqual(["c", "p"]);
   });
 });
+
+describe("loose checks and counted checks (Slice 33)", () => {
+  it("does not count the checks of a finished or stopped slice on the board as loose", () => {
+    const stopped = slice(4, { agent: "session", status: ItemStatus.InProgress });
+    const group = only([stopped, slice(9)], [check("c1", stopped.key), check("c2", `${PROJECT}/slice-77`)]);
+    expect(group.loose_checks.map((c) => c.key)).toEqual(["c2"]);
+  });
+
+  it("does not count a stale or blocked check as not tried", () => {
+    const s = slice(2);
+    const group = only([s], [check("a", s.key), check("b", s.key, { status: ItemStatus.Blocked }), check("c", s.key, { status: ItemStatus.Stale }), check("d", s.key, { status: ItemStatus.InProgress })]);
+    expect(group.planned[0]!.checks.map((c) => c.key)).toEqual(["a", "d"]);
+    expect(group.summary.checks_not_tried).toBe(2);
+  });
+});

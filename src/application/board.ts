@@ -3,6 +3,7 @@ import {
   closeTargets,
   MAX_EXPANDED_ITEMS,
   planItem,
+  typeConflict,
   type SnapshotItem,
   type SyncRow,
   validateSnapshot,
@@ -247,12 +248,13 @@ function screenSnapshot(
   stored: Map<string, SyncRow>,
 ): { items: SnapshotItem[]; skipped: SkippedItem[]; held: Set<string> } {
   const topLevel = new Map(groups.map((group) => [group.item.key, group.item]));
+  const reasons = topLevelReasons(project, groups, topLevel, stored);
   const seen = new Set(topLevel.keys());
   const items: SnapshotItem[] = [];
   const skipped: SkippedItem[] = [];
   const held = new Set<string>();
   for (const { item, members } of groups) {
-    const reason = topLevelProblem(project, item, topLevel, stored);
+    const reason = reasons.get(item.key);
     if (reason) {
       skipped.push({ key: item.key, reason });
       for (const member of members) held.add(member.key);
@@ -261,7 +263,7 @@ function screenSnapshot(
     const [self, ...children] = members;
     items.push(omitChecks(self!));
     for (const child of children) {
-      const childReason = childProblem(project, child, item, seen);
+      const childReason = childProblem(project, child, item, seen, stored.get(child.key));
       if (childReason) skipped.push({ key: child.key, reason: childReason });
       else {
         seen.add(child.key);
@@ -272,14 +274,38 @@ function screenSnapshot(
   return { items, skipped, held };
 }
 
+/**
+ * Each top-level item's problem, if any. A parent named by a sibling is read from that sibling only while the
+ * sibling is itself kept, so passes repeat until no more items are skipped (each pass skips at least one or ends).
+ */
+function topLevelReasons(
+  project: string,
+  groups: SnapshotGroup[],
+  topLevel: Map<string, SnapshotItem>,
+  stored: Map<string, SyncRow>,
+): Map<string, string> {
+  const reasons = new Map<string, string>();
+  for (let pass = 0; pass <= groups.length; pass += 1) {
+    const before = reasons.size;
+    const kept = new Map([...topLevel].filter(([key]) => !reasons.has(key)));
+    for (const { item } of groups) {
+      if (reasons.has(item.key)) continue;
+      const reason = topLevelProblem(project, item, kept, stored);
+      if (reason) reasons.set(item.key, reason);
+    }
+    if (reasons.size === before) break;
+  }
+  return reasons;
+}
+
 function omitChecks(item: SnapshotItem): SnapshotItem {
   const rest = { ...item };
   delete rest.checks;
   return rest;
 }
 
-function parentRef(row: { project: string; type: ItemType } | undefined): ParentRef | null {
-  return row ? { project: row.project, type: row.type } : null;
+function parentRef(row: { project: string; type: ItemType; parent_key?: string | null } | undefined | null): ParentRef | null {
+  return row ? { project: row.project, type: row.type, parent_key: row.parent_key } : null;
 }
 
 /** A top-level item in its final state: the snapshot's type and parent_key, the stored parent_key when it sends none. */
@@ -290,9 +316,11 @@ function topLevelProblem(
   stored: Map<string, SyncRow>,
 ): string | null {
   const row = stored.get(item.key);
-  const parentKey = item.parent_key ?? row?.parent_key;
+  const conflict = typeConflict(row, item);
+  if (conflict) return conflict;
+  const parentKey = item.parent_key === undefined ? row?.parent_key : item.parent_key;
   const parent = parentKey ? parentRef(topLevel.get(parentKey) ?? stored.get(parentKey)) : null;
-  const state = { key: item.key, type: item.type, parent_key: parentKey, checks: item.checks?.length };
+  const state = { key: item.key, type: item.type, parent_key: parentKey, checks: item.checks?.length, parts: item.parts?.length };
   return itemProblem(state, parent, project);
 }
 
@@ -302,7 +330,10 @@ function childProblem(
   child: SnapshotItem,
   slice: SnapshotItem,
   seen: Set<string>,
+  stored: SyncRow | undefined,
 ): string | null {
+  const conflict = typeConflict(stored, child);
+  if (conflict) return conflict;
   if (seen.has(child.key)) return `key: ${child.key} appears twice in the snapshot`;
   const state = { key: child.key, type: child.type, parent_key: child.parent_key };
   return itemProblem(state, parentRef(slice), project);

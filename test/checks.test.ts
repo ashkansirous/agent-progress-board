@@ -59,15 +59,15 @@ describe("check items", () => {
 
   it("refuses to turn a stored part into a check that has no slice parent, or one whose parent is no slice", async () => {
     await callTool("report_progress", { key: SLICE, project: PROJECT, type: "slice", title: "S" });
-    const part = `${SLICE}/part-a`;
-    await callTool("report_progress", { key: part, project: PROJECT, type: "part", title: "A", parent_key: SLICE });
-    const parentOfPart = `${part}/check-1`;
-    await callTool("report_progress", { key: parentOfPart, project: PROJECT, type: "part", title: "B", parent_key: part });
+    const note = `${SLICE}/note-a`;
+    await callTool("report_progress", { key: note, project: PROJECT, type: "unplanned", title: "A", parent_key: SLICE });
+    const parentOfPart = `${note}/check-1`;
+    await callTool("report_progress", { key: parentOfPart, project: PROJECT, type: "unplanned", title: "B", parent_key: note });
     const retyped = await callTool("report_progress", { key: parentOfPart, type: "check" });
     expect(retyped.isError).toBe(true);
     expect(await statusOf(parentOfPart)).toBe("open");
     const row = await env.DB.prepare("SELECT type FROM items WHERE key = ?").bind(parentOfPart).first<{ type: string }>();
-    expect(row?.type).toBe("part");
+    expect(row?.type).toBe("unplanned");
   });
 
   it("checks the final state of a report: a re-parent or retype to a check is refused", async () => {
@@ -338,5 +338,21 @@ describe("GET /api/board done children and questions", () => {
     const group = (await board()).groups[0]!;
     expect(group.needs_you).toContain(CHECK_A);
     expect(group.summary.needs_you).toBe(1);
+  });
+});
+
+describe("itemProblem relations (Slice 33)", () => {
+  it("refuses a self parent, a two-item cycle, a part under a non-slice, and a part key outside its slice", () => {
+    const slice = { project: PROJECT, type: ItemType.Slice, parent_key: null };
+    expect(itemProblem({ key: "a/b", type: ItemType.Bug, parent_key: "a/b" }, null, PROJECT)).toContain("own parent");
+    expect(itemProblem({ key: "a/b", type: ItemType.Bug, parent_key: "a/c" }, { ...slice, parent_key: "a/b" }, PROJECT)).toContain("own parent");
+    expect(itemProblem({ key: "a/s/part-A", type: ItemType.Part, parent_key: "a/s" }, { project: PROJECT, type: ItemType.Bug }, PROJECT)).toContain("not a slice");
+    expect(itemProblem({ key: "a/x/part-A", type: ItemType.Part, parent_key: "a/s" }, slice, PROJECT)).toContain("must start with");
+    expect(itemProblem({ key: "a/s/part-A", type: ItemType.Part, parent_key: "a/s" }, slice, PROJECT)).toBeNull();
+  });
+
+  it("refuses a slice key too long for its part keys", () => {
+    expect(itemProblem({ key: "k".repeat(194), type: ItemType.Slice, parent_key: null, parts: 1 }, null, PROJECT)).toContain("too long");
+    expect(itemProblem({ key: "k".repeat(193), type: ItemType.Slice, parent_key: null, parts: 1 }, null, PROJECT)).toBeNull();
   });
 });

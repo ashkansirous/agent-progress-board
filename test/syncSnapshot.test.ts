@@ -247,3 +247,49 @@ describe("sync_snapshot", () => {
     expect(reply.text).toContain("read-only");
   });
 });
+
+describe("sync_snapshot rules (Slice 33)", () => {
+  const bug = { key: "demo-app/bug-1", project: PROJECT, type: "bug", title: "Live bug", status: "open" };
+
+  it("skips a live item of another type that shares the key, and leaves it as it was", async () => {
+    await callTool("report_progress", { key: bug.key, project: PROJECT, type: "bug", title: "Live bug" });
+    const reply = await sync([{ ...bug, type: "slice", title: "Retyped" }]);
+    expect(reply.data).toMatchObject({ created: 0, updated: 0, skipped: [{ key: bug.key, reason: expect.stringContaining("type") }] });
+    const row = await env.DB.prepare("SELECT type, title, in_doc_sync FROM items WHERE key = ?1").bind(bug.key).first();
+    expect(row).toMatchObject({ type: "bug", title: "Live bug", in_doc_sync: 0 });
+  });
+
+  it("closes a doc-synced bug the document dropped, even when its slice sends no parts", async () => {
+    await sync([item(1), { ...bug, parent_key: "demo-app/slice-1" }]);
+    const reply = await sync([item(1)]);
+    expect(reply.data).toMatchObject({ closed: 1 });
+    expect((await callTool("get_item", { key: bug.key })).data).toMatchObject({ status: "done" });
+  });
+
+  it("keeps the live why and parent on the first sync when the snapshot leaves them out, and clears them after", async () => {
+    await callTool("report_progress", { key: bug.key, project: PROJECT, type: "bug", title: "Live bug", why: "Seen live", parent: "Wave 3" });
+    await sync([bug]);
+    expect((await callTool("get_item", { key: bug.key })).data).toMatchObject({ why: "Seen live", parent: "Wave 3" });
+    await sync([{ ...bug, title: "Again" }]);
+    expect((await callTool("get_item", { key: bug.key })).data).toMatchObject({ why: null, parent: null });
+  });
+
+  it("clears a stored parent_key with null", async () => {
+    await sync([item(1), { ...bug, parent_key: "demo-app/slice-1" }]);
+    await sync([item(1), { ...bug, parent_key: null }]);
+    expect(((await callTool("get_item", { key: bug.key })).data as { parent_key: string | null }).parent_key).toBeNull();
+  });
+
+  it("skips a slice whose part keys would pass the key limit, and an item that is its own parent", async () => {
+    const long = `demo-app/${"s".repeat(190)}`;
+    const reply = await sync([{ ...item(1), key: long, parts: [{ letter: "A", title: "A", done: false }] }, { ...bug, parent_key: bug.key }]);
+    expect(reply.data).toMatchObject({ created: 0, skipped: [{ key: long }, { key: bug.key }] });
+  });
+
+  it("checks a check against a sibling slice that is itself skipped", async () => {
+    const badSlice = { ...item(1), checks: [{ key: "demo-app/other/check-1", title: "x" }] };
+    const check = { key: "demo-app/slice-1/check-9", project: PROJECT, type: "check", title: "c", status: "open", parent_key: "demo-app/slice-1" };
+    const reply = await sync([check, badSlice]);
+    expect(reply.data).toMatchObject({ skipped: expect.arrayContaining([{ key: "demo-app/other/check-1", reason: expect.any(String) }]) });
+  });
+});

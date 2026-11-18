@@ -35,6 +35,7 @@ owner's config repo. Decisions in [Slice 20](docs/plan/slices/20-plugin-connect.
 | 39 | Steps are a tree: sub-steps unfold in place, and several can run at once | planned | | | [39](docs/plan/slices/39-step-tree.md) |
 | 40 | The plugin puts background agents into the step tree | planned | | | [40](docs/plan/slices/40-agents-in-tree.md) |
 | 41 | Only a task with an outcome gets a card | planned | | | [41](docs/plan/slices/41-tasks-with-outcome.md) |
+| 42 | A built slice whose checks are untried shows as built, not in progress | planned | | | [42](docs/plan/slices/42-built-not-in-progress.md) |
 
 Notes:
 

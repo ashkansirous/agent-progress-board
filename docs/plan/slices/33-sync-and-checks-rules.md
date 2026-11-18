@@ -7,7 +7,10 @@
 **Touches:** `src/domain/docSync.ts`, `src/domain/checks.ts`, `src/domain/boardGroups.ts`, `src/domain/parts.ts`,
 `src/application/board.ts`, `src/mcp/schemas.ts`, `test/syncSnapshot.test.ts`, `test/docSync.test.ts`,
 `test/checks.test.ts`, `test/boardGroups.test.ts`, `test/parts.test.ts`, `test/partsTools.test.ts`,
-`docs/plan/slices/33-sync-and-checks-rules.md`
+`docs/plan/slices/33-sync-and-checks-rules.md`, `src/domain/item.ts`, `web/src/strings.ts`, `test/partsWeb.test.ts`,
+`plugin/scripts/sync-docs.mjs`, `docs/clients.md`
+
+*In progress (wave 2026-11-18), draft PR.*
 
 **Migrations:** none
 

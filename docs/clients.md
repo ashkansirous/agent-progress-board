@@ -314,10 +314,19 @@ Returns the item. An unknown key is the tool error `field key: no item <key>`.
 Creates or updates a `waiting_for_me` item (status `open`): a step only the person can do (a
 console step, a device in hand).
 Fields: `key`, `project`, `title` (all required), optional `parent`, `priority`, `why`,
-`details_md`, `links`, `source`, `note` (same rules as `report_progress`) and `after_answer`.
+`details_md`, `links`, `source`, `note` (same rules as `report_progress`), `needs_you` and
+`after_answer`. On a `waiting_for_me` item, `needs_you` puts the question under *Needs you* and
+`links` say where to act.
 Returns the item. If the key already exists as **another type**, the item keeps its type, status
-and title and gets a question instead: `needs_you` is set from `why` (the title when `why` is
-missing) and `after_answer` from the field of that name (see *A session card* below).
+and title and gets a question instead: `needs_you` is set from the field of that name, else from
+`why`, else from a question that is still open, else from the title; `after_answer` from the field
+of that name (see *A session card* below). `needs_you: null` clears the question, and a `why` sent
+beside a `needs_you` is stored as the item's `why`. A part, a done item and an item that comes from
+the plan documents are refused.
+
+`list_open` and `get_item` keep their reply under 50,000 characters (the size at which Claude Code
+saves a result to a file); when something is left out or cut, the result has a second text block
+starting `truncated:` that says what.
 
 To clear a `waiting_for_me` item, call `mark_done` with the same key.
 

@@ -130,9 +130,9 @@ describe("step text lengths are checked on the trimmed text", () => {
   it("accepts a label or note that only its padding pushes over the limit, and stores it trimmed", () => {
     const label = `  ${"a".repeat(MAX_STEP_LABEL)}  `;
     const note = ` ${"n".repeat(MAX_STEP_NOTE)} `;
-    expect(normalizeSteps([{ label, note, state: "active" }])).toEqual([
-      { label: "a".repeat(MAX_STEP_LABEL), state: "active", note: "n".repeat(MAX_STEP_NOTE) },
+    expect(normalizeSteps([{ label, note, state: StepState.Active }])).toEqual([
+      { label: "a".repeat(MAX_STEP_LABEL), state: StepState.Active, note: "n".repeat(MAX_STEP_NOTE) },
     ]);
-    expect(() => normalizeSteps([{ label: "a".repeat(MAX_STEP_LABEL + 1), state: "done" }])).toThrow();
+    expect(() => normalizeSteps([{ label: "a".repeat(MAX_STEP_LABEL + 1), state: StepState.Done }])).toThrow();
   });
 });

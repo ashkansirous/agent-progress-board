@@ -157,6 +157,33 @@ describe("report_progress with a question", () => {
     expect((await stored()).needs_you).toBe("Pick one");
   });
 
+  it("ask_human with no text does not resurrect a question whose expiry has passed", async () => {
+    await callTool("report_progress", { ...SESSION, status: "in_progress", needs_you: QUESTION });
+    await env.DB.prepare("UPDATE items SET heartbeat_at = ?1, status = 'stale' WHERE key = ?2").bind(ago(130), KEY).run();
+    await callTool("ask_human", { key: KEY, project: "example-app", title: "Pick one" });
+    expect((await stored()).needs_you).toBe("Pick one");
+  });
+
+  it("ask_human on another type clears with needs_you null, and keeps why beside a needs_you", async () => {
+    await callTool("report_progress", { ...SESSION, status: "in_progress", needs_you: QUESTION });
+    await callTool("ask_human", { key: KEY, project: "example-app", title: "Q", needs_you: null });
+    expect(await stored()).toMatchObject({ needs_you: null, needs_you_at: null });
+    await callTool("ask_human", { key: KEY, project: "example-app", title: "Q", needs_you: "Which?", why: "Context" });
+    const row = await env.DB.prepare("SELECT why, needs_you FROM items WHERE key = ?1").bind(KEY).first<{ why: string; needs_you: string }>();
+    expect(row).toEqual({ why: "Context", needs_you: "Which?" });
+  });
+
+  it("ask_human with only why sets the question and leaves the item's stored why unchanged", async () => {
+    await callTool("report_progress", { ...SESSION, status: "in_progress", why: "The item's own goal" });
+    await callTool("ask_human", { key: KEY, project: "example-app", title: "Q", why: "Which one?" });
+    const row = await env.DB.prepare("SELECT why, needs_you FROM items WHERE key = ?1").bind(KEY).first<{ why: string; needs_you: string }>();
+    expect(row).toEqual({ why: "The item's own goal", needs_you: "Which one?" });
+  });
+
+  it("measures needs_you on its trimmed text", async () => {
+    expect(checkReport({ key: "k", needs_you: `${"x".repeat(MAX_NEEDS_YOU)}\n` }).needs_you).toHaveLength(MAX_NEEDS_YOU);
+  });
+
   it("ask_human sets needs_you and links on its own waiting_for_me item", async () => {
     const key = "example-app/waiting-1";
     await callTool("ask_human", { key, project: "example-app", title: "Approve", needs_you: "Merge it?", links: [{ label: "PR", url: "https://example.com/pr" }] });
@@ -238,5 +265,16 @@ describe("hasOpenQuestion", () => {
     expect(hasOpenQuestion({ ...row, heartbeat_at: ago(130) }, 120, NOW)).toBe(false);
     expect(hasOpenQuestion({ ...row, status: ItemStatus.Done }, 120, NOW)).toBe(false);
     expect(hasOpenQuestion({ ...row, needs_you: null }, 120, NOW)).toBe(false);
+  });
+});
+
+describe("ask_human on an existing item of another type", () => {
+  it("ignores project and links, keeping the stored ones", async () => {
+    await callTool("report_progress", { ...SESSION, links: [{ label: "doc", url: "https://example.com/a" }] });
+    await callTool("ask_human", { key: KEY, title: "x", project: "other-app", links: [], needs_you: QUESTION });
+    const item = (await callTool("get_item", { key: KEY })).data as { project: string; links: unknown[]; needs_you: string };
+    expect(item.project).toBe("example-app");
+    expect(item.links).toHaveLength(1);
+    expect(item.needs_you).toBe(QUESTION);
   });
 });

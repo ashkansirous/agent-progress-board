@@ -54,7 +54,7 @@ export const MAX_AFTER_ANSWER = 500;
 const CREATE_REQUIRED = ["project", "title", "type"] as const;
 
 function checkLength(field: "needs_you" | "after_answer", value: string | null | undefined, max: number): void {
-  if ((value?.length ?? 0) > max) throw new DomainError(field, `field ${field}: at most ${max} characters`);
+  if ((value?.trim().length ?? 0) > max) throw new DomainError(field, `field ${field}: at most ${max} characters`);
 }
 
 /** The report with its steps validated and a whitespace-only agent or model made absent (null); fields not sent stay unsent. */
@@ -118,7 +118,7 @@ function withAsked(input: ReportInput, existing: QuestionState, now: string): Re
   return { ...input, needs_you_at: now, note: withMarker(`${NEEDS_YOU_NOTE_PREFIX}${firstLine}`, input.note) };
 }
 
-/** The row to insert when the key is new; unused when the key already exists. */
+/** The row to insert when the key is new; unused when the key already exists. Normalizes steps, agent, model and the question text itself, so a direct caller cannot store untrimmed values. */
 export function newItem(input: ReportInput, now: string): Item {
   for (const field of CREATE_REQUIRED) {
     if (input[field] === undefined) {
@@ -141,10 +141,10 @@ export function newItem(input: ReportInput, now: string): Item {
     source: input.source ?? null,
     environment: input.environment ?? null,
     steps: normalizeSteps(input.steps),
-    agent: input.agent ?? null,
-    model: input.model ?? null,
-    needs_you: input.needs_you ?? null,
-    after_answer: input.after_answer ?? null,
+    agent: blankToNull(input.agent),
+    model: blankToNull(input.model),
+    needs_you: blankToNull(input.needs_you),
+    after_answer: blankToNull(input.after_answer),
     needs_you_at: input.needs_you_at ?? null,
     heartbeat_at: now,
     created_at: now,

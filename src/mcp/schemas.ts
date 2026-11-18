@@ -53,9 +53,9 @@ const environment = z
   .describe("Where the work ran, free text as the client names it (for example laptop, cloud-vm, Claude chat or Claude Design)");
 
 const step = z.object({
-  label: z.string().min(1).max(MAX_STEP_LABEL),
+  label: z.string().trim().min(1).max(MAX_STEP_LABEL),
   state: z.enum(StepState),
-  note: z.string().max(MAX_STEP_NOTE).nullable().optional().describe("Short text shown under the label"),
+  note: z.string().trim().max(MAX_STEP_NOTE).nullable().optional().describe("Short text shown under the label"),
 });
 
 const stepsField = z

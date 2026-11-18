@@ -58,6 +58,14 @@ The owner has no way to end an OAuth grant (Slice 5). `README.md:113-115` only n
 - [ ] Slice 19 chk #3: the strings say "select the text", but the preface is a plain paragraph (`strings.ts:362` en,
   `:732` de). Chk #4: a space is missing at `SetupPage.tsx:114`. Chk #5: the two `CopyButton`s keep separate state.
   Chk #6: `chatText.ts:15` is a thin wrapper, and `READ_METHODS` (`router.ts:14`) includes HEAD.
+- [ ] **One Copy for the whole paste** (owner, 2026-11-18, while pasting into claude.ai: "ty gave me a line and a text,
+  which one to put in claude instructions?" and "why did you separate the 2 parts then?"). The Setup page shows the
+  connector line and the instruction text as two pieces with two Copy buttons (`web/src/SetupPage.tsx:67,109,114`),
+  and both go in the same claude.ai Instructions box, line first. Replace them with one block and one **Copy** that
+  copies the line, a blank line, then the text. Say once, above it, that this is everything that goes in the box and
+  that it replaces what is there. The pieces stay separate on the server (`CHAT_PREFACE` is only for claude.ai;
+  `SERVER_INSTRUCTIONS` goes to every client). Verify in `e2e/setup.spec.ts`: the copied text equals preface, blank
+  line, `SERVER_INSTRUCTIONS`.
 
 #### Verification
 

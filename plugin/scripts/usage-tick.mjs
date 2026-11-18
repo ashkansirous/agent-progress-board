@@ -38,10 +38,31 @@ import { spawn } from 'node:child_process';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { sendCapReading } from './cap-reading.mjs';
-import { readGoal } from './hooks/hook-input.mjs';
 import { TASK_MAX_AGE_MS, TASK_STATUS, callTool, projectSlug, readPlanCapEnabled, reportUsageEnabled, resolveConfig, resolveEnvironment, slugify, stateRoot, taskFilePath } from './report-progress.mjs';
-import { agentKindOf, emptyFileState, listRecordFiles, metaKindOf, scanFile } from './usage-report.mjs';
+
+// The hook call (this script run directly without --run) only reads the gate and, when due, starts the
+// background run: it never loads the modules that only the run needs (Slice 30). Anything else that
+// imports this file (the tests, the background run) gets them loaded before its first use.
+const RUN_FLAG = '--run';
+const HOOK_CALL = isInvokedDirectly() && !process.argv.includes(RUN_FLAG);
+let sendCapReading;
+let readGoal;
+let agentKindOf;
+let emptyFileState;
+let listRecordFiles;
+let metaKindOf;
+let scanFile;
+if (!HOOK_CALL) {
+  try {
+    ({ sendCapReading } = await import('./cap-reading.mjs'));
+    ({ readGoal } = await import('./hooks/hook-input.mjs'));
+    ({ agentKindOf, emptyFileState, listRecordFiles, metaKindOf, scanFile } = await import('./usage-report.mjs'));
+  } catch (error) {
+    logSkipped(error); // fails open: a module that cannot load ends the run quietly
+    if (isInvokedDirectly()) process.exit(0);
+    throw error;
+  }
+}
 
 export const TICK_GAP_MS = 5 * 60 * 1000;
 export const LOCK_STALE_MS = 2 * 60 * 1000;
@@ -62,7 +83,6 @@ export const ACTIVE_WINDOW_MS = 15 * 60 * 1000; // a session counts as active on
 const USAGE_TOOL = 'report_usage';
 const PROGRESS_TOOL = 'report_progress';
 const FORCE_FLAG = '--force';
-const RUN_FLAG = '--run';
 const EXISTS_CODE = 'EEXIST';
 const SERIES_SPLIT_MS = 1;
 const LOCK_LOST = Symbol('lock lost');
@@ -515,24 +535,27 @@ function markAllSent(states) {
 // marked as sent without sending it (review #1, `reviews/pr-104-check-medium.md`).
 async function runHeartbeatsOnly({ config, env, now, taskRoot, options, statePath, listFiles, touch }) {
   logDebug('usage off, heartbeat only');
+  const { states, activeSessions } = scanRecords({ env, now, statePath, listFiles, touch });
+  markAllSent(states);
+  const saved = saveState(statePath, { lastRunAt: now, files: states });
+  if (!saved) logDebug('heartbeat only: state not saved');
+  await runHeartbeats({ config, activeSessions, taskRoot, now, options, touch });
+  return saved ? { sent: 0, failed: 0, heartbeatOnly: true } : { skipped: 'state not saved', sent: 0, failed: 0, heartbeatOnly: true };
+}
+
+// The scan both runs start with: the record files changed since the last run, folded into the saved state.
+function scanRecords({ env, now, statePath, listFiles, touch }) {
   const state = readState(statePath);
   const cutoff = state.lastRunAt || now - FIRST_TICK_WINDOW_MS;
   const files = listFiles(join(claudeDirOf(env), PROJECTS_FOLDER), { withKinds: false });
   const activeSessions = new Set();
   const states = scanChanged(files, state, cutoff, touch, activeSessions, Math.max(cutoff, now - ACTIVE_WINDOW_MS));
-  markAllSent(states);
-  saveState(statePath, { lastRunAt: now, files: states });
-  await runHeartbeats({ config, activeSessions, taskRoot, now, options, touch });
-  return { sent: 0, failed: 0, heartbeatOnly: true };
+  return { states, activeSessions };
 }
 
 // The work, with the lock held: scan, save the state (no save, no send), send, save the sent marks.
 async function runLocked({ config, env, now, taskRoot, options, statePath, listFiles, touch }) {
-  const state = readState(statePath);
-  const cutoff = state.lastRunAt || now - FIRST_TICK_WINDOW_MS;
-  const files = listFiles(join(claudeDirOf(env), PROJECTS_FOLDER), { withKinds: false });
-  const activeSessions = new Set();
-  const states = scanChanged(files, state, cutoff, touch, activeSessions, Math.max(cutoff, now - ACTIVE_WINDOW_MS));
+  const { states, activeSessions } = scanRecords({ env, now, statePath, listFiles, touch });
   touch();
   if (!saveState(statePath, { lastRunAt: now, files: states })) return { skipped: 'state not saved' };
   const context = { projectOf: projectResolver(env), taskRoot, environment: resolveEnvironment(env) };
@@ -543,6 +566,19 @@ async function runLocked({ config, env, now, taskRoot, options, statePath, listF
   if (!saveState(statePath, { lastRunAt: now, files: states })) return { skipped: 'state not saved', ...tally };
   if (tally.failed) process.stderr.write(`usage-tick: ${tally.failed} report(s) skipped\n`);
   return tally;
+}
+
+// An error that is not the lost lock (an unreadable folder, a bug) ends only the token reports of this
+// firing, so the cap reading after it still runs (Slice 30); a lost lock passes through.
+async function runLockedOrSkip(args) {
+  try {
+    return await runLocked(args);
+  } catch (error) {
+    if (error === LOCK_LOST) throw error;
+    process.stderr.write(`usage-tick: token reports skipped (${error && error.name}: ${error && error.message})\n`);
+    logDebug(`token reports error: ${error && (error.stack || error.message)}`);
+    return { skipped: 'error' };
+  }
 }
 
 // The cap reading (Slice 11 part B) in the same firing. Its failure never stops the token reports
@@ -571,7 +607,7 @@ export async function runTick({ env = process.env, now = Date.now(), taskRoot = 
   };
   try {
     if (!reportUsageEnabled(env)) return await runHeartbeatsOnly({ config, env, now, taskRoot, options, statePath: join(stateDir, STATE_FILE), listFiles, touch });
-    const tally = await runLocked({ config, env, now, taskRoot, options, listFiles, touch, statePath: join(stateDir, STATE_FILE) });
+    const tally = await runLockedOrSkip({ config, env, now, taskRoot, options, listFiles, touch, statePath: join(stateDir, STATE_FILE) });
     if (readPlanCapEnabled(env)) await runCapReading({ config, claudeDir, stateDir, clock: capClock, touch, options });
     else logDebug('cap reading off (option read_plan_cap)');
     return tally;

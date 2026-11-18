@@ -6,7 +6,8 @@ This guide installs the usage script only: cloud sessions get no cards, no waiti
 rules, because those pieces are not installed there.
 Name the main machine first (the `environment` option, see [connect.md](connect.md)): once any machine is named, usage
 rows with no label join the board's base environment (the busiest named one), so an unnamed main machine would
-otherwise be shown mixed into `cloud`.
+otherwise be shown mixed into `cloud`. (The base environment is the busiest named one unless the board's config sets
+`usage.baseEnvironment`, which names it outright; see [clients.md](../clients.md).)
 [connect.md](connect.md) does this for a machine you can install a plugin on; a cloud session cannot use it.
 
 Read from the Claude Code docs on 2026-11-17 (they change; re-read the pages before relying on a detail):
@@ -66,7 +67,11 @@ base="https://raw.githubusercontent.com/<owner>/<repo>/<ref>/plugin/scripts"
 dir=/opt/agent-board/scripts
 mkdir -p "$dir/hooks"
 for f in usage-tick.mjs report-progress.mjs usage-report.mjs cap-reading.mjs hooks/hook-input.mjs; do
+  rm -f "$dir/$f"
   curl -fsSL "$base/$f" -o "$dir/$f" || true
+  if [ ! -s "$dir/$f" ]; then echo "agent-board: missing or empty $dir/$f (no usage will be reported)"
+  elif command -v node >/dev/null && ! node --check "$dir/$f" 2>/dev/null; then echo "agent-board: broken $dir/$f (no usage will be reported)"
+  fi
 done
 exit 0
 ```
@@ -74,8 +79,8 @@ exit 0
 (Scripts exit 0 even when a download fails, as the docs require; a failed download means no usage, never a failed
 session.) The result is cached for about a week, so one failed download leaves an empty or partial folder reused
 until the cache expires, and a new `<ref>` reaches the environment only then. To force a rebuild, change the script's
-text (for example edit a comment line) and save the environment; and check that all five files exist, not just the
-folder. Then add this to the repo's `.claude/settings.json`, which a session with one repository reads. It runs the
+text (for example edit a comment line) and save the environment; and read the script's output for a "missing or empty" or
+"broken" line about any of the five files, not just the folder. Then add this to the repo's `.claude/settings.json`, which a session with one repository reads. It runs the
 usage script after tool calls and when a turn ends, and does nothing outside the cloud (`CLAUDE_CODE_REMOTE` is
 `true` only there). The exact command string was run locally with the variable set to `true` (runs), `false` and unset
 (does nothing), exit code 0 each time; it has not run in a real cloud session (**untried**):

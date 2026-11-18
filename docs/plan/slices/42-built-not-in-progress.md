@@ -1,12 +1,20 @@
 ### Slice 42 — A built slice whose checks are untried shows as built, not in progress
 
+*In progress (wave 2026-11-18), draft PR.*
+
 *Planned 2026-11-18. The owner, looking at the board: "why do I still have so many in progress work from you? I think
 you've already implemented most of the slices! why are they still open?"* No mock: the owner asked only that built work
 stop looking unfinished; visual values come from the existing pill and section styles in `docs/design/`.
 
 **Touches:** `plugin/scripts/sync-docs.mjs`, `plugin/scripts/sync-docs.test.mjs`, `src/domain/boardGroups.ts`,
-`test/boardGroups.test.ts`, `test/syncSnapshot.test.ts`, `web/src/strings.ts`, `web/src/planningText.ts`, the board
-component that draws the planned list (`web/src/`), `e2e/board.spec.ts`, `docs/plan/slices/42-built-not-in-progress.md`
+`test/boardGroups.test.ts`, `test/syncSnapshot.test.ts`, `web/src/strings.ts`, `web/src/planningText.ts`,
+`web/src/PlannedSection.tsx`, `web/src/ProjectGroup.tsx`, `web/src/board.css`, `web/src/planning.css`,
+`plugin/skills/agent-board/SKILL.md`, `e2e/board.spec.ts`, `e2e/planning.spec.ts`,
+`docs/plan/slices/42-built-not-in-progress.md`
+
+Line numbers checked at claim (origin/main d28c2d6): `builtWithChecks` is `plugin/scripts/sync-docs.mjs:188`, the built-row
+`in_progress` mapping `:326`, `mapStatus` `:99`; `sliceStateOf` `src/domain/boardGroups.ts:134-136`; the planned list is drawn
+in `web/src/PlannedSection.tsx`, mounted at `web/src/ProjectGroup.tsx:64-65`; the header count is `web/src/planningText.ts:72`.
 
 **Migrations:** none
 

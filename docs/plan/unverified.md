@@ -3,6 +3,10 @@
 Every open "Not yet verified" check, one block per slice. A check that passes, or that the
 owner confirms, is removed here and its slice marked `verified`.
 
+### Slice 32: Open questions are counted and kept right; `ask_human` can set `needs_you` ([slice](slices/32-questions-and-rules.md))
+
+- A live `ask_human` from a chat sets `needs_you` on its card, after the release.
+
 ### Slice 42: A built slice whose checks are untried shows as built, not in progress ([slice](slices/42-built-not-in-progress.md))
 
 - After the release and one `sync-docs` run, the live board shows built slices under Built, not in progress.

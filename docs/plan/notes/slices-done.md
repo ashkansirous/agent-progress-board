@@ -37,3 +37,4 @@ Rows moved out of `plan.md`'s status table once built.
 | 38 | Browser tests that don't flake | built | #132 | | [38](../slices/38-steady-browser-tests.md) |
 | 42 | A built slice whose checks are untried shows as built, not in progress | built | #139 | | [42](../slices/42-built-not-in-progress.md) |
 | 37 | Access answers, ending a grant, and the setup page's leftovers | built | #136 | | [37](../slices/37-access-and-grants.md) |
+| 32 | Open questions are counted and kept right; ask_human can set needs_you | built | #137 | | [32](../slices/32-questions-and-rules.md) |

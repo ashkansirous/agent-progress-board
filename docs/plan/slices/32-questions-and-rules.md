@@ -1,6 +1,6 @@
 ### Slice 32 — Open questions are counted and kept right; `ask_human` can set `needs_you`
 
-*Built 2026-11-18 (night 2026-11-18-1602, wave 2), PR #137, not merged. Placement cloud: pushed 5a04aa8, run cse_012UYzYTd5irTamTWuS6uerz (partial, no CLOUD DONE line), finished locally. Checks on the final tree: lint, typecheck, vitest 522, plugin 340. Not yet verified on the live board.*
+*Built 2026-11-18 (night 2026-11-18-1602, wave 2), merged as PR #137 (6b1d6b6, 2026-11-18). Placement cloud: pushed 5a04aa8, run cse_012UYzYTd5irTamTWuS6uerz (partial, no CLOUD DONE line), finished locally. Checks on the final tree: lint, typecheck, vitest 522, plugin 340. Not yet verified on the live board.*
 
 *Changed while building:* Touches widened to `docs/clients.md` (the `ask_human` reference). `list_open` / `get_item` replies are cut at 50,000 characters by `cutReply`, never clipping ids or times; the note names the first dropped key. `ask_human` on an existing non-waiting item passes only the question fields and never writes the question text into `why` (it is stored as `why` only beside `needs_you`; writing it would overwrite the item's goal).
 
@@ -103,7 +103,7 @@ here too, because this slice owns `instructions.ts`, `SKILL.md` and `plugin.json
 - #8 whitespace-only `needs_you` with no `why` is neither refused nor a clear.
 - Low: `SLICE_CHILD_TYPES` (`src/api/board.ts:95`) now includes Check; the comments still say "part, bug or problem" and no test pins the check case.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-18)
 
 - `list_open` and `get_item` replies are cut at 50,000 characters (Claude Code's own text-result limit) only by `cutReply` in `src/mcp/tools.ts`; it never clips ids or times, and its note names the first dropped key. Never add a second cut (Slice 32: docs/plan/slices/32-questions-and-rules.md).
 

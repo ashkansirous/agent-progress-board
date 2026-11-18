@@ -142,3 +142,6 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
 - `planSince` in `plugin/scripts/cap-reading.mjs` is the one plan-guard rule: a status-line file is sent only when it was
   written after the plan was first seen. Never guard on the board's last accepted plan (Slice 30:
   docs/plan/slices/30-usage-script-fixes.md).
+- `list_open` and `get_item` replies are cut at 50,000 characters (Claude Code's own text-result limit) only by
+  `cutReply` in `src/mcp/tools.ts`; it never clips ids or times, and its note names the first dropped key. Never add a
+  second cut (Slice 32: docs/plan/slices/32-questions-and-rules.md).

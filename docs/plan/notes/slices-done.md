@@ -35,3 +35,5 @@ Rows moved out of `plan.md`'s status table once built.
 | 29 | Session cards keep background agents' state right | built | #129 | | [29](../slices/29-agent-state-fixes.md) |
 | 31 | Plan sync and waiting cards read the documents and transcripts right | built | #131 | | [31](../slices/31-sync-and-waiting-text.md) |
 | 38 | Browser tests that don't flake | built | #132 | | [38](../slices/38-steady-browser-tests.md) |
+| 42 | A built slice whose checks are untried shows as built, not in progress | built | #139 | | [42](../slices/42-built-not-in-progress.md) |
+| 37 | Access answers, ending a grant, and the setup page's leftovers | built | #136 | | [37](../slices/37-access-and-grants.md) |

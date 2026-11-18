@@ -124,6 +124,10 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
   even in one worktree. Loading-delay tests use the shared clock helper `e2e/loadingClock.ts` (clock installed before
   `goto`, the 500 ms timer counted per action); never a wall-clock wait (Slice 38:
   docs/plan/slices/38-steady-browser-tests.md).
+- A done slice with at least one open check is Built: `BOARD_WHERE` in `src/infrastructure/d1Repository.ts` keeps it on
+  the board, `groupBoard` in `src/domain/boardGroups.ts` derives the `built` list, and nothing about it is stored (Slice 42:
+  docs/plan/slices/42-built-not-in-progress.md).
+- The key cool-down lives only in `guardedKeys` in `src/api/access.ts`: it classifies by where the error came from (the key getter), 10 s, never by an allowlist of error classes (Slice 37: docs/plan/slices/37-access-and-grants.md).
 - "All kinds" weighting while the current weekly window is under 24 hours old uses the last full window's mix, chosen only
   by `chooseMixWindow` in `src/domain/capCost.ts`; `mix_source` is derived at read, never stored, and the page never picks
   the window (Slice 26: docs/plan/slices/26-mix-after-reset.md).

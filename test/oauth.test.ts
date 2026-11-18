@@ -210,6 +210,33 @@ describe("bearer tokens on /mcp", () => {
     expect(await countRows("items")).toBe(1);
   });
 
+  it("accepts the Bearer scheme in any letter case (the provider reads it case-insensitively)", async () => {
+    for (const scheme of ["bearer", "BEARER", "Bearer"]) {
+      const response = await fetchBoard("/mcp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream", Authorization: `${scheme} ${WRITE_TOKEN}` },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "list_open", arguments: {} } }),
+      });
+      expect(response.status, scheme).toBe(200);
+    }
+  });
+
+  it("with public_origin set, takes a static token only on that origin; another host answers 401", async () => {
+    const pinned = "https://pinned.example.org";
+    const overrides = { BOARD_CONFIG: JSON.stringify({ public_origin: pinned }) };
+    const post = (origin: string) =>
+      fetchWithEnv(
+        new Request(`${origin}/mcp`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream", Authorization: `Bearer ${WRITE_TOKEN}` },
+          body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "list_open", arguments: {} } }),
+        }),
+        overrides,
+      );
+    expect((await post(pinned)).status).toBe(200);
+    expect((await post(ORIGIN)).status).toBe(401);
+  });
+
   it("keeps answering 405 to a GET on /mcp, with or without a token", async () => {
     expect((await fetchBoard("/mcp")).status).toBe(405);
     const withToken = await fetchBoard("/mcp", { headers: { Authorization: `Bearer ${WRITE_TOKEN}` } });
@@ -481,7 +508,7 @@ describe("authorize and token", () => {
     const response = await submit(posted, { handle: consent.handle, passphrase: PASSPHRASE, decision: "approve" }, consent.cookie);
     expect(response.status).toBe(302);
     const tokens = (await exchange(clientId, verifier, response.headers.get("Location") ?? "")) as Tokens & { scope?: string };
-    expect(tokens.scope).toBe("mcp:read");
+    expect(tokens.scope).toBe("mcp:read mcp:write");
     const write = await mcpCall(tokens.access_token, "report_progress", SLICE);
     expect(await write.text()).not.toContain("forbidden");
     expect(await countRows("items")).toBe(1);
@@ -496,7 +523,7 @@ describe("authorize and token", () => {
     const response = await submit(url, { handle: consent.handle, passphrase: PASSPHRASE, decision: "approve" }, consent.cookie);
     expect(response.status).toBe(302);
     const tokens = (await exchange(clientId, verifier, response.headers.get("Location") ?? "")) as Tokens & { scope?: string };
-    expect(tokens.scope).toBe("mcp:read");
+    expect(tokens.scope).toBe("mcp:read mcp:write");
     await callTool("report_progress", SLICE);
     const read = await mcpCall(tokens.access_token, "list_open", {});
     expect(read.status).toBe(200);
@@ -537,9 +564,23 @@ describe("the rest of the Worker", () => {
     await worker.scheduled(controller, env);
   });
 
+  const ACCESS_SET = { ACCESS_TEAM_DOMAIN: "team.cloudflareaccess.com", ACCESS_AUD: "test-aud-tag" };
+  const throughAccess = (path: string, init?: RequestInit) => fetchWithEnv(new Request(`${ORIGIN}${path}`, init), ACCESS_SET);
+
   it("leaves the board page and /api/board behind Access", async () => {
-    expect((await fetchBoard("/api/board")).status).toBe(403);
-    expect((await fetchBoard("/")).status).toBe(403);
-    expect((await fetchBoard("/", { method: "POST" })).status).toBe(405);
+    expect((await throughAccess("/api/board")).status).toBe(403);
+    expect((await throughAccess("/")).status).toBe(403);
+    expect((await throughAccess("/", { method: "POST" })).status).toBe(405);
+  });
+
+  it("answers 503, not 403, while the Access settings are unset", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    expect((await fetchBoard("/api/board")).status).toBe(503);
+  });
+
+  it("refuses the grants list and the revoke action without the Access header", async () => {
+    expect((await throughAccess("/api/grants")).status).toBe(403);
+    expect((await throughAccess("/api/grants/some-grant/revoke", { method: "POST" })).status).toBe(403);
+    expect((await throughAccess("/api/grants/some-grant/revoke")).status).toBe(405);
   });
 });

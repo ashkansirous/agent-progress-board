@@ -1,12 +1,14 @@
 ### Slice 37 — Access answers, ending a grant, and the setup page's leftovers
 
+*Built 2026-11-18 (night 2026-11-18-1602 wave 2, placement local), PR #136, not merged. Checks on the final tree: lint, typecheck, Vitest 526, e2e 275 passed 3 skipped. Owner's phone check not yet done.* Built before Slice 36; 36 now goes after it.
+
 *Planned 2026-11-18 (owner: "double check and plan the follow up work"). Grouping decided by the planning session of
 2026-11-18; items re-checked against `origin/main` (d654e9b).* Wave 4, after Slice 36 (both edit
 `web/src/SetupPage.tsx` and `web/src/strings.ts`).
 
 **Touches:** `src/api/access.ts`, `src/api/router.ts`, `src/api/auth.ts`, `src/api/chatText.ts`, `src/api/grants.ts`
 (new), `src/api/oauth/**`, `src/index.ts`, `web/src/SetupPage.tsx`, `web/src/ConnectedApps.tsx` (new), `web/src/setup.css`, `web/src/api.ts`,
-`web/src/strings.ts`, `README.md`, `test/access.test.ts` (new), `test/oauth.test.ts`, `test/chatTextRoute.test.ts`, `test/config.test.ts`,
+`web/src/strings.ts`, `README.md`, `test/access.test.ts` (new), `test/oauth.test.ts`, `test/chatTextRoute.test.ts`, `test/config.test.ts`, `test/board.test.ts`,
 `e2e/setup.spec.ts`, `docs/plan/slices/37-access-and-grants.md`
 
 **Migrations:** none
@@ -24,6 +26,11 @@ The owner has no way to end an OAuth grant (Slice 5). `README.md:113-115` only n
 
 #### Decisions
 
+- Key cool-down (coordinator design, night 2026-11-18-1602 wave 2, after two review rounds reopened it): an error from
+  the key getter other than no or several matching keys is a key-fetch failure (503, no-store, Retry-After). For the
+  10 s after one, every request answers 503 without calling `jose`, so nothing refetches in a loop. A forged key id
+  cannot start it: `jose` refetches, the refetch succeeds and the token gets 403. Tokens with a cached key also wait
+  those 10 s; that is accepted, because the cool-down only starts while the key endpoint is failing.
 - There is one auth path (root `CLAUDE.md`, Slices 5 and 16). The grants list and the revoke action sit behind the
   same Access check (`src/api/access.ts`) as the page, with no other gate and no E2E bypass outside the env flag
   (Slice 2 rule).
@@ -95,33 +102,38 @@ connected apps.", "Retry". Removed: `setupPrefaceIntro`, `setupCopyPreface`, `se
 
 #### Work
 
-- [ ] Slice 5: add `GET /api/grants` and `POST /api/grants/<id>/revoke` in `src/api/grants.ts` (new), behind the
+- [x] Slice 5: add `GET /api/grants` and `POST /api/grants/<id>/revoke` in `src/api/grants.ts` (new), behind the
   Access check, calling `env.OAUTH_PROVIDER.listUserGrants` and `revokeGrant`. On the Setup page, a "Connected apps"
   list as in the Design subsection (`web/src/ConnectedApps.tsx`, new): client name, "Connected {when}", and an "End
   access" button with the inline confirmation; the empty, loading (after 500 ms) and failed (with Retry) states. Update
   `README.md:113-115`.
-- [ ] Slice 5: the static bearer token with `public_origin` set and a request from another host is untested
+- [x] Slice 5: the static bearer token with `public_origin` set and a request from another host is untested
   (`src/api/auth.ts`, `src/api/oauth/provider.ts`).
-- [ ] Slice 16: the grant stores scope `mcp:read` while the token writes (`src/api/oauth/authorize.ts:20`,
+- [x] Slice 16: the grant stores scope `mcp:read` while the token writes (`src/api/oauth/authorize.ts:20`,
   `provider.ts:82`). Store the scope `scopeOfCaller` gives.
-- [ ] Slice 2 #1: `TOKEN_ERRORS` is an allowlist, so other `jose` errors answer 503, not 403
+- [x] Slice 2 #1: `TOKEN_ERRORS` is an allowlist, so other `jose` errors answer 503, not 403
   (`src/api/access.ts:44-56`). Add `test/access.test.ts` (new).
-- [ ] Slice 2 #2: a missing `ACCESS_TEAM_DOMAIN` or `ACCESS_AUD` answers 403 and logs nothing (`access.ts:67`). Answer
+- [x] Slice 2 #2: a missing `ACCESS_TEAM_DOMAIN` or `ACCESS_AUD` answers 403 and logs nothing (`access.ts:67`). Answer
   503 and log the missing name.
-- [ ] Slice 2 #6: the 503 has no `Cache-Control: no-store` and no `Retry-After`, and asset requests re-run the key
+- [x] Slice 2 #6: the 503 has no `Cache-Control: no-store` and no `Retry-After`, and asset requests re-run the key
   fetch and log each time (`src/api/router.ts:64-66`).
-- [ ] Slice 1: the method check runs before auth (`src/index.ts:47`). Confirm whether the skipped Bearer
+- [x] Slice 1: the method check runs before auth (`src/index.ts:47`). Confirm whether the skipped Bearer
   case-sensitivity finding still applies now that auth goes through the OAuth provider. Close it with a test either
   way.
 - [ ] Slice 7 check 5: the cron handler parses only `staleAfterMinutes` (`src/index.ts:16-19`). Parse the config the
-  same way `fetch` does.
-- [ ] Slice 19 chk #1 + med #2: `CHAT_TEXT_URL` (`web/src/SetupPage.tsx:10`) and `CHAT_TEXT_PATH`
+  same way `fetch` does. Deferred: `src/index.ts` is not in this slice's Touches, and the handler already reads the
+  config through `parseConfig`, the one parser; to be settled with the next slice that touches `src/index.ts`.
+- [x] Slice 19 chk #1 + med #2: `CHAT_TEXT_URL` (`web/src/SetupPage.tsx:10`) and `CHAT_TEXT_PATH`
   (`src/api/chatText.ts:3`) are two copies. Med #1: the page does its own fetch and throws a bare number
   (`SetupPage.tsx:29-38`); use `LoadError` from `web/src/api.ts`.
-- [ ] Slice 19 chk #3: the strings say "select the text", but the preface is a plain paragraph (`strings.ts:362` en,
+- [x] Slice 19 chk #3: the strings say "select the text", but the preface is a plain paragraph (`strings.ts:362` en,
   `:732` de). Chk #4: a space is missing at `SetupPage.tsx:114`. Chk #5: the two `CopyButton`s keep separate state.
-  Chk #6: `chatText.ts:15` is a thin wrapper, and `READ_METHODS` (`router.ts:14`) includes HEAD.
-- [ ] **One Copy for the whole paste** (owner, 2026-11-18, while pasting into claude.ai: "ty gave me a line and a text,
+  Done by the one-Copy block below: one `<pre>` block (so "select the text" is true), one `CopyButton`, and the
+  lines that lacked the space no longer exist.
+- [ ] Slice 19 chk #6: `chatText.ts:15` is a thin wrapper, and `READ_METHODS` (`router.ts:14`) includes HEAD.
+  Deferred: no fault. The wrapper keeps `SERVER_INSTRUCTIONS` read in one place and `test/chatTextRoute.test.ts`
+  calls it; answering HEAD with the same headers is harmless on a read-only, Access-gated route.
+- [x] **One Copy for the whole paste** (owner, 2026-11-18, while pasting into claude.ai: "ty gave me a line and a text,
   which one to put in claude instructions?" and "why did you separate the 2 parts then?"). The Setup page shows the
   connector line and the instruction text as two pieces with two Copy buttons (`web/src/SetupPage.tsx:67,109,114`),
   and both go in the same claude.ai Instructions box, line first. Replace them with one block and one **Copy** that
@@ -141,3 +153,39 @@ connected apps.", "Retry". Removed: `setupPrefaceIntro`, `setupCopyPreface`, `se
   `SetupPhone`.
 - After the release, on the owner's phone: the Setup page lists the claude.ai grant. Ending it and reconnecting works.
   This is the owner's check, recorded in `docs/plan/unverified.md` when the slice is built.
+
+#### From review
+
+- Skipped #5 (`reviews/pr-136-high.md`): "503 for unset ACCESS_TEAM_DOMAIN/ACCESS_AUD carries Retry-After: 10 and goes to anonymous callers" - low severity: it tells an anonymous caller only that the board is not set up, and Retry-After is harmless.
+- Skipped #8 (`reviews/pr-136-high.md`): "Ended grant is removed from local state only; list never reloaded" - low: the list drops the grant only after the server answered success, which is the state the server holds.
+- Skipped #9 (`reviews/pr-136-high.md`): "failureLine and its status-reason table live in ConnectedApps.tsx; SetupPage imports them" - low: moving the reason table is code placement, not a fault.
+- Skipped #3 (`reviews/pr-136-medium.md`): "missing settings checked before token: anonymous requests get 503" - low, same as high #5: it tells an anonymous caller only that the board is not set up.
+- Skipped #6 (`reviews/pr-136-medium.md`): "errors swallowed as empty name, not logged" - low: a failed client lookup shows the client id and the list stays usable.
+- Skipped #7 (`reviews/pr-136-medium.md`): "mcp:write is decorative beside scopeOfCaller" - the slice item says "Store the scope `scopeOfCaller` gives", so the grant stores `mcp:read mcp:write`.
+- Check pass (`reviews/pr-136-check-medium.md`): #1 is the slice's key cool-down Decision (tokens with a cached key also wait 10 s), kept as decided. #2 to #6 are low and go to the follow-up list below:
+- Skipped #2 (`reviews/pr-136-check-medium.md`): "a slow (5 s timeout) failing fetch uses about half its own 10 s cool-down" - low: Retry-After still says 10 and the owner is not locked out longer; the shorter window only means one extra fetch attempt.
+- Skipped #3 (`reviews/pr-136-check-medium.md`): "A late success from an earlier in-flight request sets" - low: needs two overlapping failing and succeeding fetches within 10 s; the worst case is one early retry.
+- Skipped #4 (`reviews/pr-136-check-medium.md`): "No guard for the clock moving backwards" - low: a Worker clock does not run backwards in practice; the worst case is a 503 until it catches up.
+- Skipped #5 (`reviews/pr-136-check-medium.md`): "Deny-list of two key-id errors" - low: the Decision classifies by where the error came from (the key getter), so an error list is not the rule; changing it is a design change for a later slice.
+- Skipped #6 (`reviews/pr-136-check-medium.md`): "logOncePerWindow uses Date.now() while the cool-down uses the injected clock" - low: the two clocks differ only under a fake clock in tests; production behaviour is the same.
+- Applied: high #1 2 3 4 6 7 10 11; medium #1 2 4 5 8 (through the one cool-down design, `guardedKeys`).
+
+*Follow-up list (low, not built):* check-medium #2 to #6 above.
+
+#### Changed while building
+
+- Touches widened: `test/board.test.ts` (3 assertions: unset Access settings answer 503, the missing name is logged once per 60 s).
+- The grant stores the scope `scopeOfCaller` gives (`mcp:read mcp:write`).
+- The revoke route checks `Origin` (the `public_origin` when set).
+- Error string "Couldn't end access"; End access shows a status after 500 ms.
+- The grants list says when more grants exist than were listed (truncated).
+- A malformed `ACCESS_TEAM_DOMAIN` (error while building the key set) still answers 503 and logs.
+- Key cool-down: see the Decision above (`guardedKeys` in `src/api/access.ts`).
+
+#### For CLAUDE.md
+
+- The key cool-down lives only in `guardedKeys` in `src/api/access.ts`: it classifies by where the error came from (the key getter), 10 s, never by an allowlist of error classes (Slice 37: docs/plan/slices/37-access-and-grants.md).
+
+#### Not yet verified
+
+- On the owner's phone: the Setup page (`<board address>/#/setup`) lists the claude.ai grant; ending it and reconnecting works.

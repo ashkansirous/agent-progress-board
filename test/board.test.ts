@@ -1,7 +1,7 @@
 import { env, exports } from "cloudflare:workers";
 import { createLocalJWKSet, errors, exportJWK, generateKeyPair, SignJWT } from "jose";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { ACCESS_JWT_HEADER, type AccessKeys, remoteAccessKeys } from "../src/api/access";
+import { ACCESS_JWT_HEADER, type AccessKeys, KeyFetchFailure, remoteAccessKeys } from "../src/api/access";
 import type { BoardResponse } from "../src/api/boardDto";
 import { route, type RouterDeps, type RouterEnv } from "../src/api/router";
 import { D1ItemRepository } from "../src/infrastructure/d1Repository";
@@ -87,7 +87,7 @@ describe("Access gate", () => {
   it("refuses everyone while the team domain or the audience is unset", async () => {
     const token = await sign();
     for (const partial of [{ ACCESS_AUD: AUD }, { ACCESS_TEAM_DOMAIN: TEAM }, {}]) {
-      expect((await route(get(BOARD_URL, token), { ...partial, ASSETS: assets }, deps())).status).toBe(403);
+      expect((await route(get(BOARD_URL, token), { ...partial, ASSETS: assets }, deps())).status).toBe(503);
     }
   });
 
@@ -104,7 +104,7 @@ describe("Access gate", () => {
 
   it("answers 503, logs, and serves nothing when the key set cannot be fetched", async () => {
     const failing: AccessKeys = () => async () => {
-      throw new errors.JOSEError("Expected 200 OK from the JSON Web Key Set HTTP response");
+      throw new KeyFetchFailure(new errors.JOSEError("Expected 200 OK from the JSON Web Key Set HTTP response"));
     };
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
     const token = await sign();
@@ -114,7 +114,8 @@ describe("Access gate", () => {
       expect(await response.text()).toBe("Access check unavailable");
     }
     expect(assetRequests).toEqual([]);
-    expect(logged).toHaveBeenCalledTimes(2);
+    // The same line is logged once per 60 s per Worker instance, so two requests log once.
+    expect(logged).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(logged.mock.calls)).not.toContain(token);
     logged.mockRestore();
   });
@@ -131,8 +132,8 @@ describe("Access gate", () => {
 
   it("refuses the deployed worker's board when Access is not configured", async () => {
     const response = await exports.default.fetch(BOARD_URL);
-    expect(response.status).toBe(403);
-    expect((await exports.default.fetch(BOARD_URL, { headers: { [ACCESS_JWT_HEADER]: "x.y.z" } })).status).toBe(403);
+    expect(response.status).toBe(503);
+    expect((await exports.default.fetch(BOARD_URL, { headers: { [ACCESS_JWT_HEADER]: "x.y.z" } })).status).toBe(503);
   });
 
   it("leaves /mcp to its bearer tokens and answers 405 to a write on the page", async () => {

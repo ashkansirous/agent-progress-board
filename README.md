@@ -100,7 +100,7 @@ read and report (`report_progress`, `ask_human`, `mark_done`, `report_usage`, `r
   `/oauth/token`.
 - The owner check is the Worker secret `OWNER_PASSPHRASE`, compared in constant time; unset or
   shorter than 32 characters, the page refuses everyone. Nothing counts or locks wrong tries: the
-  long passphrase is what makes guessing hopeless. Approval always grants read; the page shows
+  long passphrase is what makes guessing hopeless. Approval always grants read and write (the owner's tools, no document sync); the page shows
   the client's name and the full address (with port) the access is sent to.
 - Extra redirect addresses (exact strings) go in `BOARD_CONFIG` as `oauth_redirect_uris`.
 - The issuer and resource default to the origin of the request. To pin them (so the
@@ -110,10 +110,11 @@ read and report (`report_progress`, `ask_human`, `mark_done`, `report_usage`, `r
   tokens included, must use that origin: the other hostnames of the Worker (for example the
   workers.dev name) answer 401.
 - Changing `OWNER_PASSPHRASE` only guards new sign-ins; access already granted keeps working
-  until the grant's refresh token expires. To end it now, revoke the grant: the provider's
-  helper `env.OAUTH_PROVIDER.listUserGrants("owner")` lists the owner's grants and
-  `revokeGrant(grantId, "owner")` ends one (from the installed
-  `@cloudflare/workers-oauth-provider` types). The Worker has no admin route that calls them.
+  until the grant's refresh token expires. To end it now, open the Setup page (`#/setup`) and press
+  **End access** on the app under "Connected apps". Behind the same Cloudflare Access check as the page,
+  `GET /api/grants` lists the owner's grants (name and time) and `POST /api/grants/<id>/revoke` ends one
+  (`env.OAUTH_PROVIDER.listUserGrants` and `revokeGrant`); the app then has to be connected again. A
+  grant stores the scopes `mcp:read` and `mcp:write`: the owner's token can write.
 - Setup: the KV namespace is created by the pipeline deploy (the binding has no id in
   `wrangler.jsonc`); set the passphrase with `wrangler secret put OWNER_PASSPHRASE`.
 - Locally: `OWNER_PASSPHRASE` in `.dev.vars` (see `.dev.vars.example`).

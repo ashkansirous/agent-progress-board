@@ -13,7 +13,7 @@ import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { STEPS_MAX, STEP_LABEL_MAX, STEP_NOTE_MAX, activeTaskCard } from '../report-progress.mjs';
 import { markWaitingDone } from './session-done.mjs';
-import { CLOSED_BY, parseInput, readGoal, readPrompt, readStdinText, sessionIdOf, stateRoot, touchSeen, writeGoal, writePrompt } from './hook-input.mjs';
+import { CLOSED_BY, parseInput, readGoal, readPrompt, readStdinText, sessionIdOf, stateRoot, touchSeen, updateGoal, writePrompt } from './hook-input.mjs';
 
 export const REMIND_AT_TOOL = 2;
 export const REMINDER_TEXT = 'This session has no board card with a goal for the current prompt. The agent-board skill says to call the board\'s report_progress tool with the goal, what it is for and the steps, unless the turn is a one-line answer.';
@@ -67,11 +67,14 @@ export function cardUpdate(input, goal) {
   };
 }
 
+// The goal file is read again right before this write (updateGoal), so a hook's own write (session-done.mjs saveGoal) is kept.
 function recordCard(input, id, root, now) {
-  const update = cardUpdate(input, readGoal(id, root, now));
-  if (!update) return;
-  const { goalAt, ...rest } = update;
-  writeGoal(id, { ...rest, at: now, ...(goalAt === undefined ? {} : { goalAt }) }, root, now);
+  updateGoal(id, root, now, (current) => {
+    const update = cardUpdate(input, current);
+    if (!update) return null;
+    const { goalAt, ...rest } = update;
+    return { ...rest, at: now, ...(goalAt === undefined ? {} : { goalAt }) };
+  });
 }
 
 // The reminder JSON for this hook call, or '' when none is due. Updates the prompt and goal state.
@@ -111,12 +114,14 @@ export async function closeAnsweredWaiting(input, env = process.env, options = {
 
 const invokedDirectly = process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
 if (invokedDirectly) {
+  process.exitCode = 0; // set first, so nothing below can leave another code; not process.exit: a pending stdout write on a pipe would be cut
   const input = parseInput(readStdinText());
   try {
     const out = handle(input);
     if (out) process.stdout.write(out);
   } catch { /* fail open */ }
-  closeAnsweredWaiting(input)
+  Promise.resolve()
+    .then(() => closeAnsweredWaiting(input))
     .catch(() => {})
-    .finally(() => { process.exitCode = 0; }); // not process.exit: a pending stdout write on a pipe would be cut
+    .finally(() => { process.exitCode = 0; });
 }

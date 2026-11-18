@@ -9,7 +9,11 @@ board. for example, for a slice, the task is implementing slice, the outcome is 
 
 Runs after Slices 39 and 40. The owner's config repo has a matching slice for its wave tooling.
 
-**Touches:** `src/mcp/instructions.ts`, `src/mcp/schemas.ts`, `src/domain/upsert.ts`, `src/api/board.ts`,
+*In progress (wave 2026-11-18), draft PR.*
+
+**Touches:** `src/mcp/instructions.ts`, `src/mcp/schemas.ts`, `src/domain/upsert.ts`, `src/domain/item.ts`, `src/api/board.ts`,
+`src/application/board.ts`, `src/application/ports.ts`, `web/src/session.css`, `plugin/scripts/report-progress.test.mjs`,
+`test/mcp.test.ts`, `e2e/sessionFixture.ts`, `e2e/activeFixture.ts`,
 `src/infrastructure/d1Repository.ts`, `migrations/0009_outcome.sql` (new), `plugin/skills/agent-board/SKILL.md`,
 `plugin/scripts/hooks/goal-reminder.mjs`, `plugin/scripts/hooks/session-done.mjs`,
 `plugin/scripts/hooks/hooks.test.mjs`, `plugin/scripts/report-progress.mjs`, `docs/clients.md`,

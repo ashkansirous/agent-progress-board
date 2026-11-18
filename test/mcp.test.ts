@@ -1,6 +1,7 @@
 import { env, exports } from "cloudflare:workers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { type Item, ItemStatus } from "../src/domain/item";
+import { newItem, type ReportInput } from "../src/domain/upsert";
 import { D1ItemRepository } from "../src/infrastructure/d1Repository";
 import { fitItem, fitList, MAX_RESULT_CHARS } from "../src/mcp/tools";
 import { callTool, countRows, fetchWithEnv, postMcp, READ_TOKEN, resetBoard, WRITE_TOKEN } from "./helpers";
@@ -95,9 +96,9 @@ describe("report_progress safety", () => {
     const created = await callTool("report_progress", SLICE);
     const stale = created.data as Item;
     const input = { key: SLICE.key, status: ItemStatus.Blocked };
-    await repo.save({ insert: stale, input, now: "2026-11-15T11:00:00.000Z" });
-    const second = await repo.save({ insert: stale, input, now: "2026-11-15T12:00:00.000Z" });
-    expect(second).toMatchObject({ status: "blocked", updated_at: "2026-11-15T11:00:00.000Z" });
+    await repo.save({ insert: stale, input, now: "2099-11-15T11:00:00.000Z" });
+    const second = await repo.save({ insert: stale, input, now: "2099-11-15T12:00:00.000Z" });
+    expect(second).toMatchObject({ status: "blocked", updated_at: "2099-11-15T11:00:00.000Z" });
     const detail = (await callTool("get_item", { key: SLICE.key })).data as BoardItem;
     expect(detail.events).toHaveLength(3);
     expect(detail.events.filter((e) => e.note === "Heartbeat")).toHaveLength(1);
@@ -398,6 +399,7 @@ describe("list_open", () => {
     const items = (await callTool("list_open", {})).data as BoardItem[];
     expect(items.map((i) => i.key).sort()).toEqual(["demo-app/slice-1", "demo-app/slice-2"]);
     expect(items.every((i) => i.events.length > 0)).toBe(true);
+    expect(items.every((i) => !("parentSlice" in i) && !("expiry" in i) && !("docSync" in i))).toBe(true);
   });
 
   it("returns an item done inside the window and drops one done before it", async () => {
@@ -459,5 +461,117 @@ describe("raw http", () => {
       "report_usage",
       "sync_snapshot",
     ]);
+  });
+});
+
+describe("a delayed request and the history (Slice 34)", () => {
+  const FIRST = "2099-01-01T10:00:00.000Z";
+  const LATER = "2099-01-01T10:30:00.000Z";
+  const EARLIER = "2099-01-01T10:10:00.000Z";
+  const ITEM = { key: "demo-app/slice-1", status: ItemStatus.InProgress };
+  /** What `save` inserts for a new key; the first call of each test creates the item with it, later ones find it stored. */
+  const create = { ...SLICE, ...ITEM } as unknown as ReportInput;
+  const seed = newItem(create, FIRST);
+
+  async function stored(): Promise<{ heartbeat_at: string; updated_at: string; live_status_at: string | null }> {
+    return (await env.DB.prepare("SELECT heartbeat_at, updated_at, live_status_at FROM items WHERE key = ?1")
+      .bind(SLICE.key)
+      .first())!;
+  }
+
+  async function notes(): Promise<(string | null)[]> {
+    const { results } = await env.DB.prepare("SELECT note FROM events WHERE item_key = ?1 ORDER BY at, id")
+      .bind(SLICE.key)
+      .all<{ note: string | null }>();
+    return results.map((row) => row.note);
+  }
+
+  it("keeps the later heartbeat_at, updated_at and live_status_at when a delayed request arrives", async () => {
+    const repo = new D1ItemRepository(env.DB);
+    await repo.save({ insert: seed, input: create, now: LATER });
+    await repo.save({ insert: seed, input: { key: SLICE.key, status: ItemStatus.Blocked }, now: EARLIER });
+    expect(await stored()).toEqual({ heartbeat_at: LATER, updated_at: LATER, live_status_at: LATER });
+    await repo.save({ insert: seed, input: { key: SLICE.key }, now: EARLIER });
+    expect((await stored()).heartbeat_at).toBe(LATER);
+  });
+
+  it("still moves the times forward for a request that is newer", async () => {
+    const repo = new D1ItemRepository(env.DB);
+    await repo.save({ insert: seed, input: create, now: FIRST });
+    await repo.save({ insert: seed, input: { key: SLICE.key, status: ItemStatus.Blocked }, now: LATER });
+    expect(await stored()).toEqual({ heartbeat_at: LATER, updated_at: LATER, live_status_at: LATER });
+  });
+
+  it("never moves the status back for a delayed request: the later report wins for the status too", async () => {
+    const repo = new D1ItemRepository(env.DB);
+    await repo.save({ insert: seed, input: create, now: LATER });
+    const saved = await repo.save({ insert: seed, input: { key: SLICE.key, status: ItemStatus.Blocked }, now: EARLIER });
+    expect(saved.status).toBe(ItemStatus.InProgress);
+    const newest = await env.DB.prepare("SELECT status FROM events WHERE item_key = ?1 ORDER BY at DESC, id DESC LIMIT 1")
+      .bind(SLICE.key)
+      .first<{ status: string }>();
+    expect(newest?.status).toBe(ItemStatus.InProgress);
+    expect(await notes()).toEqual(["Heartbeat", null]);
+  });
+
+  it("applies an earlier status report that a later no-status heartbeat overtook (compared with live_status_at)", async () => {
+    const repo = new D1ItemRepository(env.DB);
+    await repo.save({ insert: seed, input: create, now: FIRST });
+    await repo.save({ insert: seed, input: { key: SLICE.key }, now: LATER });
+    const saved = await repo.save({ insert: seed, input: { key: SLICE.key, status: ItemStatus.Done }, now: EARLIER });
+    expect(saved.status).toBe(ItemStatus.Done);
+    expect((await stored()).heartbeat_at).toBe(LATER);
+  });
+
+  it("gives a delayed report that changed the title its own history row, which a heartbeat never merges away", async () => {
+    const repo = new D1ItemRepository(env.DB);
+    await repo.save({ insert: seed, input: create, now: FIRST });
+    await repo.save({ insert: seed, input: { key: SLICE.key }, now: LATER });
+    await repo.save({ insert: seed, input: { key: SLICE.key, title: "Renamed" }, now: EARLIER });
+    expect(await notes()).toEqual([null, null, "Heartbeat"]);
+    await repo.save({ insert: seed, input: { key: SLICE.key }, now: "2099-01-01T11:00:00.000Z" });
+    await repo.save({ insert: seed, input: { key: SLICE.key }, now: "2099-01-01T11:01:00.000Z" });
+    expect(await notes()).toEqual([null, null, "Heartbeat"]);
+  });
+
+  it("coalesces nothing when a save lost its compare-and-swap", async () => {
+    const repo = new D1ItemRepository(env.DB);
+    await repo.save({ insert: seed, input: create, now: FIRST });
+    await repo.save({ insert: seed, input: { key: SLICE.key }, now: LATER });
+    await expect(
+      repo.save({ insert: seed, input: { key: SLICE.key }, now: "2099-01-01T11:00:00.000Z", ifStepsText: "[\"stale\"]" }),
+    ).rejects.toThrow();
+    expect(await notes()).toEqual([null, "Heartbeat"]);
+  });
+
+  it("still applies a status given by a request that is newer", async () => {
+    const repo = new D1ItemRepository(env.DB);
+    await repo.save({ insert: seed, input: create, now: FIRST });
+    const saved = await repo.save({ insert: seed, input: { key: SLICE.key, status: ItemStatus.Blocked }, now: LATER });
+    expect(saved.status).toBe(ItemStatus.Blocked);
+    expect(await notes()).toEqual([null, null]);
+  });
+
+  it("coalesces a run of heartbeats into one history row that moves forward", async () => {
+    const repo = new D1ItemRepository(env.DB);
+    await repo.save({ insert: seed, input: create, now: FIRST });
+    for (const minute of [11, 12, 13, 14]) {
+      await repo.save({ insert: seed, input: { key: SLICE.key }, now: `2099-01-01T10:${minute}:00.000Z` });
+    }
+    expect(await notes()).toEqual([null, "Heartbeat"]);
+    const last = await env.DB.prepare("SELECT at FROM events WHERE note = 'Heartbeat'").first<{ at: string }>();
+    expect(last?.at).toBe("2099-01-01T10:14:00.000Z");
+    await repo.save({ insert: seed, input: { key: SLICE.key, status: ItemStatus.Blocked }, now: "2099-01-01T10:20:00.000Z" });
+    await repo.save({ insert: seed, input: { key: SLICE.key }, now: "2099-01-01T10:21:00.000Z" });
+    expect(await notes()).toEqual([null, "Heartbeat", null, "Heartbeat"]);
+  });
+
+  it("moves live_status_at when a report with no status revives a stale item", async () => {
+    const repo = new D1ItemRepository(env.DB);
+    await repo.save({ insert: seed, input: create, now: FIRST });
+    await env.DB.prepare("UPDATE items SET status = 'stale', doc_status_at = ?2 WHERE key = ?1").bind(SLICE.key, LATER).run();
+    const revived = await repo.save({ insert: seed, input: { key: SLICE.key }, now: "2099-01-01T11:00:00.000Z" });
+    expect(revived.status).toBe("in_progress");
+    expect((await stored()).live_status_at).toBe("2099-01-01T11:00:00.000Z");
   });
 });

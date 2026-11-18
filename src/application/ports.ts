@@ -13,6 +13,11 @@ export interface BoardFilter {
   /** Done items count only when done_at is later than this ISO time. */
   cutoff: string;
   eventLimit: number;
+  /**
+   * Also list the parts and not-done checks of a listed slice, whatever the type filter (the board page needs them for
+   * a slice's bar and its checks); `list_open` leaves them out, since a part has no tile (Slice 34).
+   */
+  withRiders: boolean;
 }
 
 /** A board item plus the two stored times the expiry rule needs, which an Item does not carry (Slice 10). */
@@ -20,12 +25,28 @@ export interface BoardRow extends ItemWithEvents {
   expiry: Pick<ExpiryRow, "doc_status_at" | "live_status_at">;
   /** Whether the last doc sync listed the item and the status it gave; a part that left the documents is told by these (Slice 11). */
   docSync: { in_doc_sync: boolean; doc_status: ItemStatus | null };
+  /** For a listed bug or problem whose `parent_key` names a slice: that slice, read even when the slice itself is not listed, so the chip keeps its number (Slice 34). */
+  parentSlice?: { key: string; title: string } | null;
 }
 
 /** Heartbeats older than `cutoff` have expired; a session card's own, shorter expiry is `sessionCutoff` (Slice 13). */
 export interface StaleCutoffs {
   cutoff: string;
   sessionCutoff: string;
+  /** A waiting card with no slice behind it whose last report is older than this is closed (Slice 34). */
+  waitingCutoff: string;
+}
+
+/** What one stale pass did: items turned stale, and waiting cards closed after 24 hours (Slice 34). */
+export interface StaleResult {
+  stale: number;
+  waitingClosed: number;
+}
+
+/** What one doc-sync batch did: the keys whose write took effect (a write the stale-read guard skipped is not in it) and how many rows it closed. */
+export interface SyncApplied {
+  written: ReadonlySet<string>;
+  closed: number;
 }
 
 export interface ItemWrite {
@@ -70,15 +91,19 @@ export interface ItemRepository {
    * The writes plus the close of the given rows (set-based, a fixed number of statements) in
    * one atomic batch: a failure leaves nothing half applied. Each write and close applies only
    * while its row still matches what was read, so a live report in between is never undone.
+   * Returns what took effect, so the summary counts only that. The closes go in chunks of
+   * `CLOSE_CHUNK_ROWS` rows or `CLOSE_CHUNK_BYTES` bytes (one JSON parameter each), all inside the same batch.
    */
-  applySync(writes: SyncWrite[], closes: SyncRow[], now: string): Promise<void>;
+  applySync(writes: SyncWrite[], closes: SyncRow[], now: string): Promise<SyncApplied>;
   /**
    * One atomic batch: a history event (status stale) for every item whose heartbeat is older
    * than the cutoff and whose shown status is a live one, then those items set to stale. Both
    * statements carry the rule, so a report that lands in between is never overwritten; items
    * already stale no longer match, so a second run writes nothing. Returns how many turned stale.
+   * The same batch closes the waiting cards that have no slice behind them and are past
+   * `waitingCutoff` (status done, one history row each); those are counted apart, in `waitingClosed`.
    */
-  markStale(cutoffs: StaleCutoffs, now: string): Promise<number>;
+  markStale(cutoffs: StaleCutoffs, now: string): Promise<StaleResult>;
   listBoard(filter: BoardFilter): Promise<BoardRow[]>;
   /** Newest first, all events. */
   eventsFor(key: string): Promise<ItemEvent[]>;
@@ -130,7 +155,7 @@ export interface UsageRepository {
   /**
    * Session cards that named an environment (Slice 16): per card, its first report to its last
    * (the board's own stale marks are not reports), for cards last reported at or after `from`,
-   * newest `limit` only, and only for environments with no series of their own (they report no tokens).
+   * newest `limit` of each environment (by `environmentIdentity`) only, and only for environments with no series of their own (they report no tokens).
    */
   sessionWindowsFrom(from: string, limit: number): Promise<SessionWindow[]>;
   /**

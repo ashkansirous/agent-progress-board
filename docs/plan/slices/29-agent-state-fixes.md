@@ -3,8 +3,16 @@
 *Planned 2026-11-18 (owner: "double check and plan the follow up work"). Grouping and order decided by the planning
 session of 2026-11-18; every item below was re-checked against `origin/main` (d654e9b) that day.* Wave 1.
 
+*In progress (wave 2026-11-18), draft PR.* Claim check against `origin/main` (00c1452): `subagentCard` is at
+`session-done.mjs:71-79`, `saveGoal` at `:35-38`, `resumeCard` at `:85-94` (items 5-7 below cite older lines);
+`stoppedIds.has` is at `background-agents.mjs:54`, `mergeSteps` at `:76`. No state lock exists in
+`plugin/scripts/hooks` yet (only comments), so item 1 adds one. Touches widened with `session-waiting.mjs` (its
+`titleOf` sends the goal title, a candidate for the overwrite) and `report-progress.mjs`; Slice 31 also edits
+`session-waiting.mjs` (its transcript read), so 29 edits only `titleOf` there.
+
 **Touches:** `plugin/scripts/hooks/hook-input.mjs`, `plugin/scripts/hooks/background-agents.mjs`,
 `plugin/scripts/hooks/session-done.mjs`, `plugin/scripts/hooks/goal-reminder.mjs`,
+`plugin/scripts/hooks/session-waiting.mjs`, `plugin/scripts/report-progress.mjs`,
 `plugin/scripts/hooks/hooks.test.mjs`, `docs/plan/slices/29-agent-state-fixes.md`
 
 **Migrations:** none

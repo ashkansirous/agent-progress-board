@@ -69,8 +69,9 @@ export function percentText(percent: number): string {
 }
 
 /** A share of the cap on the cost page: always one decimal, "4.0%". */
-export function costPercentText(percent: number): string {
-  return `${(Math.round(percent * 10) / 10).toFixed(1)}%`;
+export function costPercentText(percent: number, locale = "en-US"): string {
+  const rounded = Math.round(percent * 10) / 10;
+  return `${new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(rounded)}%`;
 }
 
 function trimmed(n: number, locale: string): string {
@@ -118,4 +119,11 @@ export function timeUntil(resetIso: string, nowIso: string): { hours: number; mi
   const minutes = Math.round((Date.parse(resetIso) - Date.parse(nowIso)) / MS_PER_MINUTE);
   if (minutes <= 0) return null;
   return { hours: Math.floor(minutes / MINUTES_PER_HOUR), minutes: minutes % MINUTES_PER_HOUR };
+}
+
+const FULL_BAR = 100;
+
+/** A bar's width in percent of the full bar: never below 0, nothing for a null share or no biggest. */
+export function barWidth(percent: number | null, biggest: number): number {
+  return percent === null || biggest <= 0 ? 0 : Math.max(0, (percent / biggest) * FULL_BAR);
 }

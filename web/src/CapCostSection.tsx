@@ -6,6 +6,7 @@ import { defaultBase, kindsSentence, logLow, logTicks, logX, multipleOf, multipl
 import { HowSurePill } from "./HowSurePill";
 import { ClockIcon } from "./icons";
 import { seriesColor, TOKEN_KIND_LABELS, useUsageView } from "./usageView";
+import type { Translate } from "./strings";
 
 const NO_VALUE = "–";
 const GRID_TOP = 30;
@@ -308,11 +309,22 @@ function ReferenceNotes({ models }: { models: CapCostModelDto[] }) {
   );
 }
 
+/** One sentence per distinct set of fitted ratios; with more than one, each names the models it holds for. */
+function kindsSentences(models: CapCostModelDto[], locale: string, t: Translate): string[] {
+  const groups = ratioGroups(models, (kind, ratios) => String(ratios[kind]));
+  const sentences = groups.flatMap((group) => {
+    const model = models.find((m) => m.model === group.models[0]);
+    const text = model?.kind_ratios && model.kind_ratio_reference ? kindsSentence(model.kind_ratios, model.kind_ratio_reference, locale, t) : null;
+    if (text === null) return [];
+    return [groups.length > 1 ? `${group.models.join(t("andJoin"))}: ${text}` : text];
+  });
+  return sentences;
+}
+
 function KindsBlock({ data }: Props) {
   const { t, locale } = useUsageView();
   const models = data.cap_cost.models;
-  const first = models.find((m) => m.kind_ratios !== null && m.kind_ratio_reference !== null);
-  const sentence = first?.kind_ratios && first.kind_ratio_reference ? kindsSentence(first.kind_ratios, first.kind_ratio_reference, locale, t) : null;
+  const sentences = kindsSentences(models, locale, t);
   const ratio = (model: CapCostModelDto, kind: TokenKind): string => {
     const value = model.kind_ratios?.[kind] ?? null;
     return value === null ? NO_VALUE : ratioText(value, locale, false);
@@ -320,7 +332,11 @@ function KindsBlock({ data }: Props) {
   return (
     <div className="cost-block">
       <h3>{t("kindsTitle")}</h3>
-      {sentence && <p className="block-note">{sentence}</p>}
+      {sentences.map((sentence) => (
+        <p key={sentence} className="block-note">
+          {sentence}
+        </p>
+      ))}
       <div className="table-scroll">
         <table className="usage-table">
           <thead>
@@ -413,12 +429,13 @@ function PhoneKinds({ data }: Props) {
   const { t, locale } = useUsageView();
   const models = data.cap_cost.models;
   const groups = ratioGroups(models, (kind, ratios) => (ratios[kind] == null ? NO_VALUE : ratioText(ratios[kind] ?? 0, locale, true)));
-  if (groups.length === 0) return null;
   const unsplit = models.filter((m) => m.kind_ratios === null).map((m) => m.model);
   const notSplit = unsplit.length > 0 ? t("kindsNotSplit", { models: unsplit.join(t("andJoin")) }) : null;
+  if (groups.length === 0 && notSplit === null) return null;
   return (
     <section className="usage-card" aria-labelledby="kinds-title">
       <h2 id="kinds-title">{t("phoneKindsTitle")}</h2>
+      {groups.length === 0 && <p className="block-note">{`${notSplit}.`}</p>}
       {groups.map((group, i) => {
         const sentence = [t("kindsSameFor", { models: group.models.join(t("andJoin")) }), i === groups.length - 1 ? notSplit : null]
           .filter(Boolean)
@@ -448,14 +465,14 @@ interface RatioGroup {
   cells: Record<TokenKind, string>;
 }
 
-/** The per-kind models grouped by the ratios they show: only models with equal shown ratios share a grid. */
+/** The per-kind models grouped by their fitted ratios: only models with equal ratios (not just equal text) share a grid. */
 function ratioGroups(models: CapCostModelDto[], show: (kind: TokenKind, ratios: Record<TokenKind, number | null>) => string): RatioGroup[] {
   const groups = new Map<string, RatioGroup>();
   for (const model of models) {
     const ratios = model.kind_ratios;
     if (ratios === null) continue;
     const cells = Object.fromEntries(TOKEN_KINDS.map((kind) => [kind, show(kind, ratios)])) as Record<TokenKind, string>;
-    const signature = [model.kind_ratio_reference, ...TOKEN_KINDS.map((kind) => cells[kind])].join("|");
+    const signature = [model.kind_ratio_reference, ...TOKEN_KINDS.map((kind) => ratios[kind] ?? "none")].join("|");
     const group = groups.get(signature);
     if (group) group.models.push(model.model);
     else groups.set(signature, { signature, models: [model.model], cells });

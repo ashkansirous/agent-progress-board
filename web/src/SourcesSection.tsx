@@ -84,7 +84,7 @@ function DesktopSourcesTable({ data }: Props) {
               <td className="left soft">{isPlaced(env) ? NO_VALUE : env.label}</td>
               <td className="left">{isPlaced(env) ? null : <ReportsPill reported />}</td>
               <td>{env.tokens === null ? NO_VALUE : tokenText(env.tokens, locale)}</td>
-              <td className="strong-col">{env.cap_points === null ? NO_VALUE : costPercentText(env.cap_points)}</td>
+              <td className="strong-col">{env.cap_points === null ? NO_VALUE : costPercentText(env.cap_points, view.locale)}</td>
               <td className="left soft">{multiplierText(env, base, view, false)}</td>
             </tr>
           ))}
@@ -93,7 +93,7 @@ function DesktopSourcesTable({ data }: Props) {
             <tr>
               <th scope="row" className="left source-name strong">{t("notExplained")}</th>
               <td colSpan={3} className="left muted">{t("notExplainedBody")}</td>
-              <td className="strong-col strong">{costPercentText(unexplained.points)}</td>
+              <td className="strong-col strong">{costPercentText(unexplained.points, view.locale)}</td>
               <td className="left muted">{t("ofThisWindow", { pct: shareText(unexplained.share) })}</td>
             </tr>
           )}
@@ -150,7 +150,7 @@ function PhoneSources({ data }: Props) {
         {data.cap_cost.environments.map((env) => (
           <li key={env.value} className="source-row">
             <span className="source-main">{isPlaced(env) ? env.label : `${t("sourceClaudeCode")} · ${env.label}`}</span>
-            <span className="source-value">{env.cap_points === null ? NO_VALUE : costPercentText(env.cap_points)}</span>
+            <span className="source-value">{env.cap_points === null ? NO_VALUE : costPercentText(env.cap_points, view.locale)}</span>
             <span className="source-sub">
               {isPlaced(env) ? null : env.state === MultiplierState.Base
                 ? t("reportedBase")
@@ -162,7 +162,7 @@ function PhoneSources({ data }: Props) {
         {unexplained && (
           <li className="source-row">
             <span className="source-main">{t("notExplained")}</span>
-            <span className="source-value">{costPercentText(unexplained.points)}</span>
+            <span className="source-value">{costPercentText(unexplained.points, view.locale)}</span>
             <span className="source-sub source-wide">{`${t("phoneNoReports")}${biggestText}`}</span>
           </li>
         )}

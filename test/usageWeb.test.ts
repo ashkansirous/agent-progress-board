@@ -1,3 +1,4 @@
+import { barWidth } from "../web/src/usageFormat";
 import { describe, expect, it } from "vitest";
 import { BucketUnit, UsageRange } from "../src/domain/usage";
 import { capAxisTop, capTicks, labelEvery, roundedTopPath, stackSegments, xForReset, xForTime, yForValue } from "../web/src/chartGeometry";
@@ -17,6 +18,8 @@ describe("number and time text", () => {
     expect(costPercentText(4)).toBe("4.0%");
     expect(costPercentText(8.6)).toBe("8.6%");
     expect(costPercentText(0)).toBe("0.0%");
+    expect(costPercentText(8.6, "de-DE")).toBe("8,6%");
+    expect(barWidth(-3, 10)).toBe(0);
   });
 
   it("shows a whole percent without a decimal and others with one", () => {

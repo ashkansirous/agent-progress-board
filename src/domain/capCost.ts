@@ -523,6 +523,12 @@ export function unexplainedStretches(fit: CapCostFit, since: string, limit: numb
     }));
 }
 
+/** Unexplained growth of the stretches ending after `since` that `unexplainedStretches` leaves out (each under NO_POINTS, or past the limit): the listed points plus this are the total. */
+export function unexplainedRest(fit: CapCostFit, since: string, limit: number): number {
+  const listed = unexplainedStretches(fit, since, limit).reduce((sum, s) => sum + s.points, 0);
+  return Math.max(0, unexplainedTotals(fit, since).points - listed);
+}
+
 /** The unexplained growth of the stretches ending after `since`, as points and as a share of the growth. */
 export function unexplainedTotals(fit: CapCostFit, since: string): UnexplainedTotals {
   const inside = fit.stretches.map((stretch, i) => ({ stretch, left: Math.max(0, fit.residuals[i] ?? 0) })).filter(({ stretch }) => stretch.end > since);
@@ -552,10 +558,11 @@ interface TimedWindow {
   to: number;
 }
 
-/** The windows' parts inside the stretch (empty ones left out), in window order. */
+/** The windows' parts inside the stretch (empty ones left out), in window order; `windows` is sorted by start. */
 function overlapsOf(windows: TimedWindow[], from: number, to: number): Array<{ environment: string; from: number; to: number }> {
   const inside: Array<{ environment: string; from: number; to: number }> = [];
   for (const w of windows) {
+    if (w.from >= to) break;
     const start = Math.max(w.from, from);
     const end = Math.min(w.to, to);
     if (end > start) inside.push({ environment: w.environment, from: start, to: end });
@@ -586,7 +593,8 @@ function coveredMs(parts: Array<{ from: number; to: number }>): number {
 export function placeInWindows(fit: CapCostFit, allWindows: WorkWindow[], since: string): PlacedGrowth {
   const byEnvironment = new Map<string, number>();
   if (allWindows.length === 0) return { fit, byEnvironment };
-  const windows = boundedWindows(allWindows).map((w): TimedWindow => ({ environment: w.environment, from: Date.parse(w.start), to: Date.parse(w.end) }));
+  const windows = boundedWindows(allWindows).sort((a, b) => a.from - b.from);
+  if (windows.length === 0) return { fit, byEnvironment };
   const residuals = fit.stretches.map((stretch, i) => {
     const left = Math.max(0, fit.residuals[i] ?? 0);
     const start = Date.parse(stretch.start);
@@ -601,17 +609,20 @@ export function placeInWindows(fit: CapCostFit, allWindows: WorkWindow[], since:
   return { fit: { ...fit, residuals, leftoverShare: shareOfGrowth(fit.stretches, residuals) }, byEnvironment };
 }
 
-/** Overlapping windows of one environment merged once, then the newest MAX_PLACE_WINDOWS kept. */
-function boundedWindows(windows: WorkWindow[]): WorkWindow[] {
-  const sorted = [...windows].sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
-  const open = new Map<string, WorkWindow>();
-  const merged: WorkWindow[] = [];
+/** Overlapping windows of one environment merged once (times compared as parsed numbers), then the newest MAX_PLACE_WINDOWS kept. Empty and unreadable windows are dropped. */
+function boundedWindows(windows: WorkWindow[]): TimedWindow[] {
+  const timed = windows
+    .map((w): TimedWindow => ({ environment: w.environment, from: Date.parse(w.start), to: Date.parse(w.end) }))
+    .filter((w) => Number.isFinite(w.from) && Number.isFinite(w.to) && w.to > w.from)
+    .sort((a, b) => a.from - b.from);
+  const open = new Map<string, TimedWindow>();
+  const merged: TimedWindow[] = [];
   const names = new Map<string, string>();
-  for (const w of sorted) {
+  for (const w of timed) {
     const identity = environmentIdentity(w.environment);
     const last = open.get(identity);
-    if (last && w.start <= last.end) {
-      if (w.end > last.end) last.end = w.end;
+    if (last && w.from <= last.to) {
+      if (w.to > last.to) last.to = w.to;
       continue;
     }
     if (!names.has(identity)) names.set(identity, w.environment);
@@ -619,5 +630,5 @@ function boundedWindows(windows: WorkWindow[]): WorkWindow[] {
     open.set(identity, copy);
     merged.push(copy);
   }
-  return merged.sort((a, b) => (a.end < b.end ? -1 : a.end > b.end ? 1 : 0)).slice(-MAX_PLACE_WINDOWS);
+  return merged.sort((a, b) => a.to - b.to).slice(-MAX_PLACE_WINDOWS);
 }

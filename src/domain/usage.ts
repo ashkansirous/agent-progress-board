@@ -189,9 +189,10 @@ export function splitByBucket(
   split: Split,
 ): SeriesValues[] {
   const series = new Map<string | null, number[]>();
+  const positions = new Map(buckets.map((key, index) => [key, index]));
   for (const delta of deltas) {
-    const index = buckets.indexOf(bucketOf(delta));
-    if (index < 0) continue;
+    const index = positions.get(bucketOf(delta));
+    if (index === undefined) continue;
     for (const [name, tokens] of tokensBySplit(delta, split)) {
       const values = series.get(name) ?? buckets.map(() => 0);
       values[index] = (values[index] ?? 0) + tokens;

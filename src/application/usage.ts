@@ -72,6 +72,7 @@ import { SeriesKind, type SeriesName, type SessionWindow, type UsageRepository }
 const RANGE_DAYS: Record<UsageRange, number> = { [UsageRange.Day]: 1, [UsageRange.Window]: 7, [UsageRange.Month]: 30 };
 /** The cap readings are read this far back at least, so a window's state is known (and never fewer than keepDays). */
 const MIN_READING_DAYS = 30;
+const MAX_RANGE_DAYS = Math.max(...Object.values(RANGE_DAYS));
 const MAX_UTC_OFFSET_MINUTES = 14 * 60;
 /** Placed growth below this many points is not listed as an environment's cost. */
 const NO_PLACED_POINTS = 0.05;
@@ -192,15 +193,19 @@ export async function readUsage(
 ): Promise<UsageResponse> {
   const now = clock.now();
   const cap = await loadCap(repo, query, config, now);
-  const from = rangeStart(query.range, now, cap);
+  const from = clampedStart(rangeStart(query.range, now, cap), now);
   const history = usageDeltas(await repo.usageSamplesFrom(historyStart(from, now, config)));
   // One base for the page and the fit: the busiest environment of the whole history, never of the range.
   const base = config.baseEnvironment ?? busiestEnvironment(history);
   const knownHistory = withBaseEnvironment(history, base);
   const known = rangeDeltas(knownHistory, cap, from, now.toISOString());
   const shown = query.environment === null ? known : known.filter(({ sample }) => sample.environment === query.environment);
-  const [order, sessionWindows] = await Promise.all([repo.seriesNames(), repo.sessionWindowsFrom(historyStart(from, now, config), MAX_PLACE_WINDOWS)]);
-  const costing = placeChatGrowth(fitFor(cap, knownHistory, config, base), knownHistory, order, windowsInFilter(sessionWindows, query.environment), from);
+  const fitted = fitFor(cap, knownHistory, config, base);
+  const [order, sessionWindows] = await Promise.all([
+    repo.seriesNames(),
+    fitted.fit === null ? Promise.resolve([]) : repo.sessionWindowsFrom(historyStart(from, now, config), MAX_PLACE_WINDOWS),
+  ]);
+  const costing = placeChatGrowth(fitted, knownHistory, order, windowsInFilter(sessionWindows, query.environment), from);
   const tasks = await taskCosts(repo, shown, config.topTasks, costing);
   const unit = query.range === UsageRange.Day ? BucketUnit.Hour : BucketUnit.Day;
   const buckets = bucketKeys(from, now.toISOString(), query.utcOffsetMinutes, unit);
@@ -256,6 +261,12 @@ function rangeStart(range: UsageRange, now: Date, cap: CapState): string {
     if (current) return current.startedAt;
   }
   return daysBefore(now, RANGE_DAYS[range]);
+}
+
+/** The range never starts earlier than the longest range, so a stray reading time cannot make the bucket list huge. */
+function clampedStart(from: string, now: Date): string {
+  const earliest = daysBefore(now, MAX_RANGE_DAYS);
+  return from < earliest ? earliest : from;
 }
 
 /** Deltas of the range, only those that fall in the chosen plan's time (no readings: every plan). */

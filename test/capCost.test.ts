@@ -15,6 +15,7 @@ import {
   placeInWindows,
   type Stretch,
   tokensPerPercent,
+  unexplainedRest,
   unexplainedStretches,
   unexplainedTotals,
 } from "../src/domain/capCost";
@@ -498,6 +499,41 @@ describe("growth placed inside reported chat windows (Slice 16)", () => {
   it("recomputes the unexplained share from the residuals left after placing", () => {
     const placed = placeInWindows(fitWith(6), [window(CHAT, 0, 30)], T(-1));
     expect(placed.fit.leftoverShare).toBeCloseTo(0.5, 9);
+  });
+});
+
+describe("placement edge cases (Slice 35)", () => {
+  const fitOf = (left: number): CapCostFit => {
+    const stretches: Stretch[] = [{ plan: "plan-a", start: T(0), end: T(60), growth: left, uses: [] }];
+    return { models: [], environments: [], stretches, residuals: [left], leftoverShare: 1 };
+  };
+  const win = (environment: string, start: string, end: string) => ({ environment, start, end });
+
+  it("compares window times as times, not as text", () => {
+    const offsetForm = new Date(T(0)).toISOString().replace("Z", "+00:00");
+    const placed = placeInWindows(fitOf(6), [win("Claude chat", offsetForm, T(30))], T(-1));
+    expect(placed.byEnvironment.get("Claude chat")).toBeCloseTo(3, 6);
+  });
+
+  it("ignores zero-length and unreadable windows", () => {
+    const placed = placeInWindows(fitOf(6), [win("Claude chat", T(10), T(10)), win("Claude Design", "not a time", T(30))], T(-1));
+    expect(placed.byEnvironment.size).toBe(0);
+    expect(placed.fit.residuals).toEqual([6]);
+  });
+
+  it("splits a stretch between three overlapping windows pro rata and keeps the sums whole", () => {
+    const placed = placeInWindows(fitOf(6), [win("A", T(0), T(30)), win("B", T(0), T(30)), win("C", T(0), T(30))], T(-1));
+    for (const name of ["A", "B", "C"]) expect(placed.byEnvironment.get(name)).toBeCloseTo(1, 6);
+    expect((placed.fit.residuals[0] ?? 0) + [...placed.byEnvironment.values()].reduce((a, b) => a + b, 0)).toBeCloseTo(6, 6);
+  });
+
+  it("counts growth under the listing threshold in the rest, so listed points plus the rest are the total", () => {
+    const stretches: Stretch[] = [0, 1, 2].map((i) => ({ plan: "plan-a", start: T(i * 60), end: T(i * 60 + 60), growth: 1, uses: [] }));
+    const fit: CapCostFit = { models: [], environments: [], stretches, residuals: [0.04, 0.03, 2], leftoverShare: 1 };
+    const listed = unexplainedStretches(fit, T(-1), 5).reduce((sum, s) => sum + s.points, 0);
+    expect(unexplainedStretches(fit, T(-1), 5)).toHaveLength(1);
+    expect(listed + unexplainedRest(fit, T(-1), 5)).toBeCloseTo(unexplainedTotals(fit, T(-1)).points, 9);
+    expect(unexplainedRest(fit, T(-1), 5)).toBeCloseTo(0.07, 9);
   });
 });
 

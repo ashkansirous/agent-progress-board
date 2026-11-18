@@ -18,6 +18,7 @@ function capShare(points: number | null, biggest: number): number {
 }
 
 function CapCell({ points, biggest }: { points: number | null; biggest: number }) {
+  const { locale } = useUsageView();
   return (
     <td className="cap-cell">
       <span className="cap-cell-inner">
@@ -26,7 +27,7 @@ function CapCell({ points, biggest }: { points: number | null; biggest: number }
             <span style={{ width: `${capShare(points, biggest)}%` }} />
           </span>
         )}
-        <span className={points === null ? "cap-cell-value muted" : "cap-cell-value"}>{points === null ? NO_VALUE : costPercentText(points)}</span>
+        <span className={points === null ? "cap-cell-value muted" : "cap-cell-value"}>{points === null ? NO_VALUE : costPercentText(points, locale)}</span>
       </span>
     </td>
   );
@@ -76,6 +77,7 @@ function barShare(task: TaskCostDto, biggest: number): number {
 
 /** The phone's rows: the short title, the percent of the cap (a muted dash while it is not known) and a bar sized against the biggest. */
 function TaskRows({ data }: { data: UsageResponse }) {
+  const { locale } = useUsageView();
   const rows = data.top_tasks.slice(FIRST, PHONE_ROWS);
   const biggest = Math.max(...rows.map((task) => task.cap_points ?? 0));
   return (
@@ -85,7 +87,7 @@ function TaskRows({ data }: { data: UsageResponse }) {
           <span className="task-row-top">
             <span className="task-title">{shortTaskTitle(task.title)}</span>
             <span className={task.cap_points === null ? "task-value muted" : "task-value"}>
-              {task.cap_points === null ? NO_VALUE : costPercentText(task.cap_points)}
+              {task.cap_points === null ? NO_VALUE : costPercentText(task.cap_points, locale)}
             </span>
           </span>
           <span className="task-bar" aria-hidden="true">

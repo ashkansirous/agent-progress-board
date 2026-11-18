@@ -36,34 +36,34 @@ The ones that can give a wrong result:
 Usage domain (Slice 8):
 - [ ] #1: the whole range uses one fixed `offsetMinutes` (`src/domain/usage.ts:161-176`;
   `src/application/usage.ts:206`). Work the offset out per bucket.
-- [ ] #4: `record_at` has no bound, and `bucketKeys` loops once per hour (`usage.ts:171`; `from = rangeStart`,
+- [x] #4: `record_at` has no bound, and `bucketKeys` loops once per hour (`usage.ts:171`; `from = rangeStart`,
   `src/application/usage.ts:202`). Clamp the range in the application layer.
-- [ ] #5: `splitByBucket` uses `indexOf`, which is O(d × b) (`usage.ts:193`).
+- [x] #5: `splitByBucket` uses `indexOf`, which is O(d × b) (`usage.ts:193`).
 
 Cap cost (Slice 16, Slice 26):
-- [ ] Growth under 0.05 is dropped but not added to the residual (`src/domain/capCost.ts:23-25,586-601`).
-- [ ] Window times are compared as strings against parsed times (`:605-621` vs `:589`).
-- [ ] The window query runs even when the fit is null (`src/application/usage.ts:202`), placement is O(stretches ×
+- [x] Growth under 0.05 is dropped but not added to the residual (`src/domain/capCost.ts:23-25,586-601`).
+- [x] Window times are compared as strings against parsed times (`:605-621` vs `:589`).
+- [x] The window query runs even when the fit is null (`src/application/usage.ts:202`), placement is O(stretches ×
   windows) (`capCost.ts:592`), `isPlaced` is inferred, zero-length windows are possible, and 3+ overlaps are
   untested. Skip the query when the fit is null, and test the rest.
 - [ ] Slice 26 chk #1 (probably gone): `mixOf` (`src/application/usage.ts:504-510`) now falls back per model. Add the
   test that shows one model without last-week use no longer blanks the others, then close the item.
 
 Page (Slices 9, 28, 2):
-- [ ] Slice 9 c2 #2: when no model has ratios, the phone kinds card has no "not split" note, because
+- [x] Slice 9 c2 #2: when no model has ratios, the phone kinds card has no "not split" note, because
   `web/src/CapCostSection.tsx:413-415` returns null before the note.
-- [ ] Slice 9 c3 #5, #6: `KindsBlock` writes one sentence for all models (`:315`), and `ratioGroups` is keyed on
+- [x] Slice 9 c3 #5, #6: `KindsBlock` writes one sentence for all models (`:315`), and `ratioGroups` is keyed on
   formatted strings (`:452-464`).
 - [ ] Slice 9 c3 #1, #2, #7: `kindsSentence`'s second amount lacks the "times as much" phrasing
   (`web/src/capCostFormat.ts:107-115`), the EN and DE wording of `kindsMultipleOf` (`web/src/strings.ts:165,535`),
   and the rounding in `ratioAmount` (`capCostFormat.ts:68-79`).
-- [ ] Slice 9 c3 #3: `costPercentText` uses "." in German (`web/src/usageFormat.ts:72-74`). Format by locale.
-- [ ] Slice 9 c3 #4: the cap-points bar width can go negative (`web/src/AgentKindCost.tsx:18-20`). Clamp it at 0.
+- [x] Slice 9 c3 #3: `costPercentText` uses "." in German (`web/src/usageFormat.ts:72-74`). Format by locale.
+- [x] Slice 9 c3 #4: the cap-points bar width can go negative (`web/src/AgentKindCost.tsx:18-20`). Clamp it at 0.
 - [ ] Slice 9 #5 + Slice 2 pr-35 c2 #1: `palettesWithDefaults` bakes the example palettes into the stored config
   (`src/config.ts:332-337`), and the fallback palette is the static example file (`web/src/theme.ts:38-44`).
-- [ ] Slice 28 #1: the hint shows when any series has no name (`web/src/TokenChart.tsx:278`). Show it only while no
+- [x] Slice 28 #1: the hint shows when any series has no name (`web/src/TokenChart.tsx:278`). Show it only while no
   environment is named, as Slice 28's rule says.
-- [ ] Slice 28 #3: the `||` in `web/src/usageView.tsx:43-45`.
+- [x] Slice 28 #3: the `||` in `web/src/usageView.tsx:43-45`.
 
 #### Verification
 

@@ -121,6 +121,13 @@ describe("buckets and splits", () => {
     ]);
   });
 
+  it("puts a day with a far-off time in a bucket once, and sums a large series at once", () => {
+    const keys = bucketKeys("2026-11-14T10:00:00.000Z", "2026-11-16T01:00:00.000Z", 0, BucketUnit.Day);
+    const deltas = usageDeltas([sample(0, totals(0, 0, 0, 0)), sample(10, totals(5, 0, 0, 0))]);
+    const [series] = splitByBucket(deltas, keys, () => keys[1] as string, Split.Model);
+    expect(series?.values).toEqual([0, 5, 0]);
+  });
+
   it("splits tokens by model and by token kind into aligned series", () => {
     const deltas = usageDeltas([
       sample(0, totals(1, 2, 3, 4)),

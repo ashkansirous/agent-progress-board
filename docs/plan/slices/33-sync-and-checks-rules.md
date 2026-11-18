@@ -58,6 +58,10 @@ These are the domain-rule mediums of Slice 14 (*Follow-ups*) and the open follow
   (`docSync.ts:~203-206`). Keep the live values when a field is absent.
 - [ ] Slice 4 med #6: `docFieldsDiffer` doesn't compare `done_at`. Slice 4 med #9: the snapshot fields are declared a
   second time in `src/mcp/schemas.ts:172`; build them from one shape.
+- [ ] Slice 27 chk #6, carried from Slice 31 (Slice 31 could not build it):
+  the rest of a clipped title goes to `details_md`, so it reaches the card. Add `details_md` to `snapshotItem` in
+  `src/mcp/schemas.ts` and set it in `newRow` in `src/domain/docSync.ts`
+  ([Slice 31](31-sync-and-waiting-text.md), *Follow-ups*).
 - [ ] No change: Slice 14 pass-2 #6 (the loose-checks list has no slice number; by design).
 
 #### Verification

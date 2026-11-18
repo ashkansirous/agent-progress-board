@@ -4,7 +4,7 @@
 2026-11-18; items re-checked against `origin/main` (d654e9b).* Wave 1, first, because every later wave's full e2e run
 pays for these flakes.
 
-*Built (wave 2026-11-18), PR #132; code written by a cloud session.*
+*Built (wave 2026-11-18); merged as PR #132 (8acd793); code written by a cloud session.*
 
 The code was first written by cloud run `cse_012UYzYTd3ysZ523gVcrF6zW` (commit a55276a); the cloud session reached
 Chromium through `PLAYWRIGHT_BROWSERS_PATH` because the download was blocked.
@@ -99,7 +99,7 @@ Each of these tests waits on wall-clock windows: a route held for 1500 ms, `wait
   (`delayTimerCount`, `timersBefore` in `e2e/loadingClock.ts`), not a total above 0; the mix-note readiness wait counts
   the figure rows in every table that can hold a note.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-18)
 
 - The e2e output folder is per port (`test-results/<port>` in `playwright.config.ts`), so two suites can run at once,
   even in one worktree. Loading-delay tests use the shared clock helper `e2e/loadingClock.ts` (clock installed before

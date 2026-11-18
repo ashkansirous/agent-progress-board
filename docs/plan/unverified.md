@@ -3,6 +3,11 @@
 Every open "Not yet verified" check, one block per slice. A check that passes, or that the
 owner confirms, is removed here and its slice marked `verified`.
 
+### Slice 31: Plan sync and waiting cards read the documents and transcripts right ([slice](slices/31-sync-and-waiting-text.md))
+
+- A real Notification hook run on the owner's machine opens a waiting card with masked text.
+- A real plan sync from a repo with parked slices.
+
 ### Slice 30: The plugin's usage and cap scripts: review leftovers ([slice](slices/30-usage-script-fixes.md))
 
 - A real session on the owner's machine sends cap readings after a plan switch with the address unusable.

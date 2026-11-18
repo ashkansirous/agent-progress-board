@@ -3,6 +3,7 @@ import exampleConfig from "../config/board.example.json" with { type: "json" };
 import { PLANNING_SEED_ITEMS, SESSION_SEED_ITEMS } from "../scripts/seed-data";
 import { boardOfSeeds, SERVER_TIME } from "./fixture";
 import { project } from "./projectBlock";
+import { partsBoard, SLICE_FIVE, SLICE_STALE } from "./partsFixture";
 import { planningBoard } from "./sessionFixture";
 
 const BOARD_ROUTE = "**/api/board";
@@ -49,7 +50,10 @@ test.describe("checks are counts, never cards", () => {
     ]);
     await expect(project.locator(".loose-line")).toHaveText(`${LOOSE_COUNT} checks with no open slice`);
     await expect(project.locator(".loose-note")).toHaveText("Not tried on a device; their slices are not on the board");
-    expect(3 + 5 + LOOSE_COUNT).toBe(30);
+    // The three counts on the page add up to the number in the summary line (read from the page, not retyped).
+    const onCards = [...perSlice, await project.locator(".loose-line").innerText()].map((text) => Number(/^\d+/.exec(text)?.[0] ?? 0));
+    const inSummary = Number(/(\d+) checks not tried/.exec(await project.locator(".project-summary").innerText())?.[1]);
+    expect(onCards.reduce((sum, n) => sum + n, 0)).toBe(inSummary);
   });
 
   test("no check line is a card or a tile anywhere on the board", async ({ page }) => {
@@ -98,6 +102,8 @@ test.describe("planned slice cards", () => {
     expect(await css(loose, "border-top-style")).toBe("dashed");
     expect(await css(loose, "background-color")).toBe("rgba(0, 0, 0, 0)");
     await loose.click();
+    // The drawer has its own address, so an item whose key looks like a loose-checks key is still an item (Slice 36).
+    await expect(page).toHaveURL(/#\/loose\/example-app$/);
     const dialog = page.getByRole("dialog");
     await expect(dialog.getByRole("heading", { level: 2 })).toHaveText(`${LOOSE_COUNT} checks with no open slice`);
     await expect(dialog.getByRole("heading", { level: 3 })).toHaveText(`Checks not tried on a device · ${LOOSE_COUNT}`);
@@ -187,6 +193,38 @@ function boardWithBuilt() {
   const checks = [1, 2].map((n) => ({ ...checkTemplate, key: `${BUILT_KEY}/check-${n}`, title: `Built check ${n}`, parentKey: BUILT_KEY }));
   return boardOfSeeds([...SESSION_SEED_ITEMS, ...PLANNING_SEED_ITEMS, built, ...checks]);
 }
+
+test.describe("the parts checklist (Slice 36)", () => {
+  async function openSlice(page: Page, key: string) {
+    await page.clock.setFixedTime(new Date(SERVER_TIME));
+    await page.route(BOARD_ROUTE, (route) => route.fulfill({ json: partsBoard() }));
+    await page.goto(`/#/open/${encodeURIComponent(key)}`);
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    return dialog;
+  }
+
+  test("a stale part is dashed and muted, never in the working part's style", async ({ page }) => {
+    const dialog = await openSlice(page, SLICE_STALE);
+    const stale = dialog.locator(".check-row-stale");
+    await expect(stale).toHaveCount(1);
+    await expect(dialog.locator(".check-row-active")).toHaveCount(0);
+    expect(await css(stale.locator(".check-box"), "border-top-style")).toBe("dashed");
+    expect(await css(stale.locator(".check-state"), "color")).toBe(rgbOf(palette().muted));
+    expect(await css(stale.locator(".check-label"), "color")).toBe(rgbOf(palette().muted));
+    await expect(dialog.locator(".check-row[aria-current='step']")).toHaveCount(0);
+  });
+
+  test("the working part is the current step, its rows read letter and title, and the list is named by its heading", async ({ page }) => {
+    const dialog = await openSlice(page, SLICE_FIVE);
+    await expect(dialog.locator(".check-row-active")).toHaveAttribute("aria-current", "step");
+    await expect(dialog.locator(".check-row[aria-current='step'] .check-label")).toHaveText("B · Search box");
+    const list = dialog.locator("ul.check-rows").first();
+    const labelledBy = await list.getAttribute("aria-labelledby");
+    await expect(dialog.locator(`[id="${labelledBy}"]`)).toHaveText(/^Parts/);
+    await expect(list).not.toHaveAttribute("aria-label", /.+/);
+  });
+});
 
 test.describe("a built slice with checks not tried (Slice 42)", () => {
   test("is listed under Built with the Built pill and its check count, and is not counted as planned", async ({ page }) => {

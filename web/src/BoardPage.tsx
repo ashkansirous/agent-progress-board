@@ -10,7 +10,8 @@ import { LooseChecksDrawer } from "./LooseChecksDrawer";
 import { itemsByKey, needsYouItems } from "./model";
 import { PhoneNeeds } from "./PhoneNeeds";
 import { ProjectGroup } from "./ProjectGroup";
-import { looseProjectOf, Route } from "./route";
+import { pruneIdsOf, pruneStoredFolds } from "./projectFold";
+import { Route } from "./route";
 import { SessionDrawer } from "./SessionDrawer";
 import { EmptyCard, ErrorCard, LoadingCard } from "./StatePanels";
 import type { Translate } from "./strings";
@@ -38,36 +39,48 @@ function sliceItems(items: BoardItemDto[]): Map<string, BoardItemDto> {
 }
 
 /** The groups come from the Worker: the page draws them as given and never sorts items into lists itself. */
-function Groups({ data, phone, onOpen }: { data: BoardResponse; phone: boolean; onOpen: (key: string) => void }) {
+function Groups({ data, phone, openers }: { data: BoardResponse; phone: boolean; openers: Openers }) {
   const items = itemsByKey(data.items);
+  const { onOpen, onOpenLoose } = openers;
   return (
     <>
       {phone && <PhoneNeeds items={needsYouItems(data.groups, items)} onOpen={onOpen} />}
       {data.groups.map((group) => (
-        <ProjectGroup key={group.id} group={group} items={items} onOpen={onOpen} />
+        <ProjectGroup key={group.id} group={group} items={items} onOpen={onOpen} onOpenLoose={onOpenLoose} />
       ))}
     </>
   );
 }
 
+interface Openers {
+  onOpen: (key: string) => void;
+  onOpenLoose: (projectId: string) => void;
+}
+
 /** What the address asks to open: an item, a project's loose checks, or nothing on the board. */
 type OpenTarget = { loose: ProjectGroups; item?: undefined } | { item: BoardItemDto; loose?: undefined };
 
-function openTarget(data: BoardResponse | null, key: string | null): OpenTarget | null {
-  if (!data || key === null) return null;
-  const projectId = looseProjectOf(key);
-  if (projectId !== null) {
-    const group = data.groups.find((g) => g.id === projectId);
+/** The address as the page reads it: an item key, a project's loose checks, or neither. */
+export interface OpenAddress {
+  openKey: string | null;
+  looseProject: string | null;
+}
+
+function openTarget(data: BoardResponse | null, address: OpenAddress): OpenTarget | null {
+  if (!data) return null;
+  if (address.looseProject !== null) {
+    const group = data.groups.find((g) => g.id === address.looseProject);
     return group && group.loose_checks.length > 0 ? { loose: group } : null;
   }
-  const item = data.items.find((candidate) => candidate.key === key);
+  if (address.openKey === null) return null;
+  const item = data.items.find((candidate) => candidate.key === address.openKey);
   return item ? { item } : null;
 }
 
-function Body({ props, onOpen }: { props: PageProps; onOpen: (key: string) => void }) {
+function Body({ props, openers }: { props: PageProps; openers: Openers }) {
   const { state, onRefresh } = props;
   if (state.data) {
-    return state.data.groups.length === 0 ? <EmptyCard /> : <Groups data={state.data} phone={props.env.phone} onOpen={onOpen} />;
+    return state.data.groups.length === 0 ? <EmptyCard /> : <Groups data={state.data} phone={props.env.phone} openers={openers} />;
   }
   if (state.slow) return <LoadingCard />;
   if (state.error) return <ErrorCard status={state.error.status} onRetry={onRefresh} />;
@@ -103,17 +116,26 @@ export function useViewValue(props: Pick<PageProps, "state" | "env">): View {
 /** The whole board: header, strip, project groups or a state card, and the open item's detail. */
 export function BoardPage(props: PageProps) {
   const { state, env, onRefresh } = props;
-  const { openKey, open: onOpen, close } = useOpenItem();
+  const { openKey, looseProject, open: onOpen, openLoose: onOpenLoose, close } = useOpenItem();
   const view = useViewValue(props);
-  const open = openTarget(state.data, openKey);
-  // The detail shows when the address names a key and that item is in the data. The address is
-  // cleared when a successful load lacks the item, and when a refresh fails after data was shown
-  // (the board drops its data). A first load that fails or is running leaves it.
-  const loaded = state.data !== null && state.error === null;
-  const gone = state.dataDropped || (loaded && !open);
+  const open = openTarget(state.data, { openKey, looseProject });
+  // The detail shows when the address names a key and that item is in the data. The address is cleared only
+  // when a successful load lacks the item. A failed load (first or refresh) keeps it: the board shows its
+  // error card meanwhile, and Retry opens the item again.
+  // Only a settled load counts: cached data during a reload may be older than the item the owner just opened.
+  const loaded = state.data !== null && state.error === null && !state.loading;
+  const named = openKey !== null || looseProject !== null;
+  const gone = loaded && !open;
   useEffect(() => {
-    if (openKey !== null && gone) close();
-  }, [gone, openKey, close]);
+    if (named && gone) close();
+  }, [gone, named, close]);
+  const groupIds = state.data?.groups.map((g) => g.id).join("\n");
+  useEffect(() => {
+    // Only a loaded board with projects prunes: an empty or failed board (no data) keeps every stored choice.
+    const ids = pruneIdsOf(groupIds);
+    if (ids) pruneStoredFolds(ids);
+  }, [groupIds]);
+  const openers: Openers = { onOpen, onOpenLoose };
   return (
     <ViewProvider value={view}>
       <div className={env.phone ? "app phone" : "app"} style={paletteVars(state.config, env.scheme)}>
@@ -126,7 +148,7 @@ export function BoardPage(props: PageProps) {
             busy={state.loading && state.slow}
             onRefresh={onRefresh}
           />
-          <Body props={props} onOpen={onOpen} />
+          <Body props={props} openers={openers} />
         </div>
         {open && <OpenDrawer target={open} onClose={close} />}
       </div>

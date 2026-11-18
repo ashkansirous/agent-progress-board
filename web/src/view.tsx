@@ -4,7 +4,7 @@ import type { ProjectConfig } from "../../src/config";
 import { ItemStatus } from "../../src/domain/item";
 import type { StringKey, Translate } from "./strings";
 import type { Looks } from "./theme";
-import { ageText, hoursSince } from "./time";
+import { ageText, hoursSince, isTime } from "./time";
 
 /** What every component needs to draw an item: words, colours, layout and "now". */
 export interface View {
@@ -43,7 +43,7 @@ export function statusName(status: ItemStatus, t: Translate): string {
 export function statusLabel(item: BoardItemDto, view: Pick<View, "t" | "nowMs">): string {
   const { t, nowMs } = view;
   if (item.status === ItemStatus.Done && item.done_at) return t("doneAge", { age: ageText(item.done_at, nowMs, t) });
-  if (item.status === ItemStatus.Stale) {
+  if (item.status === ItemStatus.Stale && isTime(item.heartbeat_at)) {
     return t("staleNote", { note: t("noHeartbeat", { n: hoursSince(item.heartbeat_at, nowMs) }) });
   }
   return statusName(item.status, t);

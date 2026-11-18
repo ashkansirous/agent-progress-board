@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import type { BoardEventDto, BoardItemDto } from "../../src/api/boardDto";
-import { isSessionItem } from "./cards";
-import { SliceChecks, SliceOfCard } from "./ChecksView";
+import { eventKeys, isSessionItem } from "./cards";
+import { PartChecklist, SliceChecks, SliceOfCard } from "./ChecksView";
 import { CloseIcon } from "./icons";
 import { Markdown } from "./Markdown";
 import { projectLabel } from "./model";
 import { parentText } from "./partsText";
-import { PartsSection } from "./PartsView";
+import { FollowButton } from "./PartsView";
 import { ItemStatus } from "../../src/domain/item";
 import { PriorityBadge } from "./PriorityBadge";
 import { isSafeHttpUrl } from "./safeUrl";
@@ -103,20 +103,22 @@ function History({ item }: { item: BoardItemDto }) {
   const { t } = useView();
   const events = item.events;
   if (events.length === 0) return null;
+  const keys = eventKeys(events);
   return (
     <div className="history">
       <h3>{t("history")}</h3>
       <ol>
         {events.map((event, index) => (
-          // The server's order is kept (newest first); rows never reorder, so the index is a stable key.
-          <HistoryRow key={index} event={event} />
+          // The server's order is kept (newest first) and the page never sorts; a row's key is its own content.
+          <HistoryRow key={keys[index]} event={event} />
         ))}
       </ol>
     </div>
   );
 }
 
-function DetailsBody({ item }: { item: BoardItemDto }) {
+/** The item's own notes as Markdown; the card drawer uses it for a question that is not a session's. */
+export function DetailsBody({ item }: { item: BoardItemDto }) {
   const { t, phone } = useView();
   if (!item.details_md) return null;
   return (
@@ -171,10 +173,20 @@ export function useDialogFocus(onClose: () => void) {
   return closeRef;
 }
 
-/** Back to the tile that opened the dialog; if that tile is gone (the item left the board), to the page's first button. */
+/**
+ * Back to the tile that opened the dialog. When that tile is gone (the item left the board, or the drawer was opened
+ * from another page or an address), to the page's title: a stable place, not whichever button comes first.
+ */
 function focusAfterClose(opener: Element | null) {
-  if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
-  else document.querySelector<HTMLElement>(".page button")?.focus();
+  if (opener instanceof HTMLElement && opener.isConnected && opener !== document.body) {
+    opener.focus();
+    return;
+  }
+  const title = document.querySelector<HTMLElement>(".page h1");
+  if (!title) return;
+  title.tabIndex = -1;
+  title.addEventListener("blur", () => title.removeAttribute("tabindex"), { once: true });
+  title.focus();
 }
 
 /** The detail view: a side panel over the board on desktop, a bottom sheet on the phone. */
@@ -192,7 +204,9 @@ export function Detail({ item, onClose }: DetailProps) {
           {item.why && <span className="detail-why">{item.why}</span>}
         </div>
         <Fields item={item} />
-        <PartsSection item={item} />
+        {/* The same checklist the working card uses, then the button that follows the active part. */}
+        <PartChecklist item={item} own />
+        <FollowButton item={item} />
         <SliceChecks item={item} own />
         {(item.working || isSessionItem(item)) && <SliceOfCard item={item} />}
         <StepsSection item={item} />

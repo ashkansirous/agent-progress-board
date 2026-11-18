@@ -287,6 +287,23 @@ test.describe("detail", () => {
 test.describe("open item leaves the board", () => {
   const OPEN_TITLE = "Slice 4 · Tag search";
 
+  test("the detail's history keeps the server's order, newest first, and the page never sorts it (Slice 36)", async ({ page }) => {
+    const base = demoBoard();
+    const events = ["Third report", "Second report", "First report"].map((note, index) => ({
+      at: `2026-11-15T1${3 - index}:00:00.000Z`,
+      status: ItemStatus.InProgress,
+      note,
+    }));
+    const board = demoBoard(base.items.map((item) => (item.key === "recipe-box/slice-4" ? { ...item, events } : item)));
+    await serveBoard(page, board);
+    await page.goto(`/#/open/${encodeURIComponent("recipe-box/slice-4")}`);
+    const rows = page.getByRole("dialog", { name: "Item details" }).locator(".history li");
+    await expect(rows).toHaveCount(3);
+    await expect(rows.nth(0)).toContainText("Third report");
+    await expect(rows.nth(1)).toContainText("Second report");
+    await expect(rows.nth(2)).toContainText("First report");
+  });
+
   test("a refresh that drops the item closes the detail for good and returns focus", async ({ page }) => {
     const full = demoBoard();
     const without = demoBoard(full.items.filter((item) => item.key !== "recipe-box/slice-4"));
@@ -301,14 +318,41 @@ test.describe("open item leaves the board", () => {
     await expect(dialog).toHaveCount(0);
     await expect(tileTitled(page, OPEN_TITLE)).toHaveCount(0);
     await expect(page.locator(".page")).not.toHaveAttribute("inert");
-    await expect(page.getByRole("button", { name: "Refresh now" })).toBeFocused();
+    // The opener is gone, so focus goes to the page title, not to whichever button comes first (Slice 36).
+    await expect(page.getByRole("heading", { level: 1 })).toBeFocused();
     current = full;
     await page.getByRole("button", { name: "Refresh now" }).click();
     await expect(tileTitled(page, OPEN_TITLE)).toBeVisible();
     await expect(dialog).toHaveCount(0);
   });
 
-  test("a failed refresh clears the board and closes the detail", async ({ page }) => {
+  test("an item the cached board lacks stays open while a reload runs, and shows once the reload has it", async ({ page }) => {
+    const full = demoBoard();
+    const without = demoBoard(full.items.filter((item) => item.key !== "recipe-box/slice-4"));
+    let release: () => void = () => {};
+    let held: Promise<void> | null = null;
+    let current = without;
+    await page.route(BOARD_ROUTE, async (route) => {
+      if (held) await held;
+      await route.fulfill({ json: current });
+    });
+    await page.goto("/");
+    await expect(tileTitled(page, OPEN_TITLE)).toHaveCount(0);
+    held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    current = full;
+    await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+    await page.evaluate(() => {
+      window.location.hash = `#/open/${encodeURIComponent("recipe-box/slice-4")}`;
+    });
+    await page.waitForTimeout(300);
+    expect(page.url()).toContain("#/open/");
+    release();
+    await expect(page.getByRole("dialog", { name: "Item details" })).toBeVisible();
+  });
+
+  test("a failed refresh clears the board and hides the detail, and Retry shows it again", async ({ page }) => {
     let failing = false;
     await page.route(BOARD_ROUTE, (route) =>
       failing ? route.fulfill({ status: 503, body: "{}" }) : route.fulfill({ json: demoBoard() }),
@@ -324,10 +368,11 @@ test.describe("open item leaves the board", () => {
     failing = false;
     await page.getByRole("button", { name: "Retry" }).click();
     await expect(tileTitled(page, OPEN_TITLE)).toBeVisible();
-    await expect(dialog).toHaveCount(0);
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole("heading", { level: 2 })).toHaveText(OPEN_TITLE);
   });
 
-  test("opening the same item again after a failed refresh and Retry shows it", async ({ page }) => {
+  test("the open-item address stays through a failed refresh, and Retry opens the item again (Slice 36)", async ({ page }) => {
     let failing = false;
     await page.route(BOARD_ROUTE, (route) =>
       failing ? route.fulfill({ status: 503, body: "{}" }) : route.fulfill({ json: demoBoard() }),
@@ -341,12 +386,11 @@ test.describe("open item leaves the board", () => {
     await expect(page.getByText("Couldn’t load the board")).toBeVisible();
     await expect(dialog).toHaveCount(0);
     await pageSettled(page);
-    await expect(page).not.toHaveURL(/recipe-box/);
+    await expect(page).toHaveURL(/#\/open\/recipe-box/);
     failing = false;
     await page.getByRole("button", { name: "Retry" }).click();
-    await expect(dialog).toHaveCount(0);
-    await tileTitled(page, OPEN_TITLE).click();
     await expect(dialog).toBeVisible();
+    await expect(page).toHaveURL(/#\/open\/recipe-box/);
   });
 });
 

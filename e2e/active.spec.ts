@@ -58,6 +58,14 @@ test.describe("active work page", () => {
     }
   });
 
+  test("the view bar sits above the title on both layouts, as on the Board page (Slice 36)", async ({ page }) => {
+    await openActive(page);
+    const nav = await tabs(page).boundingBox();
+    const title = await page.getByRole("heading", { level: 1, name: "Active work" }).boundingBox();
+    expect((nav?.y ?? Number.MAX_VALUE) + (nav?.height ?? 0)).toBeLessThanOrEqual(title?.y ?? 0);
+    expect(await css(tabs(page), "position")).not.toBe("sticky");
+  });
+
   test("the Active work tab is current and shows the number of cards", async ({ page }) => {
     await openActive(page);
     const tab = tabs(page).getByRole("link", { name: /^Active work/ });
@@ -73,9 +81,9 @@ test.describe("active work page", () => {
     await expect(page.getByText("No agent is working right now")).toBeVisible();
     await expect(page.getByText("Tasks show here while an agent reports progress on them. Stale tasks move back to the board.")).toBeVisible();
     await expect(tabs(page).locator(".tab-count")).toHaveCount(0);
-    // The empty card sets its own 14px gap (state-gap-14); the error card keeps the centred 12px.
-    await expect(page.locator(".state-card")).toHaveClass(/state-gap-14/);
-    expect(await css(page.locator(".state-card"), "row-gap")).toBe("14px");
+    // Every centred state card keeps the mock's 12px gap, the empty card too (Slice 36).
+    await expect(page.locator(".state-card")).not.toHaveClass(/state-gap-14/);
+    expect(await css(page.locator(".state-card"), "row-gap")).toBe("12px");
   });
 
   test("a card names the project, type, parent, last report, agent, model and environment", async ({ page }) => {
@@ -170,7 +178,7 @@ test.describe("active work page", () => {
     await expect(dialog.getByRole("heading", { level: 2 })).toHaveText("Part C · Notification channel");
   });
 
-  test("closing the opened detail resets the address, so a reload keeps it closed and back and forward move it", async ({ page }) => {
+  test("closing a detail opened from Active work returns to Active work, and a reload keeps it closed (Slice 36)", async ({ page }) => {
     await openActive(page);
     const part = card(page, "Part C · Notification channel");
     await part.getByRole("button", { name: "Show all 7 steps" }).click();
@@ -179,10 +187,23 @@ test.describe("active work page", () => {
     await expect(dialog).toBeVisible();
     await dialog.getByRole("button", { name: "Close" }).click();
     await expect(dialog).toHaveCount(0);
-    await expect(page).toHaveURL((url) => url.hash === "#/");
+    await expect(page).toHaveURL((url) => url.hash === "#/active");
+    await expect(page.getByRole("heading", { level: 1, name: "Active work" })).toBeVisible();
     await page.reload();
-    await expect(page.getByRole("heading", { level: 1, name: "Board" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Active work" })).toBeVisible();
     await expect(dialog).toHaveCount(0);
+  });
+
+  test("a detail opened by its address closes to the board, and back and forward move it", async ({ page }) => {
+    await page.clock.setFixedTime(new Date(SERVER_TIME));
+    await page.route(BOARD_ROUTE, (route) => route.fulfill({ json: activeBoard() }));
+    await page.goto(`/#/open/${encodeURIComponent(PART_C)}`);
+    const dialog = page.getByRole("dialog", { name: "Item details" });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: "Close" }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page).toHaveURL((url) => url.hash === "#/");
+    await expect(page.getByRole("heading", { level: 1, name: "Board" })).toBeVisible();
     await page.evaluate((hash) => {
       window.location.hash = hash;
     }, `#/open/${encodeURIComponent(PART_C)}`);
@@ -191,6 +212,18 @@ test.describe("active work page", () => {
       window.location.hash = "#/";
     });
     await expect(dialog).toHaveCount(0);
+  });
+
+  test("a card expanded by hand stays expanded when the address changes to another card (Slice 36)", async ({ page }) => {
+    await openActive(page);
+    const first = card(page, "Part C · Notification channel");
+    await first.getByRole("button", { name: "Show all 7 steps" }).click();
+    await expect(first.getByRole("button", { name: "Hide steps" })).toHaveAttribute("aria-expanded", "true");
+    await page.evaluate((hash) => {
+      window.location.hash = hash;
+    }, `#/active/${encodeURIComponent(PART_B)}`);
+    await expect(card(page, "Part B · Search box").getByRole("button", { name: "Hide steps" })).toHaveAttribute("aria-expanded", "true");
+    await expect(first.getByRole("button", { name: "Hide steps" })).toHaveAttribute("aria-expanded", "true");
   });
 
   test("a failed first load keeps the open-item address", async ({ page }) => {

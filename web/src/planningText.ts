@@ -50,11 +50,11 @@ export function partsCountText(item: BoardItemDto | undefined, t: Translate): st
 
 export function checksLine(count: number, t: Translate): string {
   if (count === 0) return t("allChecksTried");
-  return t(count === 1 ? "checksNotTriedOne" : "checksNotTriedMany", { n: count });
+  return t(t.plural(count, "checksNotTriedOne", "checksNotTriedMany"), { n: count });
 }
 
 export function looseLine(count: number, t: Translate): string {
-  return t(count === 1 ? "looseChecksOne" : "looseChecksMany", { n: count });
+  return t(t.plural(count, "looseChecksOne", "looseChecksMany"), { n: count });
 }
 
 export function slicePlannedText(slice: { number: number | null } | null, t: Translate): string {
@@ -68,13 +68,15 @@ export function slicePlannedText(slice: { number: number | null } | null, t: Tra
  */
 export function summaryText(summary: ProjectSummary, t: Translate): string {
   const bits: string[] = [];
-  if (summary.needs_you > 0) bits.push(t(summary.needs_you === 1 ? "summaryNeedsYouOne" : "summaryNeedsYou", { n: summary.needs_you }));
-  bits.push(summary.working > 0 ? t(summary.working === 1 ? "summaryWorkingOne" : "summaryWorking", { n: summary.working }) : t("summaryNothingRunning"));
+  if (summary.needs_you > 0) bits.push(t(t.plural(summary.needs_you, "summaryNeedsYouOne", "summaryNeedsYou"), { n: summary.needs_you }));
+  bits.push(
+    summary.working > 0 ? t(t.plural(summary.working, "summaryWorkingOne", "summaryWorking"), { n: summary.working }) : t("summaryNothingRunning"),
+  );
   if (summary.planned > 0) bits.push(t("summaryPlanned", { n: summary.planned }));
   if (summary.built > 0) bits.push(t("summaryBuilt", { n: summary.built }));
-  if (summary.problems > 0) bits.push(t(summary.problems === 1 ? "summaryProblemOne" : "summaryProblemMany", { n: summary.problems }));
+  if (summary.problems > 0) bits.push(t(t.plural(summary.problems, "summaryProblemOne", "summaryProblemMany"), { n: summary.problems }));
   if (summary.checks_not_tried > 0) {
-    bits.push(t(summary.checks_not_tried === 1 ? "summaryCheckOne" : "summaryCheckMany", { n: summary.checks_not_tried }));
+    bits.push(t(t.plural(summary.checks_not_tried, "summaryCheckOne", "summaryCheckMany"), { n: summary.checks_not_tried }));
   }
   return bits.join(" · ");
 }

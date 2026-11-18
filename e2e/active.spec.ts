@@ -4,9 +4,9 @@ import exampleConfig from "../config/board.example.json" with { type: "json" };
 import { ItemStatus } from "../src/domain/item";
 import { activeBoard, activeTasks, CRASH, PART_B, PART_C, STALE } from "./activeFixture";
 import { demoBoard, SERVER_TIME } from "./fixture";
+import { expectLoadingAfterDelay, holdBoardRoute, pageSettled, pausedClock } from "./loadingClock";
 
 const BOARD_ROUTE = "**/api/board";
-const SLOW_MS = 1500;
 
 const isPhone = () => test.info().project.name === "phone";
 const scheme = () => (isPhone() ? "dark" : "light");
@@ -73,6 +73,8 @@ test.describe("active work page", () => {
     await expect(page.getByText("No agent is working right now")).toBeVisible();
     await expect(page.getByText("Tasks show here while an agent reports progress on them. Stale tasks move back to the board.")).toBeVisible();
     await expect(tabs(page).locator(".tab-count")).toHaveCount(0);
+    // The empty card sets its own 14px gap (state-gap-14); the error card keeps the centred 12px.
+    await expect(page.locator(".state-card")).toHaveClass(/state-gap-14/);
     expect(await css(page.locator(".state-card"), "row-gap")).toBe("14px");
   });
 
@@ -177,7 +179,7 @@ test.describe("active work page", () => {
     await expect(dialog).toBeVisible();
     await dialog.getByRole("button", { name: "Close" }).click();
     await expect(dialog).toHaveCount(0);
-    expect(new URL(page.url()).hash).toBe("#/");
+    await expect(page).toHaveURL((url) => url.hash === "#/");
     await page.reload();
     await expect(page.getByRole("heading", { level: 1, name: "Board" })).toBeVisible();
     await expect(dialog).toHaveCount(0);
@@ -196,8 +198,8 @@ test.describe("active work page", () => {
     await page.route(BOARD_ROUTE, (route) => route.fulfill({ status: 500, json: { error: "down" } }));
     await page.goto(`/${hash}`);
     await expect(page.getByRole("alert").or(page.locator(".state-card")).first()).toBeVisible();
-    await page.waitForTimeout(300);
-    expect(new URL(page.url()).hash).toBe(hash);
+    await pageSettled(page);
+    await expect(page).toHaveURL((url) => url.hash === hash);
   });
 
   test("the Active work count stays in the tab bar on the Usage view", async ({ page }) => {
@@ -209,14 +211,16 @@ test.describe("active work page", () => {
   });
 
   test("a wait over 500 ms shows the loading card, then the cards", async ({ page }) => {
-    await page.route(BOARD_ROUTE, async (route) => {
-      await new Promise((resolve) => setTimeout(resolve, SLOW_MS));
-      await route.fulfill({ json: activeBoard() });
-    });
+    await pausedClock(page);
+    const { release, requested } = await holdBoardRoute(page, activeBoard);
     await page.goto("/#/active");
-    await page.waitForTimeout(250);
-    await expect(page.getByText("Loading active work…")).toHaveCount(0);
-    await expect(page.getByRole("status", { name: "Loading active work…" })).toBeVisible({ timeout: 1000 });
+    await requested;
+    await expectLoadingAfterDelay(
+      page,
+      () => expect(page.getByText("Loading active work…")).toHaveCount(0),
+      () => expect(page.getByRole("status", { name: "Loading active work…" })).toBeVisible(),
+    );
+    release();
     await expect(page.locator("li.active-card")).toHaveCount(3);
     await expect(page.getByText("Loading active work…")).toHaveCount(0);
   });
@@ -230,6 +234,7 @@ test.describe("active work page", () => {
     const alert = page.getByRole("alert");
     await expect(alert.getByText("Couldn’t load active work")).toBeVisible();
     await expect(alert).toContainText("503");
+    expect(await css(alert, "row-gap")).toBe("12px");
     failing = false;
     await alert.getByRole("button", { name: "Retry" }).click();
     await expect(page.locator("li.active-card")).toHaveCount(3);

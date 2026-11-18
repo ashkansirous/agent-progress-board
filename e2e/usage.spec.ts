@@ -273,7 +273,15 @@ test.describe("what 1% of the cap costs", () => {
 
   test("shows no mix note while every figure uses the current window's mix (Slice 26)", async ({ page }) => {
     await openReady(page);
-    await expect(page.locator(".cap-cost-card, .phone-models").first()).toBeVisible();
+    // Wait until every model's figure is drawn in every place a mix note could sit (the tokens-per-1% table and the compare
+    // table on desktop, the cards on the phone), then assert no note.
+    const count = readyCapCost().models.length;
+    if (isPhone()) await expect(page.locator(".phone-model")).toHaveCount(count);
+    else {
+      const tables = page.locator(".cap-cost-card table.usage-table");
+      await expect(tables.nth(0).locator("tbody tr")).toHaveCount(count);
+      await expect(tables.nth(1).locator("tbody tr")).toHaveCount(count);
+    }
     await expect(page.locator(".mix-note")).toHaveCount(0);
   });
 
@@ -285,6 +293,11 @@ test.describe("what 1% of the cap costs", () => {
     // One note per place the figure is shown (the cost table and the compare table on desktop, the row on the phone): only the first model's.
     await expect(notes).toHaveCount(isPhone() ? 1 : 2);
     await expect(notes.first()).toHaveText("last week’s mix until this week has a day of use");
+    // Every note sits on the first model's row (or card), never on another model's.
+    const first = base.models[0]!.model;
+    const owners = page.locator(isPhone() ? ".phone-model" : ".cap-cost-card tbody tr").filter({ has: notes });
+    await expect(owners).toHaveCount(isPhone() ? 1 : 2);
+    for (const owner of await owners.all()) await expect(owner.locator(".model-name").first()).toHaveText(first);
   });
 
   test("writes tokens per 1% in full below a million and as millions from there, with both pills", async ({ page }) => {

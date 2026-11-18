@@ -20,9 +20,10 @@ describe("seed data", () => {
     expect(SEED_ITEMS.filter((i) => i.status === ItemStatus.Done)).toHaveLength(3);
   });
 
-  it("uses unique keys and only http(s) links", () => {
-    expect(new Set(SEED_ITEMS.map((i) => i.key)).size).toBe(SEED_ITEMS.length);
-    for (const link of SEED_ITEMS.flatMap((i) => i.links)) expect(link.url).toMatch(/^https:\/\//);
+  it("uses unique keys across every seed list and only http(s) links", () => {
+    const all = [...SEED_ITEMS, ...SESSION_SEED_ITEMS, ...PLANNING_SEED_ITEMS];
+    expect(new Set(all.map((i) => i.key)).size).toBe(all.length);
+    for (const link of all.flatMap((i) => i.links)) expect(link.url).toMatch(/^https:\/\//);
   });
 
   it("asks a human for waiting items and reports the rest", () => {

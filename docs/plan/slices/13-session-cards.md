@@ -3,6 +3,9 @@
 *Built 2026-11-17, parts A and B; merged as PR #75 (538d555), deployed-board checks open (see Not yet
 verified).* The plan PR #73 merged without a review round (owner).
 
+*2026-11-18: the goal-less card state (B1 "Working card with no goal") is replaced by the rule of
+[Slice 41](41-tasks-with-outcome.md); the owner's decision, not a loss of scope.*
+
 **Touches:** `migrations/0006_needs_you.sql` (new), `src/domain/item.ts`, `src/domain/upsert.ts`,
 `src/domain/stale.ts`, `src/domain/steps.ts`, `src/application/board.ts`, `src/application/ports.ts`,
 `src/infrastructure/d1Repository.ts`, `src/api/board.ts`, `src/domain/parts.ts`, `src/mcp/schemas.ts`, `src/mcp/tools.ts`, `src/api/boardDto.ts`,

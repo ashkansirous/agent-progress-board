@@ -1,0 +1,68 @@
+### Slice 37 — Access answers, ending a grant, and the setup page's leftovers
+
+*Planned 2026-11-18 (owner: "double check and plan the follow up work"). Grouping decided by the planning session of
+2026-11-18; items re-checked against `origin/main` (d654e9b).* Wave 4, after Slice 36 (both edit
+`web/src/SetupPage.tsx` and `web/src/strings.ts`).
+
+**Touches:** `src/api/access.ts`, `src/api/router.ts`, `src/api/auth.ts`, `src/api/chatText.ts`, `src/api/grants.ts`
+(new), `src/api/oauth/**`, `src/index.ts`, `web/src/SetupPage.tsx`, `web/src/api.ts`, `web/src/strings.ts`,
+`README.md`, `test/access.test.ts` (new), `test/oauth.test.ts`, `test/chatTextRoute.test.ts`, `test/config.test.ts`,
+`e2e/setup.spec.ts`, `docs/plan/slices/37-access-and-grants.md`
+
+**Migrations:** none
+
+#### Why
+
+The owner has no way to end an OAuth grant (Slice 5). `README.md:113-115` only names the library calls
+(`listUserGrants`, `revokeGrant`), and nothing in `src/` calls them. The other items are small leftovers of Slices 1,
+2, 7, 16 and 19:
+- a missing Access secret answers 403 and logs nothing;
+- some token errors answer 503;
+- a 503 response can be cached;
+- the grant stores scope `mcp:read` while the token can write;
+- the setup page does its own fetch.
+
+#### Decisions
+
+- There is one auth path (root `CLAUDE.md`, Slices 5 and 16). The grants list and the revoke action sit behind the
+  same Access check (`src/api/access.ts`) as the page, with no other gate and no E2E bypass outside the env flag
+  (Slice 2 rule).
+- Where the owner ends a grant: a "Connected apps" list on the Setup page (`#/setup`), with one "End access" button
+  per grant. Decided by the planning session, because the Setup page is where the owner connects a chat. If the
+  design in `docs/design/` gets a mock for it, the mock wins.
+
+#### Work
+
+- [ ] Slice 5: add `GET /api/grants` and `POST /api/grants/<id>/revoke` in `src/api/grants.ts` (new), behind the
+  Access check, calling `env.OAUTH_PROVIDER.listUserGrants` and `revokeGrant`. On the Setup page, a "Connected apps"
+  list: client name, when it was granted, and an "End access" button. Show a loading state when a call takes over
+  500 ms. Update `README.md:113-115`.
+- [ ] Slice 5: the static bearer token with `public_origin` set and a request from another host is untested
+  (`src/api/auth.ts`, `src/api/oauth/provider.ts`).
+- [ ] Slice 16: the grant stores scope `mcp:read` while the token writes (`src/api/oauth/authorize.ts:20`,
+  `provider.ts:82`). Store the scope `scopeOfCaller` gives.
+- [ ] Slice 2 #1: `TOKEN_ERRORS` is an allowlist, so other `jose` errors answer 503, not 403
+  (`src/api/access.ts:44-56`). Add `test/access.test.ts` (new).
+- [ ] Slice 2 #2: a missing `ACCESS_TEAM_DOMAIN` or `ACCESS_AUD` answers 403 and logs nothing (`access.ts:67`). Answer
+  503 and log the missing name.
+- [ ] Slice 2 #6: the 503 has no `Cache-Control: no-store` and no `Retry-After`, and asset requests re-run the key
+  fetch and log each time (`src/api/router.ts:64-66`).
+- [ ] Slice 1: the method check runs before auth (`src/index.ts:47`). Confirm whether the skipped Bearer
+  case-sensitivity finding still applies now that auth goes through the OAuth provider. Close it with a test either
+  way.
+- [ ] Slice 7 check 5: the cron handler parses only `staleAfterMinutes` (`src/index.ts:16-19`). Parse the config the
+  same way `fetch` does.
+- [ ] Slice 19 chk #1 + med #2: `CHAT_TEXT_URL` (`web/src/SetupPage.tsx:10`) and `CHAT_TEXT_PATH`
+  (`src/api/chatText.ts:3`) are two copies. Med #1: the page does its own fetch and throws a bare number
+  (`SetupPage.tsx:29-38`); use `LoadError` from `web/src/api.ts`.
+- [ ] Slice 19 chk #3: the strings say "select the text", but the preface is a plain paragraph (`strings.ts:362` en,
+  `:732` de). Chk #4: a space is missing at `SetupPage.tsx:114`. Chk #5: the two `CopyButton`s keep separate state.
+  Chk #6: `chatText.ts:15` is a thin wrapper, and `READ_METHODS` (`router.ts:14`) includes HEAD.
+
+#### Verification
+
+- `npm run typecheck`, `npm run lint`, `npm test` (new `test/access.test.ts`; grants routes in `test/oauth.test.ts`,
+  including that they refuse without the Access header), and `npm run test:e2e` (the Setup page lists a faked grant,
+  and "End access" removes it).
+- After the release, on the owner's phone: the Setup page lists the claude.ai grant. Ending it and reconnecting works.
+  This is the owner's check, recorded in `docs/plan/unverified.md` when the slice is built.

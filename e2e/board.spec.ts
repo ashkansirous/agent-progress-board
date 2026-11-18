@@ -60,6 +60,28 @@ async function css(locator: Locator, property: string): Promise<string> {
   return locator.evaluate((el, prop) => getComputedStyle(el).getPropertyValue(prop), property);
 }
 
+/** The page's own load-delay wait, in ms (the loading card shows only after it). */
+const LOADING_DELAY_MS = 500;
+
+/** Installs the page clock and stops it, so a timer fires only when the test runs the clock. */
+async function pausedClock(page: Page) {
+  await page.clock.install({ time: new Date(SERVER_TIME) });
+  await page.clock.pauseAt(new Date(Date.parse(SERVER_TIME) + 1000));
+}
+
+/** A route that holds every request until the test calls release(). */
+async function holdBoardRoute(page: Page) {
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(BOARD_ROUTE, async (route) => {
+    await gate;
+    await route.fulfill({ json: demoBoard() });
+  });
+  return release;
+}
+
 async function openBoard(page: Page) {
   await page.clock.setFixedTime(new Date(SERVER_TIME));
   await serveBoard(page);
@@ -218,16 +240,26 @@ test.describe("detail", () => {
   test("closes with the close button, Escape and the scrim, and gives focus back to the tile", async ({ page }) => {
     await openBoard(page);
     const tile = tileTitled(page, "Slice 4 · Tag search");
+    const dialog = page.getByRole("dialog");
+    // Each close waits for the dialog to be open first: a key or click sent before it mounts does nothing,
+    // and "no dialog" would then pass against a dialog that has not opened yet.
     await tile.click();
+    await expect(dialog).toBeVisible();
+    await expect(page.getByRole("button", { name: "Close" })).toBeFocused();
     await page.getByRole("button", { name: "Close" }).click();
-    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(dialog).toHaveCount(0);
     await expect(tile).toBeFocused();
     await tile.click();
+    await expect(dialog).toBeVisible();
+    await expect(page.getByRole("button", { name: "Close" })).toBeFocused();
     await page.keyboard.press("Escape");
-    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(dialog).toHaveCount(0);
+    await expect(tile).toBeFocused();
     await tile.click();
+    await expect(dialog).toBeVisible();
     await page.mouse.click(isPhone() ? 200 : 100, 60);
-    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(dialog).toHaveCount(0);
+    await expect(tile).toBeFocused();
   });
 
   test("makes the board behind the dialog inert and keeps focus inside it", async ({ page }) => {
@@ -329,7 +361,7 @@ test.describe("open item leaves the board", () => {
     await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
     await expect(page.getByText("Couldn’t load the board")).toBeVisible();
     await expect(dialog).toHaveCount(0);
-    expect(page.url()).not.toContain("recipe-box");
+    await expect(page).not.toHaveURL(/recipe-box/);
     failing = false;
     await page.getByRole("button", { name: "Retry" }).click();
     await expect(dialog).toHaveCount(0);
@@ -365,20 +397,27 @@ test.describe("states", () => {
   });
 
   test("after a failure, Retry never leaves a blank page: the card stays until the loading card or the board", async ({ page }) => {
+    await pausedClock(page);
     let failing = true;
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
     await page.route(BOARD_ROUTE, async (route) => {
       if (failing) return route.fulfill({ status: 503, body: "{}" });
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await gate;
       return route.fulfill({ json: demoBoard() });
     });
     await page.goto("/");
     await expect(page.getByText("Couldn’t load the board")).toBeVisible();
     failing = false;
     await page.getByRole("button", { name: "Retry" }).click();
-    await page.waitForTimeout(250);
+    await page.clock.runFor(LOADING_DELAY_MS - 1);
     await expect(page.getByText("Couldn’t load the board")).toBeVisible();
     await expect(page.getByText("Loading the board…")).toHaveCount(0);
-    await expect(page.getByText("Loading the board…")).toBeVisible({ timeout: 1000 });
+    await page.clock.runFor(1);
+    await expect(page.getByText("Loading the board…")).toBeVisible();
+    release();
     await expect(page.getByText("Couldn’t load the board")).toHaveCount(0);
     await expect(project(page, "Recipe Box")).toBeVisible();
   });
@@ -403,14 +442,14 @@ test.describe("states", () => {
   });
 
   test("the loading state appears only after 500 ms, then gives way to the board", async ({ page }) => {
-    await page.route(BOARD_ROUTE, async (route) => {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      await route.fulfill({ json: demoBoard() });
-    });
+    await pausedClock(page);
+    const release = await holdBoardRoute(page);
     await page.goto("/");
-    await page.waitForTimeout(250);
+    await page.clock.runFor(LOADING_DELAY_MS - 1);
     await expect(page.getByText("Loading the board…")).toHaveCount(0);
-    await expect(page.getByText("Loading the board…")).toBeVisible({ timeout: 1000 });
+    await page.clock.runFor(1);
+    await expect(page.getByText("Loading the board…")).toBeVisible();
+    release();
     await expect(project(page, "Recipe Box")).toBeVisible();
     await expect(page.getByText("Loading the board…")).toHaveCount(0);
   });
@@ -443,12 +482,11 @@ test.describe("state cards use the palette without a response", () => {
   });
 
   test("the loading card (slow response) is drawn in the config palette", async ({ page }) => {
-    await page.route(BOARD_ROUTE, async (route) => {
-      await new Promise((resolve) => setTimeout(resolve, 2500));
-      await route.fulfill({ json: demoBoard() });
-    });
+    await pausedClock(page);
+    await holdBoardRoute(page);
     await page.goto("/");
-    await expect(page.getByText("Loading the board…")).toBeVisible({ timeout: 1500 });
+    await page.clock.runFor(LOADING_DELAY_MS);
+    await expect(page.getByText("Loading the board…")).toBeVisible();
     const palette = examplePalette();
     expect(await css(page.locator(".state-card"), "background-color")).toBe(palette.card);
     expect(await css(page.locator(".skeleton-title").first(), "background-color")).toBe(palette.skeletonBar);

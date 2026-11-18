@@ -31,20 +31,20 @@ Each of these tests waits on wall-clock windows: a route held for 1500 ms, `wait
 
 #### Work
 
-- [ ] The Retry test (`e2e/board.spec.ts:~371-381`), and the same pattern at `:407-413` and `:447-451`: use a held
+- [x] The Retry test (`e2e/board.spec.ts:~371-381`), and the same pattern at `:407-413` and `:447-451`: use a held
   route and the page clock.
-- [ ] `e2e/active.spec.ts:211-218`, the loading card: the same fix.
-- [ ] `e2e/board.spec.ts:218-231`, the close button, Escape, scrim and focus test: there is no explicit timing, and
+- [x] `e2e/active.spec.ts:211-218`, the loading card: the same fix.
+- [x] `e2e/board.spec.ts:218-231`, the close button, Escape, scrim and focus test: there is no explicit timing, and
   the cause is unproven (likely a click or focus race after a rerender). Run it 50 times with `--repeat-each=50`.
   If it fails, fix the race. Either way, write the result here.
-- [ ] Slice 10 check-2 #4: `expect(page.url())` doesn't retry (`e2e/board.spec.ts:332`; `active.spec.ts:180,200`).
+- [x] Slice 10 check-2 #4: `expect(page.url())` doesn't retry (`e2e/board.spec.ts:332`; `active.spec.ts:180,200`).
   Use `expect(page).toHaveURL`.
-- [ ] Slice 10 check-3 #2: the row-gap assertion hard-codes 14 for the empty card only (`active.spec.ts:76`), and the
+- [x] Slice 10 check-3 #2: the row-gap assertion hard-codes 14 for the empty card only (`active.spec.ts:76`), and the
   error card is untested.
-- [ ] Slice 26 chk #2: the weak assertion at `e2e/usage.spec.ts:280-288`.
-- [ ] Slice 17: move `resolvePort` (`playwright.config.ts:8-15`) to `e2e/port.ts` (new) and test a bad `E2E_PORT` in
+- [x] Slice 26 chk #2: the weak assertion at `e2e/usage.spec.ts:280-288`.
+- [x] Slice 17: move `resolvePort` (`playwright.config.ts:8-15`) to `e2e/port.ts` (new) and test a bad `E2E_PORT` in
   `test/e2ePort.test.ts` (new).
-- [ ] Slice 13 check pass 3: six lows in `scripts/seed.ts` were never traced. Read them in
+- [x] Slice 13 check pass 3: six lows in `scripts/seed.ts` were never traced. Read them in
   `docs/plan/slices/13-session-cards.md`, then fix each or write why not.
 
 #### Verification
@@ -52,3 +52,22 @@ Each of these tests waits on wall-clock windows: a route held for 1500 ms, `wait
 - `npm run test:e2e -- --repeat-each=20` on the changed specs passes with no failure. Then two full suites at once,
   each with its own `E2E_PORT` and default workers, pass three times in a row. Write the run counts here.
 - `npm test` covers `test/e2ePort.test.ts`.
+
+#### Result (build)
+
+- Clock: the loading-delay tests install `page.clock`, pause it, hold the route on a promise and run the clock
+  499 ms then 1 ms; no wall-clock wait is left in them (board: Retry, loading, palette loading; active: loading card).
+- Close test (`board.spec.ts`): it failed every time here, on the original code too. Cause is in the test: it sent
+  Escape and the scrim click before the dialog had mounted, so "no dialog" passed against a dialog not yet open and
+  the page stayed inert for the next click. Now each step waits for the dialog and the focus first. Repeat run:
+  100 of 100 passed (50 per project).
+- `toHaveURL` replaces `expect(page.url())`; the row-gap check names the empty card's `state-gap-14` and the error
+  card is asserted at 12px; the mix-note test now checks each note sits on the first model's row.
+- `resolvePort` moved to `e2e/port.ts`, tested in `test/e2ePort.test.ts`.
+- Slice 13 seed lows (`scripts/seed-data.ts` is not on this slice's Touches line, so the data fixes are left):
+  unique keys now checked across all three lists (fixed in `test/seed.test.ts`); the other five (seed test counts,
+  empty fields sent as undefined, `ask_human` on an existing item, session cards going stale 15 min after seeding,
+  hard-coded history markers) all sit in `seed-data.ts` and wait for a slice that touches it.
+- Runs: the changed loading, Retry, empty/error card, mix-note and URL tests, 20 repeats on both projects: 720 of 720
+  passed. The close test: 100 of 100. The two-suites-at-once run (three times) was not done in this session.
+  The browser here was a pre-installed Chromium reached through `PLAYWRIGHT_BROWSERS_PATH`, since the download is blocked.

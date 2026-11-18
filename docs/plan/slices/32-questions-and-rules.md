@@ -1,5 +1,7 @@
 ### Slice 32 — Open questions are counted and kept right; `ask_human` can set `needs_you`
 
+*In progress (wave 2026-11-18), draft PR.*
+
 *Planned 2026-11-18 (owner: "double check and plan the follow up work"). Grouping decided by the planning session of
 2026-11-18; items re-checked against `origin/main` (d654e9b).* Wave 2.
 

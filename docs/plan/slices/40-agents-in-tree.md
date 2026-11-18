@@ -27,19 +27,13 @@ no step was running.
   - A background agent becomes a child of the step that was running when the agent started. If several steps were
     running, it goes under the newest one; if none was, it goes at the root.
   - Its label is its description. With no description it is "Helper agent: <first words of its prompt>", never the
-    bare type. (The owner's later words and the mock supersede the first sentence: the text is "Helper agent:
-    <description>", see the next bullet. The no-description fallback and "never the bare type" stand.)
-  - **A helper agent appears as a sub-step named by its description** (owner, 2026-11-18, after seeing the mock: "helper
-    agents appear as sub-steps named by their description, as in ActiveV3 ('Helper agent: audio-recorder')"; mock
-    `ActiveV3.dc.html` and its dark and phone twins, h2 line 49 of each, `CARDS[0]`). The rows are drawn by the Slice
-    39 tree (path number, ring while the agent runs, open box). In the sample, the step "Record audio, 15 languages"
-    has the note "Helper agent: audio-recorder · model-small · three languages at a time" (its parent line then reads
-    "3 of 15 sub-steps done · 3 running · Helper agent: audio-recorder · ..."), and the waiting step "Review the diff"
-    has the note "Helper agent: reviewer". The mock draws the agent as that text on its step, with the agent's own
-    steps (the languages, and French's "Generate the lines", "Check pronunciation", "Save the file") as the children
-    below it; it draws no separate row for the agent above them. This slice's rule is therefore: the agent is a
-    sub-step, its text is "Helper agent: <description>" (the label rule above, in this form, whether the description is
-    short or missing), and what the helper reports under it through `under_step` are its children.
+    bare type.
+  - **A background agent is its own child row under the step that was running** (owner, 2026-11-18, overruling the
+    first design pass, which had drawn the agent as a note on that step: "Slice 40 stands: a background agent is its
+    own child row under the step that was running (label = its description, or "Helper agent: <first words of its
+    prompt>"), with its own steps under that row. The canvas now draws it that way (ActiveV3, ActiveV3Dark,
+    ActiveV3Phone)."). The rows are drawn by the Slice 39 tree (path number, ring while the agent runs, open box), and
+    what the helper reports under it through `under_step` are that row's children.
   - A running agent is `active` (several may be). Starting an agent never changes the session's own steps.
   - The agent's own reports (a helper briefed with the card key and its step id) go under its node through
     `under_step`. The hook never overwrites a subtree that the helper reported.
@@ -48,23 +42,29 @@ no step was running.
 #### Design (ActiveV3 mock, h2 line 49 of `ActiveV3.dc.html`, `ActiveV3Dark.dc.html`, `ActiveV3Phone.dc.html`, added 2026-11-18)
 
 Three frames (light, dark, phone) with one card that shows helper agents; the page values (rows, numbers, ring, open
-box) are in Slice 39's Design subsection and are not repeated. The mock agrees with the plan that an agent's steps are
-children of the step it works on. It differs in the text: the sample draws "Helper agent: audio-recorder · model-small ·
-three languages at a time" as the note of "Record audio, 15 languages", and "Helper agent: reviewer" as the note of the
-waiting step "Review the diff". The helper names, the model name "model-small" and the language steps are made-up
-sample data. No new strings: the text comes from the agent's description.
-
-**Plan changed to match the mock (2026-11-18):**
-- The agent's text is "Helper agent: <description>" (mock: the notes above; the owner's words quoted in the label
-  bullet). The earlier line "Its label is its description" is superseded (kept above). The no-description fallback
-  and "never the bare type" stand, because the mock does not draw them.
-- Verification adds: the step text of a running agent starts "Helper agent: " (`hooks.test.mjs`).
+box) are in Slice 39's Design subsection and are not repeated. Redrawn by the owner on 2026-11-18 (canvas version
+`1795013012-daf3`) to follow this slice:
+- **Agent with a description** (`CARDS[0]`): under step 3 "Record audio, 15 languages" sits the agent's own row 3.1,
+  labelled with its description "Record the audio, three languages at a time", running, with the note
+  "Helper agent · model-small". The 15 languages are its children (3.1.1 to 3.1.15), and French (3.1.2) has its own
+  three steps (3.1.2.1 to 3.1.2.3).
+- **Agent with no description** (`CARDS[1]`): under step 2 "Draft the scope" sits the row "Helper agent: Compare
+  sync-first and cache-first for a notes app…" (the start of its prompt), running, the card's only running leaf, so the
+  card header shows that label. The sample row's note ("No description given, so the label is the start of its
+  prompt") explains the mock, not a string to build.
+- The waiting step "Review the diff" keeps the note "Helper agent: reviewer": a step that will start an agent, before
+  it runs; the agent row appears only when it starts.
+- The note "Helper agent · <model>" on an agent row (the model the agent runs on) is from the mock. The helper
+  descriptions, prompts, "model-small" and the language steps are made-up sample data. The fallback's prefix
+  "Helper agent: " and the note's "Helper agent" are new strings (English and German).
 
 #### Work
 
 - [ ] Replace `mergeSteps` with a placement that records, when an agent starts, the id of the step that was running,
   and writes the agent as that step's child (`background-agents.mjs`, `hook-input.mjs`).
-- [ ] Apply the label rule ("Helper agent: <description>", as in the mock) and remove the demotion of the session's running step (`background-agents.mjs:77-78`).
+- [ ] Apply the label rule (its description; with none, "Helper agent: <first words of its prompt>"), give the agent's
+  row the note "Helper agent · <model>" when the model is known, and remove the demotion of the session's running step
+  (`background-agents.mjs:77-78`).
 - [ ] Remove the 30-step slice. The 200-step tree limit of Slice 39 applies; when it is full, drop the oldest
   finished agents first.
 - [ ] Add `--under-step <id>` to the reporter CLI (`plugin/scripts/report-progress.mjs`), so scripts and helpers can
@@ -74,7 +74,8 @@ sample data. No new strings: the text comes from the agent's description.
 #### Verification
 
 - `npm test`. New tests in `plugin/scripts/hooks/hooks.test.mjs`: an agent started during step 3 lands under step 3;
-  two parallel agents are both active; the session's step stays active; no label is "general-purpose"; a running agent's text starts "Helper agent: "; a helper's
-  subtree survives the next hook run.
+  two parallel agents are both active; the session's step stays active; no label is "general-purpose"; an agent with a description is its own row labelled by it, and
+  one without is labelled "Helper agent: <first words of its prompt>"; a helper's subtree sits under its own row and
+  survives the next hook run.
 - On the owner's machine after the plugin update: a session that starts two background agents shows both as running
   children of the step that started them.

@@ -97,8 +97,9 @@ draw the frames; the page keeps its own fonts.
   yet" for a waiting one. Times are HH:MM and durations "N min" or "N h NN min", as drawn. The children of an open
   parent are drawn as rows below it, one level deeper, not inside the box.
 - **B1 Open state**: one row's open state does not close another's. First view as the frames show it: light and phone
-  open "Record audio, 15 languages" and its "French" child; dark opens the first step of the second card and its
-  first child.
+  open "Record audio, 15 languages", its helper-agent row "Record the audio, three languages at a time" and that row's
+  "French" child (3, 3.1, 3.1.2); dark opens the first two steps of the second card and step 3 of the first card
+  (canvas version `1795013012-daf3`, 2026-11-18).
 - **B2 Header and progress** (lines 54 to 58). Header line 15px, 700, `sliceFg`; progress at the right, 13px, `sub`,
   tabular numbers, "{done} of {total} steps · {pct}%"; under both a bar 8px high, radius 4px, track `track`, fill
   `sliceFg`. Header text: "N running" when more than one leaf runs; the running leaf's label when one runs;

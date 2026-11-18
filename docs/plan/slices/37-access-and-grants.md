@@ -71,7 +71,7 @@ cut-down illustration; the real block shows the whole text and scrolls.
   chats stop reporting until you connect it again." (14px, the name bold), then two buttons, min-height 44px, padding 0
   16px, radius 10px: **End access** (fill #B42318, text #FFFFFF, 600) and **Keep it** (1px `border`, fill `card`, 600).
   There is no browser dialog. While confirming, the name and date sit on one line. The dark frame does not draw the box;
-  it uses the dark `bugBg`, `bugBd` and `bugFg` of the same theme.
+  it uses the dark `bugBg`, `bugBd` and `bugFg` of the same theme (accepted by the owner, 2026-11-18).
 - **States** (Setup lines 51 to 55; dashed boxes, 1px dashed `border`, radius 12px, padding 14px, gap 4px): empty,
   "No app is connected yet. Paste the text above into claude.ai to connect one."; loading after 500 ms, `muted`,
   "Loading connected apps…"; failed, "Couldn’t load connected apps. The API answered 503 (service unavailable)."

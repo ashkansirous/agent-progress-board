@@ -55,8 +55,9 @@ a card only for a task that has an outcome.
   fallback-title test `hasNoGoal` (`web/src/cards.ts:42`) found it. Under this slice a session with no task and
   outcome has no card at all, so there is no goal-less card to draw. That card, its string (English and German), its
   `session-card-nogoal` class and `hasNoGoal` are removed. An item that still arrives with no goal and no outcome is not
-  drawn as a working card; the 15-minute session expiry closes it. An item with a goal but no outcome (older reports)
-  is drawn as before, without the outcome line. Slice 13 gets a one-line dated note pointing here.
+  drawn as a working card; under Slice 13, a session with no activity for 15 minutes turns stale and shows greyed under
+  Done, and nothing closes it automatically. An item with a goal but no outcome (older reports) is drawn as before,
+  without the outcome line. (Both accepted by the owner, 2026-11-18, with the words "turns stale" not "closes".) Slice 13 gets a one-line dated note pointing here.
 - **The mock no longer has a wave card.** The sample's "Build Slices 9 and 10 overnight" card is replaced by a slice
   card ("Implement Slice 9: export to PDF", "Slice 9 of example-app, built in tonight's wave"). This matches the
   orchestrator rule above; nothing in the page changes for it.
@@ -98,7 +99,7 @@ real frames of the page, not illustrations. Colour names are the `CONFIG.theme` 
   The number is the count of open questions on the board (`needs_you`, all projects), filled from data.
   Not drawn: the zero and one cases. The mock-faithful reading is that the link exists to show waiting questions, so
   it is absent at zero; one question uses the same pattern, "1 question is waiting on the board". These two are the
-  only values here that the mock does not show (listed for the owner's review).
+  only values here that the mock does not show (accepted by the owner, 2026-11-18).
 
 New strings (English and German): "Outcome: {outcome}", "Tasks with an outcome that an agent is working on now ·
 updated {time}", "Plain chats and wave runners get no card here; each slice a wave builds has its own.", "{n} questions

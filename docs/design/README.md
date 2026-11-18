@@ -1,8 +1,8 @@
 # Design: Agent Progress Board
 
 Source: <https://claude.ai/artifact/PZyqwkfjuwQkE4BE6UfeDd#page-dcb81aee8d83> (a claude.ai
-Design canvas; artifact id `PZyqwkfjuwQkE4BE6UfeDd`, version `1795011194-6d38`).
-Copied 2026-11-18 (earlier copies: 2026-11-15, version `1794750988-0157`; 2026-11-16, versions `1794828879-7816` and `1794831001-3305`; 2026-11-17, version `1794914532-ec9a`). The files are byte-for-byte copies of the canvas's `project/` files;
+Design canvas; artifact id `PZyqwkfjuwQkE4BE6UfeDd`, version `1795013012-daf3`).
+Copied 2026-11-18 (earlier copies: 2026-11-15, version `1794750988-0157`; 2026-11-16, versions `1794828879-7816` and `1794831001-3305`; 2026-11-17, version `1794914532-ec9a`; 2026-11-18 morning, version `1795011194-6d38`; the later 2026-11-18 refresh changed only the three ActiveV3 files). The files are byte-for-byte copies of the canvas's `project/` files;
 `canvas.json` is its index (artboard names and sizes). Its `notes.dark` entry holds the dark-theme values for the desktop pages (ground, card, border, text, muted, track and the model series colours), so read those from `canvas.json`.
 
 All projects, items, models and the plan in the mock are made up, and model names, plan names and token numbers are placeholders (the canvas note says so). Its other note:
@@ -318,3 +318,15 @@ end of each file.
 > Same rules: the mock never removes scope except where I say so above; list
 > every slice change in the PR with old and new text; wait for my review before
 > the part B waves.
+
+## The owner's answer on the open points (verbatim, 2026-11-18)
+
+> Point 1: overruled. Slice 40 stands: a background agent is its own child row
+> under the step that was running (label = its description, or "Helper agent:
+> <first words of its prompt>"), with its own steps under that row. The canvas
+> now draws it that way (ActiveV3, ActiveV3Dark, ActiveV3Phone). Refresh
+> docs/design/ and update the slice text to match.
+> Points 2 and 4: accepted.
+> Point 3: accepted, but say "turns stale" not "closes". Under Slice 13 a
+> session with no activity for 15 minutes turns stale and shows greyed under
+> Done; nothing closes it automatically.

@@ -4,6 +4,8 @@
 2026-11-18; items re-checked against `origin/main` (d654e9b).* Wave 1, first, because every later wave's full e2e run
 pays for these flakes.
 
+*In progress (wave 2026-11-18), draft PR.*
+
 **Touches:** `playwright.config.ts`, `e2e/port.ts` (new), `e2e/board.spec.ts`, `e2e/active.spec.ts`,
 `e2e/usage.spec.ts`, `scripts/seed.ts`, `test/seed.test.ts`, `test/e2ePort.test.ts` (new),
 `docs/plan/slices/38-steady-browser-tests.md`

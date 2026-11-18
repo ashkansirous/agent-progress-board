@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import exampleConfig from "../config/board.example.json" with { type: "json" };
-import { SERVER_TIME } from "./fixture";
+import { PLANNING_SEED_ITEMS, SESSION_SEED_ITEMS } from "../scripts/seed-data";
+import { boardOfSeeds, SERVER_TIME } from "./fixture";
 import { project } from "./projectBlock";
 import { planningBoard } from "./sessionFixture";
 
@@ -47,7 +48,7 @@ test.describe("checks are counts, never cards", () => {
       "All checks tried",
     ]);
     await expect(project.locator(".loose-line")).toHaveText(`${LOOSE_COUNT} checks with no open slice`);
-    await expect(project.locator(".loose-note")).toHaveText("Not tried on a device; their slices are already closed");
+    await expect(project.locator(".loose-note")).toHaveText("Not tried on a device; their slices are not on the board");
     expect(3 + 5 + LOOSE_COUNT).toBe(30);
   });
 
@@ -172,5 +173,36 @@ test.describe("the done list", () => {
     await project.getByRole("button", { name: `Show all ${DONE_COUNT}` }).click();
     await expect(project.locator(".done-row-title")).toHaveCount(DONE_COUNT);
     await expect(project.getByRole("button", { name: /^Show all/ })).toHaveCount(0);
+  });
+});
+
+const BUILT_KEY = "example-app/slice-9";
+
+/** The planning board plus Slice 9: done, with two checks not tried (Slice 42), built from copies of Slice 13's seed rows. */
+function boardWithBuilt() {
+  const template = PLANNING_SEED_ITEMS.find((seed) => seed.key === "example-app/slice-13");
+  const checkTemplate = PLANNING_SEED_ITEMS.find((seed) => seed.type === "check" && seed.parentKey === "example-app/slice-13");
+  if (!template || !checkTemplate) throw new Error("the planning seed lost Slice 13 or one of its checks");
+  const built = { ...template, key: BUILT_KEY, status: "done", title: "Slice 9 · Share a link", doneMinutesAgo: 30 };
+  const checks = [1, 2].map((n) => ({ ...checkTemplate, key: `${BUILT_KEY}/check-${n}`, title: `Built check ${n}`, parentKey: BUILT_KEY }));
+  return boardOfSeeds([...SESSION_SEED_ITEMS, ...PLANNING_SEED_ITEMS, built, ...checks]);
+}
+
+test.describe("a built slice with checks not tried (Slice 42)", () => {
+  test("is listed under Built with the Built pill and its check count, and is not counted as planned", async ({ page }) => {
+    await page.clock.setFixedTime(new Date(SERVER_TIME));
+    await page.route(BOARD_ROUTE, (route) => route.fulfill({ json: boardWithBuilt() }));
+    await page.goto("/");
+    const project = example(page);
+    await expect(project.locator(".project-summary")).toHaveText("1 needs you · 3 working · 3 planned · 1 built · 2 problems · 32 checks not tried");
+    await expect(project.getByRole("heading", { level: 3, name: "Planned · 3" })).toBeVisible();
+    const toggle = project.getByRole("button", { name: "Built · 1" });
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await expect(sliceCard(page, "Share a link")).toHaveCount(0);
+    await toggle.click();
+    const card = sliceCard(page, "Share a link");
+    await expect(card.locator(".slice-pill")).toHaveText("Built");
+    await expect(card.locator(".slice-checks")).toHaveText("2 checks not tried on a device");
+    await expect(project.locator(".planned-section button.slice-card").filter({ hasText: "Share a link" })).toHaveCount(0);
   });
 });

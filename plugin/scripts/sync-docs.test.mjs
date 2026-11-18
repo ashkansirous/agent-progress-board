@@ -72,8 +72,8 @@ describe('parsing', () => {
   test('status mapping', () => {
     assert.equal(mapStatus('planned').status, 'open');
     assert.equal(mapStatus('in progress (wave 2026-11-15), draft PR').status, 'in_progress');
-    assert.equal(mapStatus('built').status, 'in_progress');
-    assert.equal(mapStatus('built (PR #1 merged)').status, 'in_progress');
+    assert.equal(mapStatus('built').status, 'done');
+    assert.equal(mapStatus('built (PR #1 merged)').status, 'done');
     const parked = mapStatus('parked: waits for Slice 06 (user, 2026-11-15)');
     assert.deepEqual(parked, { status: 'blocked', reason: 'waits for Slice 06 (user, 2026-11-15)' });
     assert.equal(mapStatus('waiting on the user: pick a store').status, 'blocked');
@@ -116,7 +116,7 @@ describe('snapshot items', () => {
 
   test('statuses map from the table', () => {
     assert.equal(keyed['demo-app/slice-4'].status, 'in_progress');
-    assert.equal(keyed['demo-app/slice-5'].status, 'in_progress');
+    assert.equal(keyed['demo-app/slice-5'].status, 'done');
     assert.equal(keyed['demo-app/slice-6'].status, 'blocked');
     assert.match(keyed['demo-app/slice-6'].why, /ranking/);
     assert.equal(keyed['demo-app/slice-7'].status, 'open');
@@ -212,11 +212,22 @@ describe('snapshot items', () => {
     const unverifiedText = '### Slice 7: s\n\n- Try it on the phone\n\n### Slice 8: gone\n';
     const built = buildItems({ project: PROJECT, planText: OPEN_TABLE, unverifiedText: `${unverifiedText}\n### Slice 99: none\n\n- x\n`, doneText: DONE_TABLE });
     const seven = built.find((item) => item.key === 'demo-app/slice-7');
-    assert.equal(seven.status, 'in_progress');
+    assert.equal(seven.status, 'done', 'built: merged code, open device checks, never in progress');
     assert.equal(seven.checks.length, 1);
     assert.equal(seven.title, 'Seven');
     assert.ok(!built.some((item) => item.key === 'demo-app/slice-99'), 'a slice with no row anywhere stays out');
     assert.deepEqual(built.find((item) => item.key === 'demo-app/slice-8').checks, [], 'an empty block closes old checks');
+  });
+
+  test('FINDING 6: a built row with an unfinished part stays in_progress; with all parts ticked it is done', () => {
+    const planText = (status) => `## Status\n\n| # | Slice | Status | PR | Issue | File |\n| --- | --- | --- | --- | --- | --- |\n| 5 | Five | ${status} | | | |\n`;
+    const open = { 5: '## Work\n\n**A. First**\n- [x] one\n\n**B. Second**\n- [ ] two\n' };
+    const finished = { 5: '## Work\n\n**A. First**\n- [x] one\n\n**B. Second**\n- [x] two\n' };
+    assert.equal(buildItems({ project: PROJECT, planText: planText('built'), sliceTexts: open })[0].status, 'in_progress');
+    assert.equal(buildItems({ project: PROJECT, planText: planText('built'), sliceTexts: finished })[0].status, 'done');
+    assert.equal(buildItems({ project: PROJECT, planText: planText('done'), sliceTexts: open })[0].status, 'done', 'only built rows are held back');
+    const doneFile = buildItems({ project: PROJECT, planText: OPEN_TABLE, unverifiedText: '### Slice 7: s\n\n- Try\n', doneText: DONE_TABLE, sliceTexts: { 7: open[5] } });
+    assert.equal(doneFile.find((item) => item.key === 'demo-app/slice-7').status, 'in_progress');
   });
 
   test('FINDING 1: a done-file row with no block, or one that is also an open row, is not sent', () => {
@@ -248,7 +259,7 @@ describe('snapshot items', () => {
     for (const item of items) {
       assert.equal(item.project, PROJECT);
       assert.ok(['slice', 'waiting_for_me'].includes(item.type));
-      assert.ok(['open', 'in_progress', 'blocked'].includes(item.status));
+      assert.ok(['open', 'in_progress', 'blocked', 'done'].includes(item.status));
       assert.ok(item.title.length > 0 && item.title.length <= 300);
     }
   });

@@ -3,7 +3,7 @@ import type { ProjectGroups } from "../src/domain/boardGroups";
 import { readOpenMap, resolveOpen } from "../web/src/foldRules";
 
 function group(needsYou: string[], working = 0): ProjectGroups {
-  return { id: "p", needs_you: needsYou, summary: { needs_you: needsYou.length, working, planned: 0, problems: 0, checks_not_tried: 0 } } as ProjectGroups;
+  return { id: "p", needs_you: needsYou, summary: { needs_you: needsYou.length, working, planned: 0, built: 0, problems: 0, checks_not_tried: 0 } } as ProjectGroups;
 }
 
 describe("readOpenMap", () => {

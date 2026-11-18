@@ -99,8 +99,8 @@ export function stripParkLead(text) {
 export function mapStatus(text) {
   const status = plain(text);
   if (PARKED_STATUS.test(status)) return { status: 'blocked', reason: stripParkLead(status) };
-  if (/^(in progress|built)/i.test(status)) return { status: 'in_progress', reason: '' };
-  if (/^(done|merged|verified|shipped)/i.test(status)) return { status: 'done', reason: '' };
+  if (/^in progress/i.test(status)) return { status: 'in_progress', reason: '' };
+  if (/^(built|done|merged|verified|shipped)/i.test(status)) return { status: 'done', reason: '' };
   return { status: 'open', reason: '' };
 }
 
@@ -181,10 +181,10 @@ export function parseDoneRows(doneText) {
 }
 
 // Built slices (a slices-done.md row that is not an open row) that still have a block in unverified.md. The
-// board has no place for a check without its slice item (agent-progress-board src/domain/boardGroups.ts:178-179,
-// a closed slice's checks fall into the project's loose checks), so each becomes a slice item, status
-// in_progress like any "built" row (mapStatus; a doc-only in_progress never goes stale, stale.ts isExpired
-// needs a live report), that carries its `checks`. A done-file row with no block stays out and the board closes it.
+// board has no place for a check without its slice item (a closed slice's checks fall into the project's loose
+// checks), so each becomes a slice item that carries its `checks`. Its status is `done`, like any "built" row
+// (mapStatus): the code is merged, only the device checks are open, and groupBoard (boardGroups.ts) lists a done
+// slice with open checks under Built, not In progress. A done-file row with no block stays out and the board closes it.
 export function builtWithChecks(doneText, unverifiedText, openRows) {
   const open = new Set(openRows.map((row) => row.number));
   const withBlock = new Set(parseUnverified(unverifiedText || '').map((block) => block.number));
@@ -320,10 +320,20 @@ function waitingItem(project, row, reason, parent, repoUrl, sliceText) {
   };
 }
 
+// A built row is `done` (only device checks are left) unless its slice file still has an unfinished part (an
+// unticked part checkbox): then the code is not all merged and it stays `in_progress` (Slice 42, Decisions).
+function statusOfRow(row, sliceText) {
+  const mapped = row.built ? { status: 'done', reason: '' } : mapStatus(row.statusText);
+  const isBuilt = row.built || /^built/i.test(plain(row.statusText));
+  if (!isBuilt || mapped.status !== 'done') return mapped;
+  const unfinished = parseParts(sliceText).some((part) => !part.done);
+  return unfinished ? { status: 'in_progress', reason: '' } : mapped;
+}
+
 // The table row alone decides whether a slice waits on the user; a park note in the slice file
 // only supplies the reason while the row is parked.
 function sliceItems(project, row, notes, repoUrl, sliceText = '') {
-  const mapped = row.built ? { status: 'in_progress', reason: '' } : mapStatus(row.statusText);
+  const mapped = statusOfRow(row, sliceText);
   const parent = row.product ? `Plan · ${row.product}` : 'Plan';
   const links = sliceLinks(row, repoUrl);
   const item = {

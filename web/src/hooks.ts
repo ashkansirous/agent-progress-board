@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useReducer, useRef, useSyncExternalStore } from "react";
-import { fetchBoard, LoadError } from "./api";
-import { boardReducer, INITIAL_STATE } from "./boardState";
+import { useCallback, useSyncExternalStore } from "react";
+import { fetchBoard } from "./api";
+import { createBoardStore } from "./boardStore";
+import type { BoardState } from "./boardState";
 
 /** The page waits this long before it shows a loading state. */
 export const SLOW_AFTER_MS = 500;
@@ -21,42 +22,30 @@ export function useMediaQuery(query: string): boolean {
   return useSyncExternalStore(subscribe, () => window.matchMedia(query).matches);
 }
 
+/** Reloads every 60 s while the tab is visible, and when it becomes visible again; returns the function that stops it. */
+function startPolling(reload: () => void): () => void {
+  const refreshIfVisible = () => document.visibilityState === "visible" && reload();
+  const timer = setInterval(refreshIfVisible, REFRESH_EVERY_MS);
+  document.addEventListener("visibilitychange", refreshIfVisible);
+  return () => {
+    clearInterval(timer);
+    document.removeEventListener("visibilitychange", refreshIfVisible);
+  };
+}
+
+/** The one board read every page shares (Slice 36); see `createBoardStore`. */
+const board = createBoardStore({ fetchBoard, startPolling, slowAfterMs: SLOW_AFTER_MS });
+
 /**
- * Loads the board now and every 60 s while the tab is visible (and when it becomes visible again).
- * A newer load cancels the one still running; a failed load clears the board.
+ * The board read: loads when the first page uses it, then every 60 s while the tab is visible. Every caller
+ * gets the same state; the last answer stays while no page uses it, so the next page paints it at once.
  */
 export function useBoard() {
-  const [state, dispatch] = useReducer(boardReducer, INITIAL_STATE);
-  const running = useRef<AbortController | null>(null);
+  const state = useSyncExternalStore(board.subscribe, board.getState);
+  return { state, refresh: board.refresh };
+}
 
-  const load = useCallback(async () => {
-    running.current?.abort();
-    const controller = new AbortController();
-    running.current = controller;
-    dispatch({ type: "start" });
-    const slowTimer = setTimeout(() => dispatch({ type: "slow" }), SLOW_AFTER_MS);
-    try {
-      const data = await fetchBoard(controller.signal);
-      if (!controller.signal.aborted) dispatch({ type: "success", data, at: new Date() });
-    } catch (error) {
-      const status = error instanceof LoadError ? error.status : null;
-      if (!controller.signal.aborted) dispatch({ type: "failure", status });
-    } finally {
-      clearTimeout(slowTimer);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-    const refreshIfVisible = () => document.visibilityState === "visible" && void load();
-    const timer = setInterval(refreshIfVisible, REFRESH_EVERY_MS);
-    document.addEventListener("visibilitychange", refreshIfVisible);
-    return () => {
-      clearInterval(timer);
-      document.removeEventListener("visibilitychange", refreshIfVisible);
-      running.current?.abort();
-    };
-  }, [load]);
-
-  return { state, refresh: load };
+/** The last board answer for a reader that is not a board page (the Usage tab bar's count): no polling of its own. */
+export function useBoardSnapshot(): BoardState {
+  return useSyncExternalStore(board.subscribePassive, board.getState);
 }

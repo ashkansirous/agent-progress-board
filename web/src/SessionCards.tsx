@@ -1,3 +1,4 @@
+import type { MouseEvent } from "react";
 import type { BoardItemDto } from "../../src/api/boardDto";
 import { StepState } from "../../src/domain/stepTypes";
 import { hasNoGoal, sessionLabel, waitingText } from "./cards";
@@ -25,8 +26,17 @@ export function QuestionCard({ item, onOpen }: CardProps) {
   const work = item.title !== question ? item.title : null;
   const why = item.why && item.why !== question ? item.why : null;
   const links = item.links.filter((link) => isSafeHttpUrl(link.url));
+  // The whole card opens the drawer (a tap on its padding too); the button keeps the keyboard and the screen reader
+  // path, and a link inside the card follows its own address.
+  const openFromPadding = (event: MouseEvent<HTMLDivElement>) => {
+    if ((event.target as Element).closest("a, button")) return;
+    const selection = window.getSelection();
+    // The end of a text-selection drag inside this card is not a tap; a selection elsewhere does not block it.
+    if (selection?.toString() && selection.anchorNode && event.currentTarget.contains(selection.anchorNode)) return;
+    onOpen(item.key);
+  };
   return (
-    <div className="question-card">
+    <div className="question-card" role="group" aria-label={question ?? item.title} onClick={openFromPadding}>
       <button type="button" className="question-body" onClick={() => onOpen(item.key)}>
         <span className="question-top">
           {phone ? (

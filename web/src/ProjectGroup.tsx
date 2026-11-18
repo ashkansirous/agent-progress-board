@@ -1,3 +1,4 @@
+import { useId } from "react";
 import type { BoardItemDto } from "../../src/api/boardDto";
 import type { ProjectGroups } from "../../src/domain/boardGroups";
 import { DoneSection } from "./DoneSection";
@@ -9,13 +10,14 @@ import { useProjectOpen } from "./projectFold";
 import { ProblemsSection } from "./ProblemsSection";
 import { QuestionCard, SessionList } from "./SessionCards";
 import { Tile } from "./Tile";
-import { looseChecksKey } from "./route";
 import { useView } from "./view";
 
 interface GroupProps {
   group: ProjectGroups;
   items: Map<string, BoardItemDto>;
   onOpen: (key: string) => void;
+  /** Opens the project's "checks with no open slice" drawer. */
+  onOpenLoose: (projectId: string) => void;
 }
 
 function itemsOf(keys: string[], items: Map<string, BoardItemDto>): BoardItemDto[] {
@@ -55,17 +57,17 @@ function NeedsGroup({ needs, onOpen }: { needs: BoardItemDto[]; onOpen: (key: st
   );
 }
 
-function ProjectBody({ group, items, onOpen }: GroupProps) {
+function ProjectBody({ group, items, onOpen, onOpenLoose, id }: GroupProps & { id: string }) {
   const { t } = useView();
   return (
-    <div className="project-body">
+    <div className="project-body" id={id}>
       <NeedsGroup needs={itemsOf(group.needs_you, items)} onOpen={onOpen} />
       <SessionList items={itemsOf(group.working_now, items)} onOpen={onOpen} />
       <PlannedSection
         slices={group.planned}
         items={items}
         looseCount={group.loose_checks.length}
-        onOpen={() => onOpen(looseChecksKey(group.id))}
+        onOpen={() => onOpenLoose(group.id)}
         onOpenItem={onOpen}
       />
       <BuiltSection slices={group.built} items={items} onOpenItem={onOpen} />
@@ -80,14 +82,15 @@ function ProjectBody({ group, items, onOpen }: GroupProps) {
  * One project as a block that folds: a header button (name, summary line, Fold or Open) and, while open, the
  * lists the server sorted (Needs you, Working now, Planned, Problems and bugs, Done). Nothing here regroups.
  */
-export function ProjectGroup({ group, items, onOpen }: GroupProps) {
+export function ProjectGroup({ group, items, onOpen, onOpenLoose }: GroupProps) {
   const { t, projects } = useView();
   const [open, toggle] = useProjectOpen(group);
+  const bodyId = useId();
   const summaryClass = group.summary.needs_you > 0 ? "project-summary project-summary-needs" : "project-summary";
   return (
     <section className="project">
       <h2 className="project-head">
-        <button type="button" className="project-toggle" aria-expanded={open} onClick={toggle}>
+        <button type="button" className="project-toggle" aria-expanded={open} aria-controls={open ? bodyId : undefined} onClick={toggle}>
           <span className={open ? "project-chevron project-chevron-open" : "project-chevron"}>
             <ChevronIcon size={18} stroke="currentColor" />
           </span>
@@ -98,7 +101,7 @@ export function ProjectGroup({ group, items, onOpen }: GroupProps) {
           <span className="project-fold">{open ? t("foldProject") : t("openProject")}</span>
         </button>
       </h2>
-      {open && <ProjectBody group={group} items={items} onOpen={onOpen} />}
+      {open && <ProjectBody id={bodyId} group={group} items={items} onOpen={onOpen} onOpenLoose={onOpenLoose} />}
     </section>
   );
 }

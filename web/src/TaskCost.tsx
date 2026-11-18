@@ -60,7 +60,7 @@ function TaskTable({ data }: { data: UsageResponse }) {
           {other && (
             <tr>
               <td className="left task-title">{t("everythingElse")}</td>
-              <td className="left muted">{t(other.projects === 1 ? "projectOne" : "projectMany", { n: other.projects })}</td>
+              <td className="left muted">{t(t.plural(other.projects, "projectOne", "projectMany"), { n: other.projects })}</td>
               <td>{tokenText(other.tokens, locale)}</td>
               <CapCell points={other.cap_points} biggest={biggest} />
             </tr>

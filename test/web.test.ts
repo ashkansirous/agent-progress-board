@@ -4,12 +4,13 @@ import { ItemStatus, ItemType, Priority } from "../src/domain/item";
 import { boardReducer, INITIAL_STATE } from "../web/src/boardState";
 import type { StepState } from "../src/domain/stepTypes";
 import { groupBoard } from "../src/domain/boardGroups";
-import { activeTasks, projectLabel, waitingItems } from "../web/src/model";
-import { openItemHash, openKeyOf, Route, routeOf } from "../web/src/route";
+import { activeTasks, projectLabel } from "../web/src/model";
+import { eventKeys, waitingText } from "../web/src/cards";
+import { closeHashFor, hashOfUrl, isDrawerHash, looseChecksHash, looseProjectOf, nextOrigin, openItemHash, openKeyOf, Route, routeOf } from "../web/src/route";
 import { currentStepText, progressText, stepWords } from "../web/src/stepsText";
 import { LOCALES, pickLocale, translator } from "../web/src/strings";
 import { looksFor, paletteVars } from "../web/src/theme";
-import { ageText, clockTime, hoursSince } from "../web/src/time";
+import { ageText, clockTime, hoursSince, isTime, minutesSince, UNKNOWN_TIME } from "../web/src/time";
 
 const NOW = Date.parse("2026-11-15T13:48:00.000Z");
 
@@ -46,14 +47,91 @@ describe("grouping and order", () => {
     expect(alpha.needs_you).toEqual(["a/w0", "a/w1"]);
     expect(alpha.planned.map((s) => s.key)).toEqual(["a/1", "a/2"]);
     expect(alpha.done.recent.map((row) => row.key)).toEqual(["a/d2", "a/d1"]);
-    expect(waitingItems(items).map((i) => i.key)).toEqual(["a/w0", "a/w1"]);
   });
 
-  it("does not list a done waiting item as waiting, and labels unknown projects by id", () => {
-    const done = item({ type: ItemType.WaitingForMe, status: ItemStatus.Done, done_at: "2026-11-15T12:00:00.000Z" });
-    expect(waitingItems([done])).toEqual([]);
+  it("labels unknown projects by id", () => {
     expect(projectLabel("q", projects)).toBe("q");
     expect(projectLabel("a", projects)).toBe("Alpha");
+  });
+});
+
+describe("Slice 36: open address, origin and loose checks", () => {
+  it("closes to the page the drawer was opened from, else the board", () => {
+    expect(closeHashFor("#/active")).toBe("#/active");
+    expect(closeHashFor("#/active/demo%2Fslice-7")).toBe("#/active/demo%2Fslice-7");
+    expect(closeHashFor("#/usage")).toBe("#/usage");
+    expect(closeHashFor(null)).toBe("#/");
+    expect(closeHashFor("")).toBe("#/");
+    expect(closeHashFor(openItemHash("a/b"))).toBe("#/");
+    expect(closeHashFor(looseChecksHash("demo"))).toBe("#/");
+  });
+
+  it("remembers the page a drawer opened from, keeps it while the drawer changes, and drops it on close", () => {
+    const opened = nextOrigin(null, "#/active", openItemHash("a/b"));
+    expect(opened).toBe("#/active");
+    expect(nextOrigin(opened, openItemHash("a/b"), openItemHash("a/c"))).toBe("#/active");
+    expect(nextOrigin(opened, openItemHash("a/b"), "#/active")).toBeNull();
+    expect(nextOrigin(null, "", openItemHash("a/b"))).toBe("");
+    expect(hashOfUrl("http://localhost:4176/#/active/x")).toBe("#/active/x");
+    expect(hashOfUrl("http://localhost:4176/")).toBe("");
+  });
+
+  it("opens a project's loose checks at their own address, so an item key that looks like one is still an item", () => {
+    const hash = looseChecksHash("demo app");
+    expect(looseProjectOf(hash)).toBe("demo app");
+    expect(openKeyOf(hash)).toBeNull();
+    expect(routeOf(hash)).toBe(Route.Board);
+    expect(looseProjectOf(openItemHash("loose-checks:demo"))).toBeNull();
+    expect(openKeyOf(openItemHash("loose-checks:demo"))).toBe("loose-checks:demo");
+    expect(looseProjectOf("#/loose/%E0%A4%A")).toBeNull();
+    expect(isDrawerHash(hash)).toBe(true);
+    expect(isDrawerHash("#/active")).toBe(false);
+  });
+
+  it("keeps no flag of dropped data: a failed load clears the data and the address stays with the page", () => {
+    const loaded = boardReducer(INITIAL_STATE, { type: "success", data: {} as BoardResponse, at: new Date() });
+    const failed = boardReducer(loaded, { type: "failure", status: 503 });
+    expect(failed.data).toBeNull();
+    expect(failed.error).toEqual({ status: 503 });
+    expect("dataDropped" in failed).toBe(false);
+  });
+});
+
+describe("Slice 36: counts, plurals and times", () => {
+  it("takes the working tasks from the server's flag, never from the heartbeat", () => {
+    const stale = item({ key: "p/stale", working: false, heartbeat_at: "2026-11-15T13:47:00.000Z" });
+    const quiet = item({ key: "p/quiet", working: true, heartbeat_at: "2026-11-01T00:00:00.000Z" });
+    const fresh = item({ key: "p/fresh", working: true, heartbeat_at: "2026-11-15T13:00:00.000Z" });
+    expect(activeTasks([stale, quiet, fresh]).map((i) => i.key)).toEqual(["p/fresh", "p/quiet"]);
+  });
+
+  it("chooses singular and plural from the locale's own rule", () => {
+    const en = translator("en");
+    expect(en(en.plural(1, "projectOne", "projectMany"), { n: 1 })).toBe("1 project");
+    expect(en(en.plural(0, "projectOne", "projectMany"), { n: 0 })).toBe("0 projects");
+    expect(en(en.plural(2, "projectOne", "projectMany"), { n: 2 })).toBe("2 projects");
+    const de = translator("de");
+    expect(de(de.plural(1, "projectOne", "projectMany"), { n: 1 })).toBe("1 Projekt");
+    expect(de(de.plural(3, "projectOne", "projectMany"), { n: 3 })).toBe("3 Projekte");
+  });
+
+  it("never prints NaN for an unreadable time", () => {
+    const t = translator("en");
+    const asked = item({ needs_you: "Q", needs_you_at: "yesterday-ish" });
+    expect(isTime("yesterday-ish")).toBe(false);
+    expect(minutesSince("yesterday-ish", NOW)).toBeNaN();
+    expect(ageText("yesterday-ish", NOW, t)).toBe(UNKNOWN_TIME);
+    expect(clockTime("yesterday-ish")).toBe(UNKNOWN_TIME);
+    expect(waitingText(asked, NOW, t)).toBeNull();
+    expect(waitingText(item({ needs_you: "Q", needs_you_at: "2026-11-15T13:30:00.000Z" }), NOW, t)).toBe("waiting 18 min");
+  });
+
+  it("gives each history row a key from its content, in the server's order, with a counter for equal rows", () => {
+    const row = (at: string, note: string | null) => ({ at, status: ItemStatus.InProgress, note });
+    const events = [row("2026-11-15T13:00:00.000Z", "Heartbeat"), row("2026-11-15T12:00:00.000Z", "Heartbeat"), row("2026-11-15T12:00:00.000Z", "Heartbeat")];
+    const keys = eventKeys(events);
+    expect(new Set(keys).size).toBe(3);
+    expect(eventKeys([row("2026-11-15T14:00:00.000Z", null), ...events]).slice(1)).toEqual(keys);
   });
 });
 

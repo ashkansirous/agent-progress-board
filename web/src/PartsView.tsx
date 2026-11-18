@@ -1,7 +1,6 @@
 import type { CSSProperties } from "react";
 import type { BoardItemDto } from "../../src/api/boardDto";
 import { partLetterOf } from "../../src/domain/parts";
-import { PartChecklist } from "./ChecksView";
 import { ArrowIcon } from "./icons";
 import { partNowText, partsLabel } from "./partsText";
 import { activeItemHash } from "./route";
@@ -52,15 +51,5 @@ export function FollowButton({ item }: { item: BoardItemDto }) {
       {t("followPartActive", { letter })}
       <ArrowIcon size={16} stroke="currentColor" />
     </a>
-  );
-}
-
-/** The drawer's parts: the same checklist the working card uses (B4), then the button that follows the active part. */
-export function PartsSection({ item }: { item: BoardItemDto }) {
-  return (
-    <>
-      <PartChecklist item={item} own />
-      <FollowButton item={item} />
-    </>
   );
 }

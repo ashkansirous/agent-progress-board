@@ -15,7 +15,6 @@ const en = {
   refreshNow: "Refresh now",
   close: "Close",
   itemDetails: "Item details",
-  waitingForYouN: "Waiting for you · {n}",
   projectOne: "{n} project",
   projectMany: "{n} projects",
   askedAge: "Asked {age} · {parent}",
@@ -268,13 +267,8 @@ const en = {
   partStaleSuffix: " (stale)",
   partNext: "Next: part {letter}",
   partsAllDone: "All parts done",
-  partsHeading: "Parts",
   partDone: "Done",
-  partActive: "Active · {step} · {n} of {m} steps",
-  partActivePhone: "{step} · {n} of {m} steps",
-  partStale: "Stale · {step}",
-  partNextWord: "Next",
-  partLater: "Later",
+  partRowLabel: "{letter} · {title}",
   // Session cards, question cards and their drawer (Slice 13)
   needsYou: "Needs you",
   needsYouN: "Needs you · {n}",
@@ -407,7 +401,6 @@ const de: Table = {
   refreshNow: "Jetzt aktualisieren",
   close: "Schließen",
   itemDetails: "Details zum Eintrag",
-  waitingForYouN: "Wartet auf dich · {n}",
   projectOne: "{n} Projekt",
   projectMany: "{n} Projekte",
   askedAge: "Gefragt {age} · {parent}",
@@ -661,13 +654,8 @@ const de: Table = {
   partStaleSuffix: " (veraltet)",
   partNext: "Als Nächstes: Teil {letter}",
   partsAllDone: "Alle Teile fertig",
-  partsHeading: "Teile",
   partDone: "Fertig",
-  partActive: "Aktiv · {step} · {n} von {m} Schritten",
-  partActivePhone: "{step} · {n} von {m} Schritten",
-  partStale: "Veraltet · {step}",
-  partNextWord: "Als Nächstes",
-  partLater: "Später",
+  partRowLabel: "{letter} · {title}",
   // Session cards, question cards and their drawer (Slice 13)
   needsYou: "Braucht dich",
   needsYouN: "Braucht dich · {n}",
@@ -786,7 +774,11 @@ export const LOCALES: Record<string, Table> = { en, de };
 export const DEFAULT_LOCALE = "en";
 
 export type Params = Record<string, string | number>;
-export type Translate = (key: StringKey, params?: Params) => string;
+export interface Translate {
+  (key: StringKey, params?: Params): string;
+  /** The key for a count: `one` when the locale's plural rule says "one" for `n`, else `other` (Intl.PluralRules). */
+  plural: (n: number, one: StringKey, other: StringKey) => StringKey;
+}
 
 const PLACEHOLDER = /\{(\w+)\}/g;
 
@@ -798,6 +790,8 @@ export function pickLocale(language: string | undefined): string {
 
 export function translator(locale: string): Translate {
   const table = LOCALES[locale] ?? en;
-  return (key, params = {}) =>
+  const rules = new Intl.PluralRules(LOCALES[locale] ? locale : DEFAULT_LOCALE);
+  const translate = (key: StringKey, params: Params = {}) =>
     table[key].replace(PLACEHOLDER, (whole, name: string) => String(params[name] ?? whole));
+  return Object.assign(translate, { plural: (n: number, one: StringKey, other: StringKey) => (rules.select(n) === "one" ? one : other) });
 }

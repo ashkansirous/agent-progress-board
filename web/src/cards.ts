@@ -2,7 +2,7 @@ import type { BoardEventDto, BoardItemDto } from "../../src/api/boardDto";
 import { ANSWERED_NOTE, HEARTBEAT_NOTE, ItemStatus, ItemType, NEEDS_YOU_NOTE_PREFIX, NOTE_SEPARATOR } from "../../src/domain/item";
 import { SESSION_AGENT, SESSION_STALE_AFTER_MINUTES } from "../../src/domain/stale";
 import type { Translate } from "./strings";
-import { minutesSince } from "./time";
+import { isTime, minutesSince } from "./time";
 
 const MINUTES_PER_HOUR = 60;
 /** How many characters of a question a history row shows before its ellipsis. */
@@ -60,12 +60,26 @@ export function sessionLabel(item: BoardItemDto): string {
   return parts.length > 0 ? parts.join(" · ") : item.key;
 }
 
-/** "waiting 6 min" or "waiting 10 h"; null when the question has no first-asked time (an old-shape row), never the heartbeat. */
+/** "waiting 6 min" or "waiting 10 h"; null when the question has no first-asked time (an old-shape row) or an unreadable one, never the heartbeat. */
 export function waitingText(item: BoardItemDto, nowMs: number, t: Translate): string | null {
-  if (!item.needs_you_at) return null;
+  if (!item.needs_you_at || !isTime(item.needs_you_at)) return null;
   const minutes = minutesSince(item.needs_you_at, nowMs);
   if (minutes < MINUTES_PER_HOUR) return t("waitingMin", { n: minutes });
   return t("waitingHour", { n: Math.floor(minutes / MINUTES_PER_HOUR) });
+}
+
+/**
+ * A key for each history row from its own content, kept in the server's order; rows that read the same get a
+ * counter, so a refresh that adds a row at the top keeps the other rows' keys.
+ */
+export function eventKeys(events: BoardEventDto[]): string[] {
+  const seen = new Map<string, number>();
+  return events.map((event) => {
+    const base = `${event.at}|${event.status}|${event.note ?? ""}`;
+    const nth = (seen.get(base) ?? 0) + 1;
+    seen.set(base, nth);
+    return `${base}|${nth}`;
+  });
 }
 
 /** The lines of details_md as plain bullets ("Done so far"); a leading list marker is dropped. */

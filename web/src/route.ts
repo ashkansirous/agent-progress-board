@@ -32,18 +32,45 @@ export function openKeyOf(hash: string): string | null {
 }
 
 /**
- * The "checks with no open slice" drawer of a project opens at the same address as an item, under a key no
- * item can have (item keys never start with this prefix: a check's key is `<slice>/check-N`).
+ * The "checks with no open slice" drawer of a project has its own address, `#/loose/<project>`, so it never
+ * shares the item address `#/open/<key>` (item keys are free strings: any key prefix could be a real item's).
  */
-const LOOSE_PREFIX = "loose-checks:";
+const LOOSE_PREFIX = "#/loose/";
 
-export function looseChecksKey(projectId: string): string {
-  return `${LOOSE_PREFIX}${projectId}`;
+export function looseChecksHash(projectId: string): string {
+  return `${LOOSE_PREFIX}${encodeURIComponent(projectId)}`;
 }
 
-/** The project a loose-checks key names, or null when the key is an item's. */
-export function looseProjectOf(key: string | null): string | null {
-  return key !== null && key.startsWith(LOOSE_PREFIX) ? key.slice(LOOSE_PREFIX.length) : null;
+/** The project whose loose-checks drawer an address hash asks for, or null. */
+export function looseProjectOf(hash: string): string | null {
+  if (!hash.startsWith(LOOSE_PREFIX)) return null;
+  try {
+    return decodeURIComponent(hash.slice(LOOSE_PREFIX.length)) || null;
+  } catch {
+    return null;
+  }
+}
+
+/** True for an address that opens a drawer on the board (an item's, or a project's loose checks). */
+export function isDrawerHash(hash: string): boolean {
+  return hash.startsWith(OPEN_PREFIX) || hash.startsWith(LOOSE_PREFIX);
+}
+
+/** The hash part of a full URL ("" when it has none); `hashchange` events carry full URLs. */
+export function hashOfUrl(url: string): string {
+  const at = url.indexOf("#");
+  return at < 0 ? "" : url.slice(at);
+}
+
+/** Where closing a drawer goes: the page it was opened from, else the board. The open item's own address stays `#/open/<key>`. */
+export function closeHashFor(origin: string | null): string {
+  return origin !== null && origin !== "" && !isDrawerHash(origin) ? origin : ROUTE_HASH[Route.Board];
+}
+
+/** What to remember as "opened from" after the address moved: the old page when a drawer just opened, nothing once it closed, else unchanged. */
+export function nextOrigin(origin: string | null, fromHash: string, toHash: string): string | null {
+  if (!isDrawerHash(toHash)) return null;
+  return isDrawerHash(fromHash) ? origin : fromHash;
 }
 
 /** Active work with one item's card expanded, e.g. `#/active/demo-app%2Fslice-7%2Fpart-B`; the slice's follow links go here (Slice 11). */

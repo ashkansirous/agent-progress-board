@@ -748,8 +748,20 @@ h1 {
   text-align: center;
 }
 
-.state-center.state-gap-14 {
-  gap: 14px;
+/* On the phone the header's "Set up a chat" link is a 44 px touch target (the mocks' min-height); the desktop header keeps its height. */
+.phone .header-actions .setup-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+/* A question card opens from a tap anywhere on it (SessionCards.tsx); its links keep their own pointer. */
+.question-card {
+  cursor: pointer;
+}
+
+.question-card a {
+  cursor: revert;
 }
 
 .state-title {

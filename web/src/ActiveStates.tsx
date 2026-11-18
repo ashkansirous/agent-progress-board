@@ -29,7 +29,7 @@ export function ActiveLoadingCard() {
 export function ActiveEmptyCard() {
   const { t } = useView();
   return (
-    <section className="state-card state-center state-gap-14">
+    <section className="state-card state-center">
       <CheckCircleIcon size={44} stroke="var(--success)" strokeWidth={1.6} />
       <p className="state-title">{t("activeEmptyTitle")}</p>
       <p className="state-body state-body-wide">{t("activeEmptyBody")}</p>

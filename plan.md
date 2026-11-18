@@ -24,6 +24,7 @@ owner's config repo. Decisions in [Slice 20](docs/plan/slices/20-plugin-connect.
 | --- | --- | --- | --- | --- | --- |
 | 34 | Storage: queries, events and indexes | planned | | | [34](docs/plan/slices/34-storage-queries.md) |
 | 41 | Only a task with an outcome gets a card | planned | | | [41](docs/plan/slices/41-tasks-with-outcome.md) |
+| 43 | Owner steps on the board read right: real links, intact names, no needless questions | planned | | | [43](docs/plan/slices/43-owner-cards-read-right.md) |
 
 Notes:
 

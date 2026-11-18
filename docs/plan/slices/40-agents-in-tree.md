@@ -6,6 +6,8 @@ on it", and about fixing the plugin's agent steps in the same piece of work: "4-
 
 Runs after Slice 39 (the tree and `under_step`) and Slice 29 (both edit the same hook files).
 
+*In progress (wave 2026-11-18), draft PR.*
+
 **Touches:** `plugin/scripts/hooks/background-agents.mjs`, `plugin/scripts/hooks/session-done.mjs`,
 `plugin/scripts/hooks/hook-input.mjs`, `plugin/scripts/hooks/hooks.test.mjs`, `plugin/scripts/report-progress.mjs`,
 `plugin/scripts/report-progress.test.mjs`, `docs/clients.md`, `docs/plan/slices/40-agents-in-tree.md`

@@ -28,8 +28,14 @@ The ones that give a wrong result:
 
 - The stale rule exists twice (`isExpired` and `EXPIRED_ROWS`), held equal by `test/stale.test.ts`. Change both
   together (root `CLAUDE.md`). Stored times stay UTC ISO, and the plan assertions in `test/usageTools.test.ts` stay.
-- Whether a `waiting_for_me` tile ages out is the owner's choice (Slice 7, feedback loop 2026-11-16). It is **not**
-  in this slice until the owner answers. It is listed in plan.md's *Outstanding work*.
+- **Waiting cards** (owner, 2026-11-18, answering the question open since the Slice 7 feedback loop of 2026-11-16):
+  "if they are as a part of a slice, they should stay because the slice/plan will be picked up later and that should
+  clode it. if it is random thing, like I open a chat to refine something and then close it without comiting to any
+  plan or future work, it should be removed automatically in 24h". A `waiting_for_me` card whose `parent_key` names a
+  slice or a part, or that doc sync made, never expires: the slice's own work closes it. Any other waiting card is
+  closed (status `done`, note "no answer needed after 24 h") once its `heartbeat_at` is 24 hours old. It is closed,
+  not marked stale, so it leaves "Needs you" for good. A report on it before then restarts the 24 hours. Decided by
+  the planning session: "removed" means closed, so its history stays readable.
 
 #### Work
 
@@ -54,6 +60,13 @@ Board listing (Slices 11, 14):
 - [ ] Slice 11 high #9: usage and task titles use the bare `items.title` (`taskInfo`, `:346-350`).
 - [ ] Slice 14 check #7 + c3 #1: a done bug outside the window loses its slice chip, and done checks of listed slices
   are loaded and then dropped (`:56-59`).
+
+Waiting cards (Slice 7 follow-up, owner's answer above):
+- [ ] Close a `waiting_for_me` card that has no slice behind it once `heartbeat_at` is 24 hours old. Keep one with a
+  slice or part `parent_key`, or a doc-synced one. Add the rule and its 24-hour constant to `src/domain/stale.ts`
+  (next to `EXPIRING_STATUSES`, `:35`) and to the cron's close query in `d1Repository.ts`, and hold them equal in
+  `test/stale.test.ts`, as the two copies of the stale rule are (root `CLAUDE.md`). Test: a slice's waiting card
+  older than 24 hours stays; a chat's waiting card closes at 24 hours and stays open at 23.
 
 Indexes (Slices 7, 13):
 - [ ] Slice 7 check 4 / Slice 13 #6: `EXPIRED_ROWS` has no index on `heartbeat_at`, and its `CASE` blocks one. Add

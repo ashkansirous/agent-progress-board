@@ -124,6 +124,8 @@ seen; `src/infrastructure/d1Repository.ts:77`), check 4 (index for `EXPIRED_ROWS
 and was then abandoned stays on the board until someone closes it; four such tiles were closed by
 hand on 2026-11-16. Whether a waiting tile should age out, and after how long, is the owner's
 choice. To verify a fix: a waiting item with an old heartbeat is shown as stale after the chosen time.
+*Answered 2026-11-18 (owner):* a waiting card that is part of a slice stays until that slice's work closes it; any other
+waiting card is closed automatically after 24 hours. Planned in [Slice 34](34-storage-queries.md).
 
 *Follow-up (intermittent browser test, not from this slice's diff):* in the wave's full check run
 `e2e/board.spec.ts:317` ("after a failure, Retry never leaves a blank page") failed once in the

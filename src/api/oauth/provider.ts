@@ -8,7 +8,7 @@ import { D1ItemRepository } from "../../infrastructure/d1Repository";
 import { handleMcp } from "../../mcp/handler";
 import { scopeForToken } from "../auth";
 import { route } from "../router";
-import { handleAuthorize, OWNER_KIND, READ_SCOPE } from "./authorize";
+import { handleAuthorize, OWNER_KIND, READ_SCOPE, WRITE_SCOPE } from "./authorize";
 
 const MCP_PATH = "/mcp";
 const AUTHORIZE_PATH = "/authorize";
@@ -56,7 +56,7 @@ export function createProvider(origin: string, env: Env, clock: Clock): OAuthPro
     tokenEndpoint: `${origin}${TOKEN_PATH}`,
     clientRegistrationEndpoint: `${origin}${REGISTER_PATH}`,
     clientRegistrationTTL: CLIENT_REGISTRATION_TTL_SECONDS,
-    scopesSupported: [READ_SCOPE, "offline_access"],
+    scopesSupported: [READ_SCOPE, WRITE_SCOPE, "offline_access"],
     requiredScopes: [READ_SCOPE],
     resourceMetadata: { resource, authorization_servers: [origin] },
     resolveExternalToken: async ({ token }) => {

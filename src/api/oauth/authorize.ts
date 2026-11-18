@@ -1,6 +1,7 @@
 import { type ApprovedConsent, AuthorizationError, CimdFetchError } from "@cloudflare/workers-oauth-provider";
 import type { Env } from "../../env";
 import { matches } from "../auth";
+import { OWNER_USER_ID } from "../grants";
 import { PageProblem, renderForm, renderMessage, STRINGS } from "./page";
 
 /** The consent page must never be framed (clickjacking of the Allow button). */
@@ -14,10 +15,11 @@ const FIELD_HANDLE = "handle";
 const FIELD_PASSPHRASE = "passphrase";
 const FIELD_DECISION = "decision";
 const DECISION_APPROVE = "approve";
-export const OWNER_USER_ID = "owner";
 /** The `kind` prop on every provider-issued token; the API handler reads it to grant owner scope. */
 export const OWNER_KIND = "owner";
 export const READ_SCOPE = "mcp:read";
+/** Stored beside read because the owner's token writes (Slice 16, `scopeOfCaller`); grants made before it exists still work. */
+export const WRITE_SCOPE = "mcp:write";
 const OFFLINE_SCOPE = "offline_access";
 /** The page refuses everyone below this length: a long passphrase is what makes guessing hopeless. */
 export const MIN_PASSPHRASE_LENGTH = 32;
@@ -76,7 +78,7 @@ async function deny(request: Request, env: Env, handle: string): Promise<Respons
   return new Response(null, { status: 302, headers: denied.headers });
 }
 
-/** Approval always grants read, whatever the client asked for (even nothing); writes are never granted. */
+/** Approval always grants read and write (the owner's tools, no document sync), whatever the client asked for (even nothing). */
 async function complete(env: Env, approved: ApprovedConsent): Promise<Response> {
   const { redirectTo } = await env.OAUTH_PROVIDER.completeAuthorization({
     request: approved.request,
@@ -91,7 +93,8 @@ async function complete(env: Env, approved: ApprovedConsent): Promise<Response> 
 }
 
 function grantedScopes(requested: string[]): string[] {
-  return requested.includes(OFFLINE_SCOPE) ? [READ_SCOPE, OFFLINE_SCOPE] : [READ_SCOPE];
+  const granted = [READ_SCOPE, WRITE_SCOPE];
+  return requested.includes(OFFLINE_SCOPE) ? [...granted, OFFLINE_SCOPE] : granted;
 }
 
 function authorizeErrorResponse(error: unknown): Response {

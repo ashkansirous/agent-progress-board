@@ -1,46 +1,255 @@
 /* The "Set up a chat" panel (Slice 19) */
 
-.setup-intro {
-  margin: 0;
-  color: var(--muted);
+/* Slice 37: one block with one Copy, and the Connected apps card (Setup and SetupPhone mocks) */
+
+.setup-page {
+  max-width: 820px;
+  gap: 20px;
 }
 
-.setup-preface {
+.phone .setup-page {
+  padding: 16px 14px 40px;
+  gap: 20px;
+}
+
+.setup-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  align-self: flex-start;
+  color: var(--link);
+  font-weight: 600;
+}
+
+.setup-back-arrow {
+  display: inline-flex;
+  transform: rotate(180deg);
+}
+
+.setup-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.setup-header h1 {
   margin: 0;
-  color: var(--text);
-  font-family: var(--mono);
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.setup-muted {
+  margin: 0;
+  color: var(--muted);
   font-size: 13px;
 }
 
-.setup-text {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 12px;
+.setup-header .setup-muted {
+  color: var(--sub);
+  font-size: inherit;
+}
+
+.setup-card-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--hairline);
+  border-radius: 14px;
+  background: var(--card);
+}
+
+.setup-card-block h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.setup-note {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--needBd);
+  border-radius: 10px;
+  background: var(--needBg);
+  font-size: 13px;
+}
+
+.setup-note strong {
+  color: var(--needFg);
+}
+
+.setup-block {
+  max-height: 260px;
+  margin: 0;
+  padding: 14px;
+  overflow: auto;
   border: 1px solid var(--hairline);
   border-radius: 10px;
   background: var(--page);
   color: var(--text);
   font-family: var(--mono);
-  font-size: 13px;
-  line-height: 1.5;
-  resize: vertical;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .setup-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
 }
 
-.setup-copy {
+.setup-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   min-height: 44px;
-  padding: 0 18px;
-  border: 1px solid var(--hairline);
+  padding: 0 22px;
+  border: 0;
   border-radius: 10px;
-  background: var(--card);
-  color: var(--text);
+  background: var(--primaryBg);
+  color: var(--primaryFg);
   font-weight: 600;
   cursor: pointer;
+}
+
+.setup-primary.setup-copied {
+  padding: 0 18px;
+  border: 1px solid var(--doneFg);
+  background: transparent;
+  color: var(--doneFg);
+}
+
+.grant-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.grant-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 0;
+  border-top: 1px solid var(--hairline);
+}
+
+.grant-row-confirming {
+  padding: 14px 0;
+}
+
+.grant-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.grant-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.grant-row-confirming .grant-info {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
+.grant-name {
+  font-weight: 600;
+}
+
+.grant-when {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.grant-end,
+.grant-confirm-end,
+.grant-keep {
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.grant-end {
+  border: 1px solid var(--bugBd);
+  background: transparent;
+  color: var(--bugFg);
+}
+
+.grant-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--bugBd);
+  border-radius: 10px;
+  background: var(--bugBg);
+}
+
+.grant-confirm p {
+  margin: 0;
+  font-size: 14px;
+}
+
+.grant-confirm .grant-failed {
+  color: var(--bugFg);
+}
+
+.grant-confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.grant-confirm-end {
+  border: 0;
+  background: #b42318;
+  color: #fff;
+}
+
+.grant-keep {
+  border: 1px solid var(--hairline);
+  background: var(--card);
+  color: var(--text);
+}
+
+.grant-confirm-end:disabled,
+.grant-keep:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.grant-box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  margin: 0;
+  padding: 14px;
+  border: 1px dashed var(--hairline);
+  border-radius: 12px;
+  font-size: 14px;
+}
+
+.grant-box p {
+  margin: 0;
+}
+
+.grant-loading {
+  color: var(--muted);
 }
 
 .setup-link {

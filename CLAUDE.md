@@ -157,3 +157,10 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
   docs/plan/slices/39-step-tree.md).
 - The event insert is bound to its own write by `changes() > 0` in `src/infrastructure/d1Repository.ts`; keep the two
   statements adjacent in the batch (Slice 39: docs/plan/slices/39-step-tree.md).
+- What a check shows and counts is `isShownCheck` / `isCountedCheck` in `src/domain/checks.ts`; `OPEN_CHECK_OF` in
+  `src/infrastructure/d1Repository.ts` is built from the counted statuses; never a third copy. Retyping a live key is
+  refused only in `itemProblem` (Slice 33: docs/plan/slices/33-sync-and-checks-rules.md).
+- Agent rows and the helper's row id `agent-<id>` come only from the `SubagentStart` hook
+  (`plugin/scripts/hooks/session-done.mjs`); the goal file is merged per agent (`mergeParents`), never a read-modify-write
+  of the whole `agentParents` map; every agent label passes `maskSecrets` before it is cut or sent (Slice 40:
+  docs/plan/slices/40-agents-in-tree.md).

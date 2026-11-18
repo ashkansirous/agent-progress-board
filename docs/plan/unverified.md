@@ -3,6 +3,14 @@
 Every open "Not yet verified" check, one block per slice. A check that passes, or that the
 owner confirms, is removed here and its slice marked `verified`.
 
+### Slice 33: Doc sync never retypes live work, and checks and parts count right ([slice](slices/33-sync-and-checks-rules.md))
+
+- After the release, the owner's next plan sync shows the same `checks_not_tried` count as the slice files, and a stale or blocked check shows muted under its slice.
+
+### Slice 40: The plugin puts background agents into the step tree ([slice](slices/40-agents-in-tree.md))
+
+- On the owner's machine, two background agents show as running child rows under the step that started them, and a helper's own steps appear under its row (no device run: plugin hook behaviour needs a real Claude Code session).
+
 ### Slice 39: Steps are a tree: sub-steps unfold in place, and several can run at once ([slice](slices/39-step-tree.md))
 
 - On a phone and the deployed board, a real tree with helpers reporting `under_step` in parallel.

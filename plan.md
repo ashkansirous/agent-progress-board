@@ -22,9 +22,7 @@ owner's config repo. Decisions in [Slice 20](docs/plan/slices/20-plugin-connect.
 
 | Slice | Title | Status | PR | Issue | File |
 | --- | --- | --- | --- | --- | --- |
-| 33 | Doc sync never retypes live work, and checks and parts count right | planned | | | [33](docs/plan/slices/33-sync-and-checks-rules.md) |
 | 34 | Storage: queries, events and indexes | planned | | | [34](docs/plan/slices/34-storage-queries.md) |
-| 40 | The plugin puts background agents into the step tree | planned | | | [40](docs/plan/slices/40-agents-in-tree.md) |
 | 41 | Only a task with an outcome gets a card | planned | | | [41](docs/plan/slices/41-tasks-with-outcome.md) |
 
 Notes:
@@ -63,10 +61,10 @@ Notes:
 
 ## Outstanding work
 
-- **Not yet tried on a device:** 92 checks across 32 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
+- **Not yet tried on a device:** 94 checks across 34 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
 - Done 2026-11-18 (Slices 16, 18, 19): the owner pasted the connector line and the instruction text from the board's "Set up a chat" page into claude.ai Instructions ("I've updated the instructions with the 2 texts"). Whether a chat now opens a card is read from the board, not asked ([Slice 19](docs/plan/slices/19-chat-text.md)). The page will give one Copy for both pieces ([Slice 37](docs/plan/slices/37-access-and-grants.md)).
 - Slices 1 to 28 are built (19 merged as PR #110, 27 as PR #109, 28 as PR #114, 26 as PR #115, all four live since the night 2026-11-17-2023 batched release): that release called the deploy hook at 22:53:22Z and `wrangler deployments list` (read 23:00Z) shows a deployment created 2026-11-17T22:54:43Z; `batch-release.mjs worker-deployed` was run after it ([note](docs/plan/notes/2026-11-17-2023-feedback-loop.md)). The plugin (Slices 20 to 23) ships from the repo, not the Worker.
-- Slices 29, 30, 31 and 38 are built too (night 2026-11-18-1602, wave 1: PRs #129, #130, #131, #132, merged with the skip marker); they change only plugin scripts and browser tests, so the Worker does not change. Slices 32, 35, 37 and 42 are built too (wave 2: PRs #137, #138, #136, #139, merged with the skip marker; the Worker changes with the batched release). Slices 36 and 39 are built too (wave 3: PRs #144 and #143, merged with the skip marker; the Worker changes with the batched release). Still planned: 33, 34, 40 and 41.
+- Slices 29, 30, 31 and 38 are built too (night 2026-11-18-1602, wave 1: PRs #129, #130, #131, #132, merged with the skip marker); they change only plugin scripts and browser tests, so the Worker does not change. Slices 32, 35, 37 and 42 are built too (wave 2: PRs #137, #138, #136, #139, merged with the skip marker; the Worker changes with the batched release). Slices 36 and 39 are built too (wave 3: PRs #144 and #143, merged with the skip marker; the Worker changes with the batched release). Slices 40 and 33 are built too (wave 4: PRs #146 and #147, merged with the skip marker; the Worker changes with the batched release). Still planned: 34 and 41.
 - **Waiting on the user (Slice 36):** which phone mock wins for the Usage tab bar: the tab bar is at the top in `PhoneV2` and `ActiveV3Phone` but at the bottom in `PhoneUsage`. Today's Usage bar (bottom) is kept; `e2e/usage.spec.ts:200` pins it ([Slice 36](docs/plan/slices/36-board-page-fixes.md)).
 - **Follow-ups left open by Slice 36** (no slice yet; the medium one needs one first): the stale cache on mount can close the drawer before the refresh starts, plus low findings on the board store and fold pruning; the Slice 13 #7 marker field for `needs_you:` notes (`src/domain/item.ts`, `src/api/board.ts`) ([Slice 36](docs/plan/slices/36-board-page-fixes.md) *Follow-ups* and *From review*).
 - **Follow-ups left open by Slice 39** (no slice yet): five low findings of the third check pass (stale `|generation` key suffix in `web/src/ActivePage.tsx`, uncapped read-time `parseStoredSteps` on legacy rows, read-time forcing of children done under a done parent, no batch-order test for the `changes()` event insert, repeated reads per CAS retry), and the skipped lows listed in [Slice 39](docs/plan/slices/39-step-tree.md) *From review*.

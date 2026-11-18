@@ -415,8 +415,9 @@ Inputs:
   limit). An empty list is valid. Each item:
   - `key`, `project`, `type`, `title`, `status`: required. `project` must equal the call's
     `project`, and a key may appear only once in the call.
-  - `priority`, `parent` (display text, for example `Plan · Search`), `why`, `links`: optional.
-    The limits and the allowed values are the ones in *The item*.
+  - `priority`, `parent` (display text, for example `Plan · Search`), `why`, `links`: optional; a
+    field left out keeps its stored value on every sync, null clears it. `details_md` (the rest of a
+    clipped title) is stored on a new key only. The limits and the allowed values are the ones in *The item*.
   - `parts` (optional, on a slice): its lettered work groups, `[{letter, title, done}]`, `letter`
     one capital letter A to Z, at most 26, only on an item of type `slice` (see *Slice parts*
     below). The 200 limit counts the items you send; the slices and their parts together may not
@@ -430,7 +431,8 @@ Output (a counts summary, not items): `{project, created, updated, closed, uncha
 changed, `closed` counts items that left the snapshot, `unchanged` counts snapshot items that
 needed no write. `skipped` is `[{key, reason}]`: an item or nested check that breaks a key or
 parent rule is not saved and is named here with the reason (its `parent_key` names another
-project; a check with no slice, a key not under its slice's key plus `/`, or a parent that is no
+project or a skipped slice of the same snapshot; the stored item under its key has another type and is not
+owned by the documents; a check with no slice, a key not under its slice's key plus `/`, or a parent that is no
 slice; checks on an item that is not a slice; a repeated nested key). The rest of the snapshot is
 saved, and a skipped key is not closed. A client should read `skipped` and show it.
 
@@ -667,11 +669,15 @@ A "not yet tried on a device" line is a check, never a card. A made-up snapshot 
 - Any `parent_key` must name an item of the same project, and a check's must be a slice whose key plus
   `/` starts the check's key (a parent that exists nowhere yet is allowed). `report_progress` checks the
   item's final state (stored row plus the report), so a retype or re-parent is refused with the reason;
-  `sync_snapshot` skips the item and lists it in `skipped`. A key stored as another type that a snapshot
-  sends as a check becomes a check.
+  `sync_snapshot` skips the item and lists it in `skipped`. A cycle of any length (to a bounded depth)
+  is refused, and a report that leaves the stored type, project and `parent_key` as they are is never
+  refused for what an older row already holds. A key stored as another type that the documents do not own
+  is never retyped by a snapshot: the item is skipped, with a `type:` reason.
 - A check or part that holds a `needs_you` question is listed in the project's `needs_you`.
-- The board does not list checks as items. A slice's `checks` field lists its open ones; a check whose
-  slice is closed or not on the board is counted in the project's `loose_checks`.
+- The board does not list checks as items. A slice's `checks` field lists the ones not tried (open or in
+  progress; a blocked or stale one is not counted). A done slice with any check that is not done is listed
+  under `built`; only a check whose slice is not on the board at all is counted in the project's
+  `loose_checks`.
 - A `bug` or `problem` may name the slice planned for it in `parent_key`; the board returns that slice
   as `parent_slice` (null when the key names no slice on the board).
 - `GET /api/board` also returns `groups`, one per project, which the page draws without regrouping:

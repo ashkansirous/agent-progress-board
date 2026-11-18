@@ -1,11 +1,13 @@
 import { useId } from "react";
 import type { BoardItemDto } from "../../src/api/boardDto";
-import type { CheckView } from "../../src/domain/checks";
+import { type CheckView, countedChecks, isCountedCheck } from "../../src/domain/checks";
+import { ItemStatus } from "../../src/domain/item";
 import { PartState } from "../../src/domain/parts";
 import { useView } from "./view";
 
 /** The checks not tried on a device: an empty box and the line each; nothing at all when there are none. */
 export function ChecksList({ heading, checks }: { heading: string; checks: CheckView[] }) {
+  const { t } = useView();
   const headingId = useId();
   if (checks.length === 0) return null;
   return (
@@ -13,9 +15,10 @@ export function ChecksList({ heading, checks }: { heading: string; checks: Check
       <h3 id={headingId}>{heading}</h3>
       <ul className="check-rows" aria-labelledby={headingId}>
         {checks.map((check) => (
-          <li key={check.key} className="check-row">
+          <li key={check.key} className={isCountedCheck(check.status) ? "check-row" : "check-row check-row-stale"}>
             <span className="check-box" aria-hidden="true" />
             <span className="check-label">{check.title}</span>
+            {!isCountedCheck(check.status) && <span className="check-state">{checkStateWord(check.status, t)}</span>}
           </li>
         ))}
       </ul>
@@ -27,6 +30,7 @@ const STATE_CLASS: Record<PartState, string> = {
   [PartState.Done]: "check-row-done",
   [PartState.Active]: "check-row-active",
   [PartState.Stale]: "check-row-stale",
+  [PartState.Blocked]: "check-row-stale",
   [PartState.Pending]: "check-row-later",
 };
 
@@ -66,9 +70,14 @@ export function PartChecklist({ item, own }: { item: BoardItemDto; own: boolean 
   );
 }
 
+function checkStateWord(status: ItemStatus, t: ReturnType<typeof useView>["t"]): string {
+  return status === ItemStatus.Blocked ? t("statusBlocked") : t("statusStale");
+}
+
 function stateWord(state: PartState, t: ReturnType<typeof useView>["t"]): string {
   if (state === PartState.Done) return t("partDone");
   if (state === PartState.Active) return t("stateWorkingNow");
+  if (state === PartState.Blocked) return t("statusBlocked");
   return state === PartState.Stale ? t("statusStale") : "";
 }
 
@@ -77,7 +86,7 @@ export function SliceChecks({ item, own }: { item: BoardItemDto; own: boolean })
   const { t } = useView();
   const checks = item.checks ?? [];
   const number = item.slice?.number ?? null;
-  const params = { n: checks.length };
+  const params = { n: countedChecks(checks) };
   const heading = own
     ? t("drawerChecksHead", params)
     : number === null

@@ -1,4 +1,4 @@
-import type { CheckView } from "../../src/domain/checks";
+import { type CheckView, countedChecks } from "../../src/domain/checks";
 import { ChecksList } from "./ChecksView";
 import { useDialogFocus } from "./Detail";
 import { CloseIcon } from "./icons";
@@ -19,7 +19,7 @@ export function LooseChecksDrawer({ projectId, checks, onClose }: LooseProps) {
   return (
     <div className="overlay">
       <button type="button" className="scrim card-scrim" aria-label={t("closeDetails")} tabIndex={-1} onClick={onClose} />
-      <aside className={phone ? "card-drawer card-drawer-phone" : "card-drawer"} role="dialog" aria-modal="true" aria-label={looseLine(checks.length, t)}>
+      <aside className={phone ? "card-drawer card-drawer-phone" : "card-drawer"} role="dialog" aria-modal="true" aria-label={looseLine(countedChecks(checks), t)}>
         <div className="drawer-top">
           <span className="kicker kicker-other">{t("checksKicker")}</span>
           <span className="drawer-project">{projectLabel(projectId, projects)}</span>
@@ -28,10 +28,10 @@ export function LooseChecksDrawer({ projectId, checks, onClose }: LooseProps) {
           </button>
         </div>
         <div className="drawer-heading">
-          <h2>{looseLine(checks.length, t)}</h2>
+          <h2>{looseLine(countedChecks(checks), t)}</h2>
           <span className="drawer-purpose">{t("looseChecksNote")}</span>
         </div>
-        <ChecksList heading={t("drawerChecksHead", { n: checks.length })} checks={checks} />
+        <ChecksList heading={t("drawerChecksHead", { n: countedChecks(checks) })} checks={checks} />
       </aside>
     </div>
   );

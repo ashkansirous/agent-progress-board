@@ -1,13 +1,13 @@
 import { z } from "zod";
-import { MAX_CHECKS } from "../domain/checks";
-import { MAX_SNAPSHOT_ITEMS } from "../domain/docSync";
+import { MAX_CHECKS, MAX_KEY_LENGTH, PART_SUFFIX_LENGTH } from "../domain/checks";
+import { MAX_EXPANDED_ITEMS, MAX_SNAPSHOT_ITEMS } from "../domain/docSync";
 import { ItemStatus, ItemType, Priority } from "../domain/item";
 import { MAX_PARTS } from "../domain/parts";
 import { MAX_AFTER_ANSWER, MAX_NEEDS_YOU } from "../domain/upsert";
 import { MAX_STEP_DEPTH, MAX_STEP_ID, MAX_STEP_LABEL, MAX_STEP_NOTE, MAX_STEPS } from "../domain/steps";
 import { type StepInput, StepState } from "../domain/stepTypes";
 
-const MAX_KEY = 200;
+const MAX_KEY = MAX_KEY_LENGTH;
 const MAX_LABEL = 300;
 const MAX_TEXT = 20_000;
 const MAX_LINKS = 20;
@@ -194,32 +194,44 @@ const snapshotCheck = z.object({
   title: label.describe("The check line as the document gives it"),
 });
 
-const snapshotItem = z.object({
+/** The fields of one snapshot item, declared once; `type` and `priority` are what the docs may set. */
+const snapshotFields = {
   key,
   project: label.describe("Must equal the call's project"),
-  type: z.enum(ItemType).describe("Used only when the key is new; the docs never change it later"),
+  type: z
+    .enum(ItemType)
+    .describe("The type of a new key, and of an item the docs already own; a stored item the docs do not own with another type is skipped, never retyped"),
   title: label,
   status: z.enum(ItemStatus).describe("The status the docs give"),
   priority: z.enum(Priority).optional().describe("Used only when the key is new; the docs never change it later"),
   parent: detailShape.parent,
   why: detailShape.why,
+  details_md: detailShape.details_md.describe("Used only when the key is new: the rest of a clipped title; null or left out keeps none"),
   links: z.array(link).max(MAX_LINKS).optional(),
+};
+
+const snapshotItem = z.object({
+  ...snapshotFields,
   parts: z
     .array(snapshotPart)
     .max(MAX_PARTS)
     .optional()
-    .describe("The slice's lettered work groups; each becomes the item <key>/part-<letter>; a part left out is closed"),
+    .describe(`The slice's lettered work groups; each becomes the item <key>/part-<letter>, so the slice key must be at most ${MAX_KEY_LENGTH - PART_SUFFIX_LENGTH} characters; a part left out is closed`),
   checks: z
     .array(snapshotCheck)
     .max(MAX_CHECKS)
     .optional()
     .describe("The slice's checks not yet tried on a device; each becomes a check item under the slice; one left out is closed; omit the field to leave them as they are"),
   parent_key: key
+    .nullable()
     .optional()
-    .describe("Only on a top-level check item: the key of its slice, which need not be in the snapshot"),
+    .describe("The slice a top-level check, bug or problem belongs to (it need not be in the snapshot; a check needs one); left out keeps the stored value; null clears it (not on a check)"),
 });
 
 export const syncSnapshotShape = {
   project: label.describe("The project whose doc-sync set this is"),
-  items: z.array(snapshotItem).max(MAX_SNAPSHOT_ITEMS).describe("The project's full doc-sync set; missing ones close"),
+  items: z
+    .array(snapshotItem)
+    .max(MAX_SNAPSHOT_ITEMS)
+    .describe(`The project's full doc-sync set; missing ones close. At most ${MAX_SNAPSHOT_ITEMS} items, and at most ${MAX_EXPANDED_ITEMS} together with their parts and checks`),
 };

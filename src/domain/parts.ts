@@ -9,6 +9,8 @@ export enum PartState {
   Active = "active",
   /** Someone held it and its report stopped. */
   Stale = "stale",
+  /** Stored as blocked: it waits on something, so it is neither Next nor Later. */
+  Blocked = "blocked",
   Pending = "pending",
 }
 
@@ -16,6 +18,7 @@ export enum PartState {
 export enum PartNowKind {
   Active = "active",
   Stale = "stale",
+  Blocked = "blocked",
   Next = "next",
   AllDone = "all_done",
 }
@@ -101,6 +104,7 @@ export function partsProgress(states: readonly PartState[]): PartsProgress | nul
 export function partStateOf(row: WorkingRow, staleAfterMinutes: number, now: Date): PartState {
   if (row.status === ItemStatus.Done) return PartState.Done;
   if (isWorkingNow(row, staleAfterMinutes, now)) return PartState.Active;
+  if (row.status === ItemStatus.Blocked) return PartState.Blocked;
   const held = row.status === ItemStatus.InProgress || row.status === ItemStatus.Stale;
   return held ? PartState.Stale : PartState.Pending;
 }
@@ -126,6 +130,8 @@ export function partNow<T extends PartView>(parts: readonly T[]): PartNow<T> {
   if (active) return { kind: PartNowKind.Active, part: active };
   const stale = parts.find((part) => part.state === PartState.Stale);
   if (stale) return { kind: PartNowKind.Stale, part: stale };
+  const blocked = parts.find((part) => part.state === PartState.Blocked);
+  if (blocked) return { kind: PartNowKind.Blocked, part: blocked };
   const next = parts.find((part) => part.state === PartState.Pending);
   if (next) return { kind: PartNowKind.Next, part: next };
   return { kind: PartNowKind.AllDone, part: null };
@@ -134,9 +140,4 @@ export function partNow<T extends PartView>(parts: readonly T[]): PartNow<T> {
 /** The part to follow: the active one only, never a stale one. */
 export function activePartOf<T extends PartView>(parts: readonly T[]): T | null {
   return parts.find((part) => part.state === PartState.Active) ?? null;
-}
-
-/** The first pending part reads "Next" in a list, the rest "Later". */
-export function firstPendingKey(parts: readonly PartView[]): string | null {
-  return parts.find((part) => part.state === PartState.Pending)?.key ?? null;
 }

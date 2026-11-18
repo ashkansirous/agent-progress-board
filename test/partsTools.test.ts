@@ -242,6 +242,22 @@ describe("report_progress parent_key", () => {
     expect((await itemOf(B)).parent_key).toBeNull();
   });
 
+  it("rejects a parent cycle of three items, and does not refuse a report that leaves a stored legacy parent alone", async () => {
+    const [u1, u2, u3] = ["demo-app/u1", "demo-app/u2", "demo-app/u3"];
+    await callTool("report_progress", { key: u3, project: PROJECT, type: "unplanned", title: "u3" });
+    await callTool("report_progress", { key: u2, project: PROJECT, type: "unplanned", title: "u2", parent_key: u3 });
+    await callTool("report_progress", { key: u1, project: PROJECT, type: "unplanned", title: "u1", parent_key: u2 });
+    const loop = await callTool("report_progress", { key: u3, parent_key: u1 });
+    expect(loop.isError).toBe(true);
+    expect((await itemOf(u3)).parent_key).toBeNull();
+    await callTool("report_progress", { key: "demo-app/bug-9", project: PROJECT, type: "bug", title: "Legacy" });
+    await env.DB.prepare("UPDATE items SET parent_key = ?1 WHERE key = ?2").bind(u1, "demo-app/bug-9").run();
+    const heartbeat = await callTool("report_progress", { key: "demo-app/bug-9", status: "in_progress" });
+    expect(heartbeat.isError).toBeFalsy();
+    const changed = await callTool("report_progress", { key: "demo-app/bug-9", parent_key: "demo-app/bug-9" });
+    expect(changed.isError).toBe(true);
+  });
+
   it("rejects an item that is its own parent", async () => {
     const reply = await callTool("report_progress", { key: B, project: PROJECT, type: "part", title: "Page", parent_key: B });
     expect(reply.isError).toBe(true);

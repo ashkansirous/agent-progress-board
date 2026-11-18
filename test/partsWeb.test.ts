@@ -17,6 +17,10 @@ function part(letter: string, state: PartState, over: Partial<BoardPartDto> = {}
 const reviewing = { step: "Reviewing", steps_done: 1, steps_total: 5 };
 
 describe("partNowText", () => {
+  it("appends (blocked) for a blocked part", () => {
+    expect(partNowText([part("A", PartState.Done), part("B", PartState.Blocked, { step: "Waiting" })], t)).toBe("Part B · Waiting (blocked)");
+  });
+
   it("names the active part and its step", () => {
     expect(partNowText([part("A", PartState.Done), part("B", PartState.Active, reviewing)], t)).toBe("Part B · Reviewing");
   });

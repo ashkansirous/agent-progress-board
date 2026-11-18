@@ -186,3 +186,45 @@ describe("groupBoard", () => {
     expect(group.needs_you.sort()).toEqual(["c", "p"]);
   });
 });
+
+describe("loose checks and counted checks (Slice 33)", () => {
+  it("does not count the checks of a finished or stopped slice on the board as loose", () => {
+    const stopped = slice(4, { agent: "session", status: ItemStatus.InProgress });
+    const group = only([stopped, slice(9)], [check("c1", stopped.key), check("c2", `${PROJECT}/slice-77`)]);
+    expect(group.loose_checks.map((c) => c.key).sort()).toEqual(["c1", "c2"]);
+  });
+
+  it("shows a counted check whose parent is a known item that is no slice as loose, so it is counted", () => {
+    const bug = item("bug-1", { type: ItemType.Bug });
+    const group = only([bug], [check("c", bug.key)]);
+    expect(group.loose_checks.map((c) => c.key)).toEqual(["c"]);
+    expect(group.summary.checks_not_tried).toBe(1);
+  });
+
+  it("does not list a done slice as built for a blocked or stale check only (the same rule counts them)", () => {
+    const blocked = slice(6, { status: ItemStatus.Done, done_at: minutesAgo(30) });
+    const stale = slice(7, { status: ItemStatus.Done, done_at: minutesAgo(30) });
+    const group = only([blocked, stale], [check("b", blocked.key, { status: ItemStatus.Blocked }), check("s", stale.key, { status: ItemStatus.Stale })]);
+    expect(group.built).toEqual([]);
+    expect(group.summary).toMatchObject({ built: 0, checks_not_tried: 0 });
+    expect(group.done.count).toBe(2);
+  });
+
+  it("shows a stale or blocked check under its slice with its state, but does not count it as not tried", () => {
+    const s = slice(2);
+    const group = only([s], [check("a", s.key), check("b", s.key, { status: ItemStatus.Blocked }), check("c", s.key, { status: ItemStatus.Stale }), check("d", s.key, { status: ItemStatus.InProgress }), check("e", s.key, { status: ItemStatus.Done })]);
+    expect(group.planned[0]!.checks.map((c) => [c.key, c.status])).toEqual([
+      ["a", ItemStatus.Open],
+      ["b", ItemStatus.Blocked],
+      ["c", ItemStatus.Stale],
+      ["d", ItemStatus.InProgress],
+    ]);
+    expect(group.summary.checks_not_tried).toBe(2);
+  });
+
+  it("shows a stale check of a slice that is not on the board as loose, uncounted", () => {
+    const group = only([slice(9)], [check("s", `${PROJECT}/slice-77`, { status: ItemStatus.Stale })]);
+    expect(group.loose_checks.map((c) => c.key)).toEqual(["s"]);
+    expect(group.summary.checks_not_tried).toBe(0);
+  });
+});

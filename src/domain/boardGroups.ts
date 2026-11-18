@@ -1,4 +1,4 @@
-import { type CheckRow, type CheckView, checksBySlice } from "./checks";
+import { type CheckRow, type CheckView, checksBySlice, countedChecks, isCountedCheck } from "./checks";
 import type { SliceName } from "./docSync";
 import { ItemStatus, ItemType, Priority } from "./item";
 import { SESSION_AGENT } from "./stale";
@@ -96,7 +96,7 @@ export interface ProjectGroups {
   planned: PlannedSlice[];
   /** Done slices with at least one check not tried, by slice number; counted in no other list but their checks in the summary. */
   built: PlannedSlice[];
-  /** Checks whose slice is neither an open nor a built one: never a card, a dashed entry under Planned. */
+  /** Checks not tried whose slice is neither a planned nor a built one (never synced, not listed, or not a slice): never a card, a dashed entry under Planned. A check of a done slice makes it built, so it is that slice's. */
   loose_checks: CheckView[];
   problems: ProblemEntry[];
   /** Open items that are none of the above (an unplanned item nobody holds); the page lists them plainly. */
@@ -138,9 +138,19 @@ function isStoppedSession(item: GroupItem): boolean {
   return item.agent === SESSION_AGENT && item.needs_you === null && live && !item.working;
 }
 
-/** A done slice that still has a check not tried on a device. */
-function isBuilt(item: GroupItem, checks: Map<string, CheckView[]>): boolean {
-  return item.type === ItemType.Slice && item.status === ItemStatus.Done && (checks.get(item.key)?.length ?? 0) > 0;
+/**
+ * A done slice that still has a check not tried (open or in progress: `isCountedCheck`), the same rule as
+ * `OPEN_CHECK_OF` in `src/infrastructure/d1Repository.ts`, which loads the slice; `test/checks.test.ts` holds
+ * the two equal. Every loaded check that is not done shows under its slice or as loose with its state
+ * (`isShownCheck`); a stale or blocked one is only not counted and does not make a slice Built.
+ */
+function isBuilt(item: GroupItem, slicesWithOpenCheck: Set<string>): boolean {
+  return item.type === ItemType.Slice && item.status === ItemStatus.Done && slicesWithOpenCheck.has(item.key);
+}
+
+function slicesWithOpenChecks(checkRows: CheckRow[]): Set<string> {
+  const keys = checkRows.filter((row) => isCountedCheck(row.status) && row.parent_key).map((row) => row.parent_key!);
+  return new Set(keys);
 }
 
 function sliceStateOf(status: ItemStatus): SliceState {
@@ -183,7 +193,8 @@ function openUncarded(items: GroupItem[]): GroupItem[] {
 function groupProject(id: string, items: GroupItem[], checkRows: CheckRow[]): ProjectGroups {
   const cards = items.filter((item) => !NO_CARD_TYPES.includes(item.type));
   const checks = checksBySlice(checkRows);
-  const builtItems = cards.filter((item) => isBuilt(item, checks));
+  const withOpenCheck = slicesWithOpenChecks(checkRows);
+  const builtItems = cards.filter((item) => isBuilt(item, withOpenCheck));
   const builtSet = new Set(builtItems);
   const finished = cards.filter((item) => !builtSet.has(item) && (item.status === ItemStatus.Done || isStoppedSession(item)));
   const finishedSet = new Set(finished);
@@ -218,13 +229,13 @@ function groupProject(id: string, items: GroupItem[], checkRows: CheckRow[]): Pr
     done: doneGroupOf(finished),
     summary: { needs_you: needsYou.length, working: working.length, planned: planned.length, built: built.length, problems: problems.length, checks_not_tried: 0 },
   };
-  group.summary.checks_not_tried = [...planned, ...built].reduce((sum, slice) => sum + slice.checks.length, 0) + loose.length;
+  group.summary.checks_not_tried = [...planned, ...built].reduce((sum, slice) => sum + countedChecks(slice.checks), 0) + countedChecks(loose);
   return group;
 }
 
 function hasAnything(group: ProjectGroups): boolean {
   const { summary } = group;
-  const lists = summary.needs_you + summary.working + summary.planned + summary.problems + summary.checks_not_tried;
+  const lists = summary.needs_you + summary.working + summary.planned + summary.built + summary.problems + summary.checks_not_tried;
   return lists + group.other.length + group.done.count > 0;
 }
 

@@ -247,3 +247,106 @@ describe("sync_snapshot", () => {
     expect(reply.text).toContain("read-only");
   });
 });
+
+describe("sync_snapshot rules (Slice 33)", () => {
+  const bug = { key: "demo-app/bug-1", project: PROJECT, type: "bug", title: "Live bug", status: "open" };
+
+  it("skips a live item of another type that shares the key, and leaves it as it was", async () => {
+    await callTool("report_progress", { key: bug.key, project: PROJECT, type: "bug", title: "Live bug" });
+    const reply = await sync([{ ...bug, type: "slice", title: "Retyped" }]);
+    expect(reply.data).toMatchObject({ created: 0, updated: 0, skipped: [{ key: bug.key, reason: expect.stringContaining("type") }] });
+    const row = await env.DB.prepare("SELECT type, title, in_doc_sync FROM items WHERE key = ?1").bind(bug.key).first();
+    expect(row).toMatchObject({ type: "bug", title: "Live bug", in_doc_sync: 0 });
+  });
+
+  it("closes a doc-synced bug the document dropped, even when its slice sends no parts", async () => {
+    await sync([item(1), { ...bug, parent_key: "demo-app/slice-1" }]);
+    const reply = await sync([item(1)]);
+    expect(reply.data).toMatchObject({ closed: 1 });
+    expect((await callTool("get_item", { key: bug.key })).data).toMatchObject({ status: "done" });
+  });
+
+  it("keeps the live why and parent on every sync when the snapshot leaves them out, and clears them only with null", async () => {
+    await callTool("report_progress", { key: bug.key, project: PROJECT, type: "bug", title: "Live bug", why: "Seen live", parent: "Wave 3" });
+    await sync([bug]);
+    expect((await callTool("get_item", { key: bug.key })).data).toMatchObject({ why: "Seen live", parent: "Wave 3" });
+    await sync([{ ...bug, title: "Again" }]);
+    expect((await callTool("get_item", { key: bug.key })).data).toMatchObject({ why: "Seen live", parent: "Wave 3" });
+    await sync([{ ...bug, title: "Again", why: null, parent: null }]);
+    expect((await callTool("get_item", { key: bug.key })).data).toMatchObject({ why: null, parent: null });
+  });
+
+  it("saves a closed key that comes back as done with no event, and keeps its done_at", async () => {
+    await sync([item(1, { status: "done" }), item(2)]);
+    at(5);
+    await sync([item(2)]);
+    const closed = await get(1);
+    expect(await inSync(1)).toBe(false);
+    at(10);
+    const reply = await sync([item(1, { status: "done" }), item(2)]);
+    expect(reply.data).toMatchObject({ updated: 1, created: 0 });
+    expect(await inSync(1)).toBe(true);
+    const back = await get(1);
+    expect(back.done_at).toBe(closed.done_at);
+    expect(back.events).toEqual(closed.events);
+  });
+
+  it("clears a stored parent_key with null", async () => {
+    await sync([item(1), { ...bug, parent_key: "demo-app/slice-1" }]);
+    await sync([item(1), { ...bug, parent_key: null }]);
+    expect(((await callTool("get_item", { key: bug.key })).data as { parent_key: string | null }).parent_key).toBeNull();
+  });
+
+  it("skips a slice whose part keys would pass the key limit, and an item that is its own parent", async () => {
+    const long = `demo-app/${"s".repeat(190)}`;
+    const reply = await sync([{ ...item(1), key: long, parts: [{ letter: "A", title: "A", done: false }] }, { ...bug, parent_key: bug.key }]);
+    expect(reply.data).toMatchObject({ created: 0, skipped: [{ key: long }, { key: bug.key }] });
+  });
+
+  it("validates the expanded set: a nested check with a wrong prefix and a part that repeats a key are skipped, the slice is kept", async () => {
+    const dup = { key: "demo-app/slice-1/part-A", project: PROJECT, type: "problem", title: "dup", status: "open", parent_key: "demo-app/slice-1" };
+    const slice = {
+      ...item(1),
+      parts: [{ letter: "A", title: "A", done: false }],
+      checks: [{ key: "demo-app/other/check-1", title: "wrong prefix" }],
+    };
+    const reply = await sync([slice, dup]);
+    expect(reply.data).toMatchObject({ created: 2, skipped: expect.arrayContaining([{ key: "demo-app/other/check-1", reason: expect.any(String) }]) });
+    expect(await inSync(1)).toBe(true);
+    expect(await countRows("items")).toBe(2);
+  });
+
+  it("fills a null details_md on an existing key, and never overwrites a set one", async () => {
+    await sync([item(2)]);
+    const stored2 = () => env.DB.prepare("SELECT details_md FROM items WHERE key = ?1").bind("demo-app/slice-2").first<{ details_md: string | null }>();
+    expect((await stored2())?.details_md).toBeNull();
+    at(2);
+    await sync([item(2, { details_md: "now the rest" })]);
+    expect((await stored2())?.details_md).toBe("now the rest");
+    at(3);
+    await sync([item(2, { details_md: "changed again" })]);
+    expect((await stored2())?.details_md).toBe("now the rest");
+    await sync([item(1, { details_md: "the rest of the title" })]);
+    const stored = () => env.DB.prepare("SELECT details_md FROM items WHERE key = ?1").bind("demo-app/slice-1").first<{ details_md: string | null }>();
+    expect((await stored())?.details_md).toBe("the rest of the title");
+    await callTool("report_progress", { key: "demo-app/slice-1", project: PROJECT, details_md: "live notes" });
+    at(5);
+    await sync([item(1, { title: "Slice 1 retitled", details_md: "changed" })]);
+    expect((await stored())?.details_md).toBe("live notes");
+  });
+
+  it("checks a check against a sibling slice that is itself skipped", async () => {
+    const badSlice = { ...item(1), checks: [{ key: "demo-app/other/check-1", title: "x" }] };
+    const check = { key: "demo-app/slice-1/check-9", project: PROJECT, type: "check", title: "c", status: "open", parent_key: "demo-app/slice-1" };
+    const reply = await sync([check, badSlice]);
+    expect(reply.data).toMatchObject({ skipped: expect.arrayContaining([{ key: "demo-app/other/check-1", reason: expect.any(String) }]) });
+  });
+
+  it("skips a top-level check whose sibling slice is skipped, and stores neither", async () => {
+    const selfParent = { ...item(1), parent_key: "demo-app/slice-1" };
+    const check = { key: "demo-app/slice-1/check-9", project: PROJECT, type: "check", title: "c", status: "open", parent_key: "demo-app/slice-1" };
+    const reply = await sync([check, selfParent]);
+    expect(reply.data).toMatchObject({ created: 0, skipped: [{ key: check.key }, { key: selfParent.key }] });
+    expect(await countRows("items")).toBe(0);
+  });
+});

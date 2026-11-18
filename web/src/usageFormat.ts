@@ -1,15 +1,25 @@
+import type { CapCostEnvironmentDto } from "../../src/api/usageDto";
+import { offsetOf, type OffsetAt } from "../../src/domain/usage";
+
 const MS_PER_MINUTE = 60_000;
 const MINUTES_PER_HOUR = 60;
 const CLOCK_DIGITS = 2;
 const MILLION = 1_000_000;
 const THOUSAND = 1_000;
 const DAY_KEY_LENGTH = "YYYY-MM-DD".length;
+const HOUR_KEY_LENGTH = "YYYY-MM-DDTHH".length;
 const NICE_STEPS = [1, 2, 2.5, 5];
 const NICE_BASE = 10;
 
+/** A placed row: an environment that sends no token reports, its points come from its reported work windows. */
+export function isPlaced(env: CapCostEnvironmentDto): boolean {
+  return env.tokens === null && env.reports === 0;
+}
+
 /** A time as the viewer's wall clock: the UTC fields of the result are the viewer's local fields. */
-export function shifted(iso: string, offsetMinutes: number): Date {
-  return new Date(Date.parse(iso) + offsetMinutes * MS_PER_MINUTE);
+export function shifted(iso: string, offset: OffsetAt): Date {
+  const at = Date.parse(iso);
+  return new Date(at + offsetOf(offset, at) * MS_PER_MINUTE);
 }
 
 function pad(n: number): string {
@@ -17,8 +27,8 @@ function pad(n: number): string {
 }
 
 /** HH:mm in the viewer's time. */
-export function clockAt(iso: string, offsetMinutes: number): string {
-  const date = shifted(iso, offsetMinutes);
+export function clockAt(iso: string, offset: OffsetAt): string {
+  const date = shifted(iso, offset);
   return `${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}`;
 }
 
@@ -32,21 +42,22 @@ export function dayText(locale: string, date: Date): string {
 }
 
 /** "Tue 08:00". */
-export function weekdayClock(locale: string, iso: string, offsetMinutes: number): string {
-  const date = shifted(iso, offsetMinutes);
-  return `${part(locale, date, { weekday: "short" })} ${clockAt(iso, offsetMinutes)}`;
+export function weekdayClock(locale: string, iso: string, offset: OffsetAt): string {
+  const date = shifted(iso, offset);
+  return `${part(locale, date, { weekday: "short" })} ${clockAt(iso, offset)}`;
 }
 
 /** "Tue 17 Nov, 08:00". */
-export function longReset(locale: string, iso: string, offsetMinutes: number): string {
-  const date = shifted(iso, offsetMinutes);
+export function longReset(locale: string, iso: string, offset: OffsetAt): string {
+  const date = shifted(iso, offset);
   const month = part(locale, date, { month: "short" });
-  return `${dayText(locale, date)} ${month}, ${clockAt(iso, offsetMinutes)}`;
+  return `${dayText(locale, date)} ${month}, ${clockAt(iso, offset)}`;
 }
 
 /** The time a bucket key (`YYYY-MM-DD` or `YYYY-MM-DDTHH`) starts, as a viewer-time millisecond value. */
 export function bucketStartMs(bucket: string): number {
-  return Date.parse(bucket.length === DAY_KEY_LENGTH ? `${bucket}T00:00:00Z` : `${bucket}:00:00Z`);
+  if (bucket.length === DAY_KEY_LENGTH) return Date.parse(`${bucket}T00:00:00Z`);
+  return Date.parse(`${bucket.slice(0, HOUR_KEY_LENGTH)}:00:00Z`);
 }
 
 /** "Tue 10" for a day bucket, "13:00" for an hour bucket. */

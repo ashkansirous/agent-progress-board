@@ -263,6 +263,70 @@ async function insertSeries(count: number, firstAt: number): Promise<void> {
   }
 }
 
+async function getUsageAt(now: string, query: string, routerEnv: RouterEnv = baseEnv): Promise<UsageResponse> {
+  const jwt = await new SignJWT({ email: "owner@example.com" })
+    .setProtectedHeader({ alg: "RS256", kid: KEY_ID })
+    .setIssuer(TEAM)
+    .setAudience(AUD)
+    .setExpirationTime("1h")
+    .sign(privateKey);
+  const request = new Request(`${USAGE_URL}${query}`, { headers: { [ACCESS_JWT_HEADER]: jwt } });
+  const response = await route(request, routerEnv, { repo: new D1ItemRepository(env.DB), clock: { now: () => new Date(now) }, accessKeys });
+  expect(response.status).toBe(200);
+  return (await response.json()) as UsageResponse;
+}
+
+describe("time zone and clock changes (Slice 35 #1, review findings 3, 8)", () => {
+  it("echoes the zone it bucketed by, and the fixed offset when none was sent", async () => {
+    const zoned = await getUsageAt("2026-10-26T12:00:00.000Z", "?time_zone=Europe/Berlin&utc_offset=120");
+    expect([zoned.time_zone, zoned.utc_offset_minutes]).toEqual(["Europe/Berlin", 60]);
+    const fixed = await getUsageAt("2026-10-26T12:00:00.000Z", "?utc_offset=120");
+    expect([fixed.time_zone, fixed.utc_offset_minutes]).toEqual([null, 120]);
+  });
+
+  it("gives the hour the clocks repeat two buckets, each holding its own use", async () => {
+    await insertRaw([
+      { at: "2026-10-24T13:00:00.000Z", n: 1 },
+      { at: "2026-10-25T00:30:00.000Z", n: 5 },
+      { at: "2026-10-25T01:30:00.000Z", n: 15 },
+      { at: "2026-10-25T02:30:00.000Z", n: 18 },
+    ]);
+    const usage = await getUsageAt("2026-10-25T12:00:00.000Z", "?range=24h&time_zone=Europe/Berlin");
+    expect(usage.buckets).toHaveLength(25);
+    expect(new Set(usage.buckets).size).toBe(25);
+    const values = usage.splits.model[0]?.values ?? [];
+    const at = (key: string): number => values[usage.buckets.indexOf(key)] ?? -1;
+    expect([at("2026-10-25T02"), at("2026-10-25T02#2"), at("2026-10-25T03")]).toEqual([4, 10, 3]);
+  });
+
+  it("gives the hour the clocks skip no bucket", async () => {
+    const usage = await getUsageAt("2026-03-29T12:00:00.000Z", "?range=24h&time_zone=Europe/Berlin");
+    expect(usage.buckets).toHaveLength(25);
+    expect(usage.buckets).not.toContain("2026-03-29T02");
+    expect(usage.buckets).toContain("2026-03-29T01");
+    expect(usage.buckets).toContain("2026-03-29T03");
+  });
+});
+
+describe("a window older than the longest range (review finding 5)", () => {
+  it("starts the chart, the cap line and the use on the same clamped day", async () => {
+    const weekly = (takenAt: string) => ({ taken_at: takenAt, plan: "plan-a", windows: [{ kind: "weekly", percent: 30, reset_at: "2026-09-27T08:00:00Z" }] });
+    await callTool("report_cap", weekly("2026-09-21T10:00:00Z"));
+    await insertRaw([
+      { at: "2026-10-10T08:00:00.000Z", n: 10 },
+      { at: "2026-10-20T08:00:00.000Z", n: 30 },
+      { at: "2026-11-10T08:00:00.000Z", n: 50 },
+    ]);
+    // Readings are read as far back as keepDays, so with 90 days a window from 57 days ago is the current one.
+    const kept = { ...baseEnv, BOARD_CONFIG: JSON.stringify({ usage: { keepDays: 90 } }) };
+    const usage = await getUsageAt("2026-11-16T12:00:00.000Z", "", kept);
+    expect(usage.from).toBe("2026-10-17T12:00:00.000Z");
+    expect(usage.cap.weekly.windows).toEqual([]);
+    expect(usage.buckets[0]).toBe("2026-10-17");
+    expect(usage.totals_by_token_kind.input).toBe(40);
+  });
+});
+
 describe("thinning old samples", () => {
   it("keeps the last sample of each hour past the keep-time and every restart, leaving the use unchanged", async () => {
     const total = (DAYS_OF_REPORTS * 24 * 60) / SAMPLE_MINUTES;

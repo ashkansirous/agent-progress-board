@@ -3,19 +3,22 @@ import type { UsageResponse, UsageSeriesDto } from "../../src/api/usageDto";
 import { BucketUnit, Split } from "../../src/domain/usage";
 import {
   barSlot,
+  chartBuckets,
+  isInRange,
   labelEvery,
   roundedTopPath,
   stackSegments,
   xForBucket,
   xForReset,
   yForValue,
+  type ChartBucket,
   type Frame,
   type Segment,
 } from "./chartGeometry";
 import type { StringKey } from "./strings";
 import { Segmented, type Choice } from "./UsageControls";
 import { TokenKindsTable } from "./TokenKindsTable";
-import { bucketLabel, bucketLetter, bucketStartMs, niceScale, tokenText, type NiceScale } from "./usageFormat";
+import { niceScale, tokenText, type NiceScale } from "./usageFormat";
 import { seriesColor, seriesName, useUsageView, type UsageView } from "./usageView";
 
 interface ChartLayout {
@@ -48,7 +51,6 @@ const SERIES_LABEL_MAX = 16;
 const RESET_LABEL_GAP = 6;
 const RESET_LABEL_DROP = 12;
 const FIRST = 0;
-const MS_PER_MINUTE = 60_000;
 
 const SPLIT_CHOICES: [Split, StringKey, StringKey][] = [
   [Split.Model, "splitModel", "splitModel"],
@@ -88,6 +90,8 @@ function Legend({ series, split, palette }: { series: UsageSeriesDto[]; split: S
 
 interface BarsProps {
   data: UsageResponse;
+  /** Every position and label takes its bucket from this list (real time, a repeated hour kept apart). */
+  buckets: ChartBucket[];
   series: UsageSeriesDto[];
   split: Split;
   layout: ChartLayout;
@@ -96,17 +100,17 @@ interface BarsProps {
 }
 
 function Bar({ index, segments, props }: { index: number; segments: Segment[]; props: BarsProps }) {
-  const { data, series, split, layout, view } = props;
-  const slot = barSlot(index, data.buckets.length, layout.frame, layout.share, layout.maxBar);
-  const bucket = data.buckets[index] ?? "";
+  const { data, buckets, series, split, layout, view } = props;
+  const slot = barSlot(index, buckets.length, layout.frame, layout.share, layout.maxBar);
+  const bucket = buckets[index]?.label ?? "";
   const top = segments.at(-1);
-  const wide = (layout.frame.x1 - layout.frame.x0) / data.buckets.length >= MIN_SLOT_FOR_TOTALS;
+  const wide = (layout.frame.x1 - layout.frame.x0) / buckets.length >= MIN_SLOT_FOR_TOTALS;
   return (
     <g>
       {segments.map((seg) => {
         const s = series[seg.series];
         const fill = seriesColor(data.palette, s?.color_index ?? 0, view.scheme);
-        const title = s ? view.t("tokenTip", { bucket: bucketLabel(view.locale, bucket), series: seriesName(s, split, view.t), tokens: tokenText(seg.value, view.locale) }) : "";
+        const title = s ? view.t("tokenTip", { bucket, series: seriesName(s, split, view.t), tokens: tokenText(seg.value, view.locale) }) : "";
         const tip = view.phone ? null : <title>{title}</title>;
         if (seg.top) return <path key={seg.series} d={roundedTopPath(slot.x, seg.y, slot.width, seg.height, layout.radius)} fill={fill}>{tip}</path>;
         return <rect key={seg.series} x={slot.x} y={seg.y} width={slot.width} height={seg.height} fill={fill}>{tip}</rect>;
@@ -121,9 +125,9 @@ function Bar({ index, segments, props }: { index: number; segments: Segment[]; p
 }
 
 function Axes({ props }: { props: BarsProps }) {
-  const { data, layout, scale, view } = props;
+  const { buckets, layout, scale, view } = props;
   const { frame } = layout;
-  const every = labelEvery(data.buckets.length, layout.maxLabels);
+  const every = labelEvery(buckets.length, layout.maxLabels);
   return (
     <>
       {Array.from({ length: layout.intervals + 1 }, (_, i) => i * scale.step).map((value) => {
@@ -137,10 +141,10 @@ function Axes({ props }: { props: BarsProps }) {
           </g>
         );
       })}
-      {data.buckets.map((bucket, i) =>
+      {buckets.map((bucket, i) =>
         i % every === 0 ? (
-          <text key={bucket} className="axis-text" x={xForBucket(i, data.buckets.length, frame)} y={layout.dayY} textAnchor="middle" fontSize={layout.font}>
-            {view.phone ? bucketLetter(view.locale, bucket) : bucketLabel(view.locale, bucket)}
+          <text key={bucket.key} className="axis-text" x={xForBucket(i, buckets.length, frame)} y={layout.dayY} textAnchor="middle" fontSize={layout.font}>
+            {view.phone ? bucket.letter : bucket.label}
           </text>
         ) : null,
       )}
@@ -149,14 +153,13 @@ function Axes({ props }: { props: BarsProps }) {
 }
 
 function ResetLines({ props }: { props: BarsProps }) {
-  const { data, layout, view } = props;
-  const first = data.buckets[FIRST];
-  if (first === undefined) return null;
+  const { data, buckets, layout, view } = props;
+  if (buckets.length === 0) return null;
   return (
     <>
       {data.cap.weekly.windows.map((w) => {
-        if (Date.parse(w.started_at) + view.offsetMinutes * MS_PER_MINUTE < bucketStartMs(first)) return null;
-        const x = xForReset(w.started_at, view.offsetMinutes, data.buckets, data.bucket_unit, layout.frame);
+        if (!isInRange(w.started_at, buckets)) return null;
+        const x = xForReset(w.started_at, buckets, layout.frame);
         if (x >= layout.frame.x1) return null;
         return (
           <g key={w.started_at}>
@@ -174,8 +177,8 @@ function ResetLines({ props }: { props: BarsProps }) {
 }
 
 function SeriesLabels({ props }: { props: BarsProps }) {
-  const { data, series, split, layout, scale, view } = props;
-  const last = data.buckets.length - 1;
+  const { series, split, layout, scale, view } = props;
+  const last = props.buckets.length - 1;
   if (view.phone || last < 0) return null;
   const values = series.map((s) => s.values[last] ?? 0);
   const segments = stackSegments(values, scale, layout.frame);
@@ -199,14 +202,14 @@ function SeriesLabels({ props }: { props: BarsProps }) {
 function altText(props: BarsProps): string {
   const { data, series, split, view } = props;
   const biggest = [...series].sort((a, b) => sumOf(b) - sumOf(a))[FIRST];
-  const first = data.buckets[FIRST];
-  const last = data.buckets.at(-1);
+  const first = props.buckets[FIRST];
+  const last = props.buckets.at(-1);
   if (!biggest || first === undefined || last === undefined || sumOf(biggest) === 0) return view.t("tokensAltNone");
   return view.t("tokensAlt", {
     unit: view.t(data.bucket_unit === BucketUnit.Hour ? "unitHour" : "unitDay"),
     split: view.t(SPLIT_NAMES[split]),
-    from: bucketLabel(view.locale, first),
-    to: bucketLabel(view.locale, last),
+    from: first.label,
+    to: last.label,
     top: seriesName(biggest, split, view.t),
   });
 }
@@ -221,8 +224,8 @@ function DataTable({ props }: { props: BarsProps }) {
         <thead>
           <tr>
             <th scope="col">{view.t(SPLIT_NAMES[split])}</th>
-            {data.buckets.map((b) => (
-              <th key={b} scope="col">{bucketLabel(view.locale, b)}</th>
+            {props.buckets.map((b) => (
+              <th key={b.key} scope="col">{b.label}</th>
             ))}
           </tr>
         </thead>
@@ -231,7 +234,7 @@ function DataTable({ props }: { props: BarsProps }) {
             <tr key={s.name ?? "none"}>
               <th scope="row">{seriesName(s, split, view.t)}</th>
               {s.values.map((v, i) => (
-                <td key={data.buckets[i]}>{v}</td>
+                <td key={props.buckets[i]?.key ?? i}>{v}</td>
               ))}
             </tr>
           ))}
@@ -242,13 +245,13 @@ function DataTable({ props }: { props: BarsProps }) {
 }
 
 function Chart({ props }: { props: BarsProps }) {
-  const { data, series, layout, scale } = props;
+  const { series, layout, scale } = props;
   return (
     <svg viewBox={`0 0 ${layout.width} ${layout.height}`} width="100%" role="img" aria-label={altText(props)} className="chart">
       <Axes props={props} />
       <ResetLines props={props} />
-      {data.buckets.map((bucket, i) => (
-        <Bar key={bucket} index={i} segments={stackSegments(series.map((s) => s.values[i] ?? 0), scale, layout.frame)} props={props} />
+      {props.buckets.map((bucket, i) => (
+        <Bar key={bucket.key} index={i} segments={stackSegments(series.map((s) => s.values[i] ?? 0), scale, layout.frame)} props={props} />
       ))}
       <SeriesLabels props={props} />
     </svg>
@@ -262,8 +265,9 @@ export function TokenChart({ data }: { data: UsageResponse }) {
   const [split, setSplit] = useState<Split>(Split.Model);
   const series = data.splits[split];
   const layout = phone ? PHONE : DESKTOP;
-  const maxTotal = Math.max(0, ...data.buckets.map((_, i) => sumAt(series, i)));
-  const props: BarsProps = { data, series, split, layout, scale: niceScale(maxTotal, layout.intervals), view };
+  const buckets = chartBuckets(data, view);
+  const maxTotal = Math.max(0, ...buckets.map((_, i) => sumAt(series, i)));
+  const props: BarsProps = { data, buckets, series, split, layout, scale: niceScale(maxTotal, layout.intervals), view };
   const unit = t(data.bucket_unit === BucketUnit.Hour ? "unitHour" : "unitDay");
   const title = phone ? t("tokensTitlePhone", { unit }) : t("tokensTitle", { unit, split: t(SPLIT_NAMES[split]) });
   const choices: Choice<Split>[] = SPLIT_CHOICES.map(([value, long, short]) => ({ value, label: t(phone ? short : long) }));

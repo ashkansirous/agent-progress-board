@@ -523,12 +523,6 @@ export function unexplainedStretches(fit: CapCostFit, since: string, limit: numb
     }));
 }
 
-/** Unexplained growth of the stretches ending after `since` that `unexplainedStretches` leaves out (each under NO_POINTS, or past the limit): the listed points plus this are the total. */
-export function unexplainedRest(fit: CapCostFit, since: string, limit: number): number {
-  const listed = unexplainedStretches(fit, since, limit).reduce((sum, s) => sum + s.points, 0);
-  return Math.max(0, unexplainedTotals(fit, since).points - listed);
-}
-
 /** The unexplained growth of the stretches ending after `since`, as points and as a share of the growth. */
 export function unexplainedTotals(fit: CapCostFit, since: string): UnexplainedTotals {
   const inside = fit.stretches.map((stretch, i) => ({ stretch, left: Math.max(0, fit.residuals[i] ?? 0) })).filter(({ stretch }) => stretch.end > since);
@@ -558,11 +552,10 @@ interface TimedWindow {
   to: number;
 }
 
-/** The windows' parts inside the stretch (empty ones left out), in window order; `windows` is sorted by start. */
+/** The windows' parts inside the stretch (empty ones left out), in window order (the order of `windows`, which `boundedWindows` leaves sorted by end, as before Slice 35). */
 function overlapsOf(windows: TimedWindow[], from: number, to: number): Array<{ environment: string; from: number; to: number }> {
   const inside: Array<{ environment: string; from: number; to: number }> = [];
   for (const w of windows) {
-    if (w.from >= to) break;
     const start = Math.max(w.from, from);
     const end = Math.min(w.to, to);
     if (end > start) inside.push({ environment: w.environment, from: start, to: end });
@@ -593,7 +586,7 @@ function coveredMs(parts: Array<{ from: number; to: number }>): number {
 export function placeInWindows(fit: CapCostFit, allWindows: WorkWindow[], since: string): PlacedGrowth {
   const byEnvironment = new Map<string, number>();
   if (allWindows.length === 0) return { fit, byEnvironment };
-  const windows = boundedWindows(allWindows).sort((a, b) => a.from - b.from);
+  const windows = boundedWindows(allWindows);
   if (windows.length === 0) return { fit, byEnvironment };
   const residuals = fit.stretches.map((stretch, i) => {
     const left = Math.max(0, fit.residuals[i] ?? 0);

@@ -59,12 +59,20 @@ export interface UsageDelta {
   restart: boolean;
 }
 
+const MS_PER_SECOND = 1_000;
 const MS_PER_MINUTE = 60_000;
 const MS_PER_HOUR = 3_600_000;
 const HOURS_PER_DAY = 24;
 const MS_PER_DAY = HOURS_PER_DAY * MS_PER_HOUR;
 const DAY_KEY_LENGTH = 10;
 const HOUR_KEY_LENGTH = 13;
+/** Zones change offset on quarter-hour edges of UTC at the finest, so one lookup serves a whole quarter hour. */
+const OFFSET_SLOT_MS = 15 * MS_PER_MINUTE;
+/** The most time zone formatters kept; a caller can name many spellings of zones, so the cache is bounded. */
+const MAX_ZONE_FORMATS = 32;
+/** Starts the number that ends the key of a later pass through a local hour the clocks repeated (`2026-10-25T02#2`). */
+export const REPEATED_HOUR_MARK = "#";
+const SECOND_PASS = 2;
 
 export function zeroTotals(): TokenTotals {
   return { input: 0, cache_write: 0, cache_read: 0, output: 0 };
@@ -157,22 +165,166 @@ export function withBaseEnvironment(deltas: UsageDelta[], base: string | null): 
   );
 }
 
-/** The bucket a time falls in, in the viewer's time: `YYYY-MM-DD`, or `YYYY-MM-DDTHH` for hours. */
-export function bucketKey(isoTime: string, offsetMinutes: number, unit: BucketUnit): string {
-  const shifted = new Date(Date.parse(isoTime) + offsetMinutes * MS_PER_MINUTE).toISOString();
-  return shifted.slice(0, unit === BucketUnit.Day ? DAY_KEY_LENGTH : HOUR_KEY_LENGTH);
+/** The viewer's offset from UTC in minutes (east positive) at a moment, in epoch milliseconds: a fixed number, or a time zone's, which changes with daylight saving. */
+export type OffsetAt = number | ((epochMs: number) => number);
+
+export function offsetOf(offset: OffsetAt, epochMs: number): number {
+  return typeof offset === "number" ? offset : offset(epochMs);
 }
 
-/** Every bucket from the one holding `from` to the one holding `to`, oldest first. */
-export function bucketKeys(from: string, to: string, offsetMinutes: number, unit: BucketUnit): string[] {
-  const step = unit === BucketUnit.Day ? MS_PER_DAY : MS_PER_HOUR;
-  const last = bucketKey(to, offsetMinutes, unit);
-  const keys: string[] = [];
-  for (let at = Date.parse(from); ; at += step) {
-    const key = bucketKey(new Date(at).toISOString(), offsetMinutes, unit);
-    if (keys[keys.length - 1] !== key) keys.push(key);
-    if (key >= last) return keys;
+const zoneFormats = new Map<string, Intl.DateTimeFormat>();
+
+function zoneFormat(zone: string): Intl.DateTimeFormat {
+  const known = zoneFormats.get(zone);
+  if (known) return known;
+  const made = new Intl.DateTimeFormat("en-US", {
+    timeZone: zone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "numeric",
+    second: "numeric",
+  });
+  const oldest = zoneFormats.keys().next();
+  if (zoneFormats.size >= MAX_ZONE_FORMATS && !oldest.done) zoneFormats.delete(oldest.value);
+  zoneFormats.set(zone, made);
+  return made;
+}
+
+function zoneOffsetNow(format: Intl.DateTimeFormat, epochMs: number): number {
+  const part = new Map(format.formatToParts(epochMs).map(({ type, value }) => [type, Number(value)]));
+  const wall = Date.UTC(part.get("year") ?? 0, (part.get("month") ?? 1) - 1, part.get("day") ?? 1, part.get("hour") ?? 0, part.get("minute") ?? 0, part.get("second") ?? 0);
+  return Math.round((wall - Math.floor(epochMs / MS_PER_SECOND) * MS_PER_SECOND) / MS_PER_MINUTE);
+}
+
+/**
+ * A time zone's offset at each moment (Slice 35 #1), or null when the name is not a time zone the runtime knows.
+ * Each quarter hour is looked up once per function, so a long range costs one formatter call per quarter hour, not per delta.
+ */
+export function zoneOffsetAt(zone: string): OffsetAt | null {
+  let format: Intl.DateTimeFormat;
+  try {
+    format = zoneFormat(zone);
+  } catch {
+    return null;
   }
+  const slots = new Map<number, number>();
+  return (epochMs) => {
+    const slot = Math.floor(epochMs / OFFSET_SLOT_MS);
+    const known = slots.get(slot);
+    if (known !== undefined) return known;
+    const offset = zoneOffsetNow(format, slot * OFFSET_SLOT_MS);
+    slots.set(slot, offset);
+    return offset;
+  };
+}
+
+/**
+ * The one offset rule of the page and the Worker: the time zone the viewer sent when there is one the runtime knows,
+ * else the fixed offset. Every surface asks the function this returns, once per moment.
+ */
+export function offsetForZone(zone: string | null, fixedMinutes: number): OffsetAt {
+  return (zone === null ? null : zoneOffsetAt(zone)) ?? fixedMinutes;
+}
+
+/** One bucket of a chart in real time: its key (`YYYY-MM-DD`, or `YYYY-MM-DDTHH` for hours, `#2` on a repeated local hour) and the moment it starts and ends. */
+export interface Bucket {
+  key: string;
+  startMs: number;
+  endMs: number;
+}
+
+function wallOf(at: number, offset: OffsetAt): number {
+  return at + offsetOf(offset, at) * MS_PER_MINUTE;
+}
+
+function wallKey(wall: number, unit: BucketUnit): string {
+  return new Date(wall).toISOString().slice(0, unit === BucketUnit.Day ? DAY_KEY_LENGTH : HOUR_KEY_LENGTH);
+}
+
+/** The real moment a viewer-time wall clock value shows, found through the offset function (the offset is read twice, so a change near the value is honoured). */
+function momentOfWall(wall: number, offset: OffsetAt): number {
+  const guess = wall - offsetOf(offset, wall) * MS_PER_MINUTE;
+  return wall - offsetOf(offset, guess) * MS_PER_MINUTE;
+}
+
+function wallFloor(wall: number, span: number): number {
+  return wall - (((wall % span) + span) % span);
+}
+
+/** Adds a bucket; a local key seen before gets `#2`, `#3`, ... (a repeated hour, whole or half). */
+function addBucket(buckets: Bucket[], seen: Map<string, number>, key: string, startMs: number, endMs: number): void {
+  const count = (seen.get(key) ?? 0) + 1;
+  seen.set(key, count);
+  buckets.push({ key: count < SECOND_PASS ? key : `${key}${REPEATED_HOUR_MARK}${count}`, startMs, endMs });
+}
+
+function hourBuckets(fromMs: number, toMs: number, offset: OffsetAt): Bucket[] {
+  const buckets: Bucket[] = [];
+  const seen = new Map<string, number>();
+  const intoHour = wallOf(fromMs, offset) - wallFloor(wallOf(fromMs, offset), MS_PER_HOUR);
+  for (let start = fromMs - intoHour; start <= toMs; start += MS_PER_HOUR) {
+    addBucket(buckets, seen, wallKey(wallOf(start, offset), BucketUnit.Hour), start, start + MS_PER_HOUR);
+  }
+  return buckets;
+}
+
+function dayBuckets(fromMs: number, toMs: number, offset: OffsetAt): Bucket[] {
+  const buckets: Bucket[] = [];
+  const seen = new Map<string, number>();
+  for (let wall = wallFloor(wallOf(fromMs, offset), MS_PER_DAY); ; wall += MS_PER_DAY) {
+    const start = momentOfWall(wall, offset);
+    if (start > toMs) return buckets;
+    const end = momentOfWall(wall + MS_PER_DAY, offset);
+    if (end > start) addBucket(buckets, seen, wallKey(wall, BucketUnit.Day), start, end);
+  }
+}
+
+/**
+ * The buckets of a range, made by walking real time from the range start: one real hour, or one local day (to the next
+ * local midnight, found through the offset function), at a time until the end. A day is 23 or 25 hours at a clock change,
+ * and an hour the clocks repeated is two buckets. The loop ends on milliseconds, never on key order.
+ */
+export function bucketsBetween(fromMs: number, toMs: number, offset: OffsetAt, unit: BucketUnit): Bucket[] {
+  return unit === BucketUnit.Day ? dayBuckets(fromMs, toMs, offset) : hourBuckets(fromMs, toMs, offset);
+}
+
+/** The keys of `bucketsBetween` for ISO times, oldest first. */
+export function bucketKeys(from: string, to: string, offset: OffsetAt, unit: BucketUnit): string[] {
+  return bucketsBetween(Date.parse(from), Date.parse(to), offset, unit).map(({ key }) => key);
+}
+
+/** The index of the bucket holding a moment, or -1 when no bucket does (before the first, after the last, or in a gap). */
+export function bucketIndexAt(ms: number, buckets: Bucket[]): number {
+  let low = 0;
+  let high = buckets.length - 1;
+  while (low <= high) {
+    const mid = (low + high) >> 1;
+    const bucket = buckets[mid] as Bucket;
+    if (ms < bucket.startMs) high = mid - 1;
+    else if (ms >= bucket.endMs) low = mid + 1;
+    else return mid;
+  }
+  return -1;
+}
+
+/**
+ * Where a moment falls along the buckets: the index of the bucket holding it plus the part of that bucket gone, so 0 is the
+ * left edge and `buckets.length` the right edge. The one position rule of every chart; a moment outside is clamped to an edge.
+ */
+export function xOfMoment(ms: number, buckets: Bucket[]): number {
+  const first = buckets[0];
+  const last = buckets.at(-1);
+  if (first === undefined || last === undefined || ms < first.startMs) return 0;
+  if (ms >= last.endMs) return buckets.length;
+  const index = bucketIndexAt(ms, buckets);
+  if (index >= 0) {
+    const { startMs, endMs } = buckets[index] as Bucket;
+    return index + (ms - startMs) / (endMs - startMs);
+  }
+  return buckets.findIndex((bucket) => bucket.startMs > ms);
 }
 
 export interface SeriesValues {

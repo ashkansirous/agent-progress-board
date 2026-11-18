@@ -5,7 +5,7 @@ import { type BoardConfig, parseConfig } from "../config";
 import { DomainError } from "../domain/upsert";
 import { type AccessEnv, AccessDecision, type AccessKeys, checkAccess, remoteAccessKeys } from "./access";
 import type { TokenSecrets } from "./auth";
-import { boardResponse } from "./board";
+import { boardResponse, pageConfigOf } from "./board";
 import { CHAT_TEXT_PATH, chatTextResponse } from "./chatText";
 import type { UsagePageResponse } from "./usageDto";
 
@@ -42,7 +42,7 @@ export async function route(request: Request, env: RouterEnv, deps: RouterDeps):
 async function usageResponse(deps: RouterDeps, url: URL, config: BoardConfig): Promise<Response> {
   try {
     const usage = await readUsage(deps.repo, parseUsageQuery(url.searchParams), config.usage, deps.clock);
-    const body: UsagePageResponse = { ...usage, palettes: config.palettes };
+    const body: UsagePageResponse = { ...usage, palettes: pageConfigOf(config).palettes };
     return Response.json(body, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     if (error instanceof DomainError) return new Response(error.message, { status: 400 });

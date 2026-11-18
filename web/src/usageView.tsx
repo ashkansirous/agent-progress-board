@@ -1,7 +1,7 @@
 import { createContext, useContext } from "react";
 import type { UsageSeriesDto } from "../../src/api/usageDto";
 import type { SeriesColor } from "../../src/config";
-import { Split, TokenKind } from "../../src/domain/usage";
+import { Split, TokenKind, type OffsetAt } from "../../src/domain/usage";
 import type { StringKey, Translate } from "./strings";
 import type { SchemeName } from "./theme";
 
@@ -11,7 +11,8 @@ export interface UsageView {
   phone: boolean;
   scheme: SchemeName;
   locale: string;
-  offsetMinutes: number;
+  /** The one offset rule of the page and the Worker (`offsetForZone`): every clock label and chart position asks it per moment. */
+  offsetAt: OffsetAt;
 }
 
 const UsageViewContext = createContext<UsageView | null>(null);

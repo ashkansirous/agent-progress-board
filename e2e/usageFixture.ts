@@ -112,6 +112,7 @@ export function demoUsage(over: Partial<UsagePageResponse> = {}): UsagePageRespo
     ],
     base_environment: ENV_ONE.value,
     utc_offset_minutes: 0,
+    time_zone: null,
     palette: example.usage.series,
     bucket_unit: BucketUnit.Day,
     buckets: BUCKETS,

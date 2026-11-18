@@ -1,12 +1,44 @@
-import { BucketUnit } from "../../src/domain/usage";
-import { bucketStartMs, type NiceScale } from "./usageFormat";
+import type { UsageResponse } from "../../src/api/usageDto";
+import { BucketUnit, bucketsBetween, REPEATED_HOUR_MARK, xOfMoment, type Bucket, type OffsetAt } from "../../src/domain/usage";
+import type { Translate } from "./strings";
+import { bucketLabel, bucketLetter, type NiceScale } from "./usageFormat";
 
-const MS_PER_MINUTE = 60_000;
-const MS_PER_HOUR = 3_600_000;
-const MS_PER_DAY = 86_400_000;
 const SEGMENT_GAP = 2;
 const MIN_SEGMENT = 1;
 const CAP_QUARTER = 25;
+
+/** What the words of a bucket need: the clock rule, the locale and the translator. */
+export interface BucketView {
+  offsetAt: OffsetAt;
+  locale: string;
+  t: Translate;
+}
+
+/** A bucket with the words the chart shows for it. */
+export interface ChartBucket extends Bucket {
+  label: string;
+  letter: string;
+}
+
+const SECOND_PASS_LETTER = "²";
+
+/**
+ * The chart's buckets, made by the same walk of real time as the Worker's (from `from` to `server_time`, with the answer's
+ * own offset rule), so every position and label takes its bucket from one list. A repeated hour reads "02:00 (2nd)".
+ */
+export function chartBuckets(data: UsageResponse, view: BucketView): ChartBucket[] {
+  const buckets = bucketsBetween(Date.parse(data.from), Date.parse(data.server_time), view.offsetAt, data.bucket_unit);
+  return buckets.map((bucket) => {
+    const again = data.bucket_unit === BucketUnit.Hour && bucket.key.includes(REPEATED_HOUR_MARK);
+    const label = bucketLabel(view.locale, bucket.key);
+    const letter = bucketLetter(view.locale, bucket.key);
+    return {
+      ...bucket,
+      label: again ? view.t("hourAgain", { hour: label }) : label,
+      letter: again ? `${letter}${SECOND_PASS_LETTER}` : letter,
+    };
+  });
+}
 
 /** The plot rectangle of a chart in its viewBox units. */
 export interface Frame {
@@ -16,25 +48,27 @@ export interface Frame {
   yBottom: number;
 }
 
-export function bucketSpanMs(unit: BucketUnit): number {
-  return unit === BucketUnit.Hour ? MS_PER_HOUR : MS_PER_DAY;
+/**
+ * Where a time falls on the x axis of a chart whose buckets are `buckets`; clamped to the plot. The position is
+ * `xOfMoment` (the bucket holding the moment, plus the part of it gone), so a 23 or 25 hour day, a repeated hour and a
+ * half-hour change keep a point on its own bar.
+ */
+export function xForTime(iso: string, buckets: Bucket[], frame: Frame): number {
+  if (buckets.length === 0) return frame.x0;
+  return frame.x0 + (xOfMoment(Date.parse(iso), buckets) / buckets.length) * (frame.x1 - frame.x0);
 }
 
-/** Where a time falls on the x axis of a chart whose buckets are `buckets`; clamped to the plot. */
-export function xForTime(iso: string, offsetMinutes: number, buckets: string[], unit: BucketUnit, frame: Frame): number {
+/** Whether a time is inside the range: not before the start of the first bucket (compared in milliseconds). */
+export function isInRange(iso: string, buckets: Bucket[]): boolean {
   const first = buckets[0];
-  if (first === undefined) return frame.x0;
-  const local = Date.parse(iso) + offsetMinutes * MS_PER_MINUTE;
-  const share = (local - bucketStartMs(first)) / (buckets.length * bucketSpanMs(unit));
-  return frame.x0 + Math.min(1, Math.max(0, share)) * (frame.x1 - frame.x0);
+  return first !== undefined && Date.parse(iso) >= first.startMs;
 }
 
-/** Where a reset is drawn: at the left edge when it begins the first bucket's window, else at its own time. */
-export function xForReset(iso: string, offsetMinutes: number, buckets: string[], unit: BucketUnit, frame: Frame): number {
+/** Where a reset is drawn: at the left edge when it falls in the first bucket (or before it), else at its own time. */
+export function xForReset(iso: string, buckets: Bucket[], frame: Frame): number {
   const first = buckets[0];
-  const local = Date.parse(iso) + offsetMinutes * MS_PER_MINUTE;
-  if (first !== undefined && local < bucketStartMs(first) + bucketSpanMs(unit)) return frame.x0;
-  return xForTime(iso, offsetMinutes, buckets, unit, frame);
+  if (first !== undefined && Date.parse(iso) < first.endMs) return frame.x0;
+  return xForTime(iso, buckets, frame);
 }
 
 /** The x of the centre of bucket `index`. */

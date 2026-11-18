@@ -15,7 +15,6 @@ import {
   placeInWindows,
   type Stretch,
   tokensPerPercent,
-  unexplainedRest,
   unexplainedStretches,
   unexplainedTotals,
 } from "../src/domain/capCost";
@@ -460,6 +459,18 @@ describe("growth placed inside reported chat windows (Slice 16)", () => {
     expect(uneven.byEnvironment.get(DESIGN)).toBeCloseTo((4.5 * 45) / 60, 9);
   });
 
+  it("keeps the allocation as it was before Slice 35: windows in end order, whatever order they arrive in (review finding 5)", () => {
+    // CHAT starts first but ends last, so start order and end order differ.
+    const nested = [window(CHAT, 0, 50), window(DESIGN, 10, 30)];
+    const placed = placeInWindows(fitWith(6), nested, T(-1));
+    expect([...placed.byEnvironment.keys()]).toEqual([DESIGN, CHAT]);
+    // 50 of the 60 minutes are covered (5 points), split pro rata to each window's overlap (50 and 20 minutes).
+    expect(placed.byEnvironment.get(CHAT)).toBeCloseTo((5 * 50) / 70, 9);
+    expect(placed.byEnvironment.get(DESIGN)).toBeCloseTo((5 * 20) / 70, 9);
+    const reversed = placeInWindows(fitWith(6), [...nested].reverse(), T(-1));
+    expect([...reversed.byEnvironment.entries()]).toEqual([...placed.byEnvironment.entries()]);
+  });
+
   it("never places more than the unexplained growth, and ignores negative residuals", () => {
     const placed = placeInWindows({ ...fitWith(6), residuals: [-2] }, [window(CHAT, 0, 60)], T(-1));
     expect(placed.byEnvironment.size).toBe(0);
@@ -527,13 +538,11 @@ describe("placement edge cases (Slice 35)", () => {
     expect((placed.fit.residuals[0] ?? 0) + [...placed.byEnvironment.values()].reduce((a, b) => a + b, 0)).toBeCloseTo(6, 6);
   });
 
-  it("counts growth under the listing threshold in the rest, so listed points plus the rest are the total", () => {
+  it("counts growth under the listing threshold in the total, though the list leaves it out", () => {
     const stretches: Stretch[] = [0, 1, 2].map((i) => ({ plan: "plan-a", start: T(i * 60), end: T(i * 60 + 60), growth: 1, uses: [] }));
     const fit: CapCostFit = { models: [], environments: [], stretches, residuals: [0.04, 0.03, 2], leftoverShare: 1 };
-    const listed = unexplainedStretches(fit, T(-1), 5).reduce((sum, s) => sum + s.points, 0);
     expect(unexplainedStretches(fit, T(-1), 5)).toHaveLength(1);
-    expect(listed + unexplainedRest(fit, T(-1), 5)).toBeCloseTo(unexplainedTotals(fit, T(-1)).points, 9);
-    expect(unexplainedRest(fit, T(-1), 5)).toBeCloseTo(0.07, 9);
+    expect(unexplainedTotals(fit, T(-1)).points).toBeCloseTo(2.07, 9);
   });
 });
 

@@ -136,6 +136,23 @@ describe("the cap cost in the usage route", () => {
     expect(Math.abs((aged?.all_kinds_tokens_per_percent ?? 0) - 400_000)).toBeGreaterThan(10_000);
   });
 
+  it("lets one model without last week's use fall back to its own mix without blanking the others (Slice 35)", async () => {
+    await seedWeekWithReset();
+    for (const [at, tokens] of [[33, 2 * MILLION], [34, 4 * MILLION]] as const) {
+      await reportUsage(
+        repo(),
+        { agent_key: "demo-app/session-4", model: "model-small", record_at: hour(at), input_tokens: tokens, cache_write_tokens: 0, cache_read_tokens: 0, output_tokens: 0 },
+        clock,
+      );
+    }
+    const models = (await getUsage("?range=30d", new Date(hour(34)))).cap_cost.models;
+    const large = models.find((m) => m.model === "model-large");
+    const small = models.find((m) => m.model === "model-small");
+    expect(large?.mix_source).toBe("last_full");
+    expect(large?.all_kinds_tokens_per_percent).toBeCloseTo(400_000, -1);
+    expect(small?.mix_source).toBe("current");
+  });
+
   it("gives the young figure the same value whichever environment the page filters on (Slice 26)", async () => {
     await seedWeekWithReset("laptop");
     await reportUsage(

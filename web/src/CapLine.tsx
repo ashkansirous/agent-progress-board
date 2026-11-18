@@ -1,6 +1,6 @@
 import type { CapReadingDto, CapWindowDto, UsageResponse } from "../../src/api/usageDto";
-import { bucketLabel, bucketLetter, bucketStartMs, percentText, weekdayClock } from "./usageFormat";
-import { capAxisTop, capTicks, labelEvery, xForBucket, xForReset, xForTime, yForValue, type Frame } from "./chartGeometry";
+import { percentText, weekdayClock } from "./usageFormat";
+import { capAxisTop, capTicks, chartBuckets, isInRange, labelEvery, xForBucket, xForReset, xForTime, yForValue, type ChartBucket, type Frame } from "./chartGeometry";
 import { useUsageView, type UsageView } from "./usageView";
 
 interface CapLayout {
@@ -25,7 +25,6 @@ const DROPPED_LABEL_DROP = 18;
 const DROPPED_LABEL_GAP = 10;
 const LABEL_FLIP_SHARE = 0.7;
 const FIRST = 0;
-const MS_PER_MINUTE = 60_000;
 
 interface Place {
   x: number;
@@ -35,6 +34,8 @@ interface Place {
 interface Geometry {
   layout: CapLayout;
   top: number;
+  /** The chart's buckets: every position, range test and label takes its bucket from this one list. */
+  buckets: ChartBucket[];
   where: (iso: string, percent: number) => Place;
   /** A window's reset at 0%, drawn at the left edge when it begins the range. */
   resetAt: (iso: string) => Place;
@@ -45,27 +46,27 @@ function geometryFor(data: UsageResponse, view: UsageView): Geometry {
   const layout = view.phone ? PHONE : DESKTOP;
   const readings = data.cap.weekly.windows.flatMap((w) => w.readings.map((r) => r.percent));
   const top = view.phone ? capAxisTop(Math.max(0, ...readings)) : FULL_AXIS;
-  const first = data.buckets[FIRST];
-  const rangeStart = first === undefined ? 0 : bucketStartMs(first) - view.offsetMinutes * MS_PER_MINUTE;
+  const buckets = chartBuckets(data, view);
   return {
     layout,
     top,
+    buckets,
     where: (iso, percent) => ({
-      x: xForTime(iso, view.offsetMinutes, data.buckets, data.bucket_unit, layout.frame),
+      x: xForTime(iso, buckets, layout.frame),
       y: yForValue(percent, top, layout.frame),
     }),
     resetAt: (iso) => ({
-      x: xForReset(iso, view.offsetMinutes, data.buckets, data.bucket_unit, layout.frame),
+      x: xForReset(iso, buckets, layout.frame),
       y: yForValue(0, top, layout.frame),
     }),
-    inRange: (iso) => Date.parse(iso) >= rangeStart,
+    inRange: (iso) => isInRange(iso, buckets),
   };
 }
 
-function Grid({ geo, data, view }: { geo: Geometry; data: UsageResponse; view: UsageView }) {
-  const { layout, top } = geo;
+function Grid({ geo, view }: { geo: Geometry; view: UsageView }) {
+  const { layout, top, buckets } = geo;
   const { frame } = layout;
-  const every = labelEvery(data.buckets.length, layout.maxLabels);
+  const every = labelEvery(buckets.length, layout.maxLabels);
   return (
     <>
       {capTicks(top).map((tick) => {
@@ -77,10 +78,10 @@ function Grid({ geo, data, view }: { geo: Geometry; data: UsageResponse; view: U
           </g>
         );
       })}
-      {data.buckets.map((bucket, i) =>
+      {buckets.map((bucket, i) =>
         i % every === 0 ? (
-          <text key={bucket} className="axis-text" x={xForBucket(i, data.buckets.length, frame)} y={layout.dayY} textAnchor="middle" fontSize={layout.font}>
-            {view.phone ? bucketLetter(view.locale, bucket) : bucketLabel(view.locale, bucket)}
+          <text key={bucket.key} className="axis-text" x={xForBucket(i, buckets.length, frame)} y={layout.dayY} textAnchor="middle" fontSize={layout.font}>
+            {view.phone ? bucket.letter : bucket.label}
           </text>
         ) : null,
       )}
@@ -89,10 +90,10 @@ function Grid({ geo, data, view }: { geo: Geometry; data: UsageResponse; view: U
 }
 
 function ResetMarker({ window, geo, view }: { window: CapWindowDto; geo: Geometry; view: UsageView }) {
-  const { t, phone, locale, offsetMinutes } = view;
+  const { t, phone, locale, offsetAt } = view;
   const { frame, font } = geo.layout;
   const { x } = geo.resetAt(window.started_at);
-  const label = phone ? t("resetShort") : t("resetMarker", { when: weekdayClock(locale, window.started_at, offsetMinutes) });
+  const label = phone ? t("resetShort") : t("resetMarker", { when: weekdayClock(locale, window.started_at, offsetAt) });
   return (
     <g>
       <line className="reset-line" x1={x} x2={x} y1={frame.yTop} y2={frame.yBottom} />
@@ -153,12 +154,12 @@ function Dropped({ reading, geo, view }: DroppedProps) {
 }
 
 function altText(data: UsageResponse, view: UsageView): string {
-  const { t, locale, offsetMinutes } = view;
+  const { t, locale, offsetAt } = view;
   const windows = data.cap.weekly.windows;
   const latest = data.cap.weekly.latest;
   const start = windows[FIRST];
   if (!start || !latest) return t("capAltNone");
-  const rose = t("capAlt", { when: weekdayClock(locale, start.started_at, offsetMinutes), pct: percentText(latest.percent) });
+  const rose = t("capAlt", { when: weekdayClock(locale, start.started_at, offsetAt), pct: percentText(latest.percent) });
   const n = data.cap.weekly.dropped.length;
   if (n === 0) return rose;
   return `${rose} ${t(n === 1 ? "capAltDroppedOne" : "capAltDroppedMany", { n })}`;
@@ -179,7 +180,7 @@ export function CapLine({ data }: { data: UsageResponse }) {
         {!phone && <span className="card-note">{t("capChartNote")}</span>}
       </div>
       <svg viewBox={`0 0 ${layout.width} ${layout.height}`} width="100%" role="img" aria-label={altText(data, view)} className="chart">
-        <Grid geo={geo} data={data} view={view} />
+        <Grid geo={geo} view={view} />
         {data.cap.weekly.windows.filter((w) => geo.inRange(w.started_at)).map((w) => (
           <ResetMarker key={w.started_at} window={w} geo={geo} view={view} />
         ))}

@@ -1,5 +1,5 @@
 import type { CapCostModelDto } from "../../src/api/usageDto";
-import { TokenKind } from "../../src/domain/usage";
+import { TokenKind, type OffsetAt } from "../../src/domain/usage";
 import { clockAt, dayText, millionsText, shifted } from "./usageFormat";
 import type { Translate } from "./strings";
 
@@ -45,12 +45,15 @@ export function multipleText(multiple: number, locale: string): string {
 
 /** A kind's weight against fresh input: below one two decimals, else one (the phone drops trailing zeros). */
 export function ratioText(ratio: number, locale: string, phone: boolean): string {
+  return `${ratioDigits(ratio, locale, phone)}×`;
+}
+
+function ratioDigits(ratio: number, locale: string, phone: boolean): string {
   const decimals = ratio < 1 ? 2 : 1;
-  const text = new Intl.NumberFormat(locale, {
+  return new Intl.NumberFormat(locale, {
     minimumFractionDigits: phone ? 0 : decimals,
     maximumFractionDigits: phone ? 2 : decimals,
   }).format(ratio);
-  return `${text}×`;
 }
 
 const FRACTION_WORDS: Array<[number, "fractionTenth" | "fractionFifth" | "fractionQuarter" | "fractionThird" | "fractionHalf"]> = [
@@ -61,21 +64,26 @@ const FRACTION_WORDS: Array<[number, "fractionTenth" | "fractionFifth" | "fracti
   [0.5, "fractionHalf"],
 ];
 const MULTIPLE_WORDS = ["", "", "multipleTwo", "multipleThree", "multipleFour", "multipleFive", "multipleSix", "multipleSeven", "multipleEight", "multipleNine", "multipleTen"] as const;
-const SHOWN_BELOW_ONE = 100;
-const SHOWN_ABOVE_ONE = 10;
+const SHOWN_BELOW_ONE_DECIMALS = 2;
+const SHOWN_ABOVE_ONE_DECIMALS = 1;
 
-/** One ratio in words where the table's precision makes it exact ("a tenth", "five times"), else as the table prints it. */
+/** The ratio at the table's precision (two decimals below one, one above); `toFixed` rounds the printed digits, so 1.005 is not lost to float error. */
+function shownRatio(ratio: number, decimals: number): number {
+  return Number(ratio.toFixed(decimals));
+}
+
+/** One ratio in words where the table's precision makes it exact ("a tenth", "five times"), else its number with "times" ("5.5 times"). */
 export function ratioAmount(ratio: number, locale: string, t: Translate): { text: string; fraction: boolean } {
   if (ratio < 1) {
-    const shown = Math.round(ratio * SHOWN_BELOW_ONE) / SHOWN_BELOW_ONE;
+    const shown = shownRatio(ratio, SHOWN_BELOW_ONE_DECIMALS);
     const word = FRACTION_WORDS.find(([value]) => value === shown);
     if (word) return { text: t(word[1]), fraction: true };
   } else {
-    const shown = Math.round(ratio * SHOWN_ABOVE_ONE) / SHOWN_ABOVE_ONE;
+    const shown = shownRatio(ratio, SHOWN_ABOVE_ONE_DECIMALS);
     const key = Number.isInteger(shown) ? MULTIPLE_WORDS[shown] : undefined;
     if (key) return { text: t(key), fraction: false };
   }
-  return { text: ratioText(ratio, locale, false), fraction: false };
+  return { text: t("multipleOther", { n: ratioDigits(ratio, locale, false) }), fraction: false };
 }
 
 const SUBJECT_KEYS = {
@@ -106,12 +114,13 @@ export function kindsSentence(ratios: Record<TokenKind, number | null>, referenc
   const first = ratioAmount(firstRatio, locale, t);
   const second = ratioAmount(secondRatio, locale, t);
   const firstCost = t(first.fraction ? "kindsFractionOf" : "kindsMultipleOf", { amount: first.text, ref: t(REFERENCE_KEYS[reference]) });
+  const secondCost = t(second.fraction ? "kindsSecondFraction" : "kindsSecondMultiple", { amount: second.text });
   const subject = t(SUBJECT_KEYS[firstKind]);
   return t("kindsSentence", {
     first: subject.charAt(0).toLocaleUpperCase(locale) + subject.slice(1),
     firstCost,
     second: t(SUBJECT_KEYS[secondKind]),
-    secondCost: second.text,
+    secondCost,
   });
 }
 
@@ -165,8 +174,8 @@ export function logTicks(low: number): number[] {
 }
 
 /** "Sat 14, 10:05–12:40" in the viewer's time. */
-export function spanText(locale: string, start: string, end: string, offsetMinutes: number): string {
-  return `${dayText(locale, shifted(start, offsetMinutes))}, ${clockAt(start, offsetMinutes)}–${clockAt(end, offsetMinutes)}`;
+export function spanText(locale: string, start: string, end: string, offset: OffsetAt): string {
+  return `${dayText(locale, shifted(start, offset))}, ${clockAt(start, offset)}–${clockAt(end, offset)}`;
 }
 
 /** The text split so each of the given pieces can be drawn bold; pieces that do not occur are skipped. */

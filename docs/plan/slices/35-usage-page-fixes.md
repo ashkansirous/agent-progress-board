@@ -9,7 +9,11 @@
 `web/src/theme.ts`, `web/src/CapCostSection.tsx`, `web/src/capCostFormat.ts`, `web/src/usageFormat.ts`,
 `web/src/AgentKindCost.tsx`, `web/src/TokenChart.tsx`, `web/src/usageView.tsx`, `web/src/strings.ts`,
 `test/usage.test.ts`, `test/capCost.test.ts`, `test/capCostFormat.test.ts`, `test/usageWeb.test.ts`,
-`test/config.test.ts`, `web/src/SourcesSection.tsx`, `web/src/CapLine.tsx`, `docs/plan/slices/35-usage-page-fixes.md`
+`test/config.test.ts`, `web/src/SourcesSection.tsx`, `web/src/CapLine.tsx`, `web/src/TaskCost.tsx`, `web/src/usageApi.ts`,
+`web/src/usageQuery.ts`, `src/api/usageDto.ts`, `e2e/usage.spec.ts`, `test/capCostRoute.test.ts`, `web/src/chartGeometry.ts`,
+`src/api/router.ts` (the usage route's palette line only; Slice 37 edits other parts), `test/usageTools.test.ts`, `web/src/UsagePage.tsx`,
+`web/src/CapTiles.tsx`, `e2e/usageFixture.ts`,
+`docs/plan/slices/35-usage-page-fixes.md`
 
 **Migrations:** none
 
@@ -34,7 +38,7 @@ The ones that can give a wrong result:
 #### Work
 
 Usage domain (Slice 8):
-- [ ] #1: the whole range uses one fixed `offsetMinutes` (`src/domain/usage.ts:161-176`;
+- [x] #1 (the page sends `time_zone`; the buckets use the zone's offset at each moment; every surface asks one offset function per moment, `offsetForZone` in `src/domain/usage.ts`: the zone the page sent, else the fixed `utc_offset`; the response echoes `time_zone` so the page uses what the Worker used; hour buckets are real hours, the repeated hour's second pass keyed `...T02#2`, the skipped hour has none): the whole range uses one fixed `offsetMinutes` (`src/domain/usage.ts:161-176`;
   `src/application/usage.ts:206`). Work the offset out per bucket.
 - [x] #4: `record_at` has no bound, and `bucketKeys` loops once per hour (`usage.ts:171`; `from = rangeStart`,
   `src/application/usage.ts:202`). Clamp the range in the application layer.
@@ -46,7 +50,7 @@ Cap cost (Slice 16, Slice 26):
 - [x] The window query runs even when the fit is null (`src/application/usage.ts:202`), placement is O(stretches ×
   windows) (`capCost.ts:592`), `isPlaced` is inferred, zero-length windows are possible, and 3+ overlaps are
   untested. Skip the query when the fit is null, and test the rest.
-- [ ] Slice 26 chk #1 (probably gone): `mixOf` (`src/application/usage.ts:504-510`) now falls back per model. Add the
+- [x] Slice 26 chk #1 (probably gone): `mixOf` (`src/application/usage.ts:504-510`) now falls back per model. Add the
   test that shows one model without last-week use no longer blanks the others, then close the item.
 
 Page (Slices 9, 28, 2):
@@ -54,12 +58,12 @@ Page (Slices 9, 28, 2):
   `web/src/CapCostSection.tsx:413-415` returns null before the note.
 - [x] Slice 9 c3 #5, #6: `KindsBlock` writes one sentence for all models (`:315`), and `ratioGroups` is keyed on
   formatted strings (`:452-464`).
-- [ ] Slice 9 c3 #1, #2, #7: `kindsSentence`'s second amount lacks the "times as much" phrasing
+- [x] Slice 9 c3 #1, #2, #7: `kindsSentence`'s second amount lacks the "times as much" phrasing
   (`web/src/capCostFormat.ts:107-115`), the EN and DE wording of `kindsMultipleOf` (`web/src/strings.ts:165,535`),
   and the rounding in `ratioAmount` (`capCostFormat.ts:68-79`).
 - [x] Slice 9 c3 #3: `costPercentText` uses "." in German (`web/src/usageFormat.ts:72-74`). Format by locale.
 - [x] Slice 9 c3 #4: the cap-points bar width can go negative (`web/src/AgentKindCost.tsx:18-20`). Clamp it at 0.
-- [ ] Slice 9 #5 + Slice 2 pr-35 c2 #1: `palettesWithDefaults` bakes the example palettes into the stored config
+- [x] Slice 9 #5 + Slice 2 pr-35 c2 #1: `palettesWithDefaults` bakes the example palettes into the stored config
   (`src/config.ts:332-337`), and the fallback palette is the static example file (`web/src/theme.ts:38-44`).
 - [x] Slice 28 #1: the hint shows when any series has no name (`web/src/TokenChart.tsx:278`). Show it only while no
   environment is named, as Slice 28's rule says.
@@ -70,3 +74,12 @@ Page (Slices 9, 28, 2):
 - `npm run typecheck`, `npm run lint`, `npm test`. New tests: a range across the last-Sunday-of-October change; a
   `record_at` ten years out returns at once; residual sums; a German percent with a comma; a negative bar clamped at 0.
 - `npm run test:e2e`: the usage page with no ratios shows the "not split" note.
+
+#### From review
+
+- Skipped #6 (`reviews/pr-138-high.md`): "seriesName changed || to ??, so an empty-string label or name no longer falls back to the placeholder" - the slice item itself asked for `??` in `web/src/usageView.tsx`; an empty label is not a value the Worker sends.
+- Skipped #7 (`reviews/pr-138-high.md`): "sessionWindowsFrom is skipped when fitted.fit === null, safe only because placeChatGrowth is the sole consumer" - low; the null-fit skip is correct today and covered by the existing test.
+- Applied #5 as a test: the cap line and the use already share the one clamped `from`; readings are read only as far back as `keepDays`, and a test (`a window older than the longest range`) pins that they agree.
+- Skipped #6 (`reviews/pr-138-medium.md`): "clampedStart silently shortens range for a cap window older than 30 days; fit/chart and rangeDeltas/cap tiles can cover different spans with no indication" - low; the cap tiles and the chart use the same clamped `from`, and the fix-1 test in `test/usageTools.test.ts` shows they agree.
+- Skipped #8 (`reviews/pr-138-medium.md`): "zoneOffsetAt/bucketKey allocate Date and ISO string twice per delta even when offset is a fixed number" - low; two short string builds per delta, bounded by the range, no failure. (The second `localKey` call is gone anyway: buckets now come from one real-time walk.)
+- Reopened #1, #2, #3, #4 and #7 of `reviews/pr-138-medium.md` as one design: buckets are walked in real time (`bucketsBetween`, `{key, startMs, endMs}`, repeated keys get `#2`), and every position and range test uses `xOfMoment` / milliseconds. #5: `placeInWindows` is back in end order, pinned by a test.

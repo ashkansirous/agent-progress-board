@@ -164,7 +164,10 @@ export interface UsageResponse {
   environments: UsageEnvironmentDto[];
   /** The environment null counts as: from config, else the busiest one. */
   base_environment: string | null;
+  /** The offset the buckets used at `server_time`; with `time_zone` it changes across a daylight-saving change. */
   utc_offset_minutes: number;
+  /** The time zone the buckets followed (the one the caller sent), or null when they used the fixed offset. */
+  time_zone: string | null;
   palette: SeriesColor[];
   bucket_unit: BucketUnit;
   /** `YYYY-MM-DD`, or `YYYY-MM-DDTHH` for hours, in the viewer's time. */

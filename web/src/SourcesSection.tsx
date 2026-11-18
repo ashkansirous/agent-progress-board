@@ -2,7 +2,7 @@ import type { CapCostEnvironmentDto, UnexplainedStretchDto, UsagePageResponse } 
 import { HowSure, MultiplierState } from "../../src/domain/capCost";
 import { shareText, spanText } from "./capCostFormat";
 import { ReportsPill } from "./HowSurePill";
-import { costPercentText, tokenText } from "./usageFormat";
+import { costPercentText, isPlaced, tokenText } from "./usageFormat";
 import { useUsageView } from "./usageView";
 
 const NO_VALUE = "–";
@@ -16,11 +16,6 @@ type Props = { data: UsagePageResponse };
 function baseLabel(data: UsagePageResponse): string {
   const base = data.cap_cost.environments.find((e) => e.state === MultiplierState.Base);
   return base?.label ?? data.base_environment ?? "";
-}
-
-/** A placed row: an environment that sends no token reports, its points come from its reported work windows. */
-function isPlaced(env: CapCostEnvironmentDto): boolean {
-  return env.tokens === null && env.reports === 0;
 }
 
 function points(n: number, locale: string): string {
@@ -104,11 +99,11 @@ function DesktopSourcesTable({ data }: Props) {
 }
 
 function StretchRow({ stretch }: { stretch: UnexplainedStretchDto }) {
-  const { t, locale, offsetMinutes } = useUsageView();
+  const { t, locale, offsetAt } = useUsageView();
   const explained = stretch.explained_points >= 0.05;
   return (
     <li className="stretch-row">
-      <span className="stretch-span">{spanText(locale, stretch.start, stretch.end, offsetMinutes)}</span>
+      <span className="stretch-span">{spanText(locale, stretch.start, stretch.end, offsetAt)}</span>
       <span className="stretch-points">{t("plusPoints", { n: points(stretch.points, locale) })}</span>
       <span className="soft">
         {explained ? t("agentsReported", { n: points(stretch.explained_points, locale) }) : t("noAgentReported")}
@@ -136,12 +131,12 @@ function UnexplainedList({ data }: Props) {
 
 function PhoneSources({ data }: Props) {
   const view = useUsageView();
-  const { t, locale, offsetMinutes } = view;
+  const { t, locale, offsetAt } = view;
   const base = baseLabel(data);
   const unexplained = data.cap_cost.unexplained;
   const biggest = data.cap_cost.unexplained_stretches[0];
   const biggestText = biggest
-    ? ` ${t("biggestStretch", { span: spanText(locale, biggest.start, biggest.end, offsetMinutes), n: points(biggest.points, locale) })}`
+    ? ` ${t("biggestStretch", { span: spanText(locale, biggest.start, biggest.end, offsetAt), n: points(biggest.points, locale) })}`
     : "";
   return (
     <section className="usage-card" aria-labelledby="sources-title">

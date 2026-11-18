@@ -56,8 +56,7 @@ owner confirms, is removed here and its slice marked `verified`.
 
 ### Slice 19: The owner can get the chat instruction text without a token ([slice](slices/19-chat-text.md))
 
-- **You:** open `<board address>/#/setup` (the "Set up a chat" page, signed in as for the board), press Copy (and "Copy the line" for the connector line, which goes first), then paste into claude.ai Instructions (<https://claude.ai/settings>, Your Claude, Instructions) so claude.ai chats report to the board.
-- The page loads and Copy works on the deployed board (the e2e test fakes the API and the clipboard permission).
+- A claude.ai chat opens a card on the board after the owner's paste of 2026-11-18 (the page loaded, and the owner copied and pasted the line and the text into claude.ai Instructions: "I've updated the instructions with the 2 texts"). Read it with `list_open` once the owner has used a chat for a piece of work; the owner is not asked to do anything for it.
 
 ### Slice 18: Every AI that connects to the board is told how to report ([slice](slices/18-agent-setup.md))
 
@@ -66,7 +65,6 @@ owner confirms, is removed here and its slice marked `verified`.
 ### Slice 16: Claude chat and Claude Design report to the board, and their use counts ([slice](slices/16-chat-reports.md))
 
 - A claude.ai chat reports a card under "my-chats". The owner's two chats on 2026-11-17 reported nothing (owner: "I already tried the chat and I told you it did not do anything"), so the owner is not asked to repeat it.
-- **You:** the paste into claude.ai Instructions is the step listed under Slice 19 above ([Slice 19](slices/19-chat-text.md)).
 - The same instruction in a Claude Design session (Claude Design calling the connector is unproven; see the first Work item). Asked of the owner only after Slice 19 is built.
 - A real claude.ai chat reporting through the connector and the usage page's "Claude chat" row.
 - Claude Design and custom connectors are unproven in the docs.

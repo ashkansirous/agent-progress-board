@@ -2,8 +2,8 @@ import type { BoardItemDto } from "../../src/api/boardDto";
 import { ItemStatus } from "../../src/domain/item";
 import { SESSION_STALE_AFTER_MINUTES } from "../../src/domain/stale";
 import { SliceOfCard } from "./ChecksView";
-import { doneSoFar, historyWords, isQuestion, isStaleSession, isWorkingCard, sessionLabel, waitingText } from "./cards";
-import { useDialogFocus } from "./Detail";
+import { doneSoFar, eventKeys, historyWords, isQuestion, isSessionItem, isStaleSession, isWorkingCard, sessionLabel, waitingText } from "./cards";
+import { DetailsBody, useDialogFocus } from "./Detail";
 import { CloseIcon } from "./icons";
 import { projectLabel } from "./model";
 import { isSafeHttpUrl } from "./safeUrl";
@@ -110,12 +110,13 @@ function DrawerHistory({ item }: { item: BoardItemDto }) {
   const { t } = useView();
   if (item.events.length === 0) return null;
   const rows = [...item.events].reverse();
+  const keys = eventKeys(item.events).reverse();
   return (
     <div className="drawer-section">
       <h3>{t("history")}</h3>
       <ol className="drawer-history">
         {rows.map((event, index) => (
-          <li key={index}>
+          <li key={keys[index]}>
             <span className="drawer-time">{clockTime(event.at)}</span>
             <span>{historyWords(event, t)}</span>
           </li>
@@ -142,7 +143,7 @@ export function SessionDrawer({ item, onClose }: DrawerProps) {
         <TopRow item={item} kicker={kicker} onClose={onClose} closeRef={closeRef} />
         <div className="drawer-heading">
           <h2>{question ? item.needs_you : item.title}</h2>
-          {item.why && <span className="drawer-purpose">{item.why}</span>}
+          {item.why && isSessionItem(item) && <span className="drawer-purpose">{item.why}</span>}
           <span className="drawer-meta">{metaText(item, kicker, view)}</span>
         </div>
         {question && item.after_answer && (
@@ -150,7 +151,14 @@ export function SessionDrawer({ item, onClose }: DrawerProps) {
             <strong>{t("afterYouAnswer")}</strong> {item.after_answer}
           </div>
         )}
-        <DoneSoFar item={item} />
+        {isSessionItem(item) ? (
+          <DoneSoFar item={item} />
+        ) : (
+          <>
+            {item.why && <p className="drawer-why">{item.why}</p>}
+            <DetailsBody item={item} />
+          </>
+        )}
         <DrawerSteps item={item} />
         <SliceOfCard item={item} />
         <DrawerLinks item={item} />

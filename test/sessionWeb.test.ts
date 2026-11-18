@@ -16,7 +16,6 @@ import {
 import { StepState } from "../src/domain/stepTypes";
 import { storedStep } from "./stepFixtures";
 import { groupBoard } from "../src/domain/boardGroups";
-import { questionItems, waitingItems } from "../web/src/model";
 import { translator } from "../web/src/strings";
 
 const NOW = Date.parse("2026-11-17T13:48:00.000Z");
@@ -89,11 +88,6 @@ describe("grouping session cards", () => {
     expect(group.other).toEqual([]);
   });
 
-  it("lists questions across projects oldest first and leaves them out of the old waiting strip", () => {
-    expect(questionItems(items).map((i) => i.key)).toEqual(["p/q1", "p/q2"]);
-    expect(waitingItems(items).map((i) => i.key)).toEqual(["p/old"]);
-  });
-
   it("shows a project that has only a question", () => {
     expect(groupBoard([items[3]!], [], ["p"])).toHaveLength(1);
   });
@@ -163,10 +157,10 @@ describe("history in plain words", () => {
     expect(historyWords(event(ItemStatus.InProgress, answered), t)).toBe("Answered · Checked A | B");
   });
 
-  it("sorts a question with no asked time last", () => {
+  it("sorts a question with no asked time last, in the server's groups (the page never sorts)", () => {
     const timed = item({ key: "p/t", needs_you: "Q", needs_you_at: "2026-11-17T10:00:00.000Z" });
     const untimed = item({ key: "p/u", needs_you: "Q", needs_you_at: null });
-    expect(questionItems([untimed, timed]).map((i) => i.key)).toEqual(["p/t", "p/u"]);
+    expect(groupBoard([untimed, timed], [], ["p"])[0]!.needs_you).toEqual(["p/t", "p/u"]);
   });
 
   it("has the German words too", () => {

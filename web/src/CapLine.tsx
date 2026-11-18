@@ -162,7 +162,7 @@ function altText(data: UsageResponse, view: UsageView): string {
   const rose = t("capAlt", { when: weekdayClock(locale, start.started_at, offsetAt), pct: percentText(latest.percent) });
   const n = data.cap.weekly.dropped.length;
   if (n === 0) return rose;
-  return `${rose} ${t(n === 1 ? "capAltDroppedOne" : "capAltDroppedMany", { n })}`;
+  return `${rose} ${t(t.plural(n, "capAltDroppedOne", "capAltDroppedMany"), { n })}`;
 }
 
 /** The weekly cap line, hand drawn: accepted readings joined, resets dashed, dropped readings hollow. */

@@ -1,3 +1,4 @@
+import { useId } from "react";
 import type { BoardItemDto } from "../../src/api/boardDto";
 import type { CheckView } from "../../src/domain/checks";
 import { PartState } from "../../src/domain/parts";
@@ -5,11 +6,12 @@ import { useView } from "./view";
 
 /** The checks not tried on a device: an empty box and the line each; nothing at all when there are none. */
 export function ChecksList({ heading, checks }: { heading: string; checks: CheckView[] }) {
+  const headingId = useId();
   if (checks.length === 0) return null;
   return (
     <div className="drawer-section checks-section">
-      <h3>{heading}</h3>
-      <ul className="check-rows" aria-label={heading}>
+      <h3 id={headingId}>{heading}</h3>
+      <ul className="check-rows" aria-labelledby={headingId}>
         {checks.map((check) => (
           <li key={check.key} className="check-row">
             <span className="check-box" aria-hidden="true" />
@@ -24,13 +26,14 @@ export function ChecksList({ heading, checks }: { heading: string; checks: Check
 const STATE_CLASS: Record<PartState, string> = {
   [PartState.Done]: "check-row-done",
   [PartState.Active]: "check-row-active",
-  [PartState.Stale]: "check-row-active",
+  [PartState.Stale]: "check-row-stale",
   [PartState.Pending]: "check-row-later",
 };
 
-/** The slice's parts as a checklist: a filled box for done, the working one in the slice colour, later ones empty. */
+/** The slice's parts as a checklist: a filled box for done, the working one in the slice colour, a stale one dashed and muted, later ones empty. */
 export function PartChecklist({ item, own }: { item: BoardItemDto; own: boolean }) {
   const { t } = useView();
+  const headingId = useId();
   const parts = item.parts;
   const progress = item.parts_progress;
   if (!parts || !progress) return null;
@@ -43,14 +46,18 @@ export function PartChecklist({ item, own }: { item: BoardItemDto; own: boolean 
       : t("drawerSlicePartsHead", { ...params, number });
   return (
     <div className="drawer-section checks-section">
-      <h3>{heading}</h3>
-      <ul className="check-rows" aria-label={heading}>
+      <h3 id={headingId}>{heading}</h3>
+      <ul className="check-rows" aria-labelledby={headingId}>
         {parts.map((part) => (
-          <li key={part.key} className={`check-row ${STATE_CLASS[part.state]}`}>
+          <li
+            key={part.key}
+            className={`check-row ${STATE_CLASS[part.state]}`}
+            aria-current={part.state === PartState.Active ? "step" : undefined}
+          >
             <span className="check-box" aria-hidden="true">
               {part.state === PartState.Done && "✓"}
             </span>
-            <span className="check-label">{`${part.letter} · ${part.title}`}</span>
+            <span className="check-label">{t("partRowLabel", { letter: part.letter, title: part.title })}</span>
             <span className="check-state">{stateWord(part.state, t)}</span>
           </li>
         ))}

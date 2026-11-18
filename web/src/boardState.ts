@@ -11,15 +11,14 @@ export interface BoardState {
   /** True once a load has run past the 500 ms the page waits before it shows a loading state. */
   slow: boolean;
   updatedAt: Date | null;
-  /** True once a failed load has dropped data an earlier load had; a success clears it. A first load that fails leaves it false. */
-  dataDropped: boolean;
 }
 
 export type BoardAction =
   | { type: "start" }
   | { type: "slow" }
   | { type: "success"; data: BoardResponse; at: Date }
-  | { type: "failure"; status: number | null };
+  | { type: "failure"; status: number | null }
+  | { type: "aborted" };
 
 export const INITIAL_STATE: BoardState = {
   data: null,
@@ -28,7 +27,6 @@ export const INITIAL_STATE: BoardState = {
   loading: true,
   slow: false,
   updatedAt: null,
-  dataDropped: false,
 };
 
 export function boardReducer(state: BoardState, action: BoardAction): BoardState {
@@ -45,7 +43,6 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
         loading: false,
         slow: false,
         updatedAt: action.at,
-        dataDropped: false,
       };
     case "failure":
       return {
@@ -54,7 +51,9 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
         error: { status: action.status },
         loading: false,
         slow: false,
-        dataDropped: state.dataDropped || state.data !== null,
       };
+    case "aborted":
+      // A load nobody waits for any more: the last answer stays, and nothing claims a load is still running.
+      return { ...state, loading: false, slow: false };
   }
 }

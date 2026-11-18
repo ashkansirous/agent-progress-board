@@ -19,7 +19,7 @@ import type { UsageParams } from "./usageQuery";
 import type { UsageControls } from "./usageState";
 import { useUsageView, UsageViewProvider, type UsageView } from "./usageView";
 import { useUsage } from "./useUsage";
-import { useBoard } from "./hooks";
+import { useBoardSnapshot } from "./hooks";
 import { ViewTabs } from "./ViewTabs";
 
 interface HeaderProps {
@@ -111,8 +111,8 @@ function Body({ state, retry }: BodyProps) {
 export function UsagePage({ env }: { env: Environment }) {
   const [params, setParams] = useState<UsageParams>({ range: UsageRange.Window, plan: null, environment: null });
   const { state, retry } = useUsage(params);
-  // The tab bar's Active work count comes from the board read; a failed read just leaves the pill out.
-  const activeCount = useBoard().state.data?.working_count;
+  // The tab bar's Active work count comes from the shared board's last answer (read once, never polled from here); a failed read just leaves the pill out.
+  const activeCount = useBoardSnapshot().data?.working_count;
   const answered = state.data !== null;
   const zone = state.data?.time_zone ?? null;
   const fixedMinutes = state.data?.utc_offset_minutes ?? viewerOffsetMinutes();
@@ -140,6 +140,7 @@ export function UsagePage({ env }: { env: Environment }) {
             <Body state={state} retry={retry} />
           </div>
         </div>
+        {/* PhoneUsage still draws the bottom tab bar; Board and Active work moved their bar to the top (PhoneV2, ActiveV3Phone). */}
         {env.phone && <ViewTabs current={Route.Usage} phone t={env.t} activeCount={activeCount} />}
       </div>
     </UsageViewProvider>

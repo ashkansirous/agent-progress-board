@@ -17,6 +17,27 @@ function storeMap(map: OpenMap): void {
   }
 }
 
+/** The project ids a joined key holds, or null when there is nothing to prune by: no answer, a failed load or an empty board. */
+export function pruneIdsOf(joined: string | undefined): string[] | null {
+  return joined ? joined.split("\n") : null;
+}
+
+/** The stored map without the projects the board no longer has; the same object when nothing was dropped. */
+export function prunedMap(map: OpenMap, ids: readonly string[]): OpenMap {
+  const keep = new Set(ids);
+  const kept = Object.entries(map).filter(([id]) => keep.has(id));
+  return kept.length === Object.keys(map).length ? map : Object.fromEntries(kept);
+}
+
+/** Drops the stored choices of projects that left the board, so the map does not grow for ever. Nothing when the board is empty. */
+export function pruneStoredFolds(ids: readonly string[]): void {
+  if (ids.length === 0) return;
+  const current = readStored();
+  if (!current) return;
+  const next = prunedMap(current, ids);
+  if (next !== current) storeMap(next);
+}
+
 /**
  * One project block's open state, derived at render from the group and the stored click (`resolveOpen`), so a
  * question that arrives on a refresh paints open at once. A click keeps the question keys the block showed.

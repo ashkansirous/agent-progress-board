@@ -75,6 +75,15 @@ test.describe("session cards", () => {
 });
 
 test.describe("question cards", () => {
+  test("a tap on a question card's padding opens it, and the card is a named group (Slice 36)", async ({ page }) => {
+    await openBoard(page);
+    const card = page.locator(".question-card").filter({ hasText: "iPhone 8 or the iPad" });
+    await expect(card).toHaveAttribute("role", "group");
+    await expect(card).toHaveAttribute("aria-label", CRASH_QUESTION);
+    await card.click({ position: { x: 3, y: 3 } });
+    await expect(page.getByRole("dialog", { name: "Card details" })).toBeVisible();
+  });
+
   test("a question card has the question in full, what follows, who asked and where to answer, and writes nothing", async ({ page }) => {
     await openBoard(page);
     const card = page.locator(".question-card").filter({ hasText: "iPhone 8 or the iPad" });

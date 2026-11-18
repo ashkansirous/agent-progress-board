@@ -358,9 +358,23 @@
 .check-state {
   font-size: 12px;
   font-weight: 600;
+  color: var(--muted);
+}
+
+.check-row-done .check-state {
   color: var(--doneFg);
 }
 
 .check-row-active .check-state {
   color: var(--sliceFg);
+}
+
+/* A stale part is dashed and muted, never the working part's colour (the mock's stale rows: dashed border, muted text). */
+.check-row-stale .check-box {
+  border-style: dashed;
+  border-color: var(--muted);
+}
+
+.check-row-stale .check-label {
+  color: var(--muted);
 }

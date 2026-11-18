@@ -19,7 +19,7 @@ const MS_PER_SECOND = 1000;
 /** "3 projects · updated 13:48 · refreshes every 60 s". */
 function Subtitle({ count, updatedAt }: { count: number; updatedAt: Date }) {
   const { t } = useView();
-  const projects = t(count === 1 ? "projectOne" : "projectMany", { n: count });
+  const projects = t(t.plural(count, "projectOne", "projectMany"), { n: count });
   const bits = [projects, t("boardUpdated", { time: clockTime(updatedAt) }), t("boardRefreshes", { n: REFRESH_EVERY_MS / MS_PER_SECOND })];
   return <p className="subtitle">{bits.join(" · ")}</p>;
 }
@@ -30,9 +30,9 @@ function CountRow({ groups }: { groups: ProjectGroups[] }) {
   const totals = boardTotals(groups);
   return (
     <p className="count-row">
-      <span className="count-pill count-pill-needs">{totals.needsYou === 1 ? t("countNeedYouOne") : t("countNeedYou", { n: totals.needsYou })}</span>
-      <span className="count-pill">{totals.working === 1 ? t("countWorkingOne") : t("countWorking", { n: totals.working })}</span>
-      <span className="count-pill">{totals.problems === 1 ? t("countProblemsOne") : t("countProblems", { n: totals.problems })}</span>
+      <span className="count-pill count-pill-needs">{t(t.plural(totals.needsYou, "countNeedYouOne", "countNeedYou"), { n: totals.needsYou })}</span>
+      <span className="count-pill">{t(t.plural(totals.working, "countWorkingOne", "countWorking"), { n: totals.working })}</span>
+      <span className="count-pill">{t(t.plural(totals.problems, "countProblemsOne", "countProblems"), { n: totals.problems })}</span>
     </p>
   );
 }

@@ -1,5 +1,7 @@
 ### Slice 35 — Usage page and cost figures: review leftovers
 
+*In progress (wave 2026-11-18), draft PR.*
+
 *Planned 2026-11-18 (owner: "double check and plan the follow up work"). Grouping decided by the planning session of
 2026-11-18; items re-checked against `origin/main` (d654e9b).* Wave 2.
 
@@ -7,7 +9,7 @@
 `web/src/theme.ts`, `web/src/CapCostSection.tsx`, `web/src/capCostFormat.ts`, `web/src/usageFormat.ts`,
 `web/src/AgentKindCost.tsx`, `web/src/TokenChart.tsx`, `web/src/usageView.tsx`, `web/src/strings.ts`,
 `test/usage.test.ts`, `test/capCost.test.ts`, `test/capCostFormat.test.ts`, `test/usageWeb.test.ts`,
-`test/config.test.ts`, `docs/plan/slices/35-usage-page-fixes.md`
+`test/config.test.ts`, `web/src/SourcesSection.tsx`, `web/src/CapLine.tsx`, `docs/plan/slices/35-usage-page-fixes.md`
 
 **Migrations:** none
 

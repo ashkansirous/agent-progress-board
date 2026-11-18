@@ -13,6 +13,9 @@ const PHONE_VIEWPORT = { width: 390, height: 844 };
  */
 export default defineConfig({
   testDir: "./e2e",
+  // Playwright cleans this folder at the start: one folder per port, so two suites in one worktree never delete each
+  // other's trace files (a folder per port, never the shared `test-results` itself, which a default run would wipe).
+  outputDir: `test-results/${PORT}`,
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   reporter: [["list"]],

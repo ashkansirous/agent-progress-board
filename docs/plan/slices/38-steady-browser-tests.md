@@ -4,11 +4,14 @@
 2026-11-18; items re-checked against `origin/main` (d654e9b).* Wave 1, first, because every later wave's full e2e run
 pays for these flakes.
 
-*In progress (wave 2026-11-18), draft PR.*
+*Built (wave 2026-11-18), PR #132; code written by a cloud session.*
+
+The code was first written by cloud run `cse_012UYzYTd3ysZ523gVcrF6zW` (commit a55276a); the cloud session reached
+Chromium through `PLAYWRIGHT_BROWSERS_PATH` because the download was blocked.
 
 **Touches:** `playwright.config.ts`, `e2e/port.ts` (new), `e2e/board.spec.ts`, `e2e/active.spec.ts`,
-`e2e/usage.spec.ts`, `scripts/seed.ts`, `test/seed.test.ts`, `test/e2ePort.test.ts` (new),
-`docs/plan/slices/38-steady-browser-tests.md`
+`e2e/usage.spec.ts`, `e2e/loadingClock.ts` (new), `scripts/seed.ts`, `test/seed.test.ts`, `test/e2ePort.test.ts` (new),
+`test/loadingDelay.test.ts` (new), `docs/plan/slices/38-steady-browser-tests.md`
 
 **Migrations:** none
 
@@ -44,8 +47,12 @@ Each of these tests waits on wall-clock windows: a route held for 1500 ms, `wait
 - [x] Slice 26 chk #2: the weak assertion at `e2e/usage.spec.ts:280-288`.
 - [x] Slice 17: move `resolvePort` (`playwright.config.ts:8-15`) to `e2e/port.ts` (new) and test a bad `E2E_PORT` in
   `test/e2ePort.test.ts` (new).
-- [x] Slice 13 check pass 3: six lows in `scripts/seed.ts` were never traced. Read them in
-  `docs/plan/slices/13-session-cards.md`, then fix each or write why not.
+- [ ] Slice 13 check pass 3: six lows in `scripts/seed.ts` were never traced. Read them in
+  `docs/plan/slices/13-session-cards.md`, then fix each or write why not. One is fixed (unique keys across all three
+  lists, `test/seed.test.ts`). Five lows are left: seed test counts, empty fields sent as undefined, `ask_human` on an
+  existing item, session cards going stale 15 min after seeding, hard-coded history markers. They all sit in
+  `scripts/seed-data.ts` and go to the open slice whose **Touches:** holds `scripts/seed-data.ts` (task cards with an
+  outcome).
 
 #### Verification
 
@@ -55,8 +62,12 @@ Each of these tests waits on wall-clock windows: a route held for 1500 ms, `wait
 
 #### Result (build)
 
-- Clock: the loading-delay tests install `page.clock`, pause it, hold the route on a promise and run the clock
-  499 ms then 1 ms; no wall-clock wait is left in them (board: Retry, loading, palette loading; active: loading card).
+- Clock: the loading-delay tests (`e2e/loadingClock.ts`, shared by both specs) install and pause `page.clock` before
+  the page loads, hold the route on a promise, wait until the held request arrives (the page registers its 500 ms
+  timer just before it sends it), then run the clock 499 ms (the card must be absent) and 1 ms (it must show); no
+  wall-clock wait is left in them (board: Retry, loading, palette loading; active: loading card).
+- The close test also asserts focus returns to the tile after Escape and after the scrim click (stricter than before).
+- URL checks after a failed load wait for the error card and a rendered frame (`pageSettled`) before `toHaveURL`.
 - Close test (`board.spec.ts`): it failed every time here, on the original code too. Cause is in the test: it sent
   Escape and the scrim click before the dialog had mounted, so "no dialog" passed against a dialog not yet open and
   the page stayed inert for the next click. Now each step waits for the dialog and the focus first. Repeat run:
@@ -71,3 +82,62 @@ Each of these tests waits on wall-clock windows: a route held for 1500 ms, `wait
 - Runs: the changed loading, Retry, empty/error card, mix-note and URL tests, 20 repeats on both projects: 720 of 720
   passed. The close test: 100 of 100. The two-suites-at-once run (three times) was not done in this session.
   The browser here was a pre-installed Chromium reached through `PLAYWRIGHT_BROWSERS_PATH`, since the download is blocked.
+  The two-suites run is not run in the cloud; the coordinator runs it next.
+
+- Two suites at once (coordinator, 2026-11-18, three rounds, ports 4174 and 4176, both projects, 263 tests each; logs
+  in `reviews/38-e2e-runs/`, outside the repo): round 1 had 260 of 263 passed on 4174 (3 failed) and 263 of 263 on 4176;
+  round 2 had 263 of 263 on 4174 and 262 of 263 on 4176 (1 failed); round 3 had 263 of 263 on both. Every failure was
+  `browserContext.close: ENOENT ... test-results\.playwright-artifacts-*\traces`, not a test assertion. Cause: both suites
+  wrote to the one `test-results/` of the worktree and Playwright cleans its output folder at the start, so one suite
+  deleted the other's trace files. Fix: `outputDir: test-results/<port>` in `playwright.config.ts`, one folder per port
+  (context7 `/microsoft/playwright`, `TestConfig.outputDir`).
+- Two suites at once after the `outputDir` fix (coordinator, 2026-11-18, three rounds, ports 4174 and 4176): all six
+  runs exit 0, 263 passed and 3 skipped each (logs `reviews/38-e2e-runs/after-r{1,2,3}-{4174,4176}.log`, outside the
+  repo). This meets the Verification. Checks on the final tree with nothing else running: lint and typecheck exit 0;
+  `npm test` exit 0 (501 vitest tests in 37 files, 278 node tests).
+- Review fixes: the Retry test's timer check now compares the 500 ms timer count before and after the Retry click
+  (`delayTimerCount`, `timersBefore` in `e2e/loadingClock.ts`), not a total above 0; the mix-note readiness wait counts
+  the figure rows in every table that can hold a note.
+
+#### For CLAUDE.md
+
+- The e2e output folder is per port (`test-results/<port>` in `playwright.config.ts`), so two suites can run at once,
+  even in one worktree. Loading-delay tests use the shared clock helper `e2e/loadingClock.ts` (clock installed before
+  `goto`, the 500 ms timer counted per action); never a wall-clock wait.
+
+#### Follow-ups
+
+- Follow-up #4 (`reviews/pr-132-check-medium.md`): "e2e/loadingClock.ts:14, correctness: clock paused 1 s after
+  SERVER_TIME skews page Date.now() against fixtures."
+- Follow-up #5 (`reviews/pr-132-check-medium.md`): "docs/plan/slices/38-steady-browser-tests.md:61, other: deferred seed
+  fixes name no slice; Verification (two suites x3) is unmet." The seed fixes in `scripts/seed-data.ts` go to Slice 41,
+  "Only a task with an outcome gets a card" (planned; its Touches holds `scripts/seed-data.ts`). The two-suites x3
+  Verification is met by the runs above, except that they ran before the `outputDir` fix.
+- Follow-up #7 (`reviews/pr-132-check-medium.md`): "e2e/active.spec.ts:201, correctness: pageSettled then toHaveURL
+  weakly guards against a later hash rewrite."
+- Follow-up #8 (`reviews/pr-132-check-medium.md`): "e2e/loadingClock.ts:46, other: release() runs only after assertions;
+  only the palette test uses try/finally, fulfil errors swallowed."
+
+- Follow-up (`reviews/pr-132-check-2-medium.md` #3): "e2e/loadingClock.ts:25,83: timer counter counts any 500 ms
+  setTimeout; count read once, not polled."
+- Follow-up (`reviews/pr-132-check-2-medium.md` #5): "e2e/active.spec.ts:77: pins CSS class name, redundant with
+  computed-style line."
+- Follow-up (`reviews/pr-132-check-2-medium.md` #6): "e2e/usage.spec.ts:281: hard-coded two-table readiness wait."
+- Follow-up (`reviews/pr-132-check-2-medium.md` #7): "test/loadingDelay.test.ts:4: regex on raw hooks.ts source,
+  brittle to reformatting."
+- `reviews/pr-132-check-2-medium.md` #1, #2 and #4 repeat follow-ups #7, #4 and #8 above; its #8 (two suites not rerun
+  after the `outputDir` fix) is answered by the after-fix runs in the Result.
+
+#### From review
+
+- `reviews/pr-132-high.md` (8 findings): applied #1 (wait for the held request before the first `runFor`), #2 (a
+  positive signal before each absence check), #3 (wait for the error card and a rendered frame before `toHaveURL`),
+  #4 (Verification run; seed lows named to Slice 41), #5 (shared `e2e/loadingClock.ts`), #6 (release in `finally`),
+  #7 (mix-note readiness wait); #8 has its own line below.
+- `reviews/pr-132-medium.md` (7 findings): applied #1, #2, #3, #4, #5 and #7; #6 has its own line below.
+- `reviews/pr-132-check-medium.md` (8 findings): applied #1 (timer count compared before and after the Retry click) and
+  #6 (readiness wait counts rows in every table); #2 and #3 settled by the same change as #1; #4, #5, #7 and #8 are
+  follow-ups above.
+- `reviews/pr-132-check-2-medium.md` (8 one-line follow-ups, no findings): all recorded under Follow-ups.
+- Skipped #8 (`reviews/pr-132-high.md`): "new `toBeFocused` assertions after the scrim click are not named in the slice Result" - not a fault: the added focus checks are stricter tests of the same flow, so they are described in the Result instead.
+- Skipped #6 (`reviews/pr-132-medium.md`): "owner-row filter `has: notes` is wider than the count it pairs with; failure shows a confusing count" - the wider filter still counts exactly the rows the test asserts on, so no wrong pass follows from it.

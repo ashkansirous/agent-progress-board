@@ -273,8 +273,15 @@ test.describe("what 1% of the cap costs", () => {
 
   test("shows no mix note while every figure uses the current window's mix (Slice 26)", async ({ page }) => {
     await openReady(page);
-    const figures = page.locator(isPhone() ? ".phone-model" : ".cap-cost-card tbody tr").filter({ has: page.locator(".model-name") });
-    await expect(figures.nth(1)).toBeVisible();
+    // Wait until every model's figure is drawn in every place a mix note could sit (the tokens-per-1% table and the compare
+    // table on desktop, the cards on the phone), then assert no note.
+    const count = readyCapCost().models.length;
+    if (isPhone()) await expect(page.locator(".phone-model")).toHaveCount(count);
+    else {
+      const tables = page.locator(".cap-cost-card table.usage-table");
+      await expect(tables.nth(0).locator("tbody tr")).toHaveCount(count);
+      await expect(tables.nth(1).locator("tbody tr")).toHaveCount(count);
+    }
     await expect(page.locator(".mix-note")).toHaveCount(0);
   });
 

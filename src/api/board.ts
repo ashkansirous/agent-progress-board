@@ -91,8 +91,8 @@ function partsByParent(rows: BoardRow[], config: BoardConfig, now: Date): Map<st
   return byParent;
 }
 
-/** The types that name a slice in `parent_key`: a part belongs to it, a bug or problem is planned into it (Slice 14). */
-const SLICE_CHILD_TYPES: readonly ItemType[] = [ItemType.Part, ItemType.Bug, ItemType.Problem];
+/** The types that name a slice in `parent_key`: a part or check belongs to it, a bug or problem is planned into it (Slice 14). */
+const SLICE_CHILD_TYPES: readonly ItemType[] = [ItemType.Part, ItemType.Check, ItemType.Bug, ItemType.Problem];
 
 /** The slice a part, bug or problem names, as data (key, number, title); the page words it. Null when it names no slice on the board. */
 function parentSliceOf(row: BoardRow, ctx: PartsContext): ParentSliceDto | null {
@@ -152,7 +152,7 @@ function itemDto(row: BoardRow, ctx: PartsContext): BoardItemDto {
     ...questionFields(item, shownStatus, config, now),
     steps: item.steps ?? null,
     progress: stepProgress(item.steps, item.status),
-    working: !hasOpenQuestion({ ...item, status: shownStatus }, config.staleAfterMinutes, now) && isWorkingNow({ ...item, ...expiry }, config.staleAfterMinutes, now),
+    working: item.type !== ItemType.Check && isWorkingNow({ ...item, ...expiry }, config.staleAfterMinutes, now),
     ...partsInfo,
     events: item.events.map(({ at, status, note }) => ({ at, status, note })),
   };

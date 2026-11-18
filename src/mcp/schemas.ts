@@ -53,9 +53,9 @@ const environment = z
   .describe("Where the work ran, free text as the client names it (for example laptop, cloud-vm, Claude chat or Claude Design)");
 
 const step = z.object({
-  label: z.string().min(1).max(MAX_STEP_LABEL),
+  label: z.string().trim().min(1).max(MAX_STEP_LABEL),
   state: z.enum(StepState),
-  note: z.string().max(MAX_STEP_NOTE).nullable().optional().describe("Short text shown under the label"),
+  note: z.string().trim().max(MAX_STEP_NOTE).nullable().optional().describe("Short text shown under the label"),
 });
 
 const stepsField = z
@@ -141,6 +141,9 @@ export const askHumanShape = {
   key,
   project: label.describe("Project the question belongs to"),
   title: label,
+  needs_you: reportProgressShape.needs_you.describe(
+    "The question for the owner; on a waiting_for_me item it shows under Needs you until it is cleared. On another type the question is this, else why, else the title",
+  ),
   after_answer: z
     .string()
     .max(MAX_AFTER_ANSWER)

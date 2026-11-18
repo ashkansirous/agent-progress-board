@@ -3,7 +3,10 @@ import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT } from "jose";
 import { beforeAll, describe, expect, it } from "vitest";
 import { ACCESS_JWT_HEADER, type AccessKeys } from "../src/api/access";
 import { CHAT_PREFACE, CHAT_TEXT_PATH,type ChatTextResponse } from "../src/api/chatText";
+import { GRANTS_PATH } from "../src/api/grants";
 import { route, type RouterEnv } from "../src/api/router";
+// @ts-expect-error Vite's ?raw import has no type declaration in this project's tsconfig.
+import apiSource from "../web/src/api.ts?raw";
 import { D1ItemRepository } from "../src/infrastructure/d1Repository";
 import { SERVER_INSTRUCTIONS } from "../src/mcp/instructions";
 
@@ -33,6 +36,18 @@ async function accessJwt(): Promise<string> {
     .setExpirationTime("1h")
     .sign(privateKey);
 }
+
+/** The page's copy of a path constant, read from its source (the page cannot import the Worker's, which carries the server text). */
+function pageConstant(name: string): string | undefined {
+  return new RegExp(`export const ${name} = "([^"]+)"`).exec(apiSource)?.[1];
+}
+
+describe("the page's copies of the routes", () => {
+  it("keep the same paths as the Worker", () => {
+    expect(pageConstant("CHAT_TEXT_URL")).toBe(CHAT_TEXT_PATH);
+    expect(pageConstant("GRANTS_URL")).toBe(GRANTS_PATH);
+  });
+});
 
 describe("the chat text route", () => {
   it("returns the server instructions constant to a caller past the Access check", async () => {

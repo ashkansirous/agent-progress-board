@@ -1,42 +1,26 @@
 import { useCallback, useEffect, useState } from "react";
-import type { ChatTextResponse } from "../../src/api/chatText";
 import type { Environment } from "./BoardPage";
-import { REQUEST_TIMEOUT_MS } from "./api";
+import { ConnectedApps, failureLine } from "./ConnectedApps";
+import { fetchChatText, LoadError } from "./api";
+import { ArrowIcon } from "./icons";
 import { SLOW_AFTER_MS } from "./hooks";
 import { Route, ROUTE_HASH } from "./route";
-import type { StringKey, Translate } from "./strings";
+import type { Translate } from "./strings";
 import { paletteVars } from "./theme";
 
-export const CHAT_TEXT_URL = "/api/chat-text";
-const COPIED_SHOWN_MS = 2000;
+const COPIED_SHOWN_MS = 6000;
 const FAILED_SHOWN_MS = 6000;
-
-const REASON_KEYS: Record<number, StringKey> = {
-  401: "reason401",
-  403: "reason403",
-  404: "reason404",
-  500: "reason500",
-  502: "reason502",
-  503: "reason503",
-  504: "reason504",
-};
+const ICON_SIZE = 16;
+const CHECK_STROKE = 2.2;
 
 type TextState =
   | { phase: "loading"; slow: boolean }
-  | { phase: "ready"; text: string; preface: string }
+  | { phase: "ready"; text: string }
   | { phase: "failed"; status: number | null };
 
-async function fetchChatText(signal: AbortSignal): Promise<ChatTextResponse> {
-  const response = await fetch(CHAT_TEXT_URL, {
-    headers: { Accept: "application/json" },
-    credentials: "same-origin",
-    signal: AbortSignal.any([signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)]),
-  });
-  if (!response.ok) throw response.status;
-  const body = (await response.json()) as Partial<ChatTextResponse> | null;
-  if (typeof body?.text !== "string" || body.text === "") throw new TypeError("chat text response has no text");
-  if (typeof body.preface !== "string" || body.preface === "") throw new TypeError("chat text response has no preface");
-  return { text: body.text, preface: body.preface };
+/** What goes in the claude.ai Instructions box: the connector line, a blank line, then the rules (Slice 37). */
+export function pasteText(preface: string, text: string): string {
+  return `${preface}\n\n${text}`;
 }
 
 /** Loads the instruction text; the loading state shows only after the 500 ms wait. */
@@ -47,9 +31,9 @@ function useChatText(): { state: TextState; retry: () => void } {
     const controller = new AbortController();
     const slowTimer = setTimeout(() => setState((s) => (s.phase === "loading" ? { phase: "loading", slow: true } : s)), SLOW_AFTER_MS);
     fetchChatText(controller.signal)
-      .then((body) => setState({ phase: "ready", text: body.text, preface: body.preface }))
+      .then((body) => setState({ phase: "ready", text: pasteText(body.preface, body.text) }))
       .catch((error: unknown) => {
-        if (!controller.signal.aborted) setState({ phase: "failed", status: typeof error === "number" ? error : null });
+        if (!controller.signal.aborted) setState({ phase: "failed", status: error instanceof LoadError ? error.status : null });
       })
       .finally(() => clearTimeout(slowTimer));
     return () => {
@@ -64,7 +48,25 @@ function useChatText(): { state: TextState; retry: () => void } {
   return { state, retry };
 }
 
-function CopyButton({ text, label, t }: { text: string; label: StringKey; t: Translate }) {
+function CopyIcon() {
+  return (
+    <svg aria-hidden="true" width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="9" y="9" width="11" height="11" rx="2" />
+      <path d="M5 15V6a2 2 0 0 1 2-2h9" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg aria-hidden="true" width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={CHECK_STROKE} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 12.5l4.5 4.5L19 7.5" />
+    </svg>
+  );
+}
+
+/** The one Copy for the whole paste; after it the button reads "Copied" and a line says what to do next. */
+function CopyButton({ text, t }: { text: string; t: Translate }) {
   const [result, setResult] = useState<"idle" | "copied" | "failed">("idle");
   useEffect(() => {
     if (result === "idle") return;
@@ -86,33 +88,37 @@ function CopyButton({ text, label, t }: { text: string; label: StringKey; t: Tra
     }
   };
   return (
-    <>
-      <button type="button" className="setup-copy" onClick={copy}>
-        {result === "copied" ? t("setupCopied") : t(label)}
+    <div className="setup-actions">
+      <button type="button" className={result === "copied" ? "setup-primary setup-copied" : "setup-primary"} onClick={copy}>
+        {result === "copied" ? <CheckIcon /> : <CopyIcon />}
+        {result === "copied" ? t("setupCopied") : t("setupCopy")}
       </button>
+      {result === "copied" && (
+        <p className="setup-muted" role="status">
+          {t("setupPasteNext")}
+        </p>
+      )}
       {result === "failed" && (
         <p className="state-note" role="alert">
           {t("setupCopyFailed")}
         </p>
       )}
-    </>
+    </div>
   );
 }
 
 function Body({ state, retry, t }: { state: TextState; retry: () => void; t: Translate }) {
   if (state.phase === "ready") {
     return (
-      <section className="state-card setup-card">
-        <p className="setup-intro">{t("setupIntro")}</p>
-        <textarea className="setup-text" aria-label={t("setupTextLabel")} readOnly rows={16} value={state.text} />
-        <div className="setup-actions">
-          <CopyButton text={state.text} label="setupCopy" t={t} />
-        </div>
-        <p className="setup-intro">{t("setupPrefaceIntro")}</p>
-        <p className="setup-preface">{state.preface}</p>
-        <div className="setup-actions">
-          <CopyButton text={state.preface}label="setupCopyPreface" t={t} />
-        </div>
+      <section className="setup-card-block" aria-labelledby="setup-block-title">
+        <h2 id="setup-block-title">{t("setupBlockTitle")}</h2>
+        <p className="setup-note">
+          <strong>{t("setupNoteLead")}</strong> {t("setupNoteRest")}
+        </p>
+        <pre className="setup-block" tabIndex={0}>
+          {state.text}
+        </pre>
+        <CopyButton text={state.text} t={t} />
       </section>
     );
   }
@@ -124,13 +130,11 @@ function Body({ state, retry, t }: { state: TextState; retry: () => void; t: Tra
       </section>
     ) : null;
   }
-  const reason = t(REASON_KEYS[state.status ?? 0] ?? "reasonOther");
-  const body = state.status === null ? t("setupFailedNetwork") : t("setupFailedApi", { code: state.status, reason });
   return (
     <section className="state-card state-center" role="alert">
       <p className="state-title">{t("setupFailedTitle")}</p>
-      <p className="state-body state-body-wide">{body}</p>
-      <button type="button" className="setup-copy" onClick={retry}>
+      <p className="state-body state-body-wide">{failureLine(state.status, t)}</p>
+      <button type="button" className="setup-primary" onClick={retry}>
         {t("retry")}
       </button>
     </section>
@@ -143,17 +147,20 @@ export function SetupPage({ env }: { env: Environment }) {
   return (
     <div className={env.phone ? "app phone" : "app"} style={paletteVars(null, env.scheme)}>
       <div className="page setup-page">
-        <header className="header">
-          <div className="header-text">
-            <h1>{env.t("setupTitle")}</h1>
-            <p className="subtitle">
-              <a href={ROUTE_HASH[Route.Board]}>{env.t("setupBack")}</a>
-            </p>
-          </div>
+        <a className="setup-back" href={ROUTE_HASH[Route.Board]}>
+          <span className="setup-back-arrow">
+            <ArrowIcon size={ICON_SIZE} stroke="var(--link)" />
+          </span>
+          {env.t("setupBack")}
+        </a>
+        <header className="setup-header">
+          <h1>{env.t("setupTitle")}</h1>
+          <p className="setup-muted">{env.t("setupIntro")}</p>
         </header>
         <div aria-busy={state.phase === "loading"}>
           <Body state={state} retry={retry} t={env.t} />
         </div>
+        <ConnectedApps locale={env.locale} t={env.t} />
       </div>
     </div>
   );

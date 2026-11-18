@@ -48,8 +48,10 @@ first); the plugin installs no hook for it.
 
 ## 3. What the board gets
 
-- A slice row: `open` for `planned` or anything unknown, `in_progress` for `in progress` or `built`, `blocked` for
-  `parked` or `waiting on the user`.
+- A slice row: `open` for `planned` or anything unknown, `in_progress` for `in progress`, `done` for `built` (the code
+  is merged and only device checks are open; the board lists it under Built while a check is open), `blocked` for
+  `parked` or `waiting on the user`. A `built` row whose slice file still has an unticked part checkbox stays
+  `in_progress`.
 - A `blocked` slice also gets a "Waiting on you" card (`<project>/slice-<N>/waiting`) when its reason needs the
   person. A reason that is only a wait on work shows as a blocked slice with its reason and **no** card: it starts
   with "waits for", "waiting on" or "behind" and names only work, joined by "and" or "then": another slice (also one in

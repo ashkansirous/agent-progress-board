@@ -133,6 +133,16 @@ describe("sync_snapshot", () => {
     }
   });
 
+  it("keeps the checks of a done slice open, and a second sync changes nothing (Slice 42: built, not in progress)", async () => {
+    const built = item(7, { status: "done", checks: [{ key: "demo-app/slice-7/check-a", title: "Try it" }, { key: "demo-app/slice-7/check-b", title: "Try more" }] });
+    expect((await sync([built])).data).toMatchObject({ created: 3, closed: 0 });
+    at(5);
+    expect((await sync([built])).data).toMatchObject({ created: 0, updated: 0, closed: 0, unchanged: 3 });
+    expect(await get(7)).toMatchObject({ status: "done" });
+    const check = (await callTool("get_item", { key: "demo-app/slice-7/check-a" })).data as Stored;
+    expect(check).toMatchObject({ status: "open" });
+  });
+
   it("closes many items with an empty snapshot in one go", async () => {
     const many = Array.from({ length: 150 }, (_, i) => item(i + 1));
     await sync(many);

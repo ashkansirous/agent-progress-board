@@ -6,7 +6,7 @@ import { parseConfig } from "../src/config";
 import { itemProblem, MAX_CHECKS } from "../src/domain/checks";
 import { splitSliceTitle } from "../src/domain/docSync";
 import { ItemType } from "../src/domain/item";
-import { D1ItemRepository } from "../src/infrastructure/d1Repository";
+import { BOARD_WHERE, D1ItemRepository } from "../src/infrastructure/d1Repository";
 import { callTool, countRows, resetBoard } from "./helpers";
 
 const PROJECT = "demo-app";
@@ -204,13 +204,32 @@ describe("GET /api/board checks and problems", () => {
     expect(group.summary).toMatchObject({ planned: 1, checks_not_tried: 2 });
   });
 
-  it("counts checks of a closed slice and of a slice that is not on the board as loose", async () => {
+  it("lists a finished slice with open checks as built, and counts checks of a slice that is not on the board as loose", async () => {
     await sync([slice({ checks: checks(CHECK_A) }), { key: LOOSE, project: PROJECT, type: "check", title: "Loose", status: "open", parent_key: "demo-app/slice-3" }]);
     await callTool("mark_done", { key: SLICE });
     const group = (await board()).groups[0]!;
     expect(group.planned).toEqual([]);
-    expect(group.loose_checks.map((check) => check.key).sort()).toEqual([CHECK_A, LOOSE].sort());
+    expect(group.built.map((s) => [s.key, s.state, s.checks.map((c) => c.key)])).toEqual([[SLICE, "built", [CHECK_A]]]);
+    expect(group.loose_checks.map((check) => check.key)).toEqual([LOOSE]);
     expect(group.summary.checks_not_tried).toBe(2);
+  });
+
+  it("keeps a done slice with an open check on the board after the window, and drops one with none", async () => {
+    await sync([slice({ checks: checks(CHECK_A) })]);
+    await callTool("mark_done", { key: SLICE });
+    await env.DB.prepare("UPDATE items SET done_at = '2020-01-01T00:00:00.000Z' WHERE key = ?1").bind(SLICE).run();
+    expect((await board()).groups[0]!.built.map((s) => s.key)).toEqual([SLICE]);
+    await callTool("mark_done", { key: CHECK_A });
+    expect((await board()).groups).toEqual([]);
+  });
+
+  it("plans: the board read probes a slice's open checks through idx_items_parent_key, never a scan of items per row", async () => {
+    const { results } = await env.DB.prepare(`EXPLAIN QUERY PLAN SELECT * FROM items WHERE ${BOARD_WHERE} ORDER BY created_at DESC, key`)
+      .bind("2026-11-10T00:00:00.000Z", null, null)
+      .all<{ detail: string }>();
+    const plan = results.map((row) => row.detail);
+    expect(plan.some((line) => line.includes("idx_items_parent_key"))).toBe(true);
+    expect(plan.filter((line) => /^(CORRELATED SCALAR SUBQUERY|SCAN) .*items (AS )?c\b/.test(line))).toEqual([]);
   });
 
   it("returns the slice a bug names, and null for a problem that names none or a key that is no slice", async () => {

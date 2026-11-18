@@ -52,9 +52,17 @@ interface EventRow extends ItemEvent {
  * What the board lists: open items and those done inside the window, plus the parts of a slice that is
  * itself listed, however long ago a part was done (a slice's bar counts every part; Slice 11). Only parts
  * and checks ride along: a bug or problem that names a slice is listed by its own status and window.
+ * A done slice that still has a check not tried stays listed whatever its age (Slice 42: the board's Built list);
+ * the probe uses idx_items_parent_key. It runs once per row that reaches it: a done slice row asks
+ * about its own checks, a done part or check row asks about its siblings (the parent subquery
+ * holds no probe, so no row is probed twice).
  */
-const BOARD_WHERE = `(status != 'done' OR done_at > ?1 OR (type IN ('part', 'check') AND parent_key IS NOT NULL AND parent_key IN (
-    SELECT p.key FROM items p WHERE p.status != 'done' OR p.done_at > ?1)))
+const OPEN_CHECK_OF = (parentKey: string) => `EXISTS (
+    SELECT 1 FROM items c WHERE c.parent_key = ${parentKey} AND c.type = 'check' AND c.status != 'done')`;
+export const BOARD_WHERE = `(status != 'done' OR done_at > ?1
+    OR (type = 'slice' AND ${OPEN_CHECK_OF("items.key")})
+    OR (type IN ('part', 'check') AND parent_key IS NOT NULL AND (parent_key IN (
+    SELECT p.key FROM items p WHERE p.status != 'done' OR p.done_at > ?1) OR ${OPEN_CHECK_OF("items.parent_key")})))
   AND (?2 IS NULL OR project = ?2) AND (?3 IS NULL OR type = ?3)`;
 
 /**

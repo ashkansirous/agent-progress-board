@@ -22,16 +22,13 @@ owner's config repo. Decisions in [Slice 20](docs/plan/slices/20-plugin-connect.
 
 | Slice | Title | Status | PR | Issue | File |
 | --- | --- | --- | --- | --- | --- |
-| 32 | Open questions are counted and kept right; ask_human can set needs_you | planned | | | [32](docs/plan/slices/32-questions-and-rules.md) |
 | 33 | Doc sync never retypes live work, and checks and parts count right | planned | | | [33](docs/plan/slices/33-sync-and-checks-rules.md) |
 | 34 | Storage: queries, events and indexes | planned | | | [34](docs/plan/slices/34-storage-queries.md) |
 | 35 | Usage page and cost figures: review leftovers | planned | | | [35](docs/plan/slices/35-usage-page-fixes.md) |
 | 36 | Board, Active and drawer pages: review leftovers | planned | | | [36](docs/plan/slices/36-board-page-fixes.md) |
-| 37 | Access answers, ending a grant, and the setup page's leftovers | planned | | | [37](docs/plan/slices/37-access-and-grants.md) |
 | 39 | Steps are a tree: sub-steps unfold in place, and several can run at once | planned | | | [39](docs/plan/slices/39-step-tree.md) |
 | 40 | The plugin puts background agents into the step tree | planned | | | [40](docs/plan/slices/40-agents-in-tree.md) |
 | 41 | Only a task with an outcome gets a card | planned | | | [41](docs/plan/slices/41-tasks-with-outcome.md) |
-| 42 | A built slice whose checks are untried shows as built, not in progress | planned | | | [42](docs/plan/slices/42-built-not-in-progress.md) |
 
 Notes:
 
@@ -69,11 +66,11 @@ Notes:
 
 ## Outstanding work
 
-- **Not yet tried on a device:** 81 checks across 26 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
+- **Not yet tried on a device:** 86 checks across 29 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
 - Done 2026-11-18 (Slices 16, 18, 19): the owner pasted the connector line and the instruction text from the board's "Set up a chat" page into claude.ai Instructions ("I've updated the instructions with the 2 texts"). Whether a chat now opens a card is read from the board, not asked ([Slice 19](docs/plan/slices/19-chat-text.md)). The page will give one Copy for both pieces ([Slice 37](docs/plan/slices/37-access-and-grants.md)).
 - Slices 1 to 28 are built (19 merged as PR #110, 27 as PR #109, 28 as PR #114, 26 as PR #115, all four live since the night 2026-11-17-2023 batched release): that release called the deploy hook at 22:53:22Z and `wrangler deployments list` (read 23:00Z) shows a deployment created 2026-11-17T22:54:43Z; `batch-release.mjs worker-deployed` was run after it ([note](docs/plan/notes/2026-11-17-2023-feedback-loop.md)). The plugin (Slices 20 to 23) ships from the repo, not the Worker.
-- Slices 29, 30, 31 and 38 are built too (night 2026-11-18-1602, wave 1: PRs #129, #130, #131, #132, merged with the skip marker); they change only plugin scripts and browser tests, so the Worker does not change. Open follow-ups are 32 to 37 and 39 to 42.
-- **Review follow-ups are planned as Slices 29 to 38** (re-checked against `origin/main` d654e9b on 2026-11-18, owner: "double check and plan the follow up work"). Waves, decided by the planning session: 1 = 29, 30, 31, 38; 2 = 32, 35; 3 = 33, 36; 4 = 34, 37. Already fixed or gone, so not planned: Slice 13 #9b (heartbeat advice), Slice 18 #2, Slice 22 c2 #5 and high #4, Slice 27 chk #4, chk #7, high #9, Slice 19 chk #2; Slice 26 chk #1 is probably gone and gets a closing test in Slice 35.
+- Slices 29, 30, 31 and 38 are built too (night 2026-11-18-1602, wave 1: PRs #129, #130, #131, #132, merged with the skip marker); they change only plugin scripts and browser tests, so the Worker does not change. Slices 32, 37 and 42 are built too (wave 2: PRs #137, #136, #139, merged with the skip marker; the Worker changes with the batched release). Open follow-ups are 33 to 36, 39, 40 and 41.
+- **Review follow-ups are planned as Slices 29 to 38** (re-checked against `origin/main` d654e9b on 2026-11-18, owner: "double check and plan the follow up work"). Waves, decided by the planning session: 1 = 29, 30, 31, 38; 2 = 32, 35; 3 = 33; 4 = 34; Slice 37 was built before 36, so 36 follows 37. Already fixed or gone, so not planned: Slice 13 #9b (heartbeat advice), Slice 18 #2, Slice 22 c2 #5 and high #4, Slice 27 chk #4, chk #7, high #9, Slice 19 chk #2; Slice 26 chk #1 is probably gone and gets a closing test in Slice 35.
 - **Ideas to check (owner, 2026-11-18), from the survey of similar tools:** (1) Claude Code's OpenTelemetry metrics as a usage source, (2) a board answer that goes back to the waiting agent (needs the owner's yes: read-mostly rule), (3) Backlog.md folders as a second plan format for `sync_snapshot`. None is a slice yet ([note](docs/plan/notes/2026-11-18-similar-tools.md)).
 - **Kept as they are (match a rule or a decision):** Slice 9 #3 and #4 (cost derived at read; an unfitted model gives null), Slice 21 item 11 (one active step), Slice 2 pr-35-high #10 (no Cancel on the loading card; the mock draws none), Slice 14 pass-2 #6, Slice 23 med #6, med #10 and check #5, Slice 10 med #7. Slice 14 check #8 (table rebuild on real D1) can be checked only on the live database.
 - **Task tree (owner, 2026-11-18, RefineScope on the Active work page):** Slices 39 (step tree, several running, tap to unfold in place, turning ring), 40 (background agents placed in the tree) and 41 (a card only for a task with an outcome; no card for plain chats or orchestrators). Order: 39 after 32; 40 after 39 and 29; 41 after 39 and 40. The owner's config repo has the matching wave-tooling slice. The mock for 37, 39, 40 and 41 is on the canvas since 2026-11-18 (ActiveV3, ActiveV3Dark, ActiveV3Phone, Setup, SetupPhone; outcome line on BoardV2 and PhoneV2), copied into `docs/design/`, and the four slices are rewritten to it; the owner replaced Slice 13's goal-less card with Slice 41's rule. No review wait: the owner settled every decision in RefineScope and the answers of 2026-11-18, so the waves start now (owner, 2026-11-18: "you should not wait for my review").

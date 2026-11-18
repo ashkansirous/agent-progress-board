@@ -54,7 +54,7 @@ export const MAX_AFTER_ANSWER = 500;
 const CREATE_REQUIRED = ["project", "title", "type"] as const;
 
 function checkLength(field: "needs_you" | "after_answer", value: string | null | undefined, max: number): void {
-  if ((value?.length ?? 0) > max) throw new DomainError(field, `field ${field}: at most ${max} characters`);
+  if ((value?.trim().length ?? 0) > max) throw new DomainError(field, `field ${field}: at most ${max} characters`);
 }
 
 /** The report with its steps validated and a whitespace-only agent or model made absent (null); fields not sent stay unsent. */
@@ -102,8 +102,9 @@ function answersQuestion(input: ReportInput, existing: QuestionState): boolean {
  * in-progress heartbeat included, leaves them as stored.
  */
 export function withQuestion(input: ReportInput, existing: QuestionState, now: string): ReportInput {
-  if (input.needs_you) return withAsked(input, existing, now);
-  const clears = input.needs_you === null || (input.needs_you === undefined && answersQuestion(input, existing));
+  const done = input.status === ItemStatus.Done;
+  if (input.needs_you && !done) return withAsked(input, existing, now);
+  const clears = done || input.needs_you === null || (input.needs_you === undefined && answersQuestion(input, existing));
   if (!clears) return input;
   const answered = existing?.needs_you ? { note: withMarker(ANSWERED_NOTE, input.note) } : {};
   return { ...input, ...answered, needs_you: null, after_answer: null, needs_you_at: null };
@@ -117,7 +118,7 @@ function withAsked(input: ReportInput, existing: QuestionState, now: string): Re
   return { ...input, needs_you_at: now, note: withMarker(`${NEEDS_YOU_NOTE_PREFIX}${firstLine}`, input.note) };
 }
 
-/** The row to insert when the key is new; unused when the key already exists. */
+/** The row to insert when the key is new; unused when the key already exists. Normalizes steps, agent, model and the question text itself, so a direct caller cannot store untrimmed values. */
 export function newItem(input: ReportInput, now: string): Item {
   for (const field of CREATE_REQUIRED) {
     if (input[field] === undefined) {
@@ -142,8 +143,8 @@ export function newItem(input: ReportInput, now: string): Item {
     steps: normalizeSteps(input.steps),
     agent: blankToNull(input.agent),
     model: blankToNull(input.model),
-    needs_you: input.needs_you ?? null,
-    after_answer: input.after_answer ?? null,
+    needs_you: blankToNull(input.needs_you),
+    after_answer: blankToNull(input.after_answer),
     needs_you_at: input.needs_you_at ?? null,
     heartbeat_at: now,
     created_at: now,

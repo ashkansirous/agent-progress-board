@@ -12,7 +12,7 @@ interface LooseProps {
   onClose: () => void;
 }
 
-/** The checks whose slice is closed, listed as in a slice's drawer; they have no card, so this opens from the dashed card. */
+/** The checks whose slice is not on the board, listed as in a slice's drawer; they have no card, so this opens from the dashed card. */
 export function LooseChecksDrawer({ projectId, checks, onClose }: LooseProps) {
   const { t, phone, projects } = useView();
   const closeRef = useDialogFocus(onClose);

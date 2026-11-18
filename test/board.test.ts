@@ -1,7 +1,7 @@
 import { env, exports } from "cloudflare:workers";
 import { createLocalJWKSet, errors, exportJWK, generateKeyPair, SignJWT } from "jose";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { ACCESS_JWT_HEADER, type AccessKeys, remoteAccessKeys } from "../src/api/access";
+import { ACCESS_JWT_HEADER, type AccessKeys, KeyFetchFailure, remoteAccessKeys } from "../src/api/access";
 import type { BoardResponse } from "../src/api/boardDto";
 import { route, type RouterDeps, type RouterEnv } from "../src/api/router";
 import { D1ItemRepository } from "../src/infrastructure/d1Repository";
@@ -87,7 +87,7 @@ describe("Access gate", () => {
   it("refuses everyone while the team domain or the audience is unset", async () => {
     const token = await sign();
     for (const partial of [{ ACCESS_AUD: AUD }, { ACCESS_TEAM_DOMAIN: TEAM }, {}]) {
-      expect((await route(get(BOARD_URL, token), { ...partial, ASSETS: assets }, deps())).status).toBe(403);
+      expect((await route(get(BOARD_URL, token), { ...partial, ASSETS: assets }, deps())).status).toBe(503);
     }
   });
 
@@ -104,7 +104,7 @@ describe("Access gate", () => {
 
   it("answers 503, logs, and serves nothing when the key set cannot be fetched", async () => {
     const failing: AccessKeys = () => async () => {
-      throw new errors.JOSEError("Expected 200 OK from the JSON Web Key Set HTTP response");
+      throw new KeyFetchFailure(new errors.JOSEError("Expected 200 OK from the JSON Web Key Set HTTP response"));
     };
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
     const token = await sign();
@@ -114,7 +114,8 @@ describe("Access gate", () => {
       expect(await response.text()).toBe("Access check unavailable");
     }
     expect(assetRequests).toEqual([]);
-    expect(logged).toHaveBeenCalledTimes(2);
+    // The same line is logged once per 60 s per Worker instance, so two requests log once.
+    expect(logged).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(logged.mock.calls)).not.toContain(token);
     logged.mockRestore();
   });
@@ -131,8 +132,8 @@ describe("Access gate", () => {
 
   it("refuses the deployed worker's board when Access is not configured", async () => {
     const response = await exports.default.fetch(BOARD_URL);
-    expect(response.status).toBe(403);
-    expect((await exports.default.fetch(BOARD_URL, { headers: { [ACCESS_JWT_HEADER]: "x.y.z" } })).status).toBe(403);
+    expect(response.status).toBe(503);
+    expect((await exports.default.fetch(BOARD_URL, { headers: { [ACCESS_JWT_HEADER]: "x.y.z" } })).status).toBe(503);
   });
 
   it("leaves /mcp to its bearer tokens and answers 405 to a write on the page", async () => {
@@ -193,6 +194,28 @@ describe("GET /api/board", () => {
     expect(data.config.types.bug?.light?.bg).toBe("#FCE4E4");
     expect(data.config.palettes.light?.page).toBe("#FFFFFF");
     expect(data.config.palettes.light?.text).toBe("#14171C");
+  });
+
+  it("counts an in-progress item with an open question as working", async () => {
+    await callTool("report_progress", {
+      key: "a/q", project: "a", type: "bug", title: "Asks", status: "in_progress", agent: "builder", needs_you: "Which one?",
+    });
+    const data = await board();
+    expect(data.items[0]!.needs_you).toBe("Which one?");
+    expect(data.items[0]!.working).toBe(true);
+    expect(data.working_count).toBe(1);
+  });
+
+  it("lists a check that holds a question but never counts it as working, and names its slice", async () => {
+    await callTool("report_progress", { key: "a/s1", project: "a", type: "slice", title: "Slice one" });
+    await callTool("report_progress", {
+      key: "a/s1/c1", project: "a", type: "check", title: "Check", status: "in_progress", parent_key: "a/s1", needs_you: "Ok?",
+    });
+    const data = await board();
+    const check = data.items.find((item) => item.key === "a/s1/c1")!;
+    expect(check.working).toBe(false);
+    expect(check.parent_slice).toEqual({ key: "a/s1", number: null, title: "Slice one" });
+    expect(data.working_count).toBe(0);
   });
 
   it("drops items finished before the window", async () => {

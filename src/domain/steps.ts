@@ -14,10 +14,10 @@ function fail(message: string): never {
 
 function checkStep(step: StepInput, index: number): void {
   const at = `step ${index + 1}`;
-  if (step.label.trim().length < 1 || step.label.length > MAX_STEP_LABEL) {
+  if (step.label.trim().length < 1 || step.label.trim().length > MAX_STEP_LABEL) {
     fail(`${at} label needs 1 to ${MAX_STEP_LABEL} characters`);
   }
-  if ((step.note ?? "").length > MAX_STEP_NOTE) fail(`${at} note needs at most ${MAX_STEP_NOTE} characters`);
+  if ((step.note ?? "").trim().length > MAX_STEP_NOTE) fail(`${at} note needs at most ${MAX_STEP_NOTE} characters`);
   if (!Object.values(StepState).includes(step.state)) fail(`${at} state must be done, active or pending`);
 }
 
@@ -36,7 +36,8 @@ export function normalizeSteps(steps: StepInput[] | null | undefined): Step[] | 
 
 /** An optional free-text field: whitespace-only reads as absent. */
 export function blankToNull(value: string | null | undefined): string | null {
-  return value?.trim() ? value : null;
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
 }
 
 function isStoredStep(value: unknown): value is Step {

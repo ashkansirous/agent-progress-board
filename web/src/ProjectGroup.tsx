@@ -3,7 +3,7 @@ import type { ProjectGroups } from "../../src/domain/boardGroups";
 import { DoneSection } from "./DoneSection";
 import { ChevronIcon } from "./icons";
 import { projectLabel } from "./model";
-import { PlannedSection } from "./PlannedSection";
+import { BuiltSection, PlannedSection } from "./PlannedSection";
 import { summaryText } from "./planningText";
 import { useProjectOpen } from "./projectFold";
 import { ProblemsSection } from "./ProblemsSection";
@@ -68,6 +68,7 @@ function ProjectBody({ group, items, onOpen }: GroupProps) {
         onOpen={() => onOpen(looseChecksKey(group.id))}
         onOpenItem={onOpen}
       />
+      <BuiltSection slices={group.built} items={items} onOpenItem={onOpen} />
       <ProblemsSection problems={group.problems} items={items} onOpen={onOpen} />
       {group.other.length > 0 && <Section label={t("otherOpenN", { n: group.other.length })} list={itemsOf(group.other, items)} onOpen={onOpen} />}
       <DoneSection done={group.done} onOpen={onOpen} />

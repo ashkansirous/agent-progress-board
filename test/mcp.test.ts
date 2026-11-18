@@ -2,6 +2,7 @@ import { env, exports } from "cloudflare:workers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { type Item, ItemStatus } from "../src/domain/item";
 import { D1ItemRepository } from "../src/infrastructure/d1Repository";
+import { fitItem, fitList, MAX_RESULT_CHARS } from "../src/mcp/tools";
 import { callTool, countRows, fetchWithEnv, postMcp, READ_TOKEN, resetBoard, WRITE_TOKEN } from "./helpers";
 
 interface BoardItem {
@@ -223,13 +224,14 @@ describe("mark_done, ask_human, get_item", () => {
     expect(item.events[0]?.note).toBe("needs_you: Which phone?");
   });
 
-  it("ask_human on another type keeps the stored fields the ask does not send and applies the ones it does", async () => {
+  it("ask_human on another type keeps every stored field and ignores links the ask sends", async () => {
     await callTool("report_progress", { ...SLICE, status: "in_progress", priority: "P1", details_md: "Kept", source: "agent" });
     await callTool("ask_human", {
       key: SLICE.key, project: "demo-app", title: "Q", why: "Which phone?", links: [{ label: "Log", url: "https://example.com/log" }],
     });
     const item = (await callTool("get_item", { key: SLICE.key })).data as Record<string, unknown>;
-    expect(item).toMatchObject({ priority: "P1", details_md: "Kept", source: "agent", links: [{ label: "Log", url: "https://example.com/log" }] });
+    expect(item).toMatchObject({ priority: "P1", details_md: "Kept", source: "agent", links: [] });
+    expect(item.needs_you).toBe("Which phone?");
   });
 
   it("a new ask replaces after_answer, and clears it when the ask omits it", async () => {
@@ -293,6 +295,97 @@ describe("mark_done, ask_human, get_item", () => {
     await callTool("report_progress", { key: SLICE.key, status: "in_progress", note: "Started" });
     const detail = (await callTool("get_item", { key: SLICE.key })).data as BoardItem;
     expect(detail.events.map((e) => e.status)).toEqual(["in_progress", "open"]);
+  });
+});
+
+describe("step text at the tool boundary", () => {
+  it("measures a step label and note after trimming, and refuses a whitespace-only label", async () => {
+    const padded = { label: `  ${"l".repeat(80)}  `, state: "active", note: ` ${"n".repeat(120)} ` };
+    const ok = await callTool("report_progress", { ...SLICE, steps: [padded] });
+    expect(ok.isError).toBeFalsy();
+    const blank = await callTool("report_progress", { ...SLICE, steps: [{ label: "   ", state: "pending" }] });
+    expect(blank.isError).toBe(true);
+  });
+});
+
+describe("result size limit", () => {
+  /** The length of the reply a client receives for a fit result: data block plus note block. */
+  function replyLength(fit: unknown): number {
+    const reply = fit as { data?: unknown; note?: string };
+    if (typeof reply.note === "string") return JSON.stringify(reply.data).length + reply.note.length;
+    return JSON.stringify(fit).length;
+  }
+
+  it("fitList returns entries that already fit unchanged", () => {
+    const entries = [{ key: "a" }, { key: "b" }];
+    expect(fitList(entries)).toBe(entries);
+  });
+
+  it("fitList cuts one huge entry's long strings so the final reply is within the limit", () => {
+    const entry = { key: "k", why: "y".repeat(80_000), events: [{ note: "n".repeat(80_000) }] };
+    const fit = fitList([entry]);
+    expect(replyLength(fit)).toBeLessThanOrEqual(MAX_RESULT_CHARS);
+    expect((fit as { data: { key: string }[] }).data[0]!.key).toBe("k");
+  });
+
+  it("fitList falls back to an empty list with a note when no cut of the first entry fits", () => {
+    const entry = Object.fromEntries(Array.from({ length: 3000 }, (_, n) => [`field_${n}`, "v".repeat(30)]));
+    const fit = fitList([entry]);
+    expect(replyLength(fit)).toBeLessThanOrEqual(MAX_RESULT_CHARS);
+  });
+
+  it("fitList drops trailing entries of many so the final reply is within the limit", () => {
+    const entries = Array.from({ length: 400 }, (_, n) => ({ key: `k${n}`, why: "w".repeat(400) }));
+    const fit = fitList(entries) as { data: unknown[]; note: string };
+    expect(fit.data.length).toBeLessThan(entries.length);
+    expect(fit.data.length).toBeGreaterThan(0);
+    expect(replyLength(fit)).toBeLessThanOrEqual(MAX_RESULT_CHARS);
+    expect(fit.note).toMatch(new RegExp(`^truncated: ${fit.data.length} of 400 items shown`));
+    expect(fit.note).toContain(`(${400 - fit.data.length} dropped, first dropped key k${fit.data.length}; ask for it with get_item)`);
+  });
+
+  it("fitList's last-resort clip keeps key, project and time fields whole and cuts only free text", () => {
+    const entry = { key: `p/${"k".repeat(60)}`, project: "p".repeat(60), updated_at: "2026-11-17T10:00:00.000Z", why: "y".repeat(80_000), events: [{ at: "2026-11-17T10:00:00.000Z", note: "n".repeat(80_000) }] };
+    const out = (fitList([entry]) as { data: (typeof entry)[] }).data[0]!;
+    expect(out.key).toBe(entry.key);
+    expect(out.project).toBe(entry.project);
+    expect(out.updated_at).toBe(entry.updated_at);
+    expect(out.events[0]!.at).toBe(entry.events[0]!.at);
+    expect(out.why.length).toBeLessThan(entry.why.length);
+  });
+
+  it("fitItem keeps the newest events and the final reply within the limit, for a huge item and for a huge history", () => {
+    const huge = { key: "k", details_md: "d".repeat(90_000), events: [{ note: "n".repeat(90_000) }, { note: "m" }] };
+    expect(replyLength(fitItem(huge))).toBeLessThanOrEqual(MAX_RESULT_CHARS);
+    const history = { key: "k", events: Array.from({ length: 300 }, (_, n) => ({ n, note: "x".repeat(500) })) };
+    const fit = fitItem(history) as { data: { events: { n: number }[] } };
+    expect(replyLength(fit)).toBeLessThanOrEqual(MAX_RESULT_CHARS);
+    expect(fit.data.events[0]!.n).toBe(0);
+    expect(fit.data.events.length).toBeLessThan(300);
+  });
+
+  it("list_open keeps the whole reply under the size limit when one item alone is huge", async () => {
+    await callTool("report_progress", { ...SLICE, details_md: "d".repeat(9000) });
+    for (let n = 0; n < 12; n++) await callTool("report_progress", { key: SLICE.key, note: `${n}-${"x".repeat(9000)}` });
+    const response = await postMcp(
+      { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "list_open", arguments: {} } },
+      WRITE_TOKEN,
+    );
+    const { content } = ((await response.json()) as { result: { content: { text: string }[] } }).result;
+    expect(content.reduce((sum, block) => sum + block.text.length, 0)).toBeLessThanOrEqual(MAX_RESULT_CHARS);
+  });
+
+  it("get_item cuts a huge history to the newest events and says so in a second block", async () => {
+    await callTool("report_progress", SLICE);
+    for (let n = 0; n < 14; n++) await callTool("report_progress", { key: SLICE.key, note: `${n}-${"x".repeat(19_000)}` });
+    const response = await postMcp(
+      { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "get_item", arguments: { key: SLICE.key } } },
+      WRITE_TOKEN,
+    );
+    const { content } = ((await response.json()) as { result: { content: { text: string }[] } }).result;
+    expect(content).toHaveLength(2);
+    expect(content[1]!.text).toMatch(/^truncated: \d+ of \d+ events shown/);
+    expect((JSON.parse(content[0]!.text) as BoardItem).events.length).toBeLessThan(15);
   });
 });
 

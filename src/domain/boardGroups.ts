@@ -12,6 +12,8 @@ export enum SliceState {
   InProgress = "in_progress",
   Planned = "planned",
   Parked = "parked",
+  /** Done in the plan, with checks still not tried on a device: listed in its own section, not as planned. */
+  Built = "built",
 }
 
 /** What the grouping reads of an item, as the board's own item DTO carries it (the shown status already worked out). */
@@ -79,6 +81,8 @@ export interface ProjectSummary {
   needs_you: number;
   working: number;
   planned: number;
+  /** Done slices with a check not tried (the Built section's count). */
+  built: number;
   problems: number;
   checks_not_tried: number;
 }
@@ -90,7 +94,9 @@ export interface ProjectGroups {
   /** Keys of the items an agent works on now with no question open (a slice with a live agent is here and in `planned`). */
   working_now: string[];
   planned: PlannedSlice[];
-  /** Checks whose slice is not an open one: never a card, a dashed entry under Planned. */
+  /** Done slices with at least one check not tried, by slice number; counted in no other list but their checks in the summary. */
+  built: PlannedSlice[];
+  /** Checks whose slice is neither an open nor a built one: never a card, a dashed entry under Planned. */
   loose_checks: CheckView[];
   problems: ProblemEntry[];
   /** Open items that are none of the above (an unplanned item nobody holds); the page lists them plainly. */
@@ -110,6 +116,7 @@ const STATE_RANK: Record<SliceState, number> = {
   [SliceState.InProgress]: 0,
   [SliceState.Planned]: 1,
   [SliceState.Parked]: 2,
+  [SliceState.Built]: 3,
 };
 
 type Order = (a: GroupItem, b: GroupItem) => number;
@@ -131,7 +138,13 @@ function isStoppedSession(item: GroupItem): boolean {
   return item.agent === SESSION_AGENT && item.needs_you === null && live && !item.working;
 }
 
+/** A done slice that still has a check not tried on a device. */
+function isBuilt(item: GroupItem, checks: Map<string, CheckView[]>): boolean {
+  return item.type === ItemType.Slice && item.status === ItemStatus.Done && (checks.get(item.key)?.length ?? 0) > 0;
+}
+
 function sliceStateOf(status: ItemStatus): SliceState {
+  if (status === ItemStatus.Done) return SliceState.Built;
   if (status === ItemStatus.InProgress) return SliceState.InProgress;
   return status === ItemStatus.Blocked ? SliceState.Parked : SliceState.Planned;
 }
@@ -169,21 +182,25 @@ function openUncarded(items: GroupItem[]): GroupItem[] {
 /** One project: every item lands in the lists by the rules below; a slice is always in `planned`. */
 function groupProject(id: string, items: GroupItem[], checkRows: CheckRow[]): ProjectGroups {
   const cards = items.filter((item) => !NO_CARD_TYPES.includes(item.type));
-  const finished = cards.filter((item) => item.status === ItemStatus.Done || isStoppedSession(item));
-  const finishedSet = new Set(finished);
-  const open = cards.filter((item) => !finishedSet.has(item));
   const checks = checksBySlice(checkRows);
+  const builtItems = cards.filter((item) => isBuilt(item, checks));
+  const builtSet = new Set(builtItems);
+  const finished = cards.filter((item) => !builtSet.has(item) && (item.status === ItemStatus.Done || isStoppedSession(item)));
+  const finishedSet = new Set(finished);
+  const open = cards.filter((item) => !finishedSet.has(item) && !builtSet.has(item));
   const slices = open.filter((item) => item.type === ItemType.Slice);
   const planned = slices.map((item) => plannedOf(item, checks)).sort(bySlice);
-  const plannedKeys = new Set(planned.map((slice) => slice.key));
+  const built = builtItems.map((item) => plannedOf(item, checks)).sort(bySlice);
+  const plannedKeys = new Set([...planned, ...built].map((slice) => slice.key));
   const loose = [...checks].filter(([slice]) => !plannedKeys.has(slice)).flatMap(([, list]) => list);
-  const questions = [...open, ...openUncarded(items)].filter((item) => item.needs_you !== null).sort(oldestQuestion);
-  const waiting = open
+  const live = [...open, ...builtItems];
+  const questions = [...live, ...openUncarded(items)].filter((item) => item.needs_you !== null).sort(oldestQuestion);
+  const waiting = live
     .filter((item) => item.needs_you === null && item.type === ItemType.WaitingForMe)
     .sort(byPriorityThen(oldestFirst));
   const waitingSet = new Set(waiting);
   const problems = open.filter((item) => isProblemType(item.type) && item.needs_you === null);
-  const working = open.filter(
+  const working = live.filter(
     (item) => item.working && item.needs_you === null && !isProblemType(item.type) && !waitingSet.has(item),
   );
   const placed = new Set([...questions, ...waiting, ...problems, ...working, ...slices]);
@@ -194,13 +211,14 @@ function groupProject(id: string, items: GroupItem[], checkRows: CheckRow[]): Pr
     needs_you: needsYou,
     working_now: working.sort(newestHeartbeat).map((item) => item.key),
     planned,
+    built,
     loose_checks: loose,
     problems: problems.sort(byPriorityThen(newestHeartbeat)).map(problemOf),
     other: other.map((item) => item.key),
     done: doneGroupOf(finished),
-    summary: { needs_you: needsYou.length, working: working.length, planned: planned.length, problems: problems.length, checks_not_tried: 0 },
+    summary: { needs_you: needsYou.length, working: working.length, planned: planned.length, built: built.length, problems: problems.length, checks_not_tried: 0 },
   };
-  group.summary.checks_not_tried = planned.reduce((sum, slice) => sum + slice.checks.length, 0) + loose.length;
+  group.summary.checks_not_tried = [...planned, ...built].reduce((sum, slice) => sum + slice.checks.length, 0) + loose.length;
   return group;
 }
 

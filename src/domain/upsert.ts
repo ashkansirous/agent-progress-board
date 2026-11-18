@@ -47,15 +47,18 @@ export interface ReportInput {
   after_answer?: string | null;
   /** When the question was first asked; set by the application layer, never by a reporter. */
   needs_you_at?: string | null;
+  /** What the task delivers, one line; null clears it. Slice 41. */
+  outcome?: string | null;
   note?: string;
 }
 
 export const MAX_NEEDS_YOU = 2000;
 export const MAX_AFTER_ANSWER = 500;
+export const MAX_OUTCOME = 200;
 
 const CREATE_REQUIRED = ["project", "title", "type"] as const;
 
-function checkLength(field: "needs_you" | "after_answer", value: string | null | undefined, max: number): void {
+function checkLength(field: "needs_you" | "after_answer" | "outcome", value: string | null | undefined, max: number): void {
   if ((value?.trim().length ?? 0) > max) throw new DomainError(field, `field ${field}: at most ${max} characters`);
 }
 
@@ -79,6 +82,8 @@ export function checkReport(input: ReportInput, existing: Pick<Item, "steps"> | 
   checkLength("after_answer", input.after_answer, MAX_AFTER_ANSWER);
   if (input.needs_you !== undefined) checked.needs_you = blankToNull(input.needs_you);
   if (input.after_answer !== undefined) checked.after_answer = blankToNull(input.after_answer);
+  checkLength("outcome", input.outcome, MAX_OUTCOME);
+  if (input.outcome !== undefined) checked.outcome = blankToNull(input.outcome);
   delete checked.needs_you_at;
   return checked;
 }
@@ -157,6 +162,7 @@ export function newItem(input: ReportInput, now: string): Item {
     needs_you: blankToNull(input.needs_you),
     after_answer: blankToNull(input.after_answer),
     needs_you_at: input.needs_you_at ?? null,
+    outcome: blankToNull(input.outcome),
     heartbeat_at: now,
     created_at: now,
     updated_at: now,

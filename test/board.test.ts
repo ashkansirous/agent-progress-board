@@ -172,6 +172,14 @@ describe("GET /api/board", () => {
     expect(data.server_time).toBe(FIXED_NOW.toISOString());
   });
 
+  it("returns the outcome of an item, and null for one reported without it (Slice 41)", async () => {
+    await callTool("report_progress", { key: "recipe-box/task-a1", project: "recipe-box", type: "unplanned", title: "Refine the idea", status: "in_progress", outcome: "A plan with slices" });
+    await callTool("report_progress", { key: "recipe-box/task-b2", project: "recipe-box", type: "unplanned", title: "Older report", status: "in_progress" });
+    const byKey = new Map((await board()).items.map((item) => [item.key, item.outcome]));
+    expect(byKey.get("recipe-box/task-a1")).toBe("A plan with slices");
+    expect(byKey.get("recipe-box/task-b2")).toBeNull();
+  });
+
   it("carries the window hours and fills palettes and colour maps from the example defaults", async () => {
     const data = await board({ BOARD_CONFIG: '{"window":{"default_hours":6,"max_hours":24}}' });
     expect(data.window_hours).toBe(6);

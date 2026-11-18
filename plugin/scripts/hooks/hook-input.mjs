@@ -12,6 +12,7 @@ export const HOOK_TIMEOUT_MS = 2000;
 export const HOOK_SOURCE = 'hook';
 export const SESSION_FILE_MAX_AGE_MS = 24 * 60 * 60 * 1000; // a file older than this belongs to a session that ended
 export const CLOSED_BY = { stop: 'stop', session: 'session' };
+export const CARD_KIND = { task: 'task', slice: 'slice' };
 const GOAL_SUFFIX = '.goal.json';
 const PROMPT_SUFFIX = '.prompt.json';
 const SEEN_SUFFIX = '.seen';
@@ -263,7 +264,9 @@ export function readSeen(id, root) {
 // is not sent twice; `held` is set when Stop left the card open for running background agents, so the last agent's
 // SubagentStop closes it unless the main transcript changed after `heldAt` (the time Stop held the card).
 export function writeGoal(id, goal, root, now = Date.now()) {
-  writeJson(sessionFile(id, GOAL_SUFFIX, root), { at: now, goalAt: now, ...goal });
+  const stored = { ...goal };
+  delete stored.slice; // derived from `kind` at read (readGoal), never stored
+  writeJson(sessionFile(id, GOAL_SUFFIX, root), { at: now, goalAt: now, ...stored });
 }
 
 // Read, change and write the goal file with no lock: the file is read again right before the write and written
@@ -307,11 +310,28 @@ export function readGoal(id, root, now = Date.now()) {
     closedBy: value.closedBy === CLOSED_BY.stop || value.closedBy === CLOSED_BY.session ? value.closedBy : '',
     needsYou: text(value.needsYou),
     sig: text(value.sig),
+    kind: cardKindOf(value), // 'task' or 'slice': a slice card's status is doc sync's, so session-done never closes it
+    slice: cardKindOf(value) === CARD_KIND.slice,
+    orchClose: orchCloseOf(value),
     held: value.held === true,
-    heldAt: Number.isFinite(value.heldAt) ? value.heldAt : 0,
+    heldAt:Number.isFinite(value.heldAt) ? value.heldAt : 0,
     agentParents: parentsOf(value.agentParents),
     agentStarts: startsOf(value.agentStarts),
   };
+}
+
+// The one close attempt made for an orchestrator's card: `{ key, outcome }`, or null when none was made.
+export const ORCH_CLOSE = { sent: 'sent', failed: 'failed' };
+function orchCloseOf(value) {
+  const found = value.orchClose;
+  if (!found || typeof found.key !== 'string' || !Object.values(ORCH_CLOSE).includes(found.outcome)) return null;
+  return { key: found.key, outcome: found.outcome };
+}
+
+// The kind a goal file holds; an older file with only `slice: true` is a slice card.
+function cardKindOf(value) {
+  if (value.kind === CARD_KIND.slice || value.kind === CARD_KIND.task) return value.kind;
+  return value.slice === true ? CARD_KIND.slice : CARD_KIND.task;
 }
 
 // `{ agentId: ms }`: when each background agent's start was recorded (SubagentStart), so an agent with no files yet

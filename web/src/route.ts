@@ -51,6 +51,11 @@ export function looseProjectOf(hash: string): string | null {
   }
 }
 
+/** The board, scrolled to its first "Needs you" section (the Active work page's waiting-questions link). `routeOf` reads it as the board. */
+export const NEEDS_YOU_HASH = "#/needs-you";
+/** The attribute that marks a "Needs you" section, so the link can scroll to the first one. */
+export const NEEDS_YOU_ATTRIBUTE = "data-needs-you";
+
 /** True for an address that opens a drawer on the board (an item's, or a project's loose checks). */
 export function isDrawerHash(hash: string): boolean {
   return hash.startsWith(OPEN_PREFIX) || hash.startsWith(LOOSE_PREFIX);

@@ -3,9 +3,9 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { boardResponse } from "../src/api/board";
 import type { BoardResponse } from "../src/api/boardDto";
 import { parseConfig } from "../src/config";
-import { ItemStatus, ItemType, Priority } from "../src/domain/item";
+import { ANSWERED_NOTE, ItemStatus, ItemType, NEEDS_YOU_NOTE_PREFIX, Priority } from "../src/domain/item";
 import { D1ItemRepository } from "../src/infrastructure/d1Repository";
-import { callFor, PLANNING_SEED_ITEMS, SEED_ITEMS, SESSION_SEED_ITEMS, seedCalls } from "../scripts/seed-data";
+import { ANSWERED, ASKED, callFor, PLANNING_SEED_ITEMS, SEED_ITEMS, SESSION_SEED_ITEMS, seedCalls } from "../scripts/seed-data";
 import { callTool, countRows, resetBoard } from "./helpers";
 
 beforeEach(resetBoard);
@@ -56,7 +56,23 @@ describe("seed data", () => {
     expect(asked.results.map((row) => row.key)).toEqual(["example-app/session-4f2a", "tools/session-51e0"]);
     expect(asked.results.every((row) => row.type === ItemType.Unplanned)).toBe(true);
     const sessions = SESSION_SEED_ITEMS.filter((item) => item.agent === "session");
-    expect(sessions.length).toBeGreaterThanOrEqual(6);
+    expect(sessions.map((item) => item.key)).toEqual([
+      "example-app/session-9c1e", "example-app/session-3e8c", "example-app/session-4f2a", "example-app/session-7b3d", "tools/session-51e0",
+    ]);
+    expect(new Set(sessions.map((item) => item.key)).size).toBe(sessions.length);
+  });
+
+  it("stores each seeded outcome, and sends an empty field as null so a re-seed clears it", async () => {
+    for (const call of seedCalls(SESSION_SEED_ITEMS)) await callTool(call.name, call.arguments);
+    const row = await env.DB.prepare("SELECT outcome FROM items WHERE key = ?").bind("example-app/session-3e8c").first<{ outcome: string | null }>();
+    expect(row?.outcome).toBe("Code merged to main");
+    const bare = SESSION_SEED_ITEMS.find((item) => item.key === "example-app/session-7b3d")!;
+    expect(callFor({ ...bare, why: "", details: [] }).arguments).toMatchObject({ why: null, details_md: null });
+  });
+
+  it("holds the question and answered markers equal to the server's own", () => {
+    expect(ASKED).toBe(NEEDS_YOU_NOTE_PREFIX);
+    expect(ANSWERED).toBe(ANSWERED_NOTE);
   });
 
   it("gives example-app the mock's planning numbers: 3 planned slices, 22 loose checks, 2 problems", async () => {

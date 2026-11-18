@@ -149,6 +149,7 @@ function itemDto(row: BoardRow, ctx: PartsContext): BoardItemDto {
     environment_label: environment === null ? null : (config.usage.environmentLabels[environment] ?? environment),
     agent: item.agent ?? null,
     model: item.model ?? null,
+    outcome: item.outcome ?? null,
     ...questionFields(item, shownStatus, config, now),
     steps: item.steps ?? null,
     progress: stepProgress(item.steps, item.status),

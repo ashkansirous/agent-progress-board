@@ -12,11 +12,15 @@
 //          [--status open|in_progress|blocked|done|stale] [--title ..] [--why ..] [--parent ..]
 //          [--priority P0..P3] [--note ..] [--source hook|agent|human] [--link "Label|https://url"]...
 //          [--details-file <path>] [--details "<text>"] [--parent-key <key>]
-//          [--agent <kind>] [--model <name>] [--session <id>]
+//          [--agent <kind>] [--model <name>] [--session <id>] [--outcome "<what the task delivers>"]
+//          [--orchestrator]
 //          [--steps "a|b|c" | --steps-file <path>] [--touches "<Touches line>"] [--touches-file <slice file>]
 //          [--step-active "<label>" | --step-done "<label>"] [--step-skipped "<label>"]... [--under-step <id>]
 // --under-step <id> sends the list as only that step's children (the board's `under_step`); a helper reports its own
 // subtree with it. It is sent only together with a list.
+// --orchestrator (Slice 41) sends nothing: it marks the session as an orchestrator (a wave runner, whose slices have
+// their own cards) in `<state>/<session>.orchestrator.json`; from then on the hooks open no card for the session and
+// send no reminder; a card the session reported earlier is closed at the next hook.
 // Steps: --steps gives the labels inline (the first is active unless a step flag names one); --steps-file reads a
 // JSON file `{ "agent": "..", "steps": [{ "label": "..", "note": "..", "needsTouch": [".."] }] }`.
 // --touches (or --touches-file, which reads the slice file's Touches line) drops steps whose
@@ -36,7 +40,7 @@
 // AGENT_BOARD_URL / AGENT_BOARD_TOKEN. State lives under CLAUDE_PLUGIN_DATA (see stateRoot).
 
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -73,9 +77,10 @@ export const TASK_MAX_AGE_MS = 24 * 60 * 60 * 1000; // an older task file belong
 const PART_LETTER = /^[A-Z]$/;
 const PART_TYPE = 'part';
 const WRITE_TOOLS = new Set(['report_progress', 'mark_done', 'ask_human']);
-const FIELD_ARGS = ['project', 'type', 'status', 'title', 'why', 'parent', 'priority', 'note', 'source', 'agent', 'model'];
+const FIELD_ARGS = ['project', 'type', 'status', 'title', 'why', 'parent', 'priority', 'note', 'source', 'agent', 'model', 'outcome'];
 const REPEATABLE = new Set(['link', 'step-skipped']);
-const SWITCHES = new Set(['waiting']);
+const SWITCHES = new Set(['waiting', 'orchestrator']);
+export const ORCHESTRATOR_SUFFIX = '.orchestrator.json';
 
 // Where the hooks and the CLI keep per-session files: the override variable, else the plugin's data folder
 // (kept across plugin updates, never the plugin folder itself), else a temp folder for a run outside a plugin.
@@ -465,6 +470,45 @@ export function activeTaskCard(sessionId, { taskRoot, now = Date.now() } = {}) {
   }
 }
 
+export function orchestratorFilePath(sessionId, root = stateRoot()) {
+  const id = String(sessionId || '').trim().replace(/[^A-Za-z0-9_-]/g, '_');
+  return id ? join(root, `${id}${ORCHESTRATOR_SUFFIX}`) : '';
+}
+
+// Marks the session as an orchestrator. Returns false when there is no session id or the file cannot be written.
+export function markOrchestrator(sessionId, root = stateRoot()) {
+  const file = orchestratorFilePath(sessionId, root);
+  if (!file) return false;
+  try {
+    mkdirSync(root, { recursive: true });
+    writeFileSync(file, JSON.stringify({ at: Date.now() }));
+    return true;
+  } catch {
+    return false; // fail open: the hooks then treat the session as any other
+  }
+}
+
+// True when the session was marked an orchestrator within TASK_MAX_AGE_MS.
+export function isOrchestrator(sessionId, { root = stateRoot(), now = Date.now() } = {}) {
+  const file = orchestratorFilePath(sessionId, root);
+  if (!file) return false;
+  try {
+    return now - statSync(file).mtimeMs <= TASK_MAX_AGE_MS;
+  } catch {
+    return false;
+  }
+}
+
+// Refreshes the mark's time (the hooks call it on every hook of a marked session), so it does not lapse after
+// TASK_MAX_AGE_MS in a long wave session. Fails open.
+export function touchOrchestrator(sessionId, { root = stateRoot(), now = Date.now() } = {}) {
+  const file = orchestratorFilePath(sessionId, root);
+  if (!file) return;
+  try {
+    utimesSync(file, new Date(now), new Date(now));
+  } catch { /* fail open */ }
+}
+
 // The task status a report means: ask_human is waiting; report_progress carries its status as given
 // (open, stale, parked, review, blocked, waiting ...) and no status means in_progress.
 function taskStatusOf(tool, args, stored = '') {
@@ -559,6 +603,10 @@ export async function main(argv, env = process.env) {
   const parsed = parseArgs(argv);
   const tool = parsed.tool || 'report_progress';
   if (!WRITE_TOOLS.has(tool)) return process.stderr.write(`report-progress: unknown tool ${tool}\n`);
+  if (parsed.orchestrator) {
+    const marked = markOrchestrator(parsed.session || env[SESSION_VARIABLE], stateRoot(env));
+    return process.stderr.write(marked ? 'report-progress: orchestrator marked, nothing sent\n' : 'report-progress: orchestrator not marked (no session id), nothing sent\n');
+  }
   const config = resolveConfig(env);
   if (!config) return;
   const project = parsed.project || projectSlug(process.cwd(), env);

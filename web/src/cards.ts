@@ -9,9 +9,15 @@ const MINUTES_PER_HOUR = 60;
 const HISTORY_QUESTION_CHARS = 45;
 const BULLET_PREFIX = /^\s*[-*•]\s+/;
 
-/** A session's own card: the clients mark it with the agent value `session` (Slice 13). */
+/**
+ * A working card: a session's own card (the agent value `session`, Slice 13) or a live item that has an outcome (a
+ * slice card that reports one carries no agent, Slice 41). A planned, blocked or done slice with an outcome is a
+ * slice row, not a working card.
+ */
 export function isSessionItem(item: BoardItemDto): boolean {
-  return item.agent === SESSION_AGENT && item.type !== ItemType.Part;
+  if (item.type === ItemType.Part) return false;
+  const live = item.status === ItemStatus.InProgress || item.status === ItemStatus.Stale;
+  return item.agent === SESSION_AGENT || (Boolean(item.outcome) && live);
 }
 
 /** The item holds a question for the owner; the Worker sends `needs_you` only while it waits (not done, not expired). */
@@ -36,16 +42,30 @@ export function opensCardDrawer(item: BoardItemDto): boolean {
 }
 
 /**
- * A card with no goal yet: no purpose, no steps, and the client's fallback title
- * ("<branch> · <project>", docs/clients.md); a real one-line title is a goal.
+ * The text with its first letter lower case. The word stays as written when it is "I" or when its second letter is not
+ * a lower-case letter (an acronym such as "API" or "CI", a brand such as "iOS" is lower already).
  */
-export function hasNoGoal(item: BoardItemDto): boolean {
-  const fallbackTitle = item.title.endsWith(` · ${item.project}`);
-  return !item.why && (item.steps?.length ?? 0) === 0 && fallbackTitle;
+function lowerFirst(text: string): string {
+  const word = text.split(/\s/, 1)[0] ?? "";
+  const second = word.charAt(1);
+  const secondIsLower = second !== "" && second === second.toLowerCase() && second !== second.toUpperCase();
+  if (word === "I" || (word.length > 1 && !secondIsLower)) return text;
+  return text.charAt(0).toLowerCase() + text.slice(1);
+}
+
+/**
+ * The drawer's purpose line of a session card: "Outcome: {outcome} · {why}" with each part's first letter lower case
+ * after the label (BoardV2Dark `DRAWERS.w1`); just the purpose when there is no outcome; null when neither.
+ */
+export function purposeText(item: BoardItemDto, t: Translate): string | null {
+  if (!item.outcome) return item.why;
+  const outcome = t("outcomeLine", { outcome: lowerFirst(item.outcome) });
+  return item.why ? `${outcome} · ${lowerFirst(item.why)}` : outcome;
 }
 
 const SESSION_KEY = /\/(?:waiting|session)-([^/]+)$/;
 const SESSION_ID_CHARS = 4;
+const SLICE_KEY = /\/slice-\d+$/;
 
 /** "session 9c1e" from a hook card's key (`<project>/waiting-<id>`), which carries no parent; null for any other key. */
 function sessionNameOf(key: string): string | null {
@@ -53,9 +73,18 @@ function sessionNameOf(key: string): string | null {
   return id ? `session ${id.slice(0, SESSION_ID_CHARS)}` : null;
 }
 
-/** "{parent} · {environment label}" ("session 9c1e · Laptop"); the raw value when no label is set; the key when nothing is. */
-export function sessionLabel(item: BoardItemDto): string {
-  const parent = item.parent ?? sessionNameOf(item.key);
+/** What a card with an outcome is: "slice card" for a slice (its type or its `slice-<N>` key), else "task" (BoardV2 `DEMO` working cards). */
+function cardKind(item: BoardItemDto, t: Translate): string {
+  return item.type === ItemType.Slice || SLICE_KEY.test(item.key) ? t("cardKindSlice") : t("cardKindTask");
+}
+
+/**
+ * "{what the card is} · {environment label}" ("task · laptop") for a card with an outcome (the mocks' label); for
+ * any other card "{parent} · {environment label}" ("session 9c1e · Laptop"). The raw environment when no label is
+ * set; the key when nothing is.
+ */
+export function sessionLabel(item: BoardItemDto, t: Translate): string {
+  const parent = item.outcome ? cardKind(item, t) : (item.parent ?? sessionNameOf(item.key));
   const parts = [parent, item.environment_label ?? item.environment].filter(Boolean);
   return parts.length > 0 ? parts.join(" · ") : item.key;
 }

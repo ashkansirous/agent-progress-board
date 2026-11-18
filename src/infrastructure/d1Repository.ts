@@ -94,6 +94,7 @@ const CHANGEABLE_COLUMNS = [
   "needs_you",
   "after_answer",
   "needs_you_at",
+  "outcome",
 ] as const;
 type ChangeableColumn = (typeof CHANGEABLE_COLUMNS)[number];
 
@@ -153,11 +154,11 @@ const GUARD_STEPS = `?${GUARD_FLAG_INDEX + 1}`;
 
 const UPSERT_ITEM = `INSERT INTO items (key, project, parent, type, priority, status, title, why,
   details_md, links, source, heartbeat_at, created_at, updated_at, done_at, live_status_at, environment,
-  steps, agent, model, parent_key, needs_you, after_answer, needs_you_at)
+  steps, agent, model, parent_key, needs_you, after_answer, needs_you_at, outcome)
   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?12, ?12, ?13,
     CASE WHEN ?11 IS '${DOC_SYNC_SOURCE}' THEN NULL ELSE ?12 END, ${valueOf("environment")},
     ${valueOf("steps")}, ${valueOf("agent")}, ${valueOf("model")}, ${valueOf("parent_key")},
-    ${valueOf("needs_you")}, ${valueOf("after_answer")}, ${valueOf("needs_you_at")})
+    ${valueOf("needs_you")}, ${valueOf("after_answer")}, ${valueOf("needs_you_at")}, ${valueOf("outcome")})
   ON CONFLICT (key) DO UPDATE SET ${SET_CHANGEABLE}, heartbeat_at = ?12,
   live_status_at = CASE WHEN ${LIVE_STATUS_REPORT} THEN ?12 ELSE live_status_at END,
   updated_at = CASE WHEN ${ANY_CHANGED} THEN ?12 ELSE updated_at END,

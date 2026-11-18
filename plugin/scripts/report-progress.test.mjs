@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
-  activeTaskCard, buildArguments, callTool, keepStep, loadStepList, parseArgs, parseLinks, parseStepLabels, projectSlug, readTaskFile,
+  activeTaskCard, buildArguments, callTool, isOrchestrator, keepStep, loadStepList, parseArgs, parseLinks, parseStepLabels, projectSlug, readTaskFile,
   readTouchesFile, resolveConfig, resolveEnvironment, sliceKey, slugify, stateRoot, stepStates, taskFilePath,
 } from './report-progress.mjs';
 import { TEST_TOKEN, cleanUpAfterTests, envFor, replyOk, runNode, startFakeBoard, trackedTemp } from './test-helpers.mjs';
@@ -125,6 +125,33 @@ describe('report-progress CLI', () => {
       key: 'demo-app/slice-3', project: 'demo-app', type: 'slice', status: 'in_progress', title: 'Export button',
       why: 'in review', source: 'agent', links: [{ label: 'PR', url: 'https://example.test/pull/1' }],
     });
+  });
+
+  test('--outcome is sent as the outcome field of the report (Slice 41)', async () => {
+    const board = await startFakeBoard(replyOk);
+    await runNode(SCRIPT, ['--key', 'demo-app/task-a1', '--type', 'unplanned', '--title', 'Refine', '--outcome', 'A plan with slices'], envFor(board.url, stateFolder()));
+    board.server.close();
+    assert.equal(board.requests[0].body.params.arguments.outcome, 'A plan with slices');
+  });
+
+  test('--orchestrator marks the session and sends nothing; the mark is read by isOrchestrator (Slice 41)', async () => {
+    const board = await startFakeBoard(replyOk);
+    const state = stateFolder();
+    assert.equal(isOrchestrator('wave-sess', { root: state }), false);
+    const result = await runNode(SCRIPT, ['--orchestrator', '--session', 'wave-sess'], envFor(board.url, state));
+    board.server.close();
+    assert.equal(result.code, 0);
+    assert.equal(board.requests.length, 0);
+    assert.equal(isOrchestrator('wave-sess', { root: state }), true);
+    assert.equal(isOrchestrator('other-sess', { root: state }), false);
+    assert.equal(isOrchestrator('wave-sess', { root: state, now: Date.now() + 25 * 60 * 60 * 1000 }), false);
+  });
+
+  test('--orchestrator with no session id marks nothing and still exits 0', async () => {
+    const state = stateFolder();
+    const result = await runNode(SCRIPT, ['--orchestrator'], envFor('', state, { CLAUDE_CODE_SESSION_ID: '' }));
+    assert.equal(result.code, 0);
+    assert.equal(existsSync(state), false);
   });
 
   test('the plain AGENT_BOARD_URL and AGENT_BOARD_TOKEN work without the plugin options', async () => {

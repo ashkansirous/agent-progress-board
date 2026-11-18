@@ -63,6 +63,8 @@ export interface BoardItemDto {
   environment_label: string | null;
   agent: string | null;
   model: string | null;
+  /** What the task delivers, one line (Slice 41); null for older reports. The Worker always sends it; a test fixture may leave it out. */
+  outcome?: string | null;
   /**
    * The agent's open question for the owner (Slice 13), what it does after the answer and when it
    * first asked; all null when no question waits (cleared, the item done, or its heartbeat past the

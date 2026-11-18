@@ -209,6 +209,26 @@ describe("report_progress safety", () => {
   });
 });
 
+describe("outcome (Slice 41)", () => {
+  it("stores the outcome, keeps it on a later report that omits it, and clears it with null", async () => {
+    await callTool("report_progress", { ...SLICE, status: "in_progress", outcome: "Code merged to main" });
+    const first = (await callTool("get_item", { key: SLICE.key })).data as Record<string, unknown>;
+    expect(first.outcome).toBe("Code merged to main");
+    await callTool("report_progress", { key: SLICE.key, status: "in_progress" });
+    expect(((await callTool("get_item", { key: SLICE.key })).data as Record<string, unknown>).outcome).toBe("Code merged to main");
+    await callTool("report_progress", { key: SLICE.key, outcome: null });
+    expect(((await callTool("get_item", { key: SLICE.key })).data as Record<string, unknown>).outcome).toBeNull();
+  });
+
+  it("refuses an outcome over 200 characters and makes a blank one null", async () => {
+    const tooLong = await callTool("report_progress", { ...SLICE, outcome: "x".repeat(201) });
+    expect(tooLong.isError).toBe(true);
+    const blank = await callTool("report_progress", { ...SLICE, outcome: "   " });
+    expect(blank.isError).toBe(false);
+    expect(((await callTool("get_item", { key: SLICE.key })).data as Record<string, unknown>).outcome).toBeNull();
+  });
+});
+
 describe("mark_done, ask_human, get_item", () => {
   it("ask_human on an existing item of another type sets needs_you on it and keeps its type, title and status", async () => {
     await callTool("report_progress", { ...SLICE, status: "in_progress" });

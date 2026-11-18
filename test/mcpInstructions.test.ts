@@ -4,7 +4,7 @@ import { StepState } from "../src/domain/stepTypes";
 import { HEARTBEAT_MINUTES, SERVER_INSTRUCTIONS } from "../src/mcp/instructions";
 import { postMcp, WRITE_TOKEN } from "./helpers";
 
-const MAX_CHARACTERS = 2900; // 2400 until Slice 39 added the step tree, under_step and step id rules
+const MAX_CHARACTERS = 3400; // 3300 until the slice-card rule was spelled out (review of Slice 41); 2400 until Slice 39 added the step tree, under_step and step id rules; 2900 until Slice 41 added the task-with-outcome rule
 
 describe("server instructions", () => {
   it("sends the reporting rules in the initialize result", async () => {
@@ -41,6 +41,17 @@ describe("server instructions", () => {
     expect(SERVER_INSTRUCTIONS).toContain("the work it belongs to (slice, task) in the title");
     expect(SERVER_INSTRUCTIONS).toContain("a link to where the person acts");
     expect(SERVER_INSTRUCTIONS).toContain('never a card that only says "waiting"');
+  });
+
+  it("opens a card only for a task with an outcome: none for a plain chat or an orchestrator (Slice 41)", () => {
+    expect(SERVER_INSTRUCTIONS).toContain("a card is a task with an outcome");
+    expect(SERVER_INSTRUCTIONS).toContain("a plain chat");
+    expect(SERVER_INSTRUCTIONS).toContain("an orchestrator");
+    expect(SERVER_INSTRUCTIONS).toContain('"<project>/slice-<N>", with no type and no agent');
+    expect(SERVER_INSTRUCTIONS).toContain('"<project>/task-<id>"');
+    expect(SERVER_INSTRUCTIONS).toContain('"<project>/task-<id>"');
+    expect(SERVER_INSTRUCTIONS).toContain("outcome = what it delivers");
+    expect(SERVER_INSTRUCTIONS).not.toContain("at the start of every session or chat");
   });
 
   it("stays short", () => {

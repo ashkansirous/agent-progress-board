@@ -174,10 +174,6 @@
   cursor: pointer;
 }
 
-.session-card-nogoal {
-  border-style: dashed;
-}
-
 .session-top {
   display: flex;
   flex-wrap: wrap;
@@ -199,12 +195,6 @@
 .session-why {
   font-size: 13px;
   color: var(--sub);
-}
-
-.session-nogoal {
-  font-size: 14px;
-  font-style: italic;
-  color: var(--muted);
 }
 
 .step-chips {

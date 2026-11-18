@@ -2,7 +2,7 @@ import type { BoardItemDto } from "../../src/api/boardDto";
 import { ItemStatus } from "../../src/domain/item";
 import { SESSION_STALE_AFTER_MINUTES } from "../../src/domain/stale";
 import { SliceOfCard } from "./ChecksView";
-import { doneSoFar, eventKeys, historyWords, isQuestion, isSessionItem, isStaleSession, isWorkingCard, sessionLabel, waitingText } from "./cards";
+import { doneSoFar, eventKeys, historyWords, isQuestion, isSessionItem, isStaleSession, isWorkingCard, purposeText, sessionLabel, waitingText } from "./cards";
 import { DetailsBody, useDialogFocus } from "./Detail";
 import { CloseIcon } from "./icons";
 import { projectLabel } from "./model";
@@ -38,7 +38,7 @@ function kickerText(item: BoardItemDto, kicker: Kicker, t: ReturnType<typeof use
 /** "session 9c1e · Laptop · last activity 2 min ago", "... · waiting 6 min" or "... · no activity for 15 min". */
 function metaText(item: BoardItemDto, kicker: Kicker, view: ReturnType<typeof useView>): string {
   const { t, nowMs } = view;
-  const label = sessionLabel(item);
+  const label = sessionLabel(item, t);
   if (kicker === Kicker.Need) return [label, waitingText(item, nowMs, t)].filter(Boolean).join(" · ");
   if (kicker === Kicker.Stale) return t("metaStale", { label, n: SESSION_STALE_AFTER_MINUTES });
   return t("metaLastActivity", { label, age: ageText(item.heartbeat_at, nowMs, view.t) });
@@ -136,6 +136,7 @@ export function SessionDrawer({ item, onClose }: DrawerProps) {
   const closeRef = useDialogFocus(onClose);
   const kicker = kickerOf(item);
   const question = kicker === Kicker.Need;
+  const purpose = purposeText(item, t);
   return (
     <div className="overlay">
       <button type="button" className="scrim card-scrim" aria-label={t("closeDetails")} tabIndex={-1} onClick={onClose} />
@@ -143,7 +144,7 @@ export function SessionDrawer({ item, onClose }: DrawerProps) {
         <TopRow item={item} kicker={kicker} onClose={onClose} closeRef={closeRef} />
         <div className="drawer-heading">
           <h2>{question ? item.needs_you : item.title}</h2>
-          {item.why && isSessionItem(item) && <span className="drawer-purpose">{item.why}</span>}
+          {purpose && isSessionItem(item) && <span className="drawer-purpose">{purpose}</span>}
           <span className="drawer-meta">{metaText(item, kicker, view)}</span>
         </div>
         {question && item.after_answer && (

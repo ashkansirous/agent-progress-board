@@ -7,7 +7,9 @@
 This is a horizontal cut (one layer, many readers), named as the exception to vertical slices. Almost every item edits
 `src/infrastructure/d1Repository.ts`, and splitting them across slices would make every wave conflict on that file.
 
-**Touches:** `src/infrastructure/d1Repository.ts`, `src/application/ports.ts`, `src/application/board.ts`,
+*In progress (wave 2026-11-18), draft PR.*
+
+**Touches:** `src/infrastructure/d1Repository.ts`, `src/application/ports.ts`, `src/application/board.ts`, `src/domain/capCost.ts`,
 `src/application/usage.ts`, `src/domain/stale.ts`, `migrations/0008_heartbeat_index.sql` (new),
 `test/board.test.ts`, `test/syncSnapshot.test.ts`, `test/stale.test.ts`, `test/usageTools.test.ts`,
 `test/capCost.test.ts`, `test/mcp.test.ts`, `docs/plan/slices/34-storage-queries.md`

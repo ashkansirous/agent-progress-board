@@ -3,7 +3,7 @@
 *Planned 2026-11-18 (owner: "double check and plan the follow up work"). Grouping decided by the planning session of
 2026-11-18; items re-checked against `origin/main` (d654e9b).* Wave 1.
 
-*Built (wave 2026-11-18), PR #130.*
+*Built (wave 2026-11-18), merged as PR #130 (c3f0448).*
 
 **Touches:** `plugin/scripts/cap-reading.mjs`, `plugin/scripts/cap-reading.test.mjs`, `plugin/scripts/usage-tick.mjs`,
 `plugin/scripts/usage-tick.test.mjs`, `plugin/hooks/hooks.json`, `docs/setup/cloud.md`,
@@ -89,7 +89,7 @@ Slice 32, which owns `plugin.json` and `SKILL.md`.
 - #6 (`cap-reading.mjs:205`): "readCapState parsed up to five times per firing; read once and pass down".
 - #7 (`cap-reading.mjs:245`): "dead state.plan field stays in old state files next to planSeen; drop on write".
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-18)
 
 - `planSince` in `plugin/scripts/cap-reading.mjs` is the one plan-guard rule: a status-line file is sent only when it was written after the plan was first seen. Never guard on the board's last accepted plan (Slice 30: docs/plan/slices/30-usage-script-fixes.md).
 

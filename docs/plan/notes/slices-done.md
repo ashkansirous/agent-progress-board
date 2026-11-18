@@ -31,3 +31,5 @@ Rows moved out of `plan.md`'s status table once built.
 | 26 | The "all kinds" cost figure stays steady across a weekly reset | built | #115 | | [26](../slices/26-mix-after-reset.md) |
 | 28 | Cloud and VM sessions report their usage under their own label; the main machine gets a name | built | #114 | | [28](../slices/28-cloud-usage.md) |
 | 27 | Every "Needs you" card says what is needed, for which work, and why; no card when nothing is asked | built | #109 | | [27](../slices/27-needs-you-cards.md) |
+| 30 | The plugin's usage and cap scripts: review leftovers | built | #130 | | [30](../slices/30-usage-script-fixes.md) |
+| 29 | Session cards keep background agents' state right | built | #129 | | [29](../slices/29-agent-state-fixes.md) |

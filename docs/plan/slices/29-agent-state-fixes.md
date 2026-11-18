@@ -3,7 +3,7 @@
 *Planned 2026-11-18 (owner: "double check and plan the follow up work"). Grouping and order decided by the planning
 session of 2026-11-18; every item below was re-checked against `origin/main` (d654e9b) that day.* Wave 1.
 
-*Built (wave 2026-11-18), PR #129.* Claim check against `origin/main` (00c1452): `subagentCard` is at
+*Built (wave 2026-11-18), merged as PR #129 (9b34b1e).* Claim check against `origin/main` (00c1452): `subagentCard` is at
 `session-done.mjs:71-79`, `saveGoal` at `:35-38`, `resumeCard` at `:85-94` (items 5-7 below cite older lines);
 `stoppedIds.has` is at `background-agents.mjs:54`, `mergeSteps` at `:76`. No state lock exists in
 `plugin/scripts/hooks` yet (only comments), so item 1 adds one. Touches widened with `session-waiting.mjs` (its
@@ -101,6 +101,6 @@ as bug card `agent-progress-board/bug-hook-title-overwrite-2026-11-18`.
 
 - On the owner's machine: one session with two parallel background agents. Both agents' steps show, the card closes after the last stops, and the title stays.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-18)
 
 - Plugin hook state needs no lock: one stop file per agent id under `<id>.stopped/`, and goal-file writes re-read and merge only their own fields, then rename (`plugin/scripts/hooks/hook-input.mjs`); never add a read-modify-write of a shared state file. No hook sends title or why on a session card (Slice 29: docs/plan/slices/29-agent-state-fixes.md).

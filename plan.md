@@ -32,6 +32,9 @@ owner's config repo. Decisions in [Slice 20](docs/plan/slices/20-plugin-connect.
 | 36 | Board, Active and drawer pages: review leftovers | planned | | | [36](docs/plan/slices/36-board-page-fixes.md) |
 | 37 | Access answers, ending a grant, and the setup page's leftovers | planned | | | [37](docs/plan/slices/37-access-and-grants.md) |
 | 38 | Browser tests that don't flake | planned | | | [38](docs/plan/slices/38-steady-browser-tests.md) |
+| 39 | Steps are a tree: sub-steps unfold in place, and several can run at once | planned | | | [39](docs/plan/slices/39-step-tree.md) |
+| 40 | The plugin puts background agents into the step tree | planned | | | [40](docs/plan/slices/40-agents-in-tree.md) |
+| 41 | Only a task with an outcome gets a card | planned | | | [41](docs/plan/slices/41-tasks-with-outcome.md) |
 
 Notes:
 
@@ -75,6 +78,7 @@ Notes:
 - **Review follow-ups are planned as Slices 29 to 38** (re-checked against `origin/main` d654e9b on 2026-11-18, owner: "double check and plan the follow up work"). Waves, decided by the planning session: 1 = 29, 30, 31, 38; 2 = 32, 35; 3 = 33, 36; 4 = 34, 37. Already fixed or gone, so not planned: Slice 13 #9b (heartbeat advice), Slice 18 #2, Slice 22 c2 #5 and high #4, Slice 27 chk #4, chk #7, high #9, Slice 19 chk #2; Slice 26 chk #1 is probably gone and gets a closing test in Slice 35.
 - **Ideas to check (owner, 2026-11-18), from the survey of similar tools:** (1) Claude Code's OpenTelemetry metrics as a usage source, (2) a board answer that goes back to the waiting agent (needs the owner's yes: read-mostly rule), (3) Backlog.md folders as a second plan format for `sync_snapshot`. None is a slice yet ([note](docs/plan/notes/2026-11-18-similar-tools.md)).
 - **Kept as they are (match a rule or a decision):** Slice 9 #3 and #4 (cost derived at read; an unfitted model gives null), Slice 21 item 11 (one active step), Slice 2 pr-35-high #10 (no Cancel on the loading card; the mock draws none), Slice 14 pass-2 #6, Slice 23 med #6, med #10 and check #5, Slice 10 med #7. Slice 14 check #8 (table rebuild on real D1) can be checked only on the live database.
+- **Task tree (owner, 2026-11-18, RefineScope on the Active work page):** Slices 39 (step tree, several running, tap to unfold in place, turning ring), 40 (background agents placed in the tree) and 41 (a card only for a task with an outcome; no card for plain chats or orchestrators). Order: 39 after 32; 40 after 39 and 29; 41 after 39 and 40. The owner's config repo has the matching wave-tooling slice.
 - **Owner's choice, open since 2026-11-16:** should a `waiting_for_me` tile age out, and after how long ([Slice 7](docs/plan/slices/07-stale-detection.md), feedback loop 2026-11-16)? Not in any slice until answered; Slice 34 would take it.
 - **Owner's step:** Slice 9's German Block 3 (`web/src/strings.ts:533-535`) needs a native read ([Slice 9](docs/plan/slices/09-cap-cost-estimate.md)).
 - Done 2026-11-17: the owner added the board-by-project artboards to the [design canvas](https://claude.ai/artifact/PZyqwkfjuwQkE4BE6UfeDd); they are copied into `docs/design/` and part B of Slices 13 and 14 and all of 15 are rewritten to them.

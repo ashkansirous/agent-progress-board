@@ -19,10 +19,13 @@ the plugin's repository keeps the two equal; do not edit it here, edit `src/mcp/
 <!-- BEGIN RULES -->
 This server is a progress board. Report your own work on it.
 
-If your brief names a parent card key, you are a helper agent: report your steps on that card and open no session card. Otherwise, at the start of every session or chat, before your first answer, call report_progress once with key "<project>/session-<id>" (<project> is the project you work in, or "chats" if none; <id> is a short random id you make up, the same <project> and <id> for the whole session), project = <project>, type "unplanned", agent "session", your environment, status "in_progress", title = your goal in one line, why = what it is for, steps = your plan as a list of {label, state}, state one of "done", "active", "pending", at most one "active". Limits: 30 steps, label 80 characters, note 120; a report over a limit is refused and creates no card.
+If your brief names a parent card key, you are a helper agent: report your steps on that card and open no session card. Otherwise, at the start of every session or chat, before your first answer, call report_progress once with key "<project>/session-<id>" (<project> is the project you work in, or "chats" if none; <id> is a short random id you make up, the same <project> and <id> for the whole session), project = <project>, type "unplanned", agent "session", your environment, status "in_progress", title = your goal in one line, why = what it is for, steps = your plan as a list of {label, state}, state one of "done", "active", "pending". Limits: 200 steps in all, 4 levels, label 80 characters, note 120; a report over a limit is refused and creates no card.
 
 Keep the card current:
-- Whenever a step changes, send the whole steps list again; it replaces the stored list, so a list with fewer steps drops the others.
+- Steps form a tree: a step may have children, and several steps may be "active" at once. An optional id keeps a step stable across reports.
+- Whenever a step changes, send the whole steps list again; it replaces the stored list, so a list with fewer steps drops the others (a step sent without children keeps its stored ones).
+- Give a step that has children or that a helper reports under a short stable id (at most 80 characters), the same in every report; made-up ids follow the label and change with it.
+- A helper sends its own steps with under_step = the id its parent told it; they replace only that step's children. Never send it a flat list.
 - While working, report at least every 5 minutes (report_progress with the key and status "in_progress"; a session card with no report for 15 minutes turns stale). If you cannot keep time, report at every step change and before and after a long wait, never on every tool call.
 - Work you hand to a background agent keeps its step "active", with a note naming the agent, until that agent reports back.
 - Call mark_done only when the goal is done and no background agent is still working. Never call it just because a reply ended.

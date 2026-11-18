@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import type { BoardItemDto } from "../../src/api/boardDto";
 import { ItemStatus, ItemType } from "../../src/domain/item";
 import { partLetterOf } from "../../src/domain/parts";
 import type { Translate } from "./strings";
-import { ChevronIcon } from "./icons";
 import { projectLabel } from "./model";
 import { parentText } from "./partsText";
 import { openItemHash } from "./route";
@@ -14,7 +13,7 @@ import { useView } from "./view";
 
 interface CardProps {
   item: BoardItemDto;
-  /** Open at first (the page starts every card closed). */
+  /** The address asked for this card: it scrolls into view. */
   initiallyOpen?: boolean;
 }
 
@@ -67,10 +66,9 @@ function useScrollIntoView(wanted: boolean) {
   return ref;
 }
 
-/** One task an agent is working on: where it is, the step now, the bar and a way to open the whole list. */
+/** One task an agent is working on: where it is, the step now, the bar and the whole step list, always open (ActiveV3). */
 export function ActiveCard({ item, initiallyOpen = false }: CardProps) {
   const { t, looks, projects } = useView();
-  const [open, setOpen] = useState(initiallyOpen);
   const type = looks.type(item.type);
   const steps = item.steps ?? [];
   const finished = item.status === ItemStatus.Done;
@@ -95,22 +93,12 @@ export function ActiveCard({ item, initiallyOpen = false }: CardProps) {
         )}
       </div>
       {steps.length > 0 && (
-        <>
-          <button type="button" className="steps-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
-            <span className={open ? "chevron chevron-open" : "chevron"}>
-              <ChevronIcon size={16} stroke="currentColor" />
-            </span>
-            {open ? t("hideSteps") : t("showSteps", { n: steps.length })}
-          </button>
-          {open && (
-            <div className="steps-open">
-              <StepRows steps={steps} finished={finished} t={t} notes label={t("stepsHeading")} />
-              <a className="back-link" href={openItemHash(item.parent_slice ? item.parent_slice.key : item.key)}>
-                {t("backToBoard", { parent: parentText(item, t) ?? projectLabel(item.project, projects) })}
-              </a>
-            </div>
-          )}
-        </>
+        <div className="steps-open">
+          <StepRows steps={steps} finished={finished} t={t} notes label={t("stepsHeading")} />
+          <a className="back-link" href={openItemHash(item.parent_slice ? item.parent_slice.key : item.key)}>
+            {t("backToBoard", { parent: parentText(item, t) ?? projectLabel(item.project, projects) })}
+          </a>
+        </div>
       )}
     </li>
   );

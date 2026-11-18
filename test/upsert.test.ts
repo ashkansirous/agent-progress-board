@@ -26,11 +26,12 @@ describe("newItem", () => {
     });
   });
 
-  it("trims steps, agent and model itself, and refuses two active steps", () => {
+  it("trims steps, agent and model itself, stamps the steps, and accepts two active steps", () => {
     const row = newItem({ ...base, agent: "  ", model: " m ", steps: [{ label: " A ", state: StepState.Active }] }, T1);
-    expect(row).toMatchObject({ agent: null, model: "m", steps: [{ label: "A", state: "active", note: null }] });
+    expect(row).toMatchObject({ agent: null, model: "m", steps: [{ id: "A", label: "A", state: "active", note: null, started_at: T1 }] });
     const twice = [{ label: "A", state: StepState.Active }, { label: "B", state: StepState.Active }];
-    expect(() => newItem({ ...base, steps: twice }, T1)).toThrow(DomainError);
+    expect(newItem({ ...base, steps: twice }, T1).steps).toHaveLength(2);
+    expect(() => newItem({ ...base, steps: [{ label: "", state: StepState.Active }] }, T1)).toThrow(DomainError);
   });
 
   it("sets done_at when created done", () => {

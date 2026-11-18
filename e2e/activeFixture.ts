@@ -2,7 +2,7 @@ import type { BoardItemDto, BoardResponse } from "../src/api/boardDto";
 import { splitSliceTitle } from "../src/domain/docSync";
 import { ItemStatus, ItemType, Priority } from "../src/domain/item";
 import { normalizeSteps, stepProgress } from "../src/domain/steps";
-import { type StepInput, StepState } from "../src/domain/stepTypes";
+import { type Step, type StepInput, StepState } from "../src/domain/stepTypes";
 import { demoBoard, SERVER_TIME } from "./fixture";
 
 const MS_PER_MINUTE = 60_000;
@@ -18,6 +18,19 @@ function stepsFrom(...specs: string[]): StepInput[] {
   });
 }
 
+/** A stored step with its stamps, for the tree fixtures (Slice 39): minutes are before SERVER_TIME; the id is the label. */
+function treeStep(label: string, state: StepState, opts: { start?: number; end?: number; note?: string; children?: Step[] } = {}): Step {
+  return {
+    id: label,
+    label,
+    state,
+    note: opts.note ?? null,
+    started_at: opts.start === undefined ? null : minutesAgo(opts.start),
+    done_at: opts.end === undefined ? null : minutesAgo(opts.end),
+    children: opts.children ?? [],
+  };
+}
+
 interface TaskSpec {
   key: string;
   project: string;
@@ -30,12 +43,14 @@ interface TaskSpec {
   environment_label: string | null;
   beat: number;
   steps: StepInput[];
+  /** A ready-made tree (with stamps); used instead of `steps` when given. */
+  tree?: Step[];
   status?: ItemStatus;
   working?: boolean;
 }
 
 function taskOf(spec: TaskSpec): BoardItemDto {
-  const steps = normalizeSteps(spec.steps);
+  const steps = spec.tree ?? normalizeSteps(spec.steps);
   const status = spec.status ?? ItemStatus.InProgress;
   return {
     key: spec.key,
@@ -109,4 +124,55 @@ export function activeTasks(): BoardItemDto[] {
 /** The faked /api/board for the Active work page: the tasks above and the count the server would send. */
 export function activeBoard(items: BoardItemDto[] = activeTasks()): BoardResponse {
   return demoBoard(items);
+}
+
+export const BOOK = "example-app/slice-7";
+export const WAVE = "example-app/wave-3";
+
+const LANGUAGES = [
+  treeStep("English", StepState.Done, { start: 62, end: 54 }),
+  treeStep("French", StepState.Active, {
+    start: 54,
+    note: "Retrying line 31 after a timeout",
+    children: [
+      treeStep("Generate the lines", StepState.Done, { start: 54, end: 16 }),
+      treeStep("Check pronunciation", StepState.Active, { start: 16, note: "Line 31 of 42" }),
+      treeStep("Save the file", StepState.Pending),
+    ],
+  }),
+  treeStep("German", StepState.Active, { start: 53 }),
+  treeStep("Spanish", StepState.Active, { start: 52 }),
+  treeStep("Italian", StepState.Done, { start: 54, end: 43 }),
+  treeStep("Portuguese", StepState.Pending),
+];
+
+/** The owner's two examples: a book whose audio step holds a helper's running language steps, and a 30-step wave with 26 done and none running. */
+export function treeTasks(): BoardItemDto[] {
+  const wave = Array.from({ length: 30 }, (_, i) =>
+    i < 26
+      ? treeStep(`Wave step ${i + 1}`, StepState.Done, { start: 200 - i * 6, end: 194 - i * 6 })
+      : treeStep(`Wave step ${i + 1}`, StepState.Pending),
+  );
+  return [
+    taskOf({
+      key: BOOK, project: "example-app", type: ItemType.Slice, title: "Implement Slice 7: audio in every language", parent: "Slice 7",
+      agent: "Implementer", model: "model-large", environment: "cloud-vm", environment_label: "Cloud VM", beat: 1, steps: [],
+      tree: [
+        treeStep("Read the slice", StepState.Done, { start: 75, end: 73 }),
+        treeStep("Write the script text", StepState.Done, { start: 73, end: 65, note: "Text for 15 languages, 42 lines each" }),
+        treeStep("Record audio, 15 languages", StepState.Active, {
+          start: 62,
+          children: [
+            treeStep("Record the audio, three languages at a time", StepState.Active, { start: 61, note: "Helper agent · model-small", children: LANGUAGES }),
+          ],
+        }),
+        treeStep("Review the diff", StepState.Pending, { note: "Helper agent: reviewer" }),
+        treeStep("Merge", StepState.Pending),
+      ],
+    }),
+    taskOf({
+      key: WAVE, project: "example-app", type: ItemType.Slice, title: "Wave 3: thirty small steps", parent: "Wave 3",
+      agent: "Implementer", model: "model-mid", environment: "laptop", environment_label: "Laptop", beat: 3, steps: [], tree: wave,
+    }),
+  ];
 }

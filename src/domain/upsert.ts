@@ -11,7 +11,7 @@ import {
   type Priority,
 } from "./item";
 import { DomainError } from "./errors";
-import { blankToNull, normalizeSteps } from "./steps";
+import { blankToNull, normalizeSteps, replaceChildren } from "./steps";
 import type { StepInput } from "./stepTypes";
 
 export { DomainError };
@@ -37,6 +37,8 @@ export interface ReportInput {
   environment?: string | null;
   /** The whole list, newest wins; null or an empty list clears it. */
   steps?: StepInput[] | null;
+  /** The id of a step: `steps` then replaces only that step's children, not the whole list (Slice 39). */
+  under_step?: string;
   agent?: string | null;
   model?: string | null;
   /** The agent's question for the owner; null clears it (and `after_answer`). Slice 13. */
@@ -57,11 +59,20 @@ function checkLength(field: "needs_you" | "after_answer", value: string | null |
   if ((value?.trim().length ?? 0) > max) throw new DomainError(field, `field ${field}: at most ${max} characters`);
 }
 
-/** The report with its steps validated and a whitespace-only agent or model made absent (null); fields not sent stay unsent. */
-export function checkReport(input: ReportInput): ReportInput {
+/** The steps to store: the whole list, or the stored list with one step's children replaced (`under_step`), stamped from the stored tree. */
+function checkedSteps(input: ReportInput, existing: Pick<Item, "steps"> | null, now: string | null) {
+  if (input.under_step === undefined) return normalizeSteps(input.steps, { previous: existing?.steps, now });
+  if (input.steps === undefined) throw new DomainError("under_step", "field under_step: send steps with it, the list for that step's children");
+  const merged = replaceChildren(existing?.steps, input.under_step, input.steps);
+  return normalizeSteps(merged, { previous: existing?.steps, now });
+}
+
+/** The report with its steps validated and stamped and a whitespace-only agent or model made absent (null); fields not sent stay unsent. */
+export function checkReport(input: ReportInput, existing: Pick<Item, "steps"> | null = null, now: string | null = null): ReportInput {
   const checked = { ...input };
   if (input.parent_key === input.key) throw new DomainError("parent_key", "field parent_key: an item cannot be its own parent");
-  if (input.steps !== undefined) checked.steps = normalizeSteps(input.steps);
+  if (input.steps !== undefined || input.under_step !== undefined) checked.steps = checkedSteps(input, existing, now);
+  delete checked.under_step;
   if (input.agent !== undefined) checked.agent = blankToNull(input.agent);
   if (input.model !== undefined) checked.model = blankToNull(input.model);
   checkLength("needs_you", input.needs_you, MAX_NEEDS_YOU);
@@ -140,7 +151,7 @@ export function newItem(input: ReportInput, now: string): Item {
     links: input.links ?? [],
     source: input.source ?? null,
     environment: input.environment ?? null,
-    steps: normalizeSteps(input.steps),
+    steps: normalizeSteps(input.steps, { now }),
     agent: blankToNull(input.agent),
     model: blankToNull(input.model),
     needs_you: blankToNull(input.needs_you),

@@ -14,6 +14,7 @@ import {
   waitingText,
 } from "../web/src/cards";
 import { StepState } from "../src/domain/stepTypes";
+import { storedStep } from "./stepFixtures";
 import { groupBoard } from "../src/domain/boardGroups";
 import { translator } from "../web/src/strings";
 
@@ -113,7 +114,7 @@ describe("card words", () => {
     expect(hasNoGoal(item({ title: "main · p", why: null, steps: null }))).toBe(true);
     expect(hasNoGoal(item({ title: "Read the crash log", why: null, steps: null }))).toBe(false);
     expect(hasNoGoal(item({ why: "For Slice 12" }))).toBe(false);
-    expect(hasNoGoal(item({ steps: [{ label: "A", state: StepState.Active, note: null }] }))).toBe(false);
+    expect(hasNoGoal(item({ steps: [storedStep("A", StepState.Active)] }))).toBe(false);
   });
 
   it("turns details_md lines into plain bullets", () => {

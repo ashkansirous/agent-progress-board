@@ -17,12 +17,13 @@ import {
   shownStatusOf,
 } from "../src/domain/parts";
 import { StepState } from "../src/domain/stepTypes";
+import { storedStep } from "./stepFixtures";
 import { checkReport, DomainError } from "../src/domain/upsert";
 
 const NOW = new Date("2026-11-16T13:48:00.000Z");
 const MINUTES = 120;
 const ago = (minutes: number): string => new Date(NOW.getTime() - minutes * 60_000).toISOString();
-const STEPS = [{ label: "Review 1", state: StepState.Active, note: null }];
+const STEPS = [storedStep("Review 1", StepState.Active)];
 
 const states = (...list: PartState[]): PartState[] => list;
 const D = PartState.Done;

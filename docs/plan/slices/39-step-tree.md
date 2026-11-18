@@ -16,7 +16,31 @@ Runs after Slice 32, because both edit `src/domain/steps.ts`, `src/mcp/schemas.t
 `docs/clients.md`, `web/src/stepsView.tsx`, `web/src/stepsText.ts`, `web/src/ActiveCard.tsx`, `web/src/strings.ts`,
 `web/src/active.css`, `test/steps.test.ts`, `test/stepsTools.test.ts`, `test/mcpInstructions.test.ts`,
 `test/pluginRules.test.ts`, `test/web.test.ts`, `e2e/active.spec.ts`, `e2e/activeFixture.ts`,
-`docs/plan/slices/39-step-tree.md`
+`plugin/scripts/report-progress.mjs`, `plugin/scripts/report-progress.test.mjs`, `src/infrastructure/d1Repository.ts`,
+`src/api/boardDto.ts`, `web/src/**` (any reader of `Step`), `test/**` (step tests), `docs/plan/slices/39-step-tree.md`
+
+*Built 2026-11-18 (night wave 3), PR #143 pending merge; not yet verified on a phone or the deployed board.* Touches
+widened at claim (premise check, wave 19): the plugin reporter
+builds and forwards `steps` (`keepStep`, the step filter, `currentStep`), the repository stores and diffs them, the DTO
+and `StepProgress.current` carry one label, and `progressOf` in `steps.ts` finds one active step. Widened again while
+building: `src/domain/errors.ts`, `src/application/ports.ts`, `web/src/SessionDrawer.tsx`, `web/src/session.css`,
+`e2e/session.spec.ts`, `e2e/parts.spec.ts`, `test/stepFixtures.ts`.
+
+*Changed while building:*
+- A step is `{id, label, state, note, started_at, done_at, children}`; depth 4, 200 steps in all; the one-active rule is
+  gone; the server stamps times by id; old flat rows read as depth-1 trees. `StepProgress` gained `running`;
+  `report_progress` gained `under_step`.
+- Ids are resolved in two passes (`resolveIds`/`placeIds` in `src/domain/steps.ts`): explicit ids and kept children
+  first, then generated ids, so the result does not depend on sibling order. Generated ids are cut to 80 characters with
+  a hash tail. `checkSize` refuses oversized trees before any id work.
+- Every write of `steps` (whole list or `under_step`) goes through one compare-and-swap path, `saveStepsReport` in
+  `src/application/board.ts` (5 tries with short jitter, then a temporary "send again" refusal). The event row is
+  inserted in the same D1 batch only `WHERE changes() > 0` (`src/infrastructure/d1Repository.ts`).
+- A parent reported done finishes every descendant. A parent with a running leaf shows as running (`shownState`).
+- Page: tree with path numbers, 26px indent, in-place boxes, a ring on every running step, no "Show all" toggle (the
+  ActiveV3 mocks win; the older Active/PhoneActive mocks still draw one). The session drawer draws the same `StepRows`.
+- Merged `main` (Slice 36) in: Slice 36's expand-state e2e test was dropped because the toggle is gone.
+- Tests on the final code: 641 vitest, 341 plugin, 312 e2e, all green.
 
 **Migrations:** none (steps stay JSON in `items.steps`)
 
@@ -126,29 +150,29 @@ and the "{done} of {total} steps · {pct}%" line already exist.
 #### Work
 
 Part A, data and tools:
-- [ ] Add `id`, `children`, `started_at` and `done_at` to a step (`src/domain/stepTypes.ts`), plus the depth and
+- [x] Add `id`, `children`, `started_at` and `done_at` to a step (`src/domain/stepTypes.ts`), plus the depth and
   200-step limits and the removal of the one-active rule (`src/domain/steps.ts`). Old flat lists still read as a tree
   of depth 1.
-- [ ] Have the server stamp `started_at` and `done_at` on state change, keeping them across reports by `id`
+- [x] Have the server stamp `started_at` and `done_at` on state change, keeping them across reports by `id`
   (`src/domain/upsert.ts`). Steps change detection stays as documented (Slice 10).
-- [ ] Add `under_step` to `report_progress` (`src/mcp/schemas.ts`, `src/mcp/tools.ts`, `src/application/board.ts`).
+- [x] Add `under_step` to `report_progress` (`src/mcp/schemas.ts`, `src/mcp/tools.ts`, `src/application/board.ts`).
   An unknown step id is refused with the list of known ids.
-- [ ] Rewrite the steps rules in `SERVER_INSTRUCTIONS` (`src/mcp/instructions.ts`) and mirror them in `SKILL.md`
+- [x] Rewrite the steps rules in `SERVER_INSTRUCTIONS` (`src/mcp/instructions.ts`) and mirror them in `SKILL.md`
   (held equal by `test/pluginRules.test.ts`). New rules: steps form a tree; a helper reports its steps with
   `under_step`; several steps may be active; send the whole list or only the subtree. Update
   `docs/clients.md:287-289`.
 
 Part B, page:
-- [ ] Draw a tree of rows as B1 (`web/src/stepsView.tsx`, `web/src/active.css`): path numbers (1, 3.2, 3.2.1), 26px
+- [x] Draw a tree of rows as B1 (`web/src/stepsView.tsx`, `web/src/active.css`): path numbers (1, 3.2, 3.2.1), 26px
   indent per level, the unfold arrow only on rows with children, every row tappable. Tapping a row opens the box under
   it (note; "Started ... · finished ... · took ..." or "Started ... · running for ..."; for a parent "N sub-steps
   below; tap one to open it"). One row's open state doesn't close another's.
-- [ ] Draw the 28px turning ring of B1 around the number of every running step (`web/src/active.css`), stopped under
+- [x] Draw the 28px turning ring of B1 around the number of every running step (`web/src/active.css`), stopped under
   `prefers-reduced-motion` (the arc stays).
-- [ ] Parent second line, state text, header and progress as B1 and B2 (`web/src/stepsText.ts`,
+- [x] Parent second line, state text, header and progress as B1 and B2 (`web/src/stepsText.ts`,
   `web/src/ActiveCard.tsx`): "N running" or the one running label, "Waiting for the next step", "Starting" only
   before anything is done, leaves counted. English and German strings in `web/src/strings.ts`.
-- [ ] Check the page against `ActiveV3`, `ActiveV3Dark` and `ActiveV3Phone` (light, dark, 390px).
+- [x] Check the page against `ActiveV3`, `ActiveV3Dark` and `ActiveV3Phone` (light, dark, 390px).
 
 #### Verification
 
@@ -159,3 +183,42 @@ Part B, page:
   three rings turn; the header says "3 running"; the reduced-motion emulation shows still rings; a parent's second
   line, state text and open box read as in the Design subsection; the numbers are paths.
 - After the release, on the owner's phone: a real card with a sub-agent's steps unfolds under its step.
+
+#### From review
+
+Five findings files read in full: `reviews/pr-143-high.md` (10 findings), `reviews/pr-143-medium.md` (6),
+`reviews/pr-143-check-medium.md` (10), `reviews/pr-143-check-2-medium.md` (10), `reviews/pr-143-check-3-medium.md` (5).
+Every finding not listed below was applied. The third check pass converged: its 5 findings are all low
+follow-ups left open (stale `|generation` key suffix in `web/src/ActivePage.tsx`; uncapped read-time `parseStoredSteps`
+on legacy rows; read-time forcing of children done under a done parent; no batch-order test for the `changes()` event
+insert; repeated reads per CAS retry).
+
+- Skipped #3 (`reviews/pr-143-medium.md`): "a not-done step with `children` omitted keeps stored children unchanged; the new state is not applied to them" - the kept children are the helpers' own under_step reports; letting a parent's resend that omits children overwrite them would undo the fix for pr-143-high #2.
+- Skipped #4 (`reviews/pr-143-medium.md`): "the collapse toggle for the step list was removed; MAX_STEPS rose 30 to 200 and the full tree always renders" - the ActiveV3 mocks draw the list always open and the mock wins over the plan; 200 rows render without a wait.
+- Skipped #2 (`reviews/pr-143-check-medium.md`): "withinLimit shortens long ids with a 32-bit FNV hash; a collision is a hard refusal or silently merges started_at/done_at stamps by id" - the hash tail sits on an id already cut at 80 characters, so it collides only between two different over-long labels under one parent. Follow-up.
+- Skipped #3 (`reviews/pr-143-check-medium.md`): "parseStoredSteps re-runs buildSteps (id generation, used set) for up to 200 steps on every row of every board read" - 200 steps per row is bounded and cheap next to the D1 read. Follow-up.
+- Skipped #6 (`reviews/pr-143-check-medium.md`): "CAS compares exact steps JSON text: a re-serialised but equal tree causes needless retries; the guard sits on ON CONFLICT so a concurrent first insert of the same key is never CAS-guarded" - a first insert has no stored steps to lose. Follow-up.
+- Skipped #7 (`reviews/pr-143-check-medium.md`): "replaceChildren refusal lists every known id" - refused only on a caller error, bounded by the 200-step limit. Follow-up.
+- Skipped #8 (`reviews/pr-143-check-medium.md`): "Deepest unrolled level uses z.object (strips unknown keys), so a 6th level's children vanish silently and the depth refusal is inexact" - a sixth level is already far past the 4-level limit callers are told about. Follow-up.
+- Skipped #9 (`reviews/pr-143-check-medium.md`): "Open-state Set is keyed by label-path-derived ids; a reworded label changes the id and collapses an open box mid-read; drawer and card hold separate state" - rewording a label is rare and the rules now tell reporters to send stable ids. Follow-up.
+- Skipped #2 (`reviews/pr-143-check-2-medium.md`): "`retryable` on DomainError is never read" - the message text already says to send the same report again; exposing the flag on the wire is new API. Follow-up.
+- Skipped #4 (`reviews/pr-143-check-2-medium.md`): "Reserve loop in resolveIds bumps '#2' to '#3' depending on stored ids, so same report yields different ids per card and a kept child can lose its stamp" - low, no data loss. Follow-up.
+- Skipped #5 (`reviews/pr-143-check-2-medium.md`): "parseStoredSteps runs the full resolveIds/buildSteps pipeline on every read, uncached; legacy ids regenerated every read" - low, bounded by 200 steps, no data loss. Follow-up.
+- Skipped #6 (`reviews/pr-143-check-2-medium.md`): "Parent started_at/done_at are stamped from the parent's own state, not its leaves" - low, a display detail, no data loss. Follow-up.
+- Skipped #7 (`reviews/pr-143-check-2-medium.md`): "keptChildren re-stamps pending kept children when a parent" - a never-run child of a parent reported done is shown done, which is what the reporter said; its stamp is a display detail and no stored report is lost. Follow-up.
+- Skipped #8 (`reviews/pr-143-check-2-medium.md`): "stepsField description hardcodes" - low, no data loss. Follow-up.
+- Skipped #9 (`reviews/pr-143-check-2-medium.md`): "Tree flattened and id-indexed at least three times per report (stampFrom, normalizeSteps, checkTree, kept ids); share one Map" - low, bounded by 200 steps, no data loss. Follow-up.
+
+#### For CLAUDE.md
+
+- Every write of `items.steps` goes through `saveStepsReport` in `src/application/board.ts` (compare-and-swap); never add a
+  second write path (Slice 39: docs/plan/slices/39-step-tree.md).
+- Step ids are resolved only by `resolveIds` in `src/domain/steps.ts`; never generate or reuse ids elsewhere (Slice 39:
+  docs/plan/slices/39-step-tree.md).
+- The event insert is bound to its own write by `changes() > 0` in `src/infrastructure/d1Repository.ts`; keep the two
+  statements adjacent in the batch (Slice 39: docs/plan/slices/39-step-tree.md).
+
+#### Not yet verified
+
+- On a phone and the deployed board, a real tree with helpers reporting `under_step` in parallel.
+- The ring under reduced motion, on a real device.

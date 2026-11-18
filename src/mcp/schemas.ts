@@ -4,8 +4,8 @@ import { MAX_SNAPSHOT_ITEMS } from "../domain/docSync";
 import { ItemStatus, ItemType, Priority } from "../domain/item";
 import { MAX_PARTS } from "../domain/parts";
 import { MAX_AFTER_ANSWER, MAX_NEEDS_YOU } from "../domain/upsert";
-import { MAX_STEP_LABEL, MAX_STEP_NOTE, MAX_STEPS } from "../domain/steps";
-import { StepState } from "../domain/stepTypes";
+import { MAX_STEP_DEPTH, MAX_STEP_ID, MAX_STEP_LABEL, MAX_STEP_NOTE, MAX_STEPS } from "../domain/steps";
+import { type StepInput, StepState } from "../domain/stepTypes";
 
 const MAX_KEY = 200;
 const MAX_LABEL = 300;
@@ -52,18 +52,39 @@ const environment = z
   .max(MAX_ENVIRONMENT)
   .describe("Where the work ran, free text as the client names it (for example laptop, cloud-vm, Claude chat or Claude Design)");
 
-const step = z.object({
+const stepBase = {
+  id: z.string().trim().min(1).max(MAX_STEP_ID).optional().describe("Stable id of the step, kept across reports; made from the label path when left out"),
   label: z.string().trim().min(1).max(MAX_STEP_LABEL),
   state: z.enum(StepState),
   note: z.string().trim().max(MAX_STEP_NOTE).nullable().optional().describe("Short text shown under the label"),
-});
+};
+
+/** A step with `levels` more levels of children allowed below it; the schema is unrolled, not recursive, so every client reads it as plain JSON Schema. */
+function stepSchema(levels: number): z.ZodType<StepInput> {
+  // The deepest level still takes a list of plain steps: a non-empty one is a fifth level, refused by checkTree with its "at most 4 levels" message; an empty one (as get_item echoes it) is fine.
+  if (levels === 0) return z.object({ ...stepBase, children: z.array(z.object(stepBase)).max(MAX_STEPS).optional() });
+  return z.object({
+    ...stepBase,
+    children: z.array(stepSchema(levels - 1)).max(MAX_STEPS).optional().describe("Sub-steps; left out keeps the stored ones, an empty list clears them"),
+  });
+}
 
 const stepsField = z
-  .array(step)
+  .array(stepSchema(MAX_STEP_DEPTH - 1))
   .max(MAX_STEPS)
   .nullable()
   .optional()
-  .describe("The task's whole steps list in order, at most one active; the newest list wins; null or empty clears it");
+  .describe(
+    "The task's steps as a tree in order (at most 200 steps in all, 4 levels); several may be active; the newest list wins; null or empty clears it. With under_step it is only that step's children",
+  );
+
+const underStepField = z
+  .string()
+  .trim()
+  .min(1)
+  .max(MAX_STEP_ID)
+  .optional()
+  .describe("The id of a step: steps then replaces only that step's children, so a helper writes its own subtree");
 
 export const reportProgressShape = {
   key,
@@ -73,6 +94,7 @@ export const reportProgressShape = {
   status: z.enum(ItemStatus).optional(),
   environment: environment.nullable().optional().describe("Where the work ran; null clears it"),
   steps: stepsField,
+  under_step: underStepField,
   parent_key: key
     .nullable()
     .optional()

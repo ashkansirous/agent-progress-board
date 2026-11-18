@@ -1,14 +1,13 @@
 import type { BoardItemDto } from "../../src/api/boardDto";
 import { ItemStatus } from "../../src/domain/item";
 import { SESSION_STALE_AFTER_MINUTES } from "../../src/domain/stale";
-import { StepState } from "../../src/domain/stepTypes";
 import { SliceOfCard } from "./ChecksView";
 import { doneSoFar, eventKeys, historyWords, isQuestion, isSessionItem, isStaleSession, isWorkingCard, sessionLabel, waitingText } from "./cards";
 import { DetailsBody, useDialogFocus } from "./Detail";
 import { CloseIcon } from "./icons";
 import { projectLabel } from "./model";
 import { isSafeHttpUrl } from "./safeUrl";
-import { stepWords } from "./stepsText";
+import { StepRows } from "./stepsView";
 import { ageText, clockTime } from "./time";
 import { statusName, useView } from "./view";
 
@@ -77,22 +76,10 @@ function DoneSoFar({ item }: { item: BoardItemDto }) {
 function DrawerSteps({ item }: { item: BoardItemDto }) {
   const { t } = useView();
   if (!item.steps || item.steps.length === 0) return null;
-  const words = stepWords(item.steps, item.status === ItemStatus.Done);
   return (
     <div className="drawer-section">
       <h3>{t("stepsHeading")}</h3>
-      <ol className="drawer-steps">
-        {item.steps.map((step, index) => {
-          const word = words[index]!;
-          return (
-            <li key={index} className={`drawer-step drawer-step-${word.state}`} aria-current={word.state === StepState.Active ? "step" : undefined}>
-              <span className="drawer-step-mark">{index + 1}</span>
-              <span className="drawer-step-label">{step.label}</span>
-              <span className="drawer-step-state">{t(word.key)}</span>
-            </li>
-          );
-        })}
-      </ol>
+      <StepRows steps={item.steps} finished={item.status === ItemStatus.Done} t={t} notes={false} label={t("stepsHeading")} />
     </div>
   );
 }

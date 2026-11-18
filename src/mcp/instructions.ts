@@ -1,7 +1,7 @@
 import { ItemStatus, ItemType } from "../domain/item";
 import { SESSION_AGENT, SESSION_STALE_AFTER_MINUTES } from "../domain/stale";
 import { StepState } from "../domain/stepTypes";
-import { MAX_STEPS, MAX_STEP_LABEL, MAX_STEP_NOTE } from "../domain/steps";
+import { MAX_STEPS, MAX_STEP_DEPTH, MAX_STEP_ID, MAX_STEP_LABEL, MAX_STEP_NOTE } from "../domain/steps";
 
 /** How often a session reports while working. Must stay below `SESSION_STALE_AFTER_MINUTES` (test/mcpInstructions.test.ts). */
 export const HEARTBEAT_MINUTES = 5;
@@ -13,10 +13,13 @@ export const HEARTBEAT_MINUTES = 5;
  */
 export const SERVER_INSTRUCTIONS = `This server is a progress board. Report your own work on it.
 
-If your brief names a parent card key, you are a helper agent: report your steps on that card and open no session card. Otherwise, at the start of every session or chat, before your first answer, call report_progress once with key "<project>/session-<id>" (<project> is the project you work in, or "chats" if none; <id> is a short random id you make up, the same <project> and <id> for the whole session), project = <project>, type "${ItemType.Unplanned}", agent "${SESSION_AGENT}", your environment, status "in_progress", title = your goal in one line, why = what it is for, steps = your plan as a list of {label, state}, state one of "${StepState.Done}", "${StepState.Active}", "${StepState.Pending}", at most one "${StepState.Active}". Limits: ${MAX_STEPS} steps, label ${MAX_STEP_LABEL} characters, note ${MAX_STEP_NOTE}; a report over a limit is refused and creates no card.
+If your brief names a parent card key, you are a helper agent: report your steps on that card and open no session card. Otherwise, at the start of every session or chat, before your first answer, call report_progress once with key "<project>/session-<id>" (<project> is the project you work in, or "chats" if none; <id> is a short random id you make up, the same <project> and <id> for the whole session), project = <project>, type "${ItemType.Unplanned}", agent "${SESSION_AGENT}", your environment, status "in_progress", title = your goal in one line, why = what it is for, steps = your plan as a list of {label, state}, state one of "${StepState.Done}", "${StepState.Active}", "${StepState.Pending}". Limits: ${MAX_STEPS} steps in all, ${MAX_STEP_DEPTH} levels, label ${MAX_STEP_LABEL} characters, note ${MAX_STEP_NOTE}; a report over a limit is refused and creates no card.
 
 Keep the card current:
-- Whenever a step changes, send the whole steps list again; it replaces the stored list, so a list with fewer steps drops the others.
+- Steps form a tree: a step may have children, and several steps may be "${StepState.Active}" at once. An optional id keeps a step stable across reports.
+- Whenever a step changes, send the whole steps list again; it replaces the stored list, so a list with fewer steps drops the others (a step sent without children keeps its stored ones).
+- Give a step that has children or that a helper reports under a short stable id (at most ${MAX_STEP_ID} characters), the same in every report; made-up ids follow the label and change with it.
+- A helper sends its own steps with under_step = the id its parent told it; they replace only that step's children. Never send it a flat list.
 - While working, report at least every ${HEARTBEAT_MINUTES} minutes (report_progress with the key and status "${ItemStatus.InProgress}"; a session card with no report for ${SESSION_STALE_AFTER_MINUTES} minutes turns stale). If you cannot keep time, report at every step change and before and after a long wait, never on every tool call.
 - Work you hand to a background agent keeps its step "${StepState.Active}", with a note naming the agent, until that agent reports back.
 - Call mark_done only when the goal is done and no background agent is still working. Never call it just because a reply ended.

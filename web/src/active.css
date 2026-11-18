@@ -251,35 +251,7 @@
   background: var(--seg-active);
 }
 
-/* Toggle and the full list */
-
-.steps-toggle {
-  display: inline-flex;
-  align-items: center;
-  align-self: flex-start;
-  gap: 6px;
-  min-height: 44px;
-  padding: 0 14px 0 10px;
-  border: 1px solid var(--hairline);
-  border-radius: 10px;
-  background: var(--card);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.phone .steps-toggle {
-  padding: 0 12px 0 8px;
-  background: var(--well);
-}
-
-.chevron {
-  display: inline-flex;
-}
-
-.chevron-open {
-  transform: rotate(90deg);
-}
+/* The full list, always open */
 
 .steps-open {
   display: flex;
@@ -306,91 +278,163 @@
   list-style: none;
 }
 
+/* The step tree (Slice 39, ActiveV3 B1): a tappable row per step, the open box under it. */
+
+.step-item {
+  display: flex;
+  flex-direction: column;
+}
+
 .step-row {
   display: grid;
-  grid-template-columns: 28px 1fr auto;
+  grid-template-columns: 16px 30px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border-radius: 8px;
-}
-
-.phone .step-row {
-  grid-template-columns: 26px 1fr auto;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
   padding: 6px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
-.step-mark {
+.step-row-active {
+  background: var(--sliceBg);
+}
+
+.step-arrow {
+  display: inline-flex;
+  width: 16px;
+  color: var(--text);
+}
+
+.step-arrow-open {
+  transform: rotate(90deg);
+}
+
+.step-num {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  border: 1.5px solid var(--grab);
+  width: 28px;
+  height: 28px;
+}
+
+.step-mark {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid var(--hairline);
   border-radius: 50%;
   background: var(--card);
   color: var(--muted);
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 700;
 }
 
-.phone .step-mark {
-  width: 22px;
-  height: 22px;
-  font-size: 11px;
+.step-ring {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 50%;
+  animation: ring-turn 1.4s linear infinite;
+}
+
+.step-ring circle {
+  stroke: var(--sliceFg);
+}
+
+@keyframes ring-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* The arc stays drawn, only the turning stops. */
+@media (prefers-reduced-motion: reduce) {
+  .step-ring {
+    animation: none;
+  }
 }
 
 .step-text {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .step-label {
-  font-size: 14px;
-  color: var(--muted);
+  color: var(--text);
 }
 
 .step-note {
+  overflow: hidden;
   font-size: 12px;
   color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .step-state {
   font-size: 12px;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.step-row-done .step-label {
   color: var(--muted);
 }
 
 .step-row-done .step-mark {
-  border-color: var(--stepDone);
-  background: var(--stepDone);
-  color: #fff; /* white in both schemes, as drawn */
+  border-color: var(--doneFg);
+  background: var(--doneFg);
+  color: var(--card);
 }
 
 .step-row-done .step-state {
-  color: var(--stepDoneText);
-}
-
-.step-row-active {
-  background: var(--stepActiveRow);
-}
-
-.step-row-active .step-mark {
-  border-color: var(--link);
-  color: var(--link);
+  color: var(--doneFg);
 }
 
 .step-row-active .step-label {
   font-weight: 600;
-  color: var(--text);
 }
 
-.phone .step-row-active .step-label {
-  font-weight: 400;
+.step-row-active .step-mark {
+  border-color: transparent;
+  color: var(--sliceFg);
 }
 
 .step-row-active .step-state {
-  color: var(--link);
+  color: var(--sliceFg);
+}
+
+.step-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 2px 0 6px 62px;
+  padding: 10px 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.step-times {
+  font-variant-numeric: tabular-nums;
+  color: var(--sub);
+}
+
+.step-kids {
+  color: var(--muted);
 }
 
 .back-link {

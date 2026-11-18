@@ -2,7 +2,9 @@ import {
   type BoardFilter,
   type BoardRow,
   type ItemRepository,
+  type ItemWithStepsText,
   type ItemWrite,
+  StepsChangedError,
   type SessionWindow,
   type StaleCutoffs,
   type SeriesName,
@@ -142,6 +144,11 @@ const LIVE_STATUS_REPORT = `${flagParam(STATUS_COLUMN)} AND
 
 const valueOf = (column: ChangeableColumn): string => valueParam(CHANGEABLE_COLUMNS.indexOf(column));
 
+/** The compare-and-swap params after the changeable ones: guard on (0/1) and the steps text the row must still hold. */
+const GUARD_FLAG_INDEX = FIRST_GIVEN_PARAM + 2 * CHANGEABLE_COLUMNS.length;
+const GUARD_FLAG = `?${GUARD_FLAG_INDEX}`;
+const GUARD_STEPS = `?${GUARD_FLAG_INDEX + 1}`;
+
 const UPSERT_ITEM = `INSERT INTO items (key, project, parent, type, priority, status, title, why,
   details_md, links, source, heartbeat_at, created_at, updated_at, done_at, live_status_at, environment,
   steps, agent, model, parent_key, needs_you, after_answer, needs_you_at)
@@ -155,6 +162,7 @@ const UPSERT_ITEM = `INSERT INTO items (key, project, parent, type, priority, st
   done_at = CASE WHEN ${NEXT_STATUS} = 'done'
     THEN CASE WHEN status = 'done' THEN COALESCE(done_at, ?12) ELSE ?12 END
     ELSE NULL END
+  WHERE ${GUARD_FLAG} = 0 OR items.steps IS ${GUARD_STEPS}
   RETURNING *`;
 
 /**
@@ -200,11 +208,16 @@ const CLOSE_ITEMS = `UPDATE items SET in_doc_sync = 0, doc_status = 'done', doc_
   source = CASE WHEN status = 'done' THEN source ELSE ?3 END, status = 'done', updated_at = ?2
   WHERE ${CLOSE_ROWS}`;
 
-/** The note is the caller's, else Heartbeat when this write left updated_at alone. */
+/**
+ * The note is the caller's, else Heartbeat when this write left updated_at alone. Runs right after the
+ * upsert in the same batch (one transaction, statements in order): `changes()` is the row count of that
+ * upsert, so a guarded write that lost the compare-and-swap (its ON CONFLICT ... WHERE matched nothing)
+ * adds no event, and a write that took effect adds exactly one, whatever the clock or the steps text.
+ */
 const INSERT_EVENT = `INSERT INTO events (item_key, at, status, source, note)
   SELECT key, ?1, status, source,
     COALESCE(?2, CASE WHEN updated_at = ?1 THEN NULL ELSE ?4 END)
-  FROM items WHERE key = ?3`;
+  FROM items WHERE key = ?3 AND changes() > 0`;
 
 const BOARD_EVENTS = `SELECT item_key, at, status, source, note FROM (
   SELECT *, ROW_NUMBER() OVER (PARTITION BY item_key ORDER BY at DESC, id DESC) AS rn
@@ -380,13 +393,20 @@ export class D1ItemRepository implements ItemRepository, UsageRepository {
     return row ? toItem(row) : null;
   }
 
+  async findWithStepsText(key: string): Promise<ItemWithStepsText> {
+    const row = await this.db.prepare("SELECT * FROM items WHERE key = ?1").bind(key).first<ItemRow>();
+    return { item: row ? toItem(row) : null, stepsText: row?.steps ?? null };
+  }
+
   async save(write: ItemWrite): Promise<Item> {
     const { key, note } = write.input;
+    const guarded = write.ifStepsText !== undefined;
     const [upserted] = await this.db.batch([
       this.db.prepare(UPSERT_ITEM).bind(...upsertParams(write)),
       this.db.prepare(INSERT_EVENT).bind(write.now, note ?? null, key, HEARTBEAT_NOTE),
     ]);
     const row = upserted?.results[0] as ItemRow | undefined;
+    if (!row && guarded) throw new StepsChangedError();
     if (!row) throw new Error(`upsert of ${key} returned no row`);
     return toItem(row);
   }
@@ -445,11 +465,13 @@ export class D1ItemRepository implements ItemRepository, UsageRepository {
   }
 }
 
-function upsertParams({ insert, input, now }: ItemWrite): (string | number | null)[] {
+function upsertParams({ insert, input, now, ifStepsText }: ItemWrite): (string | number | null)[] {
   return [
     insert.key, insert.project, insert.parent, insert.type, insert.priority, insert.status, insert.title,
     insert.why, insert.details_md, JSON.stringify(insert.links), insert.source, now, insert.done_at,
     ...CHANGEABLE_COLUMNS.flatMap((col) => givenParams(input, col)),
+    ifStepsText === undefined ? 0 : 1,
+    ifStepsText ?? null,
   ];
 }
 

@@ -58,8 +58,8 @@ environment (`AGENT_BOARD_URL`, `AGENT_BOARD_TOKEN`); there is no built-in addre
 
 - **Agent steps.** Each background agent whose record changed in the last 10 minutes is a step, labelled with its
   `description` from `subagents/*.meta.json`, after the steps the session sent; it is `done` once it stopped. The board
-  allows one active step at most, so the first running agent is `active`, further running agents are `pending` with the
-  note "running in background", and the session's own active step shows as `pending` while an agent runs.
+  allows any number of active steps (Slice 39), so every running agent is `active` and the session's own active step
+  stays as it is.
 - **A dead session's waiting item.** A waiting item whose session sent nothing (no prompt, tool call or hook) for 30
   minutes is closed "Session ended" by the next hook of any session on the same machine.
 - **The CLI.** `plugin/scripts/report-progress.mjs` sends one report from a script (`--key` or `--slice`, `--title`,
@@ -273,27 +273,36 @@ Returns the item. A report that changes nothing but the heartbeat writes an even
 #### Steps (Slice 10)
 
 A task carries its own list of steps; the board has no built-in list and holds no step names.
-Each step is `{label, state, note?}`: `label` 1 to 80 characters, `state` one of `done`,
-`active` or `pending`, `note` 0 to 120 characters (shown under the label). At most 30 steps and at
-most one `active`. Labels and notes are shown as sent.
+Each step is `{id?, label, state, note?, children?}`: `label` 1 to 80 characters, `state` one of `done`,
+`active` or `pending`, `note` 0 to 120 characters (shown under the label). Steps form a tree (Slice 39):
+at most 200 steps in all, at most 4 levels, and any number may be `active` at once. Labels and notes are shown as sent.
 
 - **Send the whole list each time.** The newest list wins and replaces the stored one; a report
-  that leaves `steps` out keeps it. Progress is steps done over steps in the list (1 of 7 is
-  14%), worked out when the board is read; a task marked done shows 100% whatever its list says.
+  that leaves `steps` out keeps it. A step sent without `children` keeps the children stored under
+  its id; `children: []` clears them. Progress counts leaves (steps with no children): leaves done over
+  leaves (1 of 7 is 14%), worked out when the board is read; a task marked done shows 100% whatever its list says.
+- **Ids and times.** A step's `id` (1 to 80 characters, unique in the tree) keeps it the same step across
+  reports; left out, the board makes it from the label path (`Parent/Child`, `#2` on a repeat, cut to 80
+  characters with a short hash). That form changes when a label or the order changes, so send a short stable
+  `id` on every step that has children or that helpers report under, and tell the helper the id. The board
+  stamps `started_at` (first active or done) and `done_at` (became done), UTC ISO, and keeps them by id.
+- **`under_step`.** `report_progress` with `under_step: <step id>` takes `steps` as only that step's
+  children (an empty list clears them); the rest of the list stays. An unknown id is refused with the ids
+  that exist. A helper agent uses it to report its own steps under the step it works on.
 - **Trim the list to the task.** Each kind of agent keeps its own usual list on the client side
   and a task sends only what it really needs: no phone test step when no phone code changed. A
   list may shrink or grow while the task runs (a step that is dropped simply is not sent again).
   A short `note` can say why a step is missing or what counts under it.
-- **Helpers count under their parent's step.** A helper agent does not add steps of its own to the
-  task: its work counts under the step of the agent that started it (a note such as "Two helper
-  agents count under this step" says so).
+- **Helpers report their own steps as children.** A helper agent reports its steps with `under_step`
+  set to the id of the step it works on (this replaces the Slice 10 rule that helpers add no steps).
+  The page unfolds them in place under that step, and the steps of several helpers may run at once.
 - **Background agents keep the step active.** Work handed to a background agent (translation,
   illustration, a long build) keeps its step `active`, with a note naming the agent, until that
   agent reports back; the card is not closed while it works.
 - **Active work.** The Active work page lists a task while its status is `in_progress`, it has a
   steps list or an `agent`, and its last report is newer than the stale expiry (below), whether or
   not the cron has run yet. Send `agent`, `model` and `environment` with the steps.
-- `get_item` and `list_open` return `steps` (each `{label, state, note}`), `agent`, `model` and
+- `get_item` and `list_open` return `steps` (each `{id, label, state, note, started_at, done_at, children}`), `agent`, `model` and
   `environment` on the item.
 
 **Staleness.** A cron job on the board runs every 15 minutes. An `in_progress` or `blocked`

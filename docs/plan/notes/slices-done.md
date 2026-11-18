@@ -33,3 +33,5 @@ Rows moved out of `plan.md`'s status table once built.
 | 27 | Every "Needs you" card says what is needed, for which work, and why; no card when nothing is asked | built | #109 | | [27](../slices/27-needs-you-cards.md) |
 | 30 | The plugin's usage and cap scripts: review leftovers | built | #130 | | [30](../slices/30-usage-script-fixes.md) |
 | 29 | Session cards keep background agents' state right | built | #129 | | [29](../slices/29-agent-state-fixes.md) |
+| 31 | Plan sync and waiting cards read the documents and transcripts right | built | #131 | | [31](../slices/31-sync-and-waiting-text.md) |
+| 38 | Browser tests that don't flake | built | #132 | | [38](../slices/38-steady-browser-tests.md) |

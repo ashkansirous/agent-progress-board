@@ -114,7 +114,16 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
   (Slice 19: docs/plan/slices/19-chat-text.md).
 - A waiting card from the plugin's Notification hook opens only when something is asked (permission, elicitation, or an
   idle prompt after a question); its text is masked by `maskSecrets` in `plugin/scripts/hooks/waiting-card.mjs` before it
-  leaves the machine; never send transcript text unmasked (Slice 27: docs/plan/slices/27-needs-you-cards.md).
+  leaves the machine; never send transcript text unmasked. The mask is a deny-list: a secret name followed by a
+  separator masks the line to its end (the next line too when the value is on it), plus shape maskers; input is cut to a
+  4096-character window and scanned linearly. Whether a card opens and which sentence is the question are decided on the
+  unmasked text; only the text that is sent is masked. The card's title reads the branch from `.git/HEAD` (`titleOf` in
+  `plugin/scripts/hooks/session-waiting.mjs`), never by running git (Slice 27: docs/plan/slices/27-needs-you-cards.md;
+  Slice 31: docs/plan/slices/31-sync-and-waiting-text.md).
+- The e2e output folder is per port (`test-results/<port>` in `playwright.config.ts`), so two suites can run at once,
+  even in one worktree. Loading-delay tests use the shared clock helper `e2e/loadingClock.ts` (clock installed before
+  `goto`, the 500 ms timer counted per action); never a wall-clock wait (Slice 38:
+  docs/plan/slices/38-steady-browser-tests.md).
 - "All kinds" weighting while the current weekly window is under 24 hours old uses the last full window's mix, chosen only
   by `chooseMixWindow` in `src/domain/capCost.ts`; `mix_source` is derived at read, never stored, and the page never picks
   the window (Slice 26: docs/plan/slices/26-mix-after-reset.md).

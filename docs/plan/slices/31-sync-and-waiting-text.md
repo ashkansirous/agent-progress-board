@@ -3,7 +3,7 @@
 *Planned 2026-11-18 (owner: "double check and plan the follow up work"). Grouping decided by the planning session of
 2026-11-18; items re-checked against `origin/main` (d654e9b).* Wave 1.
 
-*Built (wave 2026-11-18), PR #131.* Touches widened with `plugin/scripts/hooks/hooks.test.mjs`: there is no
+*Built (wave 2026-11-18); merged as PR #131 (7a944a0).* Touches widened with `plugin/scripts/hooks/hooks.test.mjs`: there is no
 session-waiting test file, so its tests go there (Slice 29 adds tests there too, in separate blocks).
 
 **Touches:** `plugin/scripts/sync-docs.mjs`, `plugin/scripts/sync-docs.test.mjs`,
@@ -120,13 +120,13 @@ Waiting cards (`waiting-card.mjs`, `session-waiting.mjs`):
 
 - `reviews/pr-131-check-3-medium.md`: "branchOf can read an unrelated ancestor repo's branch when cwd is unusable and falls back to the hook's folder." - not fixed here (not a finding); `branchOf` in `session-waiting.mjs` should not fall back to the hook's own folder. `reviews/pr-131-check-4-medium.md` repeats it ("branchOf can read an unrelated ancestor repo's branch when cwd is unusable"; wrong text, no leak).
 - Deny-list gaps named in `reviews/pr-131-check-4-medium.md`: "`The password is\nhunter2` (is/was at line end, value on next line) unmasked" and "`psql -W hunter2` (SHORT_FLAG letters p,k,t,s,a only)", plus its four findings above.
-- Not built: Slice 27 chk #6 (the rest of a clipped title in `details_md`). It needs `snapshotItem` in `src/mcp/schemas.ts` and `newRow` in `src/domain/docSync.ts`; it goes to Slice 33, whose Touches has both.
+- Not built: Slice 27 chk #6 (the rest of a clipped title in `details_md`). It needs `snapshotItem` in `src/mcp/schemas.ts` and `newRow` in `src/domain/docSync.ts`; it goes to Slice 33, whose Touches has both (written into its Work, 2026-11-18).
 
 #### Verification record
 
 - `npm run lint` and `npm run typecheck` clean; `npm test` exit 0 on the final tree (488 vitest, 309 plugin node tests). No device run: plugin scripts only, no UI.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-18)
 
 - The waiting-card mask `maskSecrets` in `plugin/scripts/hooks/waiting-card.mjs` is a deny-list: a secret name followed by a separator masks the line to its end (the next line too when the value is on it), plus shape maskers; input is cut to a 4096-character window and scanned linearly. Whether a card opens and which sentence is the question are decided on the unmasked text; only the text that is sent is masked. The waiting-card title reads the branch from `.git/HEAD` (`titleOf` in `plugin/scripts/hooks/session-waiting.mjs`), never by running git (Slice 31: docs/plan/slices/31-sync-and-waiting-text.md).
 

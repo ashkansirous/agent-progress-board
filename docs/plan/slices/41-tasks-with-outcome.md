@@ -131,6 +131,10 @@ are waiting on the board", "1 question is waiting on the board". Removed: the "n
 - [ ] Add the `--orchestrator` mark (`plugin/scripts/report-progress.mjs`), read by `goal-reminder.mjs` and
   `session-done.mjs`.
 - [ ] Change the reminder text and send it once per prompt (`goal-reminder.mjs`).
+- [ ] Slice 13 check pass 3, carried from Slice 38 (`reviews/pr-132-check-medium.md` follow-up #5; list in
+  [Slice 38](38-steady-browser-tests.md)): fix each of the five older seed lows in `scripts/seed-data.ts` or write why
+  not: seed test counts, empty fields sent as undefined, `ask_human` on an existing item, session cards going stale
+  15 min after seeding, hard-coded history markers.
 
 #### Verification
 

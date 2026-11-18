@@ -3,6 +3,16 @@
 Every open "Not yet verified" check, one block per slice. A check that passes, or that the
 owner confirms, is removed here and its slice marked `verified`.
 
+### Slice 39: Steps are a tree: sub-steps unfold in place, and several can run at once ([slice](slices/39-step-tree.md))
+
+- On a phone and the deployed board, a real tree with helpers reporting `under_step` in parallel.
+- The ring under reduced motion, on a real device.
+
+### Slice 36: Board, Active and drawer pages: review leftovers ([slice](slices/36-board-page-fixes.md))
+
+- On a phone, the board read stops one tick after leaving a page, and the Usage tab count reads the cached board.
+- On a phone, the open drawer stays open through a reload.
+
 ### Slice 35: Usage page and cost figures: review leftovers ([slice](slices/35-usage-page-fixes.md))
 
 - On a phone or desktop in a zone with daylight saving, the Usage page's bars, reset markers and labels line up across a clock change (next change: late March).

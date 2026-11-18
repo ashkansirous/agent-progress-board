@@ -6,7 +6,7 @@ on it", and about fixing the plugin's agent steps in the same piece of work: "4-
 
 Runs after Slice 39 (the tree and `under_step`) and Slice 29 (both edit the same hook files).
 
-*Built 2026-11-18 (wave 2026-11-18), PR #146, not merged. Not yet verified on the owner's machine (see below).*
+*Built 2026-11-18 (wave 2026-11-18), merged as PR #146 (dfcbd80). Not yet verified on the owner's machine (see below).*
 
 **Touches:** `plugin/scripts/hooks/background-agents.mjs`, `plugin/scripts/hooks/session-done.mjs`,
 `plugin/scripts/hooks/hook-input.mjs`, `plugin/scripts/hooks/hooks.test.mjs`, `plugin/scripts/report-progress.mjs`,
@@ -132,7 +132,7 @@ box) are in Slice 39's Design subsection and are not repeated. Redrawn by the ow
   - `agentParents` and `agentStarts` in `hook-input.mjs` are never pruned.
   - Every hook run re-reads and re-masks every fresh agent file: cache per id and mtime.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-18)
 
 - Agent rows and the helper's row id `agent-<id>` come only from the `SubagentStart` hook (`plugin/scripts/hooks/session-done.mjs`); the goal file is merged per agent (`mergeParents`), never a read-modify-write of the whole `agentParents` map; every agent label passes `maskSecrets` before it is cut or sent (Slice 40: docs/plan/slices/40-agents-in-tree.md).
 

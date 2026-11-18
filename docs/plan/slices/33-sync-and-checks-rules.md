@@ -11,7 +11,7 @@
 `plugin/scripts/sync-docs.mjs`, `docs/clients.md`, `web/src/ChecksView.tsx`, `web/src/PlannedSection.tsx`,
 `web/src/partsText.ts`, `web/src/planningText.ts`, `src/infrastructure/d1Repository.ts`
 
-*Built 2026-11-18 (wave 2026-11-18, PR #147, not merged), not yet verified on the live board.*
+*Built 2026-11-18 (wave 2026-11-18, merged as PR #147, 088eb84), not yet verified on the live board.*
 
 **Migrations:** none
 
@@ -113,7 +113,7 @@ pending one (#5).
 - Skipped #7 (`reviews/pr-147-check-medium.md`): "assertItemFits returns early for existing rows, so legacy parts with bad keys keep accepting reports while a snapshot skips them; document it." - Doc only.
 - Skipped #8 (`reviews/pr-147-check-medium.md`): "part-key length rule covers only a snapshot slice's own parts; a long-keyed slice sent without a parts list but with stored parts is unchecked" - Rare; a later report that carries the parts list catches it.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-18)
 
 - What a check shows and counts is `isShownCheck` / `isCountedCheck` in `src/domain/checks.ts`; `OPEN_CHECK_OF` in
   `src/infrastructure/d1Repository.ts` is built from the counted statuses; never a third copy. Retyping a live key is

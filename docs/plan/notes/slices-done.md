@@ -41,3 +41,5 @@ Rows moved out of `plan.md`'s status table once built.
 | 35 | Usage page and cost figures: review leftovers | built | #138 | | [35](../slices/35-usage-page-fixes.md) |
 | 36 | Board, Active and drawer pages: review leftovers | built | #144 | | [36](../slices/36-board-page-fixes.md) |
 | 39 | Steps are a tree: sub-steps unfold in place, and several can run at once | built | #143 | | [39](../slices/39-step-tree.md) |
+| 40 | The plugin puts background agents into the step tree | built | #146 | | [40](../slices/40-agents-in-tree.md) |
+| 33 | Doc sync never retypes live work, and checks and parts count right | built | #147 | | [33](../slices/33-sync-and-checks-rules.md) |

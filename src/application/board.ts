@@ -10,10 +10,10 @@ import {
 import { type Item, ItemStatus, ItemType, type ItemWithEvents } from "../domain/item";
 import { ancestorKeys, itemProblem, MAX_PARENT_DEPTH, nestedChecks, type ParentRef } from "../domain/checks";
 import { expandParts } from "../domain/parts";
-import { DEFAULT_STALE_AFTER_MINUTES, expiryMinutesFor, hasOpenQuestion, SESSION_AGENT, staleCutoff } from "../domain/stale";
+import { DEFAULT_STALE_AFTER_MINUTES, expiryMinutesFor, hasOpenQuestion, SESSION_AGENT, staleCutoff, waitingCutoff } from "../domain/stale";
 import { checkReport, DomainError, newItem, type ReportInput, withQuestion } from "../domain/upsert";
 import { resolveWindowHours, type WindowConfig, windowCutoff } from "../domain/window";
-import { type BoardRow, type ItemRepository, LIST_EVENT_LIMIT, StepsChangedError } from "./ports";
+import { type BoardRow, type ItemRepository, LIST_EVENT_LIMIT, type StaleResult, StepsChangedError } from "./ports";
 
 export type AskHumanInput = Omit<ReportInput, "type" | "status">;
 
@@ -201,6 +201,8 @@ export interface SyncSummary {
   updated: number;
   closed: number;
   unchanged: number;
+  /** Items whose write the stale-read guard skipped because the row moved since the read: resend the snapshot to apply them. */
+  raced: number;
   /** Items the sync did not save, each with the reason; everything else was saved. */
   skipped: SkippedItem[];
 }
@@ -239,14 +241,17 @@ export async function syncSnapshot(
   const checkless = new Set(input.items.filter(keepsChecks).map((item) => item.key));
   const closes = closeTargets(stored, input.project, listed, partless, checkless);
   const changed = merges.flatMap((m) => (m.write ? [m.write] : []));
-  if (changed.length > 0 || closes.length > 0) await repo.applySync(changed, closes, now);
-  const created = merges.filter((m) => !m.existed).length;
+  const applied =
+    changed.length > 0 || closes.length > 0 ? await repo.applySync(changed, closes, now) : { written: new Set<string>(), closed: 0 };
+  const wrote = merges.filter((m) => m.write && applied.written.has(m.write.item.key));
+  const created = wrote.filter((m) => !m.existed).length;
   return {
     project: input.project,
     created,
-    updated: changed.length - created,
-    closed: closes.length,
+    updated: wrote.length - created,
+    closed: applied.closed,
     unchanged: merges.length - changed.length,
+    raced: changed.length - wrote.length,
     skipped,
   };
 }
@@ -383,6 +388,7 @@ export async function listBoardRows(
   input: ListOpenInput,
   window: WindowConfig,
   clock: Clock,
+  withRiders = true,
 ): Promise<BoardRow[]> {
   const hours = resolveWindowHours(input.window_hours, window);
   return repo.listBoard({
@@ -390,6 +396,7 @@ export async function listBoardRows(
     type: input.type,
     cutoff: windowCutoff(clock.now(), hours),
     eventLimit: LIST_EVENT_LIMIT,
+    withRiders,
   });
 }
 
@@ -399,27 +406,29 @@ export async function listOpen(
   window: WindowConfig,
   clock: Clock,
 ): Promise<ItemWithEvents[]> {
-  const rows = await listBoardRows(repo, input, window, clock);
+  const rows = await listBoardRows(repo, input, window, clock, false);
   return rows.map(withoutExpiry);
 }
 
 function withoutExpiry(row: BoardRow): ItemWithEvents {
-  const { expiry, docSync, ...item } = row;
+  const { expiry, docSync, parentSlice, ...item } = row;
   void expiry;
   void docSync;
+  void parentSlice;
   return item;
 }
 
-/** The cron's one job: turn live items without a recent heartbeat stale; returns how many. */
+/** The cron's one job: turn live items without a recent heartbeat stale and close the old waiting cards; returns both counts. */
 export async function markStaleItems(
   repo: ItemRepository,
   staleAfterMinutes: number,
   clock: Clock,
-): Promise<number> {
+): Promise<StaleResult> {
   const now = clock.now();
   const cutoffs = {
     cutoff: staleCutoff(now, staleAfterMinutes),
     sessionCutoff: staleCutoff(now, expiryMinutesFor(SESSION_AGENT, staleAfterMinutes)),
+    waitingCutoff: waitingCutoff(now),
   };
   return repo.markStale(cutoffs, now.toISOString());
 }

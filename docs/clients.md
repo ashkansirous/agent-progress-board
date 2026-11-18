@@ -426,10 +426,11 @@ Inputs:
     most 100 (see *Checks* below). A top-level item of type `check` names its slice in
     `parent_key`, even a slice that is not in the snapshot.
 
-Output (a counts summary, not items): `{project, created, updated, closed, unchanged, skipped}`.
+Output (a counts summary, not items): `{project, created, updated, closed, unchanged, raced, skipped}`.
 `created` counts keys the board had not seen, `updated` counts existing items the sync
 changed, `closed` counts items that left the snapshot, `unchanged` counts snapshot items that
-needed no write. `skipped` is `[{key, reason}]`: an item or nested check that breaks a key or
+needed no write. `raced` counts items whose write was skipped because a live report changed the
+row between the sync's read and its write (the item is not saved; send the snapshot again). `skipped` is `[{key, reason}]`: an item or nested check that breaks a key or
 parent rule is not saved and is named here with the reason (its `parent_key` names another
 project or a skipped slice of the same snapshot; the stored item under its key has another type and is not
 owned by the documents; a check with no slice, a key not under its slice's key plus `/`, or a parent that is no
@@ -471,7 +472,7 @@ curl -sS --max-time 3 -X POST "$AGENT_BOARD_URL/mcp" \
   }' || true
 ```
 
-Reply text (parse it as for the other tools): `{"project":"demo-app","created":1,"updated":0,"closed":0,"unchanged":0,"skipped":[]}`.
+Reply text (parse it as for the other tools): `{"project":"demo-app","created":1,"updated":0,"closed":0,"unchanged":0,"raced":0,"skipped":[]}`.
 
 **The merge rule**, per key:
 

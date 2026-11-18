@@ -11,7 +11,7 @@ import { basename, join } from 'node:path';
 import { describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { sliceKey } from './report-progress.mjs';
-import { MAX_CHECKS, MAX_EXPANDED_ITEMS, MAX_ITEMS, buildItems, buildSnapshot, checkHash, collect, hasEmptyStatusTable, mapStatus, parkNote, parseParts, parsePlanTable, parseParked, parseUnverified, readUnverified, safeLinkPath, waitsOnlyOnWork } from './sync-docs.mjs';
+import { MAX_CHECKS, MAX_EXPANDED_ITEMS, MAX_ITEMS, SourceError, WAIT_TARGETS, buildItems, buildSnapshot, checkHash, collect, filesForSlice, gitSource, hasEmptyStatusTable, mapStatus, openForOwner, parkNote, parseParts, parsePlanTable, parseParked, parseUnverified, readUnverified, safeLinkPath, syncLine, waitsOnlyOnWork } from './sync-docs.mjs';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
 const SCRIPT = join(here, 'sync-docs.mjs');
@@ -802,5 +802,149 @@ describe('Slice 27: cards that say what, for which slice and why', () => {
     const card = byKey(buildItems({ project: PROJECT, planText }))['demo-app/slice-9/waiting'];
     assert.equal(card.title, 'pick the store');
     assert.equal(card.why, 'Slice 9: Nine');
+  });
+});
+
+describe('Slice 31: plan sync reads the documents right', () => {
+  const table = (rows) => `## Status\n\n| # | Slice | Status | PR | Issue | File |\n| --- | --- | --- | --- | --- | --- |\n${rows}\n`;
+  const SKILL = readFileSync(join(here, '..', 'skills', 'agent-board', 'SKILL.md'), 'utf8');
+  const PLAN_SYNC = readFileSync(join(here, '..', '..', 'docs', 'setup', 'plan-sync.md'), 'utf8');
+  // One example reason and the word the documents use for each entry of WAIT_TARGETS, in order.
+  const TARGET_EXAMPLES = [
+    ['waits for Slice 3', 'another slice'], ['waits for another repo\'s slice', 'another slice'], ['waits for an interactive session', 'interactive session'],
+    ['waits for a deploy', 'deploy'], ['waits for a merge', 'merge'], ['waits for CI', 'CI'], ['waits for PR #4', 'PR'],
+  ];
+
+  test('waitsOnlyOnWork is an allow-list: a person named in other words keeps the card', () => {
+    for (const reason of ['waits for Slice 6 and the store pick', 'waits for the deploy, then Ash decides', 'waits for CI and the founder', 'waits for Slice 6 and a decision',
+      'waits for Slice 6 hmm', 'waiting on slice 7 plus the DNS change', 'behind Slice 6, owner go-ahead']) {
+      assert.equal(waitsOnlyOnWork(reason), false, reason);
+    }
+    for (const reason of ['waits for Slice 6 and Slice 7', 'waits for the deploy, then CI', 'waiting on PR #12 to merge', 'parked: behind Slice 6 (owner, 2026-11-18)']) {
+      assert.equal(waitsOnlyOnWork(reason), true, reason);
+    }
+  });
+
+  test('a comma may come before the words that follow a work target', () => {
+    for (const reason of ['Parked: waiting on Slice 29, which is not built yet', 'waits for a merge to main', 'waits for a merge to main, which is not done yet',
+      'waits for the deploy of slice 4', 'waits for Slice 29, then the deploy']) {
+      assert.equal(waitsOnlyOnWork(reason), true, reason);
+    }
+    for (const reason of ['waits for Slice 29, which your answer unblocks', 'waits for a merge to main, owner picks']) {
+      assert.equal(waitsOnlyOnWork(reason), false, reason);
+    }
+  });
+
+  test('a number listed twice is read once and its ambiguity notice appears once', () => {
+    const root = mkdtempSync(join(tmpdir(), 'sync-dup-'));
+    mkdirSync(join(root, 'docs', 'plan', 'slices'), { recursive: true });
+    writeFileSync(join(root, 'plan.md'), table('| 4 | Four | parked: pick the store | | | |\n| 4 | Four again | planned | | | |'));
+    writeFileSync(join(root, 'docs', 'plan', 'slices', '04-a.md'), 'x\n');
+    writeFileSync(join(root, 'docs', 'plan', 'slices', '04-b.md'), 'y\n');
+    const notices = collect({ root, project: PROJECT }).notices.filter((notice) => /slice 4 matches/.test(notice));
+    assert.equal(notices.length, 1);
+  });
+
+  test('SKILL.md and plan-sync.md describe the same park words as waitsOnlyOnWork', () => {
+    assert.equal(TARGET_EXAMPLES.length, WAIT_TARGETS.length, 'a new target needs an example here and a word in both documents');
+    for (const [reason, word] of TARGET_EXAMPLES) {
+      assert.equal(waitsOnlyOnWork(reason), true, reason);
+      assert.ok(SKILL.includes(word), `SKILL.md names "${word}"`);
+      assert.ok(PLAN_SYNC.includes(word), `plan-sync.md names "${word}"`);
+    }
+    for (const lead of ['waits for', 'waiting on', 'behind']) {
+      assert.equal(waitsOnlyOnWork(`${lead} Slice 3`), true, lead);
+      assert.ok(SKILL.includes(`"${lead}"`), `SKILL.md names "${lead}"`);
+      assert.ok(PLAN_SYNC.includes(`"${lead}"`), `plan-sync.md names "${lead}"`);
+    }
+  });
+
+  test('a slice file is matched by its whole number; two files for one number are read as neither', () => {
+    assert.deepEqual(filesForSlice(['31-a.md', '3-b.md', '310-c.md', '31a-d.md', 'README.md', '31-notes.txt'], '31'), ['31-a.md']);
+    assert.deepEqual(filesForSlice(['12a-x.md', '12-y.md'], '12a'), ['12a-x.md']);
+    const root = mkdtempSync(join(tmpdir(), 'sync-ambig-'));
+    mkdirSync(join(root, 'docs', 'plan', 'slices'), { recursive: true });
+    writeFileSync(join(root, 'plan.md'), table('| 4 | Four | parked: pick the store | | | |'));
+    writeFileSync(join(root, 'docs', 'plan', 'slices', '04-a.md'), '## Open for the owner\n\n- from a\n');
+    writeFileSync(join(root, 'docs', 'plan', 'slices', '04-b.md'), '## Open for the owner\n\n- from b\n');
+    const snapshot = collect({ root, project: PROJECT });
+    assert.equal(byKey(snapshot.items)['demo-app/slice-4/waiting'].title, 'pick the store');
+    assert.match(snapshot.notices.join(''), /slice 4 matches 2 files/);
+    rmSync(join(root, 'docs', 'plan', 'slices', '04-b.md'));
+    assert.equal(byKey(collect({ root, project: PROJECT }).items)['demo-app/slice-4/waiting'].title, 'from a');
+  });
+
+  test('owner steps of a block with no status row make no card, and a notice says so', () => {
+    const snapshot = buildSnapshot({ project: PROJECT, planText: table('| 5 | Five | planned | | | |'), unverifiedText: '### Slice 5: x\n\n- **You:** do five\n\n### Slice 8: y\n\n- **You:** do eight\n' });
+    assert.deepEqual(snapshot.items.filter((item) => item.type === 'waiting_for_me').map((item) => item.title), ['do five']);
+    assert.match(snapshot.notices.join(''), /slice 8 has owner steps in unverified.md but no status row/);
+  });
+
+  test('owner steps of a slice dropped for an empty title make no card (its parent card is not sent), and notices say so', () => {
+    for (const title of ['', '   ']) {
+      const snapshot = buildSnapshot({ project: PROJECT, planText: table(`| 5 | ${title} | planned | | | |`), unverifiedText: '### Slice 5: x\n\n- **You:** do five\n' });
+      assert.deepEqual(snapshot.items.filter((item) => item.type === 'waiting_for_me'), []);
+      assert.ok(snapshot.notices.some((notice) => /slice 5 has an empty title/.test(notice)));
+      assert.ok(snapshot.notices.some((notice) => /slice 5 has owner steps in unverified.md but no status row/.test(notice)));
+    }
+  });
+
+  test('openForOwner ignores a heading quoted in a code fence and a horizontal rule', () => {
+    assert.equal(openForOwner('```md\n## Open for the owner\n\nSample text.\n```\n\nBody.\n'), '');
+    assert.equal(openForOwner('## Open for the owner\n\n---\n'), '');
+    assert.equal(openForOwner('## Open for the owner\n\n- ---\n- Pick the store\n'), 'Pick the store');
+  });
+
+  test('gitSource has an overall deadline: once it has passed, the next read throws a SourceError', () => {
+    const source = gitSource(FIXTURE, 'HEAD', 0);
+    assert.throws(() => source.read('plan.md'), (error) => error instanceof SourceError && error.path === 'plan.md');
+    assert.throws(() => source.list('docs'), SourceError);
+  });
+
+  test('on overflow a dry run prints the withheld items, not []; a send prints nothing', async () => {
+    const rows = Array.from({ length: 201 }, (_, index) => `| ${index + 1} | S${index + 1} | planned | | | |`).join('\n');
+    const root = mkdtempSync(join(tmpdir(), 'sync-dry-'));
+    writeFileSync(join(root, 'plan.md'), table(rows));
+    const dry = await runSync(['--root', root, '--project', PROJECT, '--dry-run'], {});
+    assert.equal(JSON.parse(dry.stdout).length, 201);
+    assert.match(dry.stderr, /201 items exceed the 200-item cap, nothing sent/);
+    assert.ok(!dry.stdout.includes('undefined'));
+  });
+
+  test('the result line names only the counts the board gave', () => {
+    const snapshot = { project: PROJECT, items: [1, 2] };
+    assert.equal(syncLine(snapshot, { created: 1, updated: 0, closed: 2, unchanged: 3 }), 'sync-docs: demo-app items=2 created=1 updated=0 closed=2 unchanged=3');
+    assert.equal(syncLine(snapshot, { created: 1 }), 'sync-docs: demo-app items=2 created=1');
+    assert.equal(syncLine(snapshot, undefined), 'sync-docs: demo-app items=2 the board gave no counts');
+    assert.ok(!syncLine(snapshot, 'text').includes('undefined'));
+  });
+
+  test('a park note is a marked line in the slice header: prose, later sections and code fences do not count', () => {
+    assert.equal(parkNote('### Slice 9\n\nParked slices are listed in plan.md.\n'), '');
+    assert.equal(parkNote('### Slice 9\n\n*Parked: waits for the deploy.*\n'), 'Parked: waits for the deploy.');
+    assert.equal(parkNote('### Slice 9\n\n#### Why\n\n*Parked: late.*\n'), '');
+    assert.equal(parkNote('### Slice 9\n\n```\n*Parked: in a fence.*\n```\n'), '');
+  });
+
+  test('"Open for the owner" keeps every list item across blank lines, skips code fences, and strips numbers', () => {
+    const text = '## Open for the owner\n\n1. Pick the store.\n\n```\n- not an ask\n```\n\n2) Approve the DNS change.\n3. none\n\nAn unrelated paragraph.\n\n## Next\n- no\n';
+    assert.equal(openForOwner(text), 'Pick the store. Approve the DNS change.');
+    assert.equal(openForOwner('## Open for the owner\n\nNo action needed.\n'), '');
+    assert.equal(openForOwner('## Open for the owner\n\n- Nothing to do\n- —\n'), '');
+    assert.equal(openForOwner('## Open for the owner\n\nPick the store.\nThen the region.\n\nLater paragraph.\n'), 'Pick the store. Then the region.');
+    assert.equal(openForOwner('## Open for the owner\n\n- Pick the store\n  and the region.\n'), 'Pick the store and the region.');
+  });
+
+  test('"so that" runs to the end of its sentence and is read before the title is clipped', () => {
+    const unverifiedText = `### Slice 5: x\n\n- **You:** open v1.2 on the phone, e.g. the S21, so that the release in v1.2.3 can go out. Then tell me.\n- **You:** ${'long '.repeat(80)}so that it ships.\n`;
+    const owner = buildItems({ project: PROJECT, planText: table('| 5 | Five | planned | | | |'), unverifiedText }).filter((item) => item.type === 'waiting_for_me');
+    assert.equal(owner[0].why, 'Slice 5: Five — so that the release in v1.2.3 can go out.');
+    assert.equal(owner[1].why, 'Slice 5: Five — so that it ships.');
+    assert.ok(owner[1].title.length <= 300);
+  });
+
+  test('the title of a parked card loses a trailing attribution', () => {
+    const card = byKey(buildItems({ project: PROJECT, planText: table('| 9 | Nine | parked: pick the store (user, 2026-11-15) | | | |') }))['demo-app/slice-9/waiting'];
+    assert.equal(card.title, 'pick the store');
   });
 });

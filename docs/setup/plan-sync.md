@@ -51,9 +51,10 @@ first); the plugin installs no hook for it.
 - A slice row: `open` for `planned` or anything unknown, `in_progress` for `in progress` or `built`, `blocked` for
   `parked` or `waiting on the user`.
 - A `blocked` slice also gets a "Waiting on you" card (`<project>/slice-<N>/waiting`) when its reason needs the
-  person. A reason that is only a wait on work shows as a blocked slice with its reason and **no** card: waiting for
-  another slice (also one in another repo), for an interactive session, for a deploy, or for a merge. "Waits for the
-  user", "the owner's go", or any reason that also names the person keeps the card.
+  person. A reason that is only a wait on work shows as a blocked slice with its reason and **no** card: it starts
+  with "waits for", "waiting on" or "behind" and names only work, joined by "and" or "then": another slice (also one in
+  another repo), an interactive session, a deploy, a merge, CI, or a PR. Any other word keeps the card ("waits for the
+  user", "the owner's go", "waits for Slice 6 and the store pick").
 - Each bullet under a slice's block in `unverified.md` is a check inside the slice. A bullet that starts `**You:**`
   is a step only the person can do: it becomes a "Waiting on you" card of its own, not a check.
 - Lettered groups (`**A. Title**`) in a slice file's Work section are the slice's parts.

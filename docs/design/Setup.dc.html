@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Set up a chat, desktop</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F6F8}
+a{color:#1D4ED8}a:hover{color:#3B424D}
+button{font:inherit;color:inherit;cursor:pointer}
+</style>
+</helmet>
+<div style="position: relative; width: 1440px; min-height: 1050px; box-sizing: border-box; background: #F5F6F8; color: #14171C; font-family: Inter, system-ui, sans-serif; font-size: 14px; line-height: 1.45">
+<div style="max-width: 820px; margin: 0 auto; padding: 32px 32px 64px; display: flex; flex-direction: column; gap: 20px">
+<a href="#" style="align-self: flex-start; min-height: 44px; display: inline-flex; align-items: center; gap: 6px; font-weight: 600; text-decoration: none"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1D4ED8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"></path></svg>Back to the board</a>
+<header style="display: flex; flex-direction: column; gap: 6px">
+<h1 style="margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.02em">Set up a chat</h1>
+<p style="margin: 0; color: #3B424D">Paste this text into claude.ai, Settings, Your Claude, Instructions, so your chats report to the board.</p>
+</header>
+<section aria-labelledby="paste-h" style="background: #FFFFFF; border: 1px solid #E3E6EB; border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 12px">
+<h2 id="paste-h" style="margin: 0; font-size: 16px; font-weight: 700">Everything for the Instructions box</h2>
+<p style="margin: 0; padding: 10px 12px; border-radius: 10px; background: #FDEBD8; border: 1px solid #F0C9A0; font-size: 13px"><strong style="color: #9A3F00">This is all of it.</strong> It replaces what is in the box now: the connector line first, then the rules.</p>
+<pre style="margin: 0; max-height: 260px; overflow: auto; padding: 14px; border-radius: 10px; background: #F5F6F8; border: 1px solid #E3E6EB; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.6; white-space: pre-wrap; color: #14171C">You have the &quot;board&quot; connector (the agent progress board).
+
+This server is a progress board. Report your own work on it.
+
+If your brief names a parent card key, you are a helper agent: report your steps on that card and open no session card. Otherwise, …
+
+Keep the card current:
+- Whenever a step changes, send the whole steps list again.
+- While working, report at least every 5 minutes …</pre>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px"><button style="min-height: 44px; padding: 0 22px; border-radius: 10px; border: 0; background: #14171C; color: #FFFFFF; font-weight: 600; display: inline-flex; align-items: center; gap: 8px"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a1 1 0 0 1 1-1h9"></path></svg>Copy</button></div>
+</section>
+<section aria-labelledby="apps-h" style="background: #FFFFFF; border: 1px solid #E3E6EB; border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 6px">
+<h2 id="apps-h" style="margin: 0; font-size: 16px; font-weight: 700">Connected apps</h2>
+<p style="margin: 0 0 6px; font-size: 13px; color: #5B6370">Apps you signed in to the board from. Ending access stops an app from reporting; connect it again from that app.</p>
+<ul style="margin: 0; padding: 0; list-style: none"><li style="padding: 14px 0; border-top: 1px solid #E3E6EB; display: flex; flex-direction: column; gap: 10px">
+<span style="display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline"><span style="font-weight: 600">claude.ai</span><span style="font-size: 13px; color: #5B6370">Connected Mon 16 Nov, 21:04</span></span>
+<div role="alert" style="background: #FCE4E4; border: 1px solid #F3BDBA; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px">
+<span style="font-size: 14px">End access for <strong>claude.ai</strong>? Its chats stop reporting until you connect it again.</span>
+<span style="display: flex; flex-wrap: wrap; gap: 8px"><button style="min-height: 44px; padding: 0 16px; border-radius: 10px; border: 0; background: #B42318; color: #FFFFFF; font-weight: 600">End access</button><button style="min-height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid #E3E6EB; background: #FFFFFF; font-weight: 600">Keep it</button></span>
+</div>
+</li><li style="padding: 12px 0; border-top: 1px solid #E3E6EB; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px">
+<span style="display: flex; flex-direction: column; flex: 1 1 200px"><span style="font-weight: 600">Claude Design</span><span style="font-size: 13px; color: #5B6370">Connected Tue 17 Nov, 09:12</span></span>
+<button style="min-height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid #F3BDBA; background: transparent; color: #B42318; font-weight: 600">End access</button>
+</li></ul>
+</section>
+<section aria-label="Connected apps states" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px">
+<div style="border: 1px dashed #E3E6EB; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #5B6370">No apps</span><span>No app is connected yet. Paste the text above into claude.ai to connect one.</span></div>
+<div style="border: 1px dashed #E3E6EB; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #5B6370">Loading (after 500 ms)</span><span style="color: #5B6370">Loading connected apps…</span></div>
+<div style="border: 1px dashed #E3E6EB; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #5B6370">Failed</span><span>Couldn’t load connected apps. The API answered 503 (service unavailable).</span><button style="align-self: flex-start; margin-top: 4px; min-height: 44px; padding: 0 16px; border-radius: 10px; border: 0; background: #14171C; color: #FFFFFF; font-weight: 600">Retry</button></div>
+</section>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1050}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

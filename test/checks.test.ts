@@ -3,9 +3,9 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { boardResponse } from "../src/api/board";
 import type { BoardResponse } from "../src/api/boardDto";
 import { parseConfig } from "../src/config";
-import { itemProblem, MAX_CHECKS } from "../src/domain/checks";
+import { ancestorKeys, itemProblem, MAX_CHECKS, MAX_PARENT_DEPTH } from "../src/domain/checks";
 import { splitSliceTitle } from "../src/domain/docSync";
-import { ItemType } from "../src/domain/item";
+import { ItemStatus, ItemType } from "../src/domain/item";
 import { BOARD_WHERE, D1ItemRepository } from "../src/infrastructure/d1Repository";
 import { callTool, countRows, resetBoard } from "./helpers";
 
@@ -232,6 +232,17 @@ describe("GET /api/board checks and problems", () => {
     expect(plan.filter((line) => /^(CORRELATED SCALAR SUBQUERY|SCAN) .*items (AS )?c\b/.test(line))).toEqual([]);
   });
 
+  it("keeps BOARD_WHERE and groupBoard equal: an old done slice is built only for an open or in-progress check, never a blocked one", async () => {
+    await callTool("report_progress", { key: SLICE, project: PROJECT, type: "slice", title: "Slice 12 · Old", status: "done" });
+    await callTool("report_progress", { key: CHECK_A, project: PROJECT, type: "check", title: "Check A", status: "blocked", parent_key: SLICE });
+    await env.DB.prepare("UPDATE items SET done_at = ?1 WHERE key = ?2").bind("2020-01-01T00:00:00.000Z", SLICE).run();
+    expect((await board()).groups).toEqual([]);
+    await callTool("report_progress", { key: CHECK_A, status: "in_progress" });
+    const group = (await board()).groups[0]!;
+    expect(group.built.map((s) => s.key)).toEqual([SLICE]);
+    expect(group.summary).toMatchObject({ built: 1, checks_not_tried: 1 });
+  });
+
   it("returns the slice a bug names, and null for a problem that names none or a key that is no slice", async () => {
     await sync([slice()]);
     await callTool("report_progress", { key: "demo-app/bug-1", project: PROJECT, type: "bug", title: "Crash", parent_key: SLICE });
@@ -349,6 +360,30 @@ describe("itemProblem relations (Slice 33)", () => {
     expect(itemProblem({ key: "a/s/part-A", type: ItemType.Part, parent_key: "a/s" }, { project: PROJECT, type: ItemType.Bug }, PROJECT)).toContain("not a slice");
     expect(itemProblem({ key: "a/x/part-A", type: ItemType.Part, parent_key: "a/s" }, slice, PROJECT)).toContain("must start with");
     expect(itemProblem({ key: "a/s/part-A", type: ItemType.Part, parent_key: "a/s" }, slice, PROJECT)).toBeNull();
+  });
+
+  it("refuses a cycle of any length through the parent's ancestors, and a sync that retypes a live item", () => {
+    const parent = { project: PROJECT, type: ItemType.Slice, parent_key: "a/c", above: ["a/c", "a/d", "a/a"] };
+    expect(itemProblem({ key: "a/a", type: ItemType.Bug, parent_key: "a/b" }, parent, PROJECT)).toContain("own parent");
+    expect(itemProblem({ key: "a/z", type: ItemType.Bug, parent_key: "a/b" }, parent, PROJECT)).toBeNull();
+    const live = { type: ItemType.Bug, in_doc_sync: false, status: ItemStatus.Open };
+    expect(itemProblem({ key: "a/x", type: ItemType.Slice, parent_key: null, stored: live }, null, PROJECT)).toMatch(/^type:/);
+    expect(itemProblem({ key: "a/x", type: ItemType.Bug, parent_key: null, stored: live }, null, PROJECT)).toBeNull();
+    expect(itemProblem({ key: "a/x", type: ItemType.Slice, parent_key: null, stored: { ...live, in_doc_sync: true } }, null, PROJECT)).toBeNull();
+  });
+
+  it("lets a done or closed key come back with another type, and takes a bug or problem under a non-slice parent", () => {
+    const done = { type: ItemType.Bug, in_doc_sync: false, status: ItemStatus.Done };
+    expect(itemProblem({ key: "a/x", type: ItemType.Slice, parent_key: null, stored: done }, null, PROJECT)).toBeNull();
+    const session = { project: PROJECT, type: ItemType.Unplanned };
+    expect(itemProblem({ key: "a/b", type: ItemType.Bug, parent_key: "a/session" }, session, PROJECT)).toBeNull();
+  });
+
+  it("walks ancestors up to the bound and stops on a loop", () => {
+    const parents: Record<string, string> = { b: "c", c: "d", d: "b" };
+    expect(ancestorKeys("b", (key) => parents[key])).toEqual(["b", "c", "d"]);
+    expect(ancestorKeys(null, () => "x")).toEqual([]);
+    expect(ancestorKeys("n0", (key) => `n${Number(key.slice(1)) + 1}`)).toHaveLength(MAX_PARENT_DEPTH);
   });
 
   it("refuses a slice key too long for its part keys", () => {

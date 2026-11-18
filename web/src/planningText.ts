@@ -39,6 +39,7 @@ export function nowLine(parts: BoardPartDto[] | null, state: SliceState, t: Tran
     return doneBefore ? t("partNext", { letter: part.letter }) : t("sliceNotStarted");
   }
   const text = t("sliceNowLine", { letter: part.letter, title: part.title });
+  if (now.kind === PartNowKind.Blocked) return `${text}${t("partBlockedSuffix")}`;
   return now.kind === PartNowKind.Stale ? `${text}${t("partStaleSuffix")}` : text;
 }
 

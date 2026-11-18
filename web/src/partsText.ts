@@ -29,6 +29,7 @@ export function partNowText(parts: BoardPartDto[], t: Translate): string {
   if (now.kind === PartNowKind.AllDone || !part) return t("partsAllDone");
   if (now.kind === PartNowKind.Next) return t("partNext", { letter: part.letter });
   const text = t("partNow", { letter: part.letter, step: stepOf(part, t) });
+  if (now.kind === PartNowKind.Blocked) return `${text}${t("partBlockedSuffix")}`;
   return now.kind === PartNowKind.Stale ? `${text}${t("partStaleSuffix")}` : text;
 }
 

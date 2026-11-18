@@ -19,6 +19,7 @@ import { callTool, normaliseSliceNumber, parseArgs, projectSlug, resolveConfig, 
 export const SYNC_TIMEOUT_MS = 5000;
 export const MAX_ITEMS = 200;
 const TITLE_LIMIT = 300;
+const DETAILS_LIMIT = 20000; // the board's longest details_md
 const WHY_LIMIT = 2000;
 const SLICES_DIR = 'docs/plan/slices';
 const DONE_PATH = 'docs/plan/notes/slices-done.md';
@@ -73,9 +74,29 @@ const PART_HEADING = /^\s*(?:[-*+]\s+)?\*\*([A-Z])\.\s+(.+?)\*\*/;
 const CHECKBOX = /^\s*(?:[-*+]|\d+[.)])\s+\[([ xX])\]/;
 export const MAX_EXPANDED_ITEMS = 1000; // the board's limit on items plus parts (docs/clients.md, sync_snapshot)
 
+function flatten(text) {
+  return String(text || '').replace(/\s+/g, ' ').trim();
+}
+
+// The index at or below `end` that does not fall between the two halves of a surrogate pair.
+function codePointBoundary(text, end) {
+  const code = text.charCodeAt(end - 1);
+  return end > 0 && code >= 0xd800 && code <= 0xdbff ? end - 1 : end;
+}
+
 export function clip(text, limit) {
-  const flat = String(text || '').replace(/\s+/g, ' ').trim();
-  return flat.length > limit ? `${flat.slice(0, limit - 1)}…` : flat;
+  const flat = flatten(text);
+  return flat.length > limit ? `${flat.slice(0, codePointBoundary(flat, limit - 1))}…` : flat;
+}
+
+// The title of an item as its fields: the clipped title, and `details_md` with the rest of it when it was clipped,
+// so the card still shows the whole text (the board stores it on a new key only).
+export function titleFields(text) {
+  const flat = flatten(text);
+  const title = clip(flat, TITLE_LIMIT);
+  const cut = codePointBoundary(flat, TITLE_LIMIT - 1);
+  const rest = flat.length > TITLE_LIMIT ? flat.slice(cut).trim().slice(0, codePointBoundary(flat.slice(cut).trim(), DETAILS_LIMIT)) : '';
+  return rest ? { title, details_md: rest } : { title };
 }
 
 // Markdown to plain text: links keep their label, emphasis and code marks go.
@@ -316,7 +337,7 @@ function waitingItem(project, row, reason, parent, repoUrl, sliceText) {
   const title = openForOwner(sliceText) || withoutAttribution(reason).trim() || `Waiting on you: ${row.title}`;
   return {
     key: `${project}/slice-${row.number}/waiting`, project, type: 'waiting_for_me', status: 'open',
-    title: clip(title, TITLE_LIMIT), parent, why: clip(`Slice ${row.number}: ${row.title}`, WHY_LIMIT), ...(links.length ? { links } : {}),
+    ...titleFields(title), parent, why: clip(`Slice ${row.number}: ${row.title}`, WHY_LIMIT), ...(links.length ? { links } : {}),
   };
 }
 
@@ -338,7 +359,7 @@ function sliceItems(project, row, notes, repoUrl, sliceText = '') {
   const links = sliceLinks(row, repoUrl);
   const item = {
     key: `${project}/slice-${row.number}`, project, type: 'slice', status: mapped.status,
-    title: clip(row.title, TITLE_LIMIT), parent, ...(mapped.reason ? { why: clip(mapped.reason, WHY_LIMIT) } : {}),
+    ...titleFields(row.title), parent, ...(mapped.reason ? { why: clip(mapped.reason, WHY_LIMIT) } : {}),
     ...(links.length ? { links } : {}), ...partsField(sliceText),
   };
   if (mapped.status !== 'blocked') return [item];
@@ -480,7 +501,7 @@ function ownerItem(project, block, row, entry, repoUrl) {
   return {
     key: `${project}/slice-${block.number}/check-${checkHash(entry.line)}`, project,
     type: 'waiting_for_me', status: 'open',
-    title: clip(full, TITLE_LIMIT) || entryTitle(entry),
+    ...(clip(full, TITLE_LIMIT) ? titleFields(full) : { title: entryTitle(entry) }),
     why: clip(unblocks ? `${sliceName} — ${unblocks[0]}` : `Not yet verified for ${sliceName}`, WHY_LIMIT),
     parent: `Slice ${block.number} · Not yet verified`,
     ...(links.length ? { links } : {}),

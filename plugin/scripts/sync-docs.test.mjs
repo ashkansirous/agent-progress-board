@@ -11,7 +11,7 @@ import { basename, join } from 'node:path';
 import { describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { sliceKey } from './report-progress.mjs';
-import { MAX_CHECKS, MAX_EXPANDED_ITEMS, MAX_ITEMS, SourceError, WAIT_TARGETS, buildItems, buildSnapshot, checkHash, collect, filesForSlice, gitSource, hasEmptyStatusTable, mapStatus, openForOwner, parkNote, parseParts, parsePlanTable, parseParked, parseUnverified, readUnverified, safeLinkPath, syncLine, waitsOnlyOnWork } from './sync-docs.mjs';
+import { MAX_CHECKS, MAX_EXPANDED_ITEMS, MAX_ITEMS, SourceError, WAIT_TARGETS, buildItems, buildSnapshot, checkHash, collect, filesForSlice, gitSource, hasEmptyStatusTable, mapStatus, openForOwner, parkNote, parseParts, parsePlanTable, parseParked, parseUnverified, readUnverified, safeLinkPath, syncLine, titleFields, waitsOnlyOnWork } from './sync-docs.mjs';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
 const SCRIPT = join(here, 'sync-docs.mjs');
@@ -153,6 +153,22 @@ describe('snapshot items', () => {
       assert.equal(built['demo-app/slice-9'].status, 'blocked', reason);
       assert.equal(built['demo-app/slice-9/waiting'], undefined, reason);
     }
+  });
+
+  test('the rest of a clipped slice title goes to details_md, and a short title sends none (Slice 33)', () => {
+    const long = `${'word '.repeat(80)}END`;
+    const planText = `## Status\n\n| # | Slice | Status | PR | Issue | File |\n| --- | --- | --- | --- | --- | --- |\n| 9 | ${long} | planned | | | |\n| 8 | Short | planned | | | |\n`;
+    const built = byKey(buildItems({ project: PROJECT, planText }));
+    const item = built['demo-app/slice-9'];
+    assert.equal(item.title.length, 300);
+    assert.ok(item.title.endsWith('…'));
+    assert.ok(item.details_md.endsWith('END'));
+    assert.equal(built['demo-app/slice-8'].details_md, undefined);
+    assert.equal(titleFields('x'.repeat(30000)).details_md.length, 20000);
+    const emoji = titleFields(`${'x'.repeat(298)}😀 and more`);
+    assert.equal(emoji.title, `${'x'.repeat(298)}…`);
+    assert.ok(emoji.details_md.startsWith('😀'));
+    assert.equal(titleFields(`${'y'.repeat(299)}😀`).details_md, '😀');
   });
 
   test('"waits for the user" and "the owner\'s go" still give a waiting_for_me item', () => {

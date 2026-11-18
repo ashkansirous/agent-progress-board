@@ -1,6 +1,7 @@
 import { useId } from "react";
 import type { BoardItemDto } from "../../src/api/boardDto";
 import type { ProjectGroups } from "../../src/domain/boardGroups";
+import { countedChecks } from "../../src/domain/checks";
 import { DoneSection } from "./DoneSection";
 import { ChevronIcon } from "./icons";
 import { projectLabel } from "./model";
@@ -67,6 +68,7 @@ function ProjectBody({ group, items, onOpen, onOpenLoose, id }: GroupProps & { i
         slices={group.planned}
         items={items}
         looseCount={group.loose_checks.length}
+        looseNotTried={countedChecks(group.loose_checks)}
         onOpen={() => onOpenLoose(group.id)}
         onOpenItem={onOpen}
       />

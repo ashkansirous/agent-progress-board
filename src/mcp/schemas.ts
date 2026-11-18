@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MAX_CHECKS, MAX_KEY_LENGTH } from "../domain/checks";
+import { MAX_CHECKS, MAX_KEY_LENGTH, PART_SUFFIX_LENGTH } from "../domain/checks";
 import { MAX_EXPANDED_ITEMS, MAX_SNAPSHOT_ITEMS } from "../domain/docSync";
 import { ItemStatus, ItemType, Priority } from "../domain/item";
 import { MAX_PARTS } from "../domain/parts";
@@ -216,7 +216,7 @@ const snapshotItem = z.object({
     .array(snapshotPart)
     .max(MAX_PARTS)
     .optional()
-    .describe("The slice's lettered work groups; each becomes the item <key>/part-<letter>, so the slice key must be at most 193 characters; a part left out is closed"),
+    .describe(`The slice's lettered work groups; each becomes the item <key>/part-<letter>, so the slice key must be at most ${MAX_KEY_LENGTH - PART_SUFFIX_LENGTH} characters; a part left out is closed`),
   checks: z
     .array(snapshotCheck)
     .max(MAX_CHECKS)
@@ -225,7 +225,7 @@ const snapshotItem = z.object({
   parent_key: key
     .nullable()
     .optional()
-    .describe("Only on a top-level check item: the key of its slice, which need not be in the snapshot; null clears a stored one (not on a check)"),
+    .describe("The slice a top-level check, bug or problem belongs to (it need not be in the snapshot; a check needs one); left out keeps the stored value; null clears it (not on a check)"),
 });
 
 export const syncSnapshotShape = {

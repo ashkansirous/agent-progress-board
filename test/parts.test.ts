@@ -66,6 +66,12 @@ describe("partStateOf", () => {
     expect(partStateOf({ ...live, status: ItemStatus.Stale }, MINUTES, NOW)).toBe(PartState.Stale);
   });
 
+  it("is blocked when stored as blocked, and partNow names it before Next", () => {
+    expect(partStateOf({ ...live, status: ItemStatus.Blocked }, MINUTES, NOW)).toBe(PartState.Blocked);
+    const parts = [{ key: "p/slice-1/part-A", letter: "A", title: "A", state: PartState.Blocked }, { key: "p/slice-1/part-B", letter: "B", title: "B", state: PartState.Pending }];
+    expect(partNow(parts)).toMatchObject({ kind: PartNowKind.Blocked, part: { letter: "A" } });
+  });
+
   it("is done when done and pending when open", () => {
     expect(partStateOf({ ...live, status: ItemStatus.Done }, MINUTES, NOW)).toBe(PartState.Done);
     expect(partStateOf({ ...live, status: ItemStatus.Open, steps: null }, MINUTES, NOW)).toBe(PartState.Pending);

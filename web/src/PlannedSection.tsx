@@ -1,5 +1,6 @@
 import type { BoardItemDto, BoardPartDto } from "../../src/api/boardDto";
 import { type PlannedSlice, SliceState } from "../../src/domain/boardGroups";
+import { countedChecks } from "../../src/domain/checks";
 import { PartState } from "../../src/domain/parts";
 import { useState } from "react";
 import { ChevronIcon, PhoneIcon } from "./icons";
@@ -10,7 +11,10 @@ import { useView } from "./view";
 interface PlannedProps {
   slices: PlannedSlice[];
   items: Map<string, BoardItemDto>;
+  /** How many loose checks are shown (any state but done); the card shows while there is one. */
   looseCount: number;
+  /** How many of them are not tried (`countedChecks`), the number the card says. */
+  looseNotTried: number;
   onOpen: () => void;
   onOpenItem: (key: string) => void;
 }
@@ -18,7 +22,8 @@ interface PlannedProps {
 const SEGMENT_CLASS: Record<PartState, string> = {
   [PartState.Done]: "slice-seg-done",
   [PartState.Active]: "slice-seg-active",
-  [PartState.Stale]: "slice-seg-active",
+  [PartState.Stale]: "slice-seg-later",
+  [PartState.Blocked]: "slice-seg-later",
   [PartState.Pending]: "slice-seg-later",
 };
 
@@ -58,7 +63,7 @@ function SliceCard({ slice, item, onOpenItem }: { slice: PlannedSlice; item: Boa
         )}
         <span className="slice-checks">
           <PhoneIcon size={13} stroke="var(--muted)" />
-          {checksLine(slice.checks.length, t)}
+          {checksLine(countedChecks(slice.checks), t)}
         </span>
       </button>
       {item && <FollowLink item={item} />}
@@ -81,7 +86,7 @@ function LooseCard({ count, onOpen }: { count: number; onOpen: () => void }) {
  * "Built · {n}": done slices that still have checks not tried on a device. Folded on load, like Done work; the
  * header button opens the cards, which are the planned cards with the "Built" pill.
  */
-export function BuiltSection({ slices, items, onOpenItem }: Omit<PlannedProps, "looseCount" | "onOpen">) {
+export function BuiltSection({ slices, items, onOpenItem }: Omit<PlannedProps, "looseCount" | "looseNotTried" | "onOpen">) {
   const { t } = useView();
   const [open, setOpen] = useState(false);
   if (slices.length === 0) return null;
@@ -105,7 +110,7 @@ export function BuiltSection({ slices, items, onOpenItem }: Omit<PlannedProps, "
 }
 
 /** "Planned · {n}": the slices (counted), each as a card with its parts bar and check count, then the loose-checks card. */
-export function PlannedSection({ slices, items, looseCount, onOpen, onOpenItem }: PlannedProps) {
+export function PlannedSection({ slices, items, looseCount, looseNotTried, onOpen, onOpenItem }: PlannedProps) {
   const { t } = useView();
   if (slices.length === 0 && looseCount === 0) return null;
   return (
@@ -115,7 +120,7 @@ export function PlannedSection({ slices, items, looseCount, onOpen, onOpenItem }
         {slices.map((slice) => (
           <SliceCard key={slice.key} slice={slice} item={items.get(slice.key)} onOpenItem={onOpenItem} />
         ))}
-        {looseCount > 0 && <LooseCard count={looseCount} onOpen={onOpen} />}
+        {looseCount > 0 && <LooseCard count={looseNotTried} onOpen={onOpen} />}
       </div>
     </div>
   );

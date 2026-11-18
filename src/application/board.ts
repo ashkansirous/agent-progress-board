@@ -3,13 +3,12 @@ import {
   closeTargets,
   MAX_EXPANDED_ITEMS,
   planItem,
-  typeConflict,
   type SnapshotItem,
   type SyncRow,
   validateSnapshot,
 } from "../domain/docSync";
 import { type Item, ItemStatus, ItemType, type ItemWithEvents } from "../domain/item";
-import { itemProblem, nestedChecks, type ParentRef } from "../domain/checks";
+import { ancestorKeys, itemProblem, MAX_PARENT_DEPTH, nestedChecks, type ParentRef } from "../domain/checks";
 import { expandParts } from "../domain/parts";
 import { DEFAULT_STALE_AFTER_MINUTES, expiryMinutesFor, hasOpenQuestion, SESSION_AGENT, staleCutoff } from "../domain/stale";
 import { checkReport, DomainError, newItem, type ReportInput, withQuestion } from "../domain/upsert";
@@ -97,11 +96,38 @@ async function saveReport(
  * allowed (a live report may arrive before the document snapshot lists the slice).
  */
 async function assertItemFits(repo: ItemRepository, input: ReportInput, existing: Item | null): Promise<void> {
+  if (existing && !changesRelation(input, existing)) return;
   const parentKey = input.parent_key === undefined ? existing?.parent_key : input.parent_key;
-  const parent = parentKey ? await repo.find(parentKey) : null;
+  const parents = await loadParents(repo, parentKey);
+  const parent = parentKey ? parentRef(parents.get(parentKey), (key) => parents.get(key)?.parent_key) : null;
   const state = { key: input.key, type: input.type ?? existing?.type, parent_key: parentKey };
   const reason = itemProblem(state, parent, input.project ?? existing?.project);
   if (reason) throw problemError(reason);
+}
+
+/**
+ * Whether a report changes the stored item's type, project or parent: a heartbeat or status report does not, so
+ * a legacy row stored before the rules existed is never refused for something the report leaves as it was.
+ */
+function changesRelation(input: ReportInput, existing: Item): boolean {
+  return (
+    (input.type !== undefined && input.type !== existing.type) ||
+    (input.project !== undefined && input.project !== existing.project) ||
+    (input.parent_key !== undefined && input.parent_key !== existing.parent_key)
+  );
+}
+
+/** The parent and its ancestors by key, read one by one up to `MAX_PARENT_DEPTH` (a stored loop ends the walk). */
+async function loadParents(repo: ItemRepository, start: string | null | undefined): Promise<Map<string, Item>> {
+  const rows = new Map<string, Item>();
+  let key = start;
+  while (key && rows.size < MAX_PARENT_DEPTH && !rows.has(key)) {
+    const row = await repo.find(key);
+    if (!row) break;
+    rows.set(key, row);
+    key = row.parent_key;
+  }
+  return rows;
 }
 
 /** A rule's reason as the error a tool returns: the reason names its field before the colon. */
@@ -290,7 +316,7 @@ function topLevelReasons(
     const kept = new Map([...topLevel].filter(([key]) => !reasons.has(key)));
     for (const { item } of groups) {
       if (reasons.has(item.key)) continue;
-      const reason = topLevelProblem(project, item, kept, stored);
+      const reason = topLevelProblem(project, item, { kept, stored, skipped: reasons });
       if (reason) reasons.set(item.key, reason);
     }
     if (reasons.size === before) break;
@@ -304,23 +330,37 @@ function omitChecks(item: SnapshotItem): SnapshotItem {
   return rest;
 }
 
-function parentRef(row: { project: string; type: ItemType; parent_key?: string | null } | undefined | null): ParentRef | null {
-  return row ? { project: row.project, type: row.type, parent_key: row.parent_key } : null;
+function parentRef(
+  row: { key: string; project: string; type: ItemType; parent_key?: string | null } | undefined | null,
+  parentOf?: (key: string) => string | null | undefined,
+): ParentRef | null {
+  if (!row) return null;
+  const parentKey = parentOf ? parentOf(row.key) : row.parent_key;
+  return { project: row.project, type: row.type, parent_key: parentKey, above: ancestorKeys(parentKey, parentOf ?? (() => null)) };
 }
 
-/** A top-level item in its final state: the snapshot's type and parent_key, the stored parent_key when it sends none. */
-function topLevelProblem(
-  project: string,
-  item: SnapshotItem,
-  topLevel: Map<string, SnapshotItem>,
-  stored: Map<string, SyncRow>,
-): string | null {
+/** What a top-level item is checked against: the sibling items still kept, the stored rows and the reasons already given. */
+interface TopLevelContext {
+  kept: Map<string, SnapshotItem>;
+  stored: Map<string, SyncRow>;
+  skipped: Map<string, string>;
+}
+
+/**
+ * A top-level item in its final state: the snapshot's type and parent_key, the stored parent_key when it sends none.
+ * An item naming a sibling that is itself skipped is skipped too, so it is never saved under a refused parent.
+ */
+function topLevelProblem(project: string, item: SnapshotItem, context: TopLevelContext): string | null {
+  const { kept, stored, skipped } = context;
   const row = stored.get(item.key);
-  const conflict = typeConflict(row, item);
-  if (conflict) return conflict;
   const parentKey = item.parent_key === undefined ? row?.parent_key : item.parent_key;
-  const parent = parentKey ? parentRef(topLevel.get(parentKey) ?? stored.get(parentKey)) : null;
-  const state = { key: item.key, type: item.type, parent_key: parentKey, checks: item.checks?.length, parts: item.parts?.length };
+  if (parentKey && skipped.has(parentKey)) return `parent_key: ${parentKey} is skipped in this snapshot, so ${item.key} cannot name it`;
+  const parentOf = (key: string): string | null | undefined => {
+    const snap = kept.get(key);
+    return snap && snap.parent_key !== undefined ? snap.parent_key : stored.get(key)?.parent_key;
+  };
+  const parent = parentKey ? parentRef(kept.get(parentKey) ?? stored.get(parentKey), parentOf) : null;
+  const state = { key: item.key, type: item.type, parent_key: parentKey, checks: item.checks?.length, parts: item.parts?.length, stored: row };
   return itemProblem(state, parent, project);
 }
 
@@ -332,10 +372,8 @@ function childProblem(
   seen: Set<string>,
   stored: SyncRow | undefined,
 ): string | null {
-  const conflict = typeConflict(stored, child);
-  if (conflict) return conflict;
   if (seen.has(child.key)) return `key: ${child.key} appears twice in the snapshot`;
-  const state = { key: child.key, type: child.type, parent_key: child.parent_key };
+  const state = { key: child.key, type: child.type, parent_key: child.parent_key, stored };
   return itemProblem(state, parentRef(slice), project);
 }
 

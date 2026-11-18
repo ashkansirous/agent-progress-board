@@ -12,6 +12,7 @@ import {
   type TaskInfo,
   type UsageRepository,
 } from "../application/ports";
+import { COUNTED_CHECK_STATUSES } from "../domain/checks";
 import type { CapReading } from "../domain/cap";
 import type { UsageSample } from "../domain/usage";
 import { SYNC_LEFT_NOTE, type SyncRow, type SyncWrite } from "../domain/docSync";
@@ -54,13 +55,14 @@ interface EventRow extends ItemEvent {
  * What the board lists: open items and those done inside the window, plus the parts of a slice that is
  * itself listed, however long ago a part was done (a slice's bar counts every part; Slice 11). Only parts
  * and checks ride along: a bug or problem that names a slice is listed by its own status and window.
- * A done slice that still has a check not tried stays listed whatever its age (Slice 42: the board's Built list);
+ * A done slice that still has a check not tried (open or in progress, `isCountedCheck`) stays listed whatever its age (Slice 42: the board's Built list);
  * the probe uses idx_items_parent_key. It runs once per row that reaches it: a done slice row asks
  * about its own checks, a done part or check row asks about its siblings (the parent subquery
  * holds no probe, so no row is probed twice).
  */
+const COUNTED_CHECK_SQL = COUNTED_CHECK_STATUSES.map((status) => `'${status}'`).join(", ");
 const OPEN_CHECK_OF = (parentKey: string) => `EXISTS (
-    SELECT 1 FROM items c WHERE c.parent_key = ${parentKey} AND c.type = 'check' AND c.status != 'done')`;
+    SELECT 1 FROM items c WHERE c.parent_key = ${parentKey} AND c.type = 'check' AND c.status IN (${COUNTED_CHECK_SQL}))`;
 export const BOARD_WHERE = `(status != 'done' OR done_at > ?1
     OR (type = 'slice' AND ${OPEN_CHECK_OF("items.key")})
     OR (type IN ('part', 'check') AND parent_key IS NOT NULL AND (parent_key IN (
@@ -170,16 +172,18 @@ const UPSERT_ITEM = `INSERT INTO items (key, project, parent, type, priority, st
  * owns are set on an existing key; type, priority, details, heartbeat and created_at stay.
  * ?20 and ?21 are the updated_at and live_status_at the sync read (null for a new key): the
  * update applies only while the row still has them, so it never acts on a stale read.
+ * ?22 is details_md: on an existing key it is written only while the stored one is null, so a set one is never overwritten.
  */
 const SYNC_UPSERT = `INSERT INTO items (key, project, parent, type, priority, status, title, why, links,
   source, heartbeat_at, created_at, updated_at, done_at, in_doc_sync, doc_status, doc_status_at, live_status_at,
-  parent_key)
-  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)
+  parent_key, details_md)
+  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?22)
   ON CONFLICT (key) DO UPDATE SET type = excluded.type, parent = excluded.parent, parent_key = excluded.parent_key,
   status = excluded.status,
   title = excluded.title, why = excluded.why, links = excluded.links, source = excluded.source,
   updated_at = excluded.updated_at, done_at = excluded.done_at, in_doc_sync = excluded.in_doc_sync,
-  doc_status = excluded.doc_status, doc_status_at = excluded.doc_status_at
+  doc_status = excluded.doc_status, doc_status_at = excluded.doc_status_at,
+  details_md = COALESCE(items.details_md, excluded.details_md)
   WHERE items.updated_at IS ?20 AND items.live_status_at IS ?21`;
 
 /** Written only when the write above took effect (the row now has this updated_at and status). */
@@ -424,7 +428,7 @@ export class D1ItemRepository implements ItemRepository, UsageRepository {
     const upsert = this.db.prepare(SYNC_UPSERT);
     const event = this.db.prepare(SYNC_EVENT);
     const statements = writes.flatMap(({ item, event: change, read }) => [
-      upsert.bind(...syncParams(item), read?.updated_at ?? null, read?.live_status_at ?? null),
+      upsert.bind(...syncParams(item), read?.updated_at ?? null, read?.live_status_at ?? null, item.details_md),
       ...(change ? [event.bind(item.key, change.at, change.status, DOC_SYNC_SOURCE, change.note)] : []),
     ]);
     if (closes.length > 0) {

@@ -39,3 +39,5 @@ Rows moved out of `plan.md`'s status table once built.
 | 37 | Access answers, ending a grant, and the setup page's leftovers | built | #136 | | [37](../slices/37-access-and-grants.md) |
 | 32 | Open questions are counted and kept right; ask_human can set needs_you | built | #137 | | [32](../slices/32-questions-and-rules.md) |
 | 35 | Usage page and cost figures: review leftovers | built | #138 | | [35](../slices/35-usage-page-fixes.md) |
+| 36 | Board, Active and drawer pages: review leftovers | built | #144 | | [36](../slices/36-board-page-fixes.md) |
+| 39 | Steps are a tree: sub-steps unfold in place, and several can run at once | built | #143 | | [39](../slices/39-step-tree.md) |

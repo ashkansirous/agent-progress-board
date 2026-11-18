@@ -149,3 +149,11 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
 - `list_open` and `get_item` replies are cut at 50,000 characters (Claude Code's own text-result limit) only by
   `cutReply` in `src/mcp/tools.ts`; it never clips ids or times, and its note names the first dropped key. Never add a
   second cut (Slice 32: docs/plan/slices/32-questions-and-rules.md).
+- The board's loading state ends only through `settle()` in `web/src/boardStore.ts`; never write `loading` or `slow`
+  anywhere else (Slice 36: docs/plan/slices/36-board-page-fixes.md).
+- Every write of `items.steps` goes through `saveStepsReport` in `src/application/board.ts` (compare-and-swap); never add a
+  second write path (Slice 39: docs/plan/slices/39-step-tree.md).
+- Step ids are resolved only by `resolveIds` in `src/domain/steps.ts`; never generate or reuse ids elsewhere (Slice 39:
+  docs/plan/slices/39-step-tree.md).
+- The event insert is bound to its own write by `changes() > 0` in `src/infrastructure/d1Repository.ts`; keep the two
+  statements adjacent in the batch (Slice 39: docs/plan/slices/39-step-tree.md).

@@ -34,7 +34,7 @@ medium), and an item opened from Active closes to the board.
 
 #### Work
 
-*Built 2026-11-18 (night wave 3), PR #144 pending merge; 17 of 22 items at build plus review fixes, not yet tried on a phone. Tests green on the final code: 604 vitest, 341 node, 296 e2e.* Premise check at claim (wave 19, `origin/main` 58fdcbe), the builder reads
+*Built 2026-11-18 (night wave 3), merged as PR #144 (fdf5bc7); 17 of 22 items at build plus review fixes, not yet tried on a phone. Tests green on the final code: 604 vitest, 341 node, 296 e2e.* Premise check at claim (wave 19, `origin/main` 58fdcbe), the builder reads
 these before the items below:
 - Slice 10 high #7 may already be done: `model.ts:59` and `cards.ts:24` use the server's `item.working`;
   `heartbeat_at` is used only for sorting and display. Confirm and tick it with a pinning test, or fix what is left.
@@ -154,7 +154,7 @@ Check-3 left four findings as follow-ups (one medium, three low); the medium is 
 - Skipped #8 (`reviews/pr-144-check-2-medium.md`): "pruneStoredFolds reads/writes localStorage without coordination with in-memory fold state or other tabs." - low, no failing sequence shown; follow-up.
 - Skipped #9 (`reviews/pr-144-check-2-medium.md`): "isDrawerHash/hashOfUrl use startsWith while openKeyOf/looseProjectOf decode; `#/open/` or `#/loose/` counts as a drawer address with nothing open." - low, no failing sequence shown; follow-up.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-18)
 
 - The board's loading state ends only through `settle()` in `web/src/boardStore.ts`; never write `loading` or `slow` anywhere else (Slice 36: docs/plan/slices/36-board-page-fixes.md).
 

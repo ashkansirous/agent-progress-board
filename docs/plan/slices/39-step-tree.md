@@ -19,7 +19,7 @@ Runs after Slice 32, because both edit `src/domain/steps.ts`, `src/mcp/schemas.t
 `plugin/scripts/report-progress.mjs`, `plugin/scripts/report-progress.test.mjs`, `src/infrastructure/d1Repository.ts`,
 `src/api/boardDto.ts`, `web/src/**` (any reader of `Step`), `test/**` (step tests), `docs/plan/slices/39-step-tree.md`
 
-*Built 2026-11-18 (night wave 3), PR #143 pending merge; not yet verified on a phone or the deployed board.* Touches
+*Built 2026-11-18 (night wave 3), merged as PR #143 (b0188dc); not yet verified on a phone or the deployed board.* Touches
 widened at claim (premise check, wave 19): the plugin reporter
 builds and forwards `steps` (`keepStep`, the step filter, `currentStep`), the repository stores and diffs them, the DTO
 and `StepProgress.current` carry one label, and `progressOf` in `steps.ts` finds one active step. Widened again while
@@ -209,7 +209,7 @@ insert; repeated reads per CAS retry).
 - Skipped #8 (`reviews/pr-143-check-2-medium.md`): "stepsField description hardcodes" - low, no data loss. Follow-up.
 - Skipped #9 (`reviews/pr-143-check-2-medium.md`): "Tree flattened and id-indexed at least three times per report (stampFrom, normalizeSteps, checkTree, kept ids); share one Map" - low, bounded by 200 steps, no data loss. Follow-up.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-18)
 
 - Every write of `items.steps` goes through `saveStepsReport` in `src/application/board.ts` (compare-and-swap); never add a
   second write path (Slice 39: docs/plan/slices/39-step-tree.md).

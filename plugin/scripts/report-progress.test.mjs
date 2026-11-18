@@ -256,7 +256,42 @@ describe('task steps', () => {
   test('parseStepLabels trims, drops blanks and repeats, and cuts to the board limits', () => {
     assert.deepEqual(parseStepLabels(' a | b ||a|c'), ['a', 'b', 'c']);
     assert.equal(parseStepLabels('x'.repeat(200))[0].length, 80);
-    assert.equal(parseStepLabels(Array.from({ length: 40 }, (_, index) => `s${index}`).join('|')).length, 30);
+    assert.equal(parseStepLabels(Array.from({ length: 250 }, (_, index) => `s${index}`).join('|')).length, 200);
+  });
+
+  test('--under-step sends the list as that step\'s children and writes no task file', async () => {
+    const board = await startFakeBoard(replyOk);
+    const root = stateFolder();
+    const env = { ...envFor(board.url, root), CLAUDE_CODE_SESSION_ID: 'sess-u' };
+    await runNode(SCRIPT, ['--key', 'demo-app/t', '--steps', 'a|b', '--under-step', 'agent-a1'], env);
+    board.server.close();
+    const [withList] = board.requests.map((request) => request.body.params.arguments);
+    assert.equal(withList.under_step, 'agent-a1');
+    assert.deepEqual(withList.steps.map((step) => step.label), ['a', 'b']);
+    assert.equal(existsSync(join(root, 'sess-u.task.json')), false);
+  });
+
+  test('a bare --under-step (no id) warns on stderr and sends nothing; exit 0', async () => {
+    const board = await startFakeBoard(replyOk);
+    const env = { ...envFor(board.url, stateFolder()), CLAUDE_CODE_SESSION_ID: 'sess-b' };
+    const bare = await runNode(SCRIPT, ['--key', 'demo-app/t', '--steps', 'a|b', '--under-step'], env);
+    board.server.close();
+    assert.match(bare.stderr, /--under-step needs a step id/);
+    assert.equal(bare.code, 0);
+    assert.equal(board.requests.length, 0);
+  });
+
+  test('--under-step with no list, and an id over 80 characters, warn on stderr and send nothing; both exit 0', async () => {
+    const board = await startFakeBoard(replyOk);
+    const env = { ...envFor(board.url, stateFolder()), CLAUDE_CODE_SESSION_ID: 'sess-w' };
+    const noList = await runNode(SCRIPT, ['--key', 'demo-app/t', '--under-step', 'agent-a1', '--note', 'x'], env);
+    const tooLong = await runNode(SCRIPT, ['--key', 'demo-app/t', '--steps', 'a|b', '--under-step', 'x'.repeat(81)], env);
+    board.server.close();
+    assert.match(noList.stderr, /--under-step needs a step list.*nothing sent/);
+    assert.equal(noList.code, 0);
+    assert.match(tooLong.stderr, /over 80 characters/);
+    assert.equal(tooLong.code, 0);
+    assert.equal(board.requests.length, 0, 'neither report was sent');
   });
 
   test('stepStates: before the active one done, after pending; done moves on; unknown is null; skipped is left out', () => {

@@ -309,7 +309,23 @@ export function readGoal(id, root, now = Date.now()) {
     sig: text(value.sig),
     held: value.held === true,
     heldAt: Number.isFinite(value.heldAt) ? value.heldAt : 0,
+    agentParents: parentsOf(value.agentParents),
+    agentStarts: startsOf(value.agentStarts),
   };
+}
+
+// `{ agentId: ms }`: when each background agent's start was recorded (SubagentStart), so an agent with no files yet
+// keeps its row for a bounded time only.
+function startsOf(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value).filter(([, at]) => Number.isFinite(at)));
+}
+
+// `{ agentId: label }`: the label of the step each background agent was placed under when it was first seen ('' = the
+// root), kept so a later report puts the agent in the same place (background-agents.mjs, placeAgents).
+function parentsOf(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value).filter(([, label]) => typeof label === 'string'));
 }
 
 export function removeGoal(id, root) {

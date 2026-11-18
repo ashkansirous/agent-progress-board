@@ -90,7 +90,7 @@ button{font:inherit;color:inherit}
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":2900}}'>
-var CONFIG = {"theme": {"ground": "#0E1014", "card": "#171A21", "border": "#262B35", "text": "#E8EAEE", "muted": "#9AA3B2", "sub": "#C7CDD8", "track": "#262B35", "needBg": "#2A1C0E", "needBd": "#5A3712", "needFg": "#FFB672", "sliceBg": "#1C2B4A", "sliceBd": "#2E4473", "sliceFg": "#9DBDFF", "bugBg": "#3F1A1A", "bugBd": "#5E2A28", "bugFg": "#FF9B94", "probBg": "#2C1F45", "probBd": "#46336B", "probFg": "#C9A7FF", "nowBg": "#9DBDFF", "nowFg": "#0E1014", "doneFg": "#7FD8B4", "chip": "#232833", "tabBg": "#171A21", "tabOn": "#2E3440", "scrim": "rgba(0,0,0,0.55)", "shadow": "-12px 0 32px rgba(0,0,0,0.5)", "link": "#9DBDFF", "btnBg": "#E8EAEE", "btnFg": "#0E1014"}, "phone": true, "init": {"open": {"a:3": true, "a:3.2": true, "b:1": false}}};
+var CONFIG = {"theme": {"ground": "#0E1014", "card": "#171A21", "border": "#262B35", "text": "#E8EAEE", "muted": "#9AA3B2", "sub": "#C7CDD8", "track": "#262B35", "needBg": "#2A1C0E", "needBd": "#5A3712", "needFg": "#FFB672", "sliceBg": "#1C2B4A", "sliceBd": "#2E4473", "sliceFg": "#9DBDFF", "bugBg": "#3F1A1A", "bugBd": "#5E2A28", "bugFg": "#FF9B94", "probBg": "#2C1F45", "probBd": "#46336B", "probFg": "#C9A7FF", "nowBg": "#9DBDFF", "nowFg": "#0E1014", "doneFg": "#7FD8B4", "chip": "#232833", "tabBg": "#171A21", "tabOn": "#2E3440", "scrim": "rgba(0,0,0,0.55)", "shadow": "-12px 0 32px rgba(0,0,0,0.5)", "link": "#9DBDFF", "btnBg": "#E8EAEE", "btnFg": "#0E1014"}, "phone": true, "init": {"open": {"a:3": true, "a:3.1": true, "a:3.1.2": true}}};
 var T = CONFIG.theme;
 function L(label, state, extra) { return Object.assign({ label: label, state: state }, extra || {}); }
 var LANGS = [['English', 'done', '13:12', '13:20', '8 min'], ['French', 'active', '13:20'], ['German', 'active', '13:21'], ['Spanish', 'active', '13:22'], ['Italian', 'done', '13:20', '13:31', '11 min'], ['Dutch', 'done', '13:31', '13:40', '9 min'],
@@ -101,13 +101,13 @@ var CARDS = [
     steps: [
       L('Read the slice', 'done', { start: '13:00', end: '13:02', dur: '2 min' }),
       L('Write the script text', 'done', { start: '13:02', end: '13:10', dur: '8 min', note: 'Text for 15 languages, 42 lines each' }),
-      L('Record audio, 15 languages', 'active', { id: 'rec', start: '13:10', dur: '1 h 02 min', note: 'Helper agent: audio-recorder · model-small · three languages at a time',
-        children: LANGS.map(function (l) {
+      L('Record audio, 15 languages', 'active', { id: 'rec', start: '13:10', dur: '1 h 02 min',
+        children: [L('Record the audio, three languages at a time', 'active', { start: '13:11', dur: '1 h 01 min', note: 'Helper agent · model-small', children: LANGS.map(function (l) {
           var s = L(l[0], l[1], { id: 'lang-' + l[0], start: l[2], end: l[3], dur: l[4] || (l[1] === 'active' ? (72 - parseInt(l[2].slice(3), 10)) + ' min' : undefined) });
           if (l[0] === 'French') { s.note = 'Retrying line 31 after a timeout'; s.dur = '52 min';
             s.children = [L('Generate the lines', 'done', { start: '13:20', end: '13:58', dur: '38 min' }), L('Check pronunciation', 'active', { start: '13:58', dur: '14 min', note: 'Line 31 of 42' }), L('Save the file', 'pending')]; }
           return s;
-        }) }),
+        }) })] }),
       L('Review the diff', 'pending', { note: 'Helper agent: reviewer' }),
       L('Merge', 'pending')
     ] },
@@ -115,7 +115,8 @@ var CARDS = [
     title: 'Refine the offline-mode idea', outcome: 'A plan with slices', why: 'RefineScope run on an idea from the phone',
     steps: [
       L('Research similar apps', 'done', { id: 'res', start: '13:40', end: '13:58', dur: '18 min', children: [L('Read four reader apps’ docs', 'done', { start: '13:40', end: '13:49', dur: '9 min' }), L('Check how they sync', 'done', { start: '13:49', end: '13:55', dur: '6 min' }), L('Note what to copy', 'done', { start: '13:55', end: '13:58', dur: '3 min' })] }),
-      L('Draft the scope', 'active', { start: '13:58', dur: '14 min', note: 'Two options: sync first or cache first' }),
+      L('Draft the scope', 'active', { start: '13:58', dur: '14 min', note: 'Two options: sync first or cache first',
+        children: [L('Helper agent: Compare sync-first and cache-first for a notes app…', 'active', { start: '14:01', dur: '11 min', note: 'No description given, so the label is the start of its prompt' })] }),
       L('Ask up to 4 questions', 'pending'),
       L('Write the slices into the plan', 'pending')
     ] },

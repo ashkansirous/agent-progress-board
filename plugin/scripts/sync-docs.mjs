@@ -30,7 +30,7 @@ const PARKED_STATUS = /^\s*parked\b|waiting on the user/i;
 const PARK_SEPARATORS = String.raw`[\s:,(\-–—]*`;
 const PARK_LEAD = new RegExp(String.raw`^\s*parked\b(${PARK_SEPARATORS})`, 'i');
 const WAIT_LEAD = String.raw`^\s*(?:parked\b${PARK_SEPARATORS})?(?:wait(?:s|ing)\s+(?:for|on)|behind)\s+`;
-const WAIT_TARGETS = [
+export const WAIT_TARGETS = [
   String.raw`slice\s+\d+[a-z]*`,
   String.raw`(?:another|other)\s+repo(?:'s|’s)?\s+slice`,
   String.raw`(?:an?|the)\s+interactive\s+session`,
@@ -39,11 +39,27 @@ const WAIT_TARGETS = [
   String.raw`(?:the\s+)?CI`,
   String.raw`(?:PR|pull\s+request)\s*#?\d+`,
 ];
-// What follows a work target does not matter, unless it names the person: then the card stays.
-const WAITS_ON_WORK = new RegExp(`${WAIT_LEAD}(?:${WAIT_TARGETS.join('|')})\\b`, 'i');
-const NAMES_PERSON = /\b(?:user|users|owner|owners|you|your|yours|human)\b|\b(?:user|owner)['’]s\b/i;
+// An allow-list: the whole reason must be work targets and the closed set of words that may follow one (where it
+// is, whether it is built, "to finish"), joined by "and", "then", a comma or a semicolon. Any other word (a person's
+// name, "your answer", "pick the store") keeps the card.
+export const TARGET_SUFFIX_WORDS = [
+  String.raw`(?:of|in)\s+(?:the\s+)?(?:other\s+repo|slice\s+\d+[a-z]*)`,
+  String.raw`of\s+(?:the\s+)?(?:build|deploy(?:ment)?|merge|release|CI|PR|pull\s+request)`,
+  String.raw`to\s+(?:finish|merge|land|build|complete|deploy|pass|go\s+green|be\s+(?:built|merged|deployed|done))`,
+  String.raw`to\s+(?:main|master|trunk)`,
+  String.raw`(?:which\s+)?(?:is|are)\s+(?:not\s+)?(?:built|merged|done|deployed|finished)(?:\s+yet)?`,
+  String.raw`finish(?:es)?`,
+  String.raw`lands?`,
+];
+// A word may follow a comma ("Slice 29, which is not built yet").
+const TARGET_SUFFIX = String.raw`(?:,?\s+(?:${TARGET_SUFFIX_WORDS.join('|')}))*`;
+const WORK_ITEM = `(?:${WAIT_TARGETS.join('|')})\\b${TARGET_SUFFIX}`;
+const WORK_JOIN = String.raw`(?:\s*[,;]\s*(?:and\s+)?(?:then\s+)?|\s+and\s+(?:then\s+)?|\s+then\s+)`;
+const WAITS_ON_WORK = new RegExp(`${WAIT_LEAD}${WORK_ITEM}(?:${WORK_JOIN}${WORK_ITEM})*[\\s.)]*$`, 'i');
 const TRAILING_ATTRIBUTION = /\s*\(\s*(?:user|owner)\s*,\s*\d{4}-\d{2}-\d{2}\s*\)\s*\.?\s*$/i;
-const PARK_NOTE = /^\s*[*_]*\s*(?:parked|waiting on the user)\b[^\n]*/im;
+// A park note is an italic or bold line near the top of the slice file: `*Parked: ...*`, `**Parked** - ...`,
+// `_Waiting on the user._`. Prose, history lines and code fences never count.
+const PARK_NOTE = /^\s*(?:\*{1,3}|_{1,3})\s*(?:parked|waiting on the user)\b[^\n]*/i;
 const PARKED_LINE = /^\s*[-*]\s*slice\s+(\d+[a-z]*)\s*:\s*(.+?)\s*$/gim;
 const UNVERIFIED_HEADING = /^###\s+slice\s+(\d+[a-z]*)\s*:/i;
 const HASH_LENGTH = 8;
@@ -212,9 +228,23 @@ export function parseParked(text) {
   return found;
 }
 
+// The park note of a slice file: the first PARK_NOTE line in its header, which is everything above the second
+// heading (the title is the first), outside code fences.
 export function parkNote(sliceText) {
-  const match = PARK_NOTE.exec(sliceText || '');
-  return match ? plain(match[0]) : '';
+  let headings = 0;
+  let fence = null;
+  for (const line of String(sliceText || '').split(/\r?\n/)) {
+    const marker = FENCE_OPEN.exec(line);
+    if (fence) {
+      if (FENCE_CLOSE.test(line) && line.trim()[0] === fence) fence = null;
+      continue;
+    }
+    if (marker) { fence = marker[1][0]; continue; }
+    if (ANY_HEADING.test(line) && (headings += 1) > 1) break;
+    const match = PARK_NOTE.exec(line);
+    if (match) return plain(match[0]);
+  }
+  return '';
 }
 
 function githubUrl(remote) {
@@ -231,40 +261,59 @@ function sliceLinks(row, repoUrl) {
 }
 
 // True when a park reason starts with a wait on work (another slice, an interactive session, a deploy, a merge,
-// CI; a trailing "(user, date)" attribution is ignored): whatever words follow, nothing is for the person to do,
-// so the slice stays blocked with its reason and gets no waiting card. A reason that names the user, the owner
-// or "you" keeps the waiting card.
+// CI; a trailing "(user, date)" attribution is ignored) and has nothing else but work: nothing is for the person to
+// do, so the slice stays blocked with its reason and gets no waiting card. Any other word keeps the waiting card.
 export function waitsOnlyOnWork(reason) {
-  const text = String(reason || '').replace(TRAILING_ATTRIBUTION, '');
-  return WAITS_ON_WORK.test(text) && !NAMES_PERSON.test(text);
+  return WAITS_ON_WORK.test(withoutAttribution(reason));
+}
+
+function withoutAttribution(reason) {
+  return String(reason || '').replace(TRAILING_ATTRIBUTION, '');
 }
 
 // The lines under a slice file's "Open for the owner" heading (bullets, or the plain lines when there are none),
 // joined: what the person must decide or do. '' when the file has no such section.
 // A line that is exactly a placeholder ("None", "n/a", "TBD", "None, the owner has nothing to do."), never a
 // sentence that only starts with one of those words ("Nothing is wired until you approve the DNS change.").
-const NO_OWNER_ASK = /^[\s([]*(?:none|nothing|n\/a|tbd)(?:[\s,.;:-]+the owner has nothing to do)?[\s.!)\]]*$/i;
+const NO_OWNER_ASK = /^[\s([]*(?:none|nothing(?:\s+(?:to do|needed|required|open|for the owner(?:\s+to do)?))?|no\s+(?:action|decisions?|questions?)(?:\s+(?:needed|required))?|n\/a|tbd|[-–—]+|(?:[-*_]\s*){3,})(?:[\s,.;:-]+(?:the )?owner has nothing to do)?[\s.!)\]]*$/i;
 const OWNER_HEADING = /^#{1,6}\s+open for the owner\b/i;
+const LIST_ITEM = /^\s*(?:[-*+]|\d+[.)])\s+/;
+
+// The section's list items, wherever they sit in it (a blank line between items does not end the list); when it has
+// no list item, its first paragraph. Code fences and placeholder lines are skipped, and the section ends at the next
+// heading. Plain lines right under an item belong to it.
 export function openForOwner(sliceText) {
-  const found = [];
+  const items = [];
+  const paragraph = [];
   let inside = false;
+  let fence = null;
+  let blank = false;
   for (const line of String(sliceText || '').split(/\r?\n/)) {
-    if (OWNER_HEADING.test(line)) { inside = true; continue; }
-    if (inside && ANY_HEADING.test(line)) break;
-    if (inside && !line.trim() && found.length > 0) break; // the first block only: a later paragraph is not the ask
-    if (inside && line.trim()) {
-      const text = plain(line.replace(/^\s*[-*+]\s+/, ''));
-      if (!NO_OWNER_ASK.test(text)) found.push(text);
+    if (fence) {
+      if (FENCE_CLOSE.test(line) && line.trim()[0] === fence) fence = null;
+      continue;
     }
+    if (FENCE_OPEN.test(line)) { fence = FENCE_OPEN.exec(line)[1][0]; continue; }
+    if (OWNER_HEADING.test(line)) { inside = true; continue; }
+    if (!inside) continue;
+    if (ANY_HEADING.test(line)) break;
+    if (!line.trim()) { blank = true; continue; }
+    const text = plain(line.replace(LIST_ITEM, ''));
+    const startsItem = LIST_ITEM.test(line);
+    if (!NO_OWNER_ASK.test(text)) {
+      if (startsItem || (!blank && items.length > 0 && !paragraph.length)) items.push(text);
+      else if (!items.length && (!blank || !paragraph.length)) paragraph.push(text);
+    }
+    blank = false;
   }
-  return found.join(' ');
+  return (items.length ? items : paragraph).join(' ');
 }
 
 // A parked slice's card says what the person must decide or do (the slice file's "Open for the owner" lines, else
 // the park reason, else the slice's title), for which slice (`why`), with a link to its file.
 function waitingItem(project, row, reason, parent, repoUrl, sliceText) {
   const links = sliceLinks(row, repoUrl);
-  const title = openForOwner(sliceText) || reason || `Waiting on you: ${row.title}`;
+  const title = openForOwner(sliceText) || withoutAttribution(reason).trim() || `Waiting on you: ${row.title}`;
   return {
     key: `${project}/slice-${row.number}/waiting`, project, type: 'waiting_for_me', status: 'open',
     title: clip(title, TITLE_LIMIT), parent, why: clip(`Slice ${row.number}: ${row.title}`, WHY_LIMIT), ...(links.length ? { links } : {}),
@@ -390,30 +439,42 @@ function checksOf(project, block, notices) {
 
 // The step without its `**You:**` prefix, and the "so that ..." the line gives for it ('' when it gives none).
 const OWNER_PREFIX = /^\s*(?:[-*]\s+)?\*\*you:\*\*\s*/i;
-const SO_THAT = /\bso that\b[^.]*\.?/i;
+// A "so that" clause runs to the end of its sentence: a period ends it only before a space and a capital or at the
+// end ("v1.2", "e.g. the picker" stay inside), and it is read from the whole step, before the title is clipped.
+const SO_THAT = /\b[Ss]o that\b.*?(?:[.!?](?=\s+[A-Z])|[.!?]?$)/;
 
-function ownerStepText(entry) {
-  return clip(plain([entry.line.replace(OWNER_PREFIX, ''), ...entry.nested].join(' ')), TITLE_LIMIT);
+function ownerStepFull(entry) {
+  return plain([entry.line.replace(OWNER_PREFIX, ''), ...entry.nested].join(' '));
 }
 
 // The owner's steps of a block stay items of their own, as before checks moved into the slice item. Each says what
 // the step is (title), for which slice and what it unblocks (why), and links to the slice file.
 function ownerItems(project, blocks, notices, rows, repoUrl) {
-  return dedupe(blocks.flatMap((block) => withTitle(block.lines.filter(isOwnerStep), `unverified.md slice ${block.number}`, notices).map((entry) => {
+  return dedupe(blocks.flatMap((block) => {
     const row = rows.find((candidate) => candidate.number === block.number);
-    const step = ownerStepText(entry);
-    const sliceName = row ? `Slice ${block.number}: ${row.title}` : `Slice ${block.number}`;
-    const unblocks = SO_THAT.exec(step);
-    const links = row ? sliceLinks(row, repoUrl) : [];
-    return {
-      key: `${project}/slice-${block.number}/check-${checkHash(entry.line)}`, project,
-      type: 'waiting_for_me', status: 'open',
-      title: step || entryTitle(entry),
-      why: clip(unblocks ? `${sliceName} — ${unblocks[0]}` : `Not yet verified for ${sliceName}`, WHY_LIMIT),
-      parent: `Slice ${block.number} · Not yet verified`,
-      ...(links.length ? { links } : {}),
-    };
-  })));
+    const steps = withTitle(block.lines.filter(isOwnerStep), `unverified.md slice ${block.number}`, notices);
+    if (!row) {
+      if (steps.length) notices.push(`sync-docs: slice ${block.number} has owner steps in unverified.md but no status row, not sent\n`);
+      return [];
+    }
+    return steps.map((entry) => ownerItem(project, block, row, entry, repoUrl));
+  }));
+}
+
+function ownerItem(project, block, row, entry, repoUrl) {
+  const full = ownerStepFull(entry);
+  const rowTitle = clip(row.title, TITLE_LIMIT);
+  const sliceName = rowTitle ? `Slice ${block.number}: ${rowTitle}` : `Slice ${block.number}`;
+  const unblocks = SO_THAT.exec(full);
+  const links = sliceLinks(row, repoUrl);
+  return {
+    key: `${project}/slice-${block.number}/check-${checkHash(entry.line)}`, project,
+    type: 'waiting_for_me', status: 'open',
+    title: clip(full, TITLE_LIMIT) || entryTitle(entry),
+    why: clip(unblocks ? `${sliceName} — ${unblocks[0]}` : `Not yet verified for ${sliceName}`, WHY_LIMIT),
+    parent: `Slice ${block.number} · Not yet verified`,
+    ...(links.length ? { links } : {}),
+  };
 }
 
 function dedupe(items) {
@@ -440,13 +501,14 @@ function attachChecks(project, slices, blocks, notices) {
 }
 
 // Never a partial snapshot: sync_snapshot closes whatever is missing, so a cut item would read as
-// done. Over the cap the whole list is withheld and the caller reports the count.
+// done. Over the cap the whole list is withheld (`items` is empty, `withheld` holds the list for a dry run) and the
+// caller reports the count.
 // The board's 200 limit counts the items sent; items plus parts have their own limit of 1000
 // (docs/clients.md, sync_snapshot). `limit` names the one that was hit.
 export function capItems(all) {
   const expanded = all.reduce((sum, item) => sum + 1 + (item.parts ? item.parts.length : 0), 0); // checks have their own per-slice cap (MAX_CHECKS), they are not items or parts
-  if (all.length > MAX_ITEMS) return { items: [], count: all.length, expanded, overflow: true, limit: MAX_ITEMS };
-  if (expanded > MAX_EXPANDED_ITEMS) return { items: [], count: expanded, expanded, overflow: true, limit: MAX_EXPANDED_ITEMS };
+  if (all.length > MAX_ITEMS) return { items: [], withheld: all, count: all.length, expanded, overflow: true, limit: MAX_ITEMS };
+  if (expanded > MAX_EXPANDED_ITEMS) return { items: [], withheld: all, count: expanded, expanded, overflow: true, limit: MAX_EXPANDED_ITEMS };
   return { items: all, count: all.length, expanded, overflow: false, limit: 0 };
 }
 
@@ -455,7 +517,8 @@ export function capItems(all) {
 export function buildSnapshot({ project, planText, unverifiedText = null, doneText = '', sliceTexts = {}, repoUrl = '' }) {
   const open = parsePlanTable(planText);
   const notices = [];
-  const rows = [...open, ...builtWithChecks(doneText, unverifiedText, open).map((row) => ({ ...row, built: true }))].filter((row) => {
+  const allRows = [...open, ...builtWithChecks(doneText, unverifiedText, open).map((row) => ({ ...row, built: true }))];
+  const rows = allRows.filter((row) => {
     if (clip(row.title, TITLE_LIMIT)) return true;
     notices.push(`sync-docs: slice ${row.number} has an empty title, skipped\n`);
     return false;
@@ -483,8 +546,18 @@ function folderSource(root) {
   };
 }
 
-function gitSource(repo, ref) {
-  const git = (args) => execFileSync('git', ['-C', repo, '-c', 'core.quotepath=false', ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 10000, maxBuffer: 32 * 1024 * 1024, windowsHide: true });
+// Each git call has its own timeout, and the whole read has a deadline: a slow repo costs at most GIT_DEADLINE_MS,
+// not a timeout per file. When it passes, the next git call throws and the sync reads nothing more.
+export const GIT_CALL_TIMEOUT_MS = 10000;
+export const GIT_DEADLINE_MS = 30000;
+
+export function gitSource(repo, ref, deadlineMs = GIT_DEADLINE_MS) {
+  const deadline = Date.now() + deadlineMs;
+  const git = (args) => {
+    const left = deadline - Date.now();
+    if (left <= 0) throw new Error('git read deadline passed');
+    return execFileSync('git', ['-C', repo, '-c', 'core.quotepath=false', ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: Math.min(GIT_CALL_TIMEOUT_MS, left), maxBuffer: 32 * 1024 * 1024, windowsHide: true });
+  };
   const tree = (path) => git(['ls-tree', '--name-only', ref, '--', path]).split(/\r?\n/).filter(Boolean);
   return {
     // null only when a successful listing shows no such entry; any failed git call throws.
@@ -506,7 +579,7 @@ function gitSource(repo, ref) {
   };
 }
 
-class SourceError extends Error {
+export class SourceError extends Error {
   constructor(path, cause) {
     super(`could not read ${path}`, { cause });
     this.path = path;
@@ -522,16 +595,35 @@ export function safeLinkPath(link) {
   return path.split(/[\\/]+/).includes('..') ? '' : path;
 }
 
+const SLICE_FILE_NAME = /^(\d+[a-z]*)-.+\.md$/i;
+
+// The slice files named for one number: the whole number before the first dash, nothing else ("3-1-x.md" is slice 3).
+export function filesForSlice(names, number) {
+  return names.filter((name) => {
+    const match = SLICE_FILE_NAME.exec(name);
+    return match && normaliseSliceNumber(match[1]) === number;
+  });
+}
+
+// { texts, notices }. The File cell's link wins; else the one file whose name starts with the slice's number. Two
+// such files are ambiguous: neither is read and a notice names them.
 function readSliceTexts(source, rows) {
   const names = source.list(SLICES_DIR);
   const texts = {};
+  const notices = [];
+  const seen = new Set();
   for (const row of rows) {
+    if (seen.has(row.number)) continue;
+    seen.add(row.number);
     const byLink = safeLinkPath(row.file);
-    const byName = names.find((name) => normaliseSliceNumber(name.split('-')[0]) === row.number);
-    const text = (byLink && source.read(byLink)) || (byName && source.read(`${SLICES_DIR}/${byName}`));
+    const linked = byLink ? source.read(byLink) : null;
+    if (linked) { texts[row.number] = linked; continue; }
+    const named = filesForSlice(names, row.number);
+    if (named.length > 1) { notices.push(`sync-docs: slice ${row.number} matches ${named.length} files (${named.join(', ')}), none read\n`); continue; }
+    const text = named.length ? source.read(`${SLICES_DIR}/${named[0]}`) : null;
     if (text) texts[row.number] = text;
   }
-  return texts;
+  return { texts, notices };
 }
 
 function remoteUrl(repo) {
@@ -590,12 +682,13 @@ export function collect(parsed, env = process.env) {
   const unverifiedText = readUnverified(source);
   const doneText = source.read(DONE_PATH) || '';
   const built = builtWithChecks(doneText, unverifiedText, rows);
+  const slices = readSliceTexts(source, [...rows, ...built]);
   const snapshot = buildSnapshot({
     project, planText, unverifiedText, doneText,
-    sliceTexts: readSliceTexts(source, [...rows, ...built]),
+    sliceTexts: slices.texts,
     repoUrl: parsed['repo-url'] || (parsed.root ? '' : remoteUrl(repo)),
   });
-  const notices = [...snapshot.notices, ...unparkedNotices(readParked(parsed.parked), rows)];
+  const notices = [...slices.notices, ...snapshot.notices, ...unparkedNotices(readParked(parsed.parked), rows)];
   if (!rows.length) notices.push('sync-docs: status table empty, closing all items of the project\n');
   return { project, ...snapshot, notices };
 }
@@ -605,6 +698,13 @@ function reportCaps(snapshot) {
   if (!snapshot.overflow) return;
   const what = snapshot.limit === MAX_ITEMS ? 'items' : 'items and parts';
   process.stderr.write(`sync-docs: ${snapshot.count} ${what} exceed the ${snapshot.limit}-${snapshot.limit === MAX_ITEMS ? 'item' : 'item-and-part'} cap, nothing sent\n`);
+}
+
+// The result line: each count the board gave, only when it is a number; a reply with none says so.
+export function syncLine(snapshot, data) {
+  const counts = data && typeof data === 'object' ? data : {};
+  const given = ['created', 'updated', 'closed', 'unchanged'].filter((name) => Number.isFinite(counts[name])).map((name) => `${name}=${counts[name]}`);
+  return `sync-docs: ${snapshot.project} items=${snapshot.items.length} ${given.length ? given.join(' ') : 'the board gave no counts'}`;
 }
 
 export async function main(argv, env = process.env) {
@@ -618,14 +718,13 @@ export async function main(argv, env = process.env) {
   }
   if (!snapshot) return process.stderr.write('sync-docs: no plan.md with a recognised status table, nothing sent\n');
   reportCaps(snapshot);
-  if (argv.includes('--dry-run')) return process.stdout.write(`${JSON.stringify(snapshot.items, null, 2)}\n`);
+  if (argv.includes('--dry-run')) return process.stdout.write(`${JSON.stringify(snapshot.overflow ? snapshot.withheld : snapshot.items, null, 2)}\n`);
   if (snapshot.overflow) return;
   const config = resolveConfig(env);
   if (!config) return;
   const outcome = await callTool(config, 'sync_snapshot', { project: snapshot.project, items: snapshot.items }, { timeoutMs: SYNC_TIMEOUT_MS });
   if (!outcome.ok) return process.stderr.write(`sync-docs: sync_snapshot skipped (${outcome.error})\n`);
-  const counts = outcome.data && typeof outcome.data === 'object' ? outcome.data : {};
-  process.stdout.write(`sync-docs: ${snapshot.project} items=${snapshot.items.length} created=${counts.created} updated=${counts.updated} closed=${counts.closed} unchanged=${counts.unchanged}\n`);
+  process.stdout.write(`${syncLine(snapshot, outcome.data)}\n`);
   return { synced: true };
 }
 

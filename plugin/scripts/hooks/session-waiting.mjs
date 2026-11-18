@@ -6,8 +6,8 @@
 // The marker it leaves (state folder, named by the session id, holding the item's key) lets session-done.mjs
 // close the item when the session continues or stops, and close it for a session that died.
 // Input (stdin JSON): session_id, cwd, message, notification_type, transcript_path. Env as in report-progress.mjs.
-import { execFileSync } from 'node:child_process';
-import { realpathSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs'; // statSync: the stdin cwd check
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { callTool, resolveEnvironment } from '../report-progress.mjs';
 import {
@@ -18,18 +18,56 @@ import { NOTIFICATION, cardText, lastAssistant, maskSecrets } from './waiting-ca
 
 const TITLE_LIMIT = 200;
 const HARD_KINDS = new Set([NOTIFICATION.permission, NOTIFICATION.elicitation]);
-const BRANCH_TIMEOUT_MS = 500;
+const HEAD_REF = /^ref:\s*refs\/heads\/(.+?)\s*$/;
+const GITDIR_POINTER = /^gitdir:\s*(.+?)\s*$/;
+
+function repoRootOf(cwd) {
+  let dir = resolve(cwd);
+  for (;;) {
+    if (existsSync(join(dir, '.git'))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+}
+
+// The branch named by the repo's HEAD file under `cwd` (`.git/HEAD`, or the gitdir a `.git` file points to in a
+// worktree); null when HEAD is detached or unreadable. No process runs, so no repo config can run a program.
+// The search starts in `cwd` and walks up to the first folder that holds `.git`, stopping at the filesystem root.
+export function branchOf(cwd) {
+  try {
+    const root = repoRootOf(cwd);
+    if (!root) return null;
+    let gitDir = join(root, '.git');
+    if (statSync(gitDir).isFile()) {
+      const pointer = GITDIR_POINTER.exec(readFileSync(gitDir, 'utf8').split(/\r?\n/)[0]);
+      if (!pointer) return null;
+      gitDir = resolve(root, pointer[1]);
+    }
+    const head = HEAD_REF.exec(readFileSync(join(gitDir, 'HEAD'), 'utf8').split(/\r?\n/)[0]);
+    return head ? head[1] : null;
+  } catch {
+    return null;
+  }
+}
 
 // The session's reported goal; with none, the project and the branch of the working folder (the project alone
-// when git does not answer).
-function titleOf(input, context, goal) {
-  if (goal && goal.title) return clip(goal.title, TITLE_LIMIT);
+// when there is no branch to read).
+// A closed goal is finished work, so its title is not the title of a new waiting card.
+export function titleOf(input, context, goal) {
+  if (goal && goal.title && !goal.closed) return clip(goal.title, TITLE_LIMIT);
+  const branch = branchOf(typeof input.cwd === 'string' && input.cwd ? input.cwd : process.cwd());
+  return branch ? clip(`${context.project} · ${branch}`, TITLE_LIMIT) : context.project;
+}
+
+// The stdin cwd, only when it is an absolute path to a folder that exists (git runs there to name the branch);
+// anything else is left out, so git runs in the hook's own folder.
+export function usableCwd(cwd) {
   try {
-    const cwd = typeof input.cwd === 'string' && input.cwd ? input.cwd : process.cwd();
-    const branch = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd, timeout: BRANCH_TIMEOUT_MS, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
-    if (branch) return clip(`${context.project} · ${branch}`, TITLE_LIMIT);
-  } catch { /* no git here */ }
-  return context.project;
+    return typeof cwd === 'string' && isAbsolute(cwd) && statSync(cwd).isDirectory() ? cwd : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 // No card for this notification: an older open waiting card of the session no longer says what is asked, so it is closed (a no-op when none was raised).
@@ -56,7 +94,7 @@ export async function run(input, env = process.env, options = {}) {
     project: context.project,
     type: 'waiting_for_me',
     status: 'open',
-    title: titleOf(input, context, goal),
+    title: maskSecrets(titleOf({ ...input, cwd: usableCwd(input.cwd) }, context, goal)),
     needs_you: maskSecrets(card.needsYou),
     after_answer: card.afterAnswer ? maskSecrets(card.afterAnswer) : null,
     source: HOOK_SOURCE,

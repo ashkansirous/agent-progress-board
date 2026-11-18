@@ -11,7 +11,8 @@ import { AGENT_FRESH_MS, mergeSteps, readBackgroundAgents, subagentsDir } from '
 import { closeAnsweredWaiting, handle as remind, REMINDER_TEXT } from './goal-reminder.mjs';
 import { addStoppedAgent, hasMarker, listMarkers, readGoal, readStdinText, readStoppedAt, removeGoal, touchSeen, updateGoal, writeGoal, writeJson, writeMarker, writePrompt } from './hook-input.mjs';
 import { DEAD_SESSION_MS, run as runDone } from './session-done.mjs';
-import { run as runWaiting } from './session-waiting.mjs';
+import { execFileSync } from 'node:child_process';
+import { branchOf, run as runWaiting, titleOf, usableCwd } from './session-waiting.mjs';
 import { cleanUpAfterTests, envFor, callsOf, replyOk, runNode, startFakeBoard, trackedTemp } from '../test-helpers.mjs';
 
 const HOOKS = fileURLToPath(new URL('.', import.meta.url));
@@ -391,6 +392,71 @@ describe('waiting cards', () => {
     await runDone({ session_id: 'me', cwd: process.cwd(), hook_event_name: 'Stop' }, envFor(board.url, root), {}, NOW);
     board.server.close();
     assert.deepEqual(callsOf(board).map((call) => call.args.note), ['Session stopped']); // the stop path, not "Session ended"
+  });
+});
+
+function startRepo(repo, branch) {
+  execFileSync('git', ['init', '-q', '-b', branch, repo]);
+  execFileSync('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@example.test', 'commit', '-q', '--allow-empty', '-m', 'x']);
+}
+
+describe('waiting card title and folder (session-waiting)', () => {
+  test('usableCwd keeps only an absolute path to an existing folder', () => {
+    const dir = folder();
+    writeFileSync(join(dir, 'file.txt'), 'x');
+    assert.equal(usableCwd(dir), dir);
+    for (const bad of ['relative/dir', '.', join(dir, 'missing'), join(dir, 'file.txt'), '', undefined, null, 42, {}]) {
+      assert.equal(usableCwd(bad), undefined, String(bad));
+    }
+  });
+
+  test('titleOf reads the branch from the HEAD file and never runs git (a repo config cannot run a program)', () => {
+    const repo = folder('board-repo-');
+    startRepo(repo, 'topic-x');
+    const marker = join(repo, 'ran.txt');
+    execFileSync('git', ['-C', repo, 'config', 'core.fsmonitor', `node -e "require('fs').writeFileSync('${marker.replace(/\\/g, '/')}','x')"`]);
+    assert.equal(titleOf({ cwd: repo }, { project: 'demo-app' }, null), 'demo-app · topic-x');
+    assert.equal(existsSync(marker), false);
+  });
+
+  test('branchOf follows the gitdir a worktree\'s .git file points to; detached or missing HEAD gives no branch', () => {
+    const repo = folder('board-repo-');
+    startRepo(repo, 'main');
+    const work = folder('board-wt-');
+    const gitDir = join(repo, '.git', 'wt');
+    mkdirSync(gitDir, { recursive: true });
+    writeFileSync(join(gitDir, 'HEAD'), 'ref: refs/heads/feat/topic-z\n');
+    writeFileSync(join(work, '.git'), `gitdir: ${gitDir}\n`);
+    assert.equal(branchOf(work), 'feat/topic-z');
+    writeFileSync(join(gitDir, 'HEAD'), '0123456789abcdef0123456789abcdef01234567\n');
+    assert.equal(branchOf(work), null);
+    assert.equal(titleOf({ cwd: work }, { project: 'demo-app' }, null), 'demo-app');
+    assert.equal(branchOf(folder('board-none-')), null);
+  });
+
+  test('branchOf walks up from a subfolder to the first folder that holds .git', () => {
+    const repo = folder('board-repo-');
+    startRepo(repo, 'topic-sub');
+    const deep = join(repo, 'plugin', 'scripts');
+    mkdirSync(deep, { recursive: true });
+    assert.equal(branchOf(deep), 'topic-sub');
+    assert.equal(titleOf({ cwd: deep }, { project: 'demo-app' }, null), 'demo-app · topic-sub');
+  });
+
+  test('the waiting card title is masked like the other texts', async () => {
+    const board = await startFakeBoard(replyOk);
+    const root = trackedTemp('board-wait-root-');
+    writeGoal('sess-m', { key: 'demo-app/session-sess-m', title: 'Rotate token: abc123secret' }, root);
+    await runWaiting({ session_id: 'sess-m', cwd: process.cwd(), notification_type: 'permission_prompt', message: 'm' }, envFor(board.url, root));
+    board.server.close();
+    assert.equal(callsOf(board)[0].args.title, 'Rotate token: ***');
+  });
+
+  test('titleOf never sends a closed goal\'s title; an open goal\'s title still wins', () => {
+    const repo = folder('board-repo-');
+    startRepo(repo, 'topic-y');
+    assert.equal(titleOf({ cwd: repo }, { project: 'demo-app' }, { title: 'Old goal', closed: true }), 'demo-app · topic-y');
+    assert.equal(titleOf({ cwd: repo }, { project: 'demo-app' }, { title: 'Live goal', closed: false }), 'Live goal');
   });
 });
 

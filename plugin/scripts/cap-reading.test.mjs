@@ -8,8 +8,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, test } from 'node:test';
 import {
-  BETA_HEADER, BETA_VALUE, CAP_STATE_FILE, CREDENTIALS_FILE, LATEST_FILE, OK_GAP_MS, RETRY_GAP_MS, SOURCE_API,
-  SOURCE_STATUSLINE, USAGE_URL, planOf, sendCapReading, windowsFromApi, windowsFromStatusLine,
+  BETA_HEADER, BETA_VALUE, CAP_STATE_FILE, CREDENTIALS_FILE, LATEST_FILE, OK_GAP_MS, REFUSED_GAP_MS, RETRY_GAP_MS, SOURCE_API,
+  SOURCE_STATUSLINE, USAGE_URL, planOf, planSince, sendCapReading, windowsFromApi, windowsFromStatusLine,
 } from './cap-reading.mjs';
 
 const FAKE_TOKEN = 'fake-access-token-not-real';
@@ -43,8 +43,15 @@ function writeCredentials(overrides = {}, modifiedAt = NOW - DAY_MS) {
   utimesSync(path, modifiedAt / 1000, modifiedAt / 1000);
 }
 
-function writeLatest(atMs, limits) {
+function writeLatestFile(atMs, limits) {
   writeFileSync(join(dir, LATEST_FILE), JSON.stringify({ at: new Date(atMs).toISOString(), rate_limits: limits }));
+}
+
+// The plugin has long run under PLAN (planSeen.since 0), unless the test already has a state of its own.
+function writeLatest(atMs, limits) {
+  const statePath = join(dir, CAP_STATE_FILE);
+  if (!existsSync(statePath)) writeFileSync(statePath, JSON.stringify({ planSeen: { plan: PLAN, since: 0 } }));
+  writeLatestFile(atMs, limits);
 }
 
 function answering(body, ok = true) {
@@ -168,7 +175,7 @@ describe('sendCapReading', () => {
 
   test('taken_at is the time the answer arrived; the expiry is checked before the call (review 6)', async () => {
     writeCredentials({ expiresAt: NOW + 1000 });
-    const times = [NOW, NOW, NOW + 5000]; // the gap check, before the call, after the answer (past the expiry)
+    const times = [NOW, NOW, NOW, NOW + 5000]; // the plan record, the gap check, before the call, after the answer (past the expiry)
     const clock = () => times.shift() ?? NOW + 5000;
     await sendCapReading({ config: CONFIG, claudeDir: dir, clock, options: { fetchImpl: routed(answering(API_BODY)) } });
     assert.equal(usageCalls.length, 1);
@@ -212,21 +219,46 @@ describe('sendCapReading', () => {
     assert.equal(boardCalls[0].arguments.taken_at, new Date(old).toISOString());
   });
 
-  test('a token refresh (credentials file newer) does not drop the file; a changed plan does (pass 2, 2)', async () => {
+  test('a token refresh (credentials file newer) does not drop the file (pass 2, 2)', async () => {
     writeCredentials({}, NOW - 30000);
     writeLatest(NOW - 60000, { seven_day: { used_percentage: 42 } });
     const first = await send(NOW, routed(answering({}, false)));
-    assert.equal(first.source, SOURCE_STATUSLINE, 'no plan saved yet: the file is sent');
-    // a good address read saves the plan; later the plan changes and the address refuses
-    const later = NOW + RETRY_GAP_MS + 1000;
-    await send(later, routed(answering(API_BODY)));
+    assert.equal(first.source, SOURCE_STATUSLINE);
+  });
+
+  test('planSince keeps the time of the same label and restarts it for a new or missing one (Slice 30)', () => {
+    assert.deepEqual(planSince({ plan: 'max', since: 5 }, 'max', 99), { plan: 'max', since: 5 });
+    assert.deepEqual(planSince({ plan: 'max', since: 5 }, 'pro', 99), { plan: 'pro', since: 99 });
+    assert.deepEqual(planSince(undefined, 'max', 99), { plan: 'max', since: 99 });
+    assert.deepEqual(planSince({ plan: 'max' }, 'max', 99), { plan: 'max', since: 99 });
+  });
+
+  test('first-ever run: a file written before the plugin first saw the plan is held, a newer one is sent (Slice 30, review 2)', async () => {
+    writeCredentials();
+    writeLatestFile(NOW - 60000, { seven_day: { used_percentage: 42 } });
+    const first = await send(NOW, routed(answering({}, false)));
+    assert.deepEqual(first, { skipped: 'no reading' });
+    assert.equal(boardCalls.length, 0);
+    assert.equal(JSON.parse(readFileSync(join(dir, CAP_STATE_FILE), 'utf8')).planSeen.since, NOW);
+    writeLatestFile(NOW + 1000, { seven_day: { used_percentage: 43 } });
+    const next = await send(NOW + 2000, routed(answering({}, false)));
+    assert.equal(next.source, SOURCE_STATUSLINE);
+  });
+
+  test('a plan switch with the address unusable holds the old file, then the next file passes (Slice 30, review 1)', async () => {
+    writeCredentials();
+    writeLatest(NOW - 1000, { seven_day: { used_percentage: 42 } });
     writeCredentials({ subscriptionType: 'pro', rateLimitTier: '' });
-    writeLatest(later + OK_GAP_MS + 1000, { seven_day: { used_percentage: 50 } });
-    const changed = await send(later + OK_GAP_MS + 2000, routed(answering({}, false)));
-    assert.deepEqual(changed, { skipped: 'no reading' });
-    writeCredentials(); // back to the saved plan: sent
-    const same = await send(later + OK_GAP_MS + 3000, routed(answering({}, false)));
-    assert.equal(same.source, SOURCE_STATUSLINE);
+    const unusable = routed(answering({}, false));
+    const held = await send(NOW, unusable);
+    assert.deepEqual(held, { skipped: 'no reading' });
+    assert.deepEqual(JSON.parse(readFileSync(join(dir, CAP_STATE_FILE), 'utf8')).planSeen, { plan: 'pro', since: NOW });
+    const stillHeld = await send(NOW + RETRY_GAP_MS + 1000, unusable);
+    assert.deepEqual(stillHeld, { skipped: 'no reading' }, 'the old file stays held');
+    writeLatestFile(NOW + RETRY_GAP_MS + 2000, { seven_day: { used_percentage: 3 } });
+    const passed = await send(NOW + RETRY_GAP_MS + 3000, unusable);
+    assert.equal(passed.source, SOURCE_STATUSLINE);
+    assert.equal(boardCalls[0].arguments.plan, 'pro');
   });
 
   test('a failed board send starts no four-minute gap (pass 2, 1)', async () => {
@@ -235,9 +267,42 @@ describe('sendCapReading', () => {
     const fetchImpl = (url, init) => (String(url) === USAGE_URL ? answering(API_BODY)(url, init) : failingBoard());
     const outcome = await send(NOW, fetchImpl);
     assert.equal(outcome.sent, undefined);
-    const again = await send(NOW + 1000, routed(answering(API_BODY)));
+    const inside = await send(NOW + 1000, routed(answering(API_BODY)));
+    assert.equal(inside.sent, undefined, 'a refused send starts a short gap (finding 3)');
+    assert.equal(usageCalls.length, 1);
+    const again = await send(NOW + REFUSED_GAP_MS + 1000, routed(answering(API_BODY)));
     assert.equal(again.sent, true);
     assert.equal(usageCalls.length, 2);
+  });
+
+  test('a refused address reading still guards the status-line fallback against a plan change (Slice 30, review 2)', async () => {
+    writeCredentials();
+    const failingBoard = async () => ({ ok: false, status: 500, text: async () => '' });
+    const accepted = await send(NOW, routed(answering(API_BODY)));
+    assert.equal(accepted.sent, true);
+    writeCredentials({ subscriptionType: 'pro', rateLimitTier: null });
+    const later = NOW + OK_GAP_MS + 1000;
+    writeLatest(later - 500, { seven_day: { used_percentage: 3 } }); // written under the old plan
+    await send(later, (url, init) => (String(url) === USAGE_URL ? answering(API_BODY)(url, init) : failingBoard()));
+    boardCalls.length = 0;
+    const outcome = await send(later + 2000, routed(answering({}, false)));
+    assert.deepEqual(outcome, { skipped: 'no reading' });
+    assert.equal(boardCalls.length, 0);
+  });
+
+  test('the board accepting or refusing a reading does not move the plan guard (Slice 30)', async () => {
+    writeCredentials();
+    const statePath = join(dir, CAP_STATE_FILE);
+    const failingBoard = async () => ({ ok: false, status: 500, text: async () => '' });
+    await send(NOW, (url, init) => (String(url) === USAGE_URL ? answering(API_BODY)(url, init) : failingBoard()));
+    const refused = JSON.parse(readFileSync(statePath, 'utf8'));
+    assert.deepEqual(refused.planSeen, { plan: PLAN, since: NOW });
+    assert.equal(refused.retryAfter, NOW + REFUSED_GAP_MS);
+    await send(NOW + REFUSED_GAP_MS + 1000, routed(answering(API_BODY)));
+    const accepted = JSON.parse(readFileSync(statePath, 'utf8'));
+    assert.deepEqual(accepted.planSeen, { plan: PLAN, since: NOW });
+    assert.equal(accepted.plan, undefined);
+    assert.equal(accepted.retryAfter, 0);
   });
 
   test('a file older than the last accepted address reading is not sent (pass 2, 4)', async () => {
@@ -305,7 +370,7 @@ describe('sendCapReading', () => {
   });
 
   test('no credentials file or no plan: nothing is sent and nothing is written', async () => {
-    writeLatest(NOW - 1000, { seven_day: { used_percentage: 20 } });
+    writeLatestFile(NOW - 1000, { seven_day: { used_percentage: 20 } });
     const outcome = await send(NOW, routed(answering(API_BODY)));
     assert.deepEqual(outcome, { skipped: 'no reading' });
     assert.equal(boardCalls.length, 0);

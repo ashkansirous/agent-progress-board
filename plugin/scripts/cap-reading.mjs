@@ -29,6 +29,7 @@ export const KIND_WEEKLY = 'weekly';
 export const KIND_SHORT = 'short';
 export const SCOPED_PREFIX = 'weekly:';
 export const OK_GAP_MS = 4 * 60 * 1000;
+export const REFUSED_GAP_MS = 60 * 1000; // after a board refusal: no repeat call to the address within a minute
 const LIMIT_WEEKLY_ALL = 'weekly_all';
 const LIMIT_WEEKLY_SCOPED = 'weekly_scoped';
 const OAUTH_KEY = 'claudeAiOauth';
@@ -174,7 +175,7 @@ function inGap(until, now, gapMs) {
 
 // The reading from the address, or null (no usable token, in the retry gap, refused, no weekly figure).
 // The token expiry is checked at the time just before the call; taken_at is when the answer arrived.
-export async function readFromAddress({ credentials, plan, clock, statePath, touch, options }) {
+export async function readFromAddress({ credentials, clock, statePath, touch, options }) {
   const oauth = credentials && credentials[OAUTH_KEY];
   const token = oauth && oauth.accessToken;
   const startedAt = clock();
@@ -187,23 +188,40 @@ export async function readFromAddress({ credentials, plan, clock, statePath, tou
   const arrivedAt = clock();
   const windows = windowsFromApi(body);
   const hasWeekly = windows.some((window) => window.kind === KIND_WEEKLY);
-  saveCapState(statePath, hasWeekly
-    ? { ...state, retryAfter: 0, plan } // the four-minute gap starts only once the board accepted it
-    : { ...state, retryAfter: arrivedAt + RETRY_GAP_MS });
+  // A usable reading saves nothing here; retryAfter 0 and the accepted plan are written by markSent once the
+  // board accepted it.
+  if (!hasWeekly) saveCapState(statePath, { ...state, retryAfter: arrivedAt + RETRY_GAP_MS });
   return hasWeekly ? { taken_at: new Date(arrivedAt).toISOString(), windows, source: SOURCE_API } : null;
 }
 
+// The plan the plugin last saw and since when: the same label keeps its time, a new label (or none saved)
+// starts now. A status line file written before `since` holds the previous plan's percentages.
+export function planSince(saved, plan, now) {
+  const same = saved && typeof saved === 'object' && saved.plan === plan && typeof saved.since === 'number';
+  return same ? { plan: saved.plan, since: saved.since } : { plan, since: now };
+}
+
+// Remembers the plan seen on every run, before any read, whatever the board answers.
+function recordPlanSeen(statePath, plan, now) {
+  const state = readCapState(statePath);
+  const planSeen = planSince(state.planSeen, plan, now);
+  if (!state.planSeen || state.planSeen.plan !== planSeen.plan || state.planSeen.since !== planSeen.since) {
+    saveCapState(statePath, { ...state, planSeen });
+  }
+}
+
 // The status line file's windows with the file's own time; an old file is still sent, never as "now".
-// Not sent when the plan changed since the last good address read, when it is older than the last
+// Not sent when it was written before the plan was first seen as current, when it is older than the last
 // address reading the board accepted, or when no weekly window of it is still running.
-export function readFromStatusLine({ claudeDir, statePath, plan, clock }) {
+export function readFromStatusLine({ claudeDir, statePath, clock }) {
   const saved = readJson(join(claudeDir, LATEST_FILE));
   const takenAt = saved && toIso(saved.at);
   const windows = windowsFromStatusLine(saved && saved.rate_limits, clock());
   if (!takenAt || !windows.some((window) => window.kind === KIND_WEEKLY)) return null;
   const state = readCapState(statePath);
   if (state.lastFileAt === takenAt) return null; // already sent this one
-  if (state.plan && state.plan !== plan) return null; // the plan changed since the last good read
+  const since = state.planSeen && state.planSeen.since;
+  if (typeof since !== 'number' || Date.parse(takenAt) < since) return null; // written under another plan, or before the first run
   if (typeof state.lastAddressAt === 'number' && Date.parse(takenAt) < state.lastAddressAt) return null;
   return { taken_at: takenAt, windows, source: SOURCE_STATUSLINE };
 }
@@ -213,9 +231,10 @@ export async function readCap({ claudeDir, stateDir = claudeDir, clock = Date.no
   const plan = planOf(credentials);
   if (!plan) return null; // 1% of one plan is not 1% of another: no plan, no reading
   const statePath = join(stateDir, CAP_STATE_FILE);
+  recordPlanSeen(statePath, plan, clock());
   if (inGap(readCapState(statePath).okUntil, clock(), OK_GAP_MS)) return null; // read a moment ago
-  const reading = (await readFromAddress({ credentials, plan, clock, statePath, touch, options }))
-    || readFromStatusLine({ claudeDir, statePath, plan, clock });
+  const reading = (await readFromAddress({ credentials, clock, statePath, touch, options }))
+    || readFromStatusLine({ claudeDir, statePath, clock });
   return reading ? { ...reading, plan } : null;
 }
 
@@ -226,7 +245,13 @@ function markSent(stateDir, reading, clock) {
   const state = readCapState(statePath);
   saveCapState(statePath, reading.source === SOURCE_STATUSLINE
     ? { ...state, lastFileAt: reading.taken_at }
-    : { ...state, okUntil: clock() + OK_GAP_MS, lastAddressAt: Date.parse(reading.taken_at) });
+    : { ...state, retryAfter: 0, okUntil: clock() + OK_GAP_MS, lastAddressAt: Date.parse(reading.taken_at) });
+}
+
+// The board refused an address reading: wait a short gap before asking the address again.
+function markRefused(stateDir, clock) {
+  const statePath = join(stateDir, CAP_STATE_FILE);
+  saveCapState(statePath, { ...readCapState(statePath), retryAfter: clock() + REFUSED_GAP_MS });
 }
 
 // Read one cap and send it. Returns { sent: true } or { skipped: <reason> }. Never throws except
@@ -237,5 +262,6 @@ export async function sendCapReading({ config, claudeDir, stateDir = claudeDir, 
   touch();
   const outcome = await callTool(config, CAP_TOOL, reading, options);
   if (outcome.ok) markSent(stateDir, reading, clock);
+  else if (reading.source === SOURCE_API) markRefused(stateDir, clock);
   return outcome.ok ? { sent: true, source: reading.source } : { skipped: outcome.error };
 }

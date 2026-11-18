@@ -13,6 +13,7 @@ import { join } from 'node:path';
 import { after, before, beforeEach, describe, mock, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { writeGoal } from './hooks/hook-input.mjs';
+import { envFor, runNode } from './test-helpers.mjs';
 import { readPlanCapEnabled, reportUsageEnabled, resolveEnvironment } from './report-progress.mjs';
 import { listRecordFiles } from './usage-report.mjs';
 import { GATE_FILE, LOCK_FILE, LOCK_STALE_MS, SEND_BATCH_SIZE, STATE_FILE, TASK_MAX_AGE_MS, TICK_GAP_MS, acquireLock, claudeDirOf, pendingReports, readTask, requestTick, runTick } from './usage-tick.mjs';
@@ -22,6 +23,8 @@ const OPUS = 'claude-opus-test';
 const SONNET = 'claude-sonnet-test';
 const NOW = Date.parse('2026-11-16T12:00:00Z');
 const AT = '2026-11-16T11:59:00Z';
+// A status line file written at the run's own time: the cap guard holds files older than the first run (Slice 30).
+const FILE_AT = '2026-11-16T12:00:00Z';
 
 let board;
 let reports;
@@ -144,10 +147,26 @@ describe('runTick', () => {
     writeSession('s1', recordLine(OPUS, { output_tokens: 6 }, AT));
     writeFileSync(join(claudeDir, '.credentials.json'), JSON.stringify({ claudeAiOauth: { subscriptionType: 'max', expiresAt: NOW - 1 } }));
     stamp(join(claudeDir, '.credentials.json'), NOW - 24 * 3600000);
-    writeFileSync(join(claudeDir, 'usage-latest.json'), JSON.stringify({ at: AT, rate_limits: { seven_day: { used_percentage: 30 } } }));
+    writeFileSync(join(claudeDir, 'usage-latest.json'), JSON.stringify({ at: FILE_AT, rate_limits: { seven_day: { used_percentage: 30 } } }));
     await tick();
     assert.deepEqual(reports.map((r) => r.name), ['report_usage', 'report_cap']);
     assert.deepEqual([reports[1].args.plan, reports[1].args.source], ['max', 'status-line-file']);
+  });
+
+  test('an error that is not about the lock still runs the cap reading (Slice 30)', async () => {
+    writeFileSync(join(claudeDir, '.credentials.json'), JSON.stringify({ claudeAiOauth: { subscriptionType: 'max', expiresAt: NOW - 1 } }));
+    stamp(join(claudeDir, '.credentials.json'), NOW - 24 * 3600000);
+    writeFileSync(join(claudeDir, 'usage-latest.json'), JSON.stringify({ at: FILE_AT, rate_limits: { seven_day: { used_percentage: 30 } } }));
+    const unreadable = () => { throw new Error('folder unreadable'); };
+    const stderr = mock.method(process.stderr, 'write', () => true);
+    let outcome;
+    try {
+      outcome = await tick({ listFiles: unreadable });
+    } finally {
+      stderr.mock.restore();
+    }
+    assert.deepEqual(outcome, { skipped: 'error' });
+    assert.deepEqual(reports.map((r) => r.name), ['report_cap']);
   });
 
   test('a cap reading that throws never stops the token reports', async () => {
@@ -387,31 +406,20 @@ describe('the hook entry (requestTick)', () => {
 
   test('a cloud-like home (no Claude folder variable, records under <home>/.claude/projects) is found and sent (Slice 28)', async () => {
     const home = mkdtempSync(join(tmpdir(), 'usage-tick-cloud-home-'));
-    const saved = {
-      HOME: process.env.HOME,
-      USERPROFILE: process.env.USERPROFILE,
-      CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR,
-      AGENT_BOARD_CLAUDE_DIR: process.env.AGENT_BOARD_CLAUDE_DIR,
-    };
-    delete process.env.CLAUDE_CONFIG_DIR;
-    delete process.env.AGENT_BOARD_CLAUDE_DIR;
-    process.env.HOME = home;
-    process.env.USERPROFILE = home;
     try {
       const dir = join(home, '.claude', 'projects', 'repo');
       mkdirSync(dir, { recursive: true });
-      writeFileSync(join(dir, 'cloud1.jsonl'), recordLine(OPUS, { output_tokens: 9 }, AT));
-      stamp(join(dir, 'cloud1.jsonl'), NOW - 1000);
-      const cloudEnv = { AGENT_BOARD_URL: env.AGENT_BOARD_URL, AGENT_BOARD_TOKEN: TEST_TOKEN, AGENT_BOARD_ENV: 'cloud', AGENT_BOARD_SESSION_ROOT: join(home, 'state') };
+      writeFileSync(join(dir, 'cloud1.jsonl'), recordLine(OPUS, { output_tokens: 9 }, new Date().toISOString())); // the child runs on the real clock
       mkdirSync(join(home, 'state'), { recursive: true });
-      assert.equal(claudeDirOf(cloudEnv), join(home, '.claude'));
-      await tick({ env: cloudEnv });
+      // The home folder is the child's own environment: this process's environment is never changed.
+      const childEnv = envFor(env.AGENT_BOARD_URL, join(home, 'state'), { HOME: home, USERPROFILE: home, AGENT_BOARD_ENV: 'cloud' });
+      // A developer's own settings must not change what the child does.
+      for (const name of ['CLAUDE_CONFIG_DIR', 'AGENT_BOARD_CLAUDE_DIR', 'AGENT_BOARD_USAGE', 'CLAUDE_PLUGIN_OPTION_REPORT_USAGE', 'CLAUDE_PLUGIN_OPTION_READ_PLAN_CAP', 'CLAUDE_PLUGIN_OPTION_ENVIRONMENT']) delete childEnv[name];
+      const script = fileURLToPath(new URL('./usage-tick.mjs', import.meta.url));
+      const result = await runNode(script, ['--run'], childEnv);
+      assert.equal(result.code, 0);
       assert.deepEqual(reports.map((r) => [r.args.environment, r.args.output_tokens]), [['cloud', 9]]);
     } finally {
-      for (const [key, value] of Object.entries(saved)) {
-        if (value === undefined) delete process.env[key];
-        else process.env[key] = value;
-      }
       rmSync(home, { recursive: true, force: true });
     }
   });
@@ -615,7 +623,7 @@ describe('the plugin options (Slice 22)', () => {
   test('the cap reading reads the sign-in file in the Claude folder, keeps its state in the state folder', async () => {
     const stateDir = mkdtempSync(join(tmpdir(), 'usage-tick-state-'));
     writeFileSync(join(claudeDir, '.credentials.json'), JSON.stringify({ claudeAiOauth: { accessToken: 'fake-token', subscriptionType: 'max', expiresAt: NOW + 3600000 } }));
-    writeFileSync(join(claudeDir, 'usage-latest.json'), JSON.stringify({ at: AT, rate_limits: { seven_day: { used_percentage: 30 } } }));
+    writeFileSync(join(claudeDir, 'usage-latest.json'), JSON.stringify({ at: FILE_AT, rate_limits: { seven_day: { used_percentage: 30 } } }));
     await tick({ env: { ...env, AGENT_BOARD_SESSION_ROOT: stateDir }, taskRoot: stateDir });
     assert.equal(reports.filter((r) => r.name === 'report_cap').length, 1);
     assert.equal(existsSync(join(stateDir, 'cap-reading-state.json')), true);
@@ -904,7 +912,7 @@ describe('the task heartbeat (Slice 13)', () => {
     writeSession('s1', recordLine(OPUS, { output_tokens: 6 }, AT));
     writeFileSync(join(claudeDir, '.credentials.json'), JSON.stringify({ claudeAiOauth: { subscriptionType: 'max', expiresAt: NOW - 1 } }));
     stamp(join(claudeDir, '.credentials.json'), NOW - 24 * 3600000);
-    writeFileSync(join(claudeDir, 'usage-latest.json'), JSON.stringify({ at: AT, rate_limits: { seven_day: { used_percentage: 30 } } }));
+    writeFileSync(join(claudeDir, 'usage-latest.json'), JSON.stringify({ at: FILE_AT, rate_limits: { seven_day: { used_percentage: 30 } } }));
     writeTask('s1', { key: 'demo-app/slice-13', step: '', status: 'in_progress' });
     const failing = async (url, init) => {
       if (String(init && init.body).includes('"report_progress"')) return { ok: false, status: 500, text: async () => '' };

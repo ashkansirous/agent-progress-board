@@ -1,6 +1,6 @@
 ### Slice 42 — A built slice whose checks are untried shows as built, not in progress
 
-*Built 2026-11-18 (night 2026-11-18-1602, wave 2, placement local), PR #139, not merged; the live-board check is not yet done.*
+*Built 2026-11-18 (night 2026-11-18-1602, wave 2, placement local), merged as PR #139 (8ca7c4a); the live-board check is not yet done.*
 
 *Planned 2026-11-18. The owner, looking at the board: "why do I still have so many in progress work from you? I think
 you've already implemented most of the slices! why are they still open?"* No mock: the owner asked only that built work
@@ -83,7 +83,7 @@ built row with an unfinished part keeps `in_progress`). The summary line shows "
   "folded by default like Done work", so a project with only Built work folding is that Decision.
 - Follow-up (not fixed): check #1, low, `docs/clients.md` has no list of the `built` grouping and `summary.built`.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-18)
 
 - A done slice with at least one open check is Built: `BOARD_WHERE` in `src/infrastructure/d1Repository.ts` keeps it on
   the board, `groupBoard` in `src/domain/boardGroups.ts` derives the `built` list, and nothing about it is stored (Slice 42:

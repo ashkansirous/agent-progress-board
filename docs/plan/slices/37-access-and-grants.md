@@ -1,6 +1,6 @@
 ### Slice 37 — Access answers, ending a grant, and the setup page's leftovers
 
-*Built 2026-11-18 (night 2026-11-18-1602 wave 2, placement local), PR #136, not merged. Checks on the final tree: lint, typecheck, Vitest 526, e2e 275 passed 3 skipped. Owner's phone check not yet done.* Built before Slice 36; 36 now goes after it.
+*Built 2026-11-18 (night 2026-11-18-1602 wave 2, placement local), merged as PR #136 (e37334a). Checks on the final tree: lint, typecheck, Vitest 526, e2e 275 passed 3 skipped. Owner's phone check not yet done.* Built before Slice 36; 36 now goes after it.
 
 *Planned 2026-11-18 (owner: "double check and plan the follow up work"). Grouping decided by the planning session of
 2026-11-18; items re-checked against `origin/main` (d654e9b).* Wave 4, after Slice 36 (both edit
@@ -182,7 +182,7 @@ connected apps.", "Retry". Removed: `setupPrefaceIntro`, `setupCopyPreface`, `se
 - A malformed `ACCESS_TEAM_DOMAIN` (error while building the key set) still answers 503 and logs.
 - Key cool-down: see the Decision above (`guardedKeys` in `src/api/access.ts`).
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-18)
 
 - The key cool-down lives only in `guardedKeys` in `src/api/access.ts`: it classifies by where the error came from (the key getter), 10 s, never by an allowlist of error classes (Slice 37: docs/plan/slices/37-access-and-grants.md).
 

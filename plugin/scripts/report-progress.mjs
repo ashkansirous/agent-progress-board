@@ -14,7 +14,9 @@
 //          [--details-file <path>] [--details "<text>"] [--parent-key <key>]
 //          [--agent <kind>] [--model <name>] [--session <id>]
 //          [--steps "a|b|c" | --steps-file <path>] [--touches "<Touches line>"] [--touches-file <slice file>]
-//          [--step-active "<label>" | --step-done "<label>"] [--step-skipped "<label>"]...
+//          [--step-active "<label>" | --step-done "<label>"] [--step-skipped "<label>"]... [--under-step <id>]
+// --under-step <id> sends the list as only that step's children (the board's `under_step`); a helper reports its own
+// subtree with it. It is sent only together with a list.
 // Steps: --steps gives the labels inline (the first is active unless a step flag names one); --steps-file reads a
 // JSON file `{ "agent": "..", "steps": [{ "label": "..", "note": "..", "needsTouch": [".."] }] }`.
 // --touches (or --touches-file, which reads the slice file's Touches line) drops steps whose
@@ -57,7 +59,8 @@ export const SESSION_VARIABLE = 'CLAUDE_CODE_SESSION_ID';
 export const STEP_STATE = { done: 'done', active: 'active', pending: 'pending' };
 export const STEP_LABEL_MAX = 80; // the board's limits (docs/clients.md, Steps)
 export const STEP_NOTE_MAX = 120;
-export const STEPS_MAX = 30;
+export const STEPS_MAX = 200; // the board's whole-tree limit (src/mcp/schemas.ts, Slice 39)
+export const STEP_ID_MAX = 80;
 const STEP_SEPARATOR = '|';
 export const STATE_FOLDER = 'claude-board-hooks';
 export const STATE_ROOT_VARIABLE = 'AGENT_BOARD_SESSION_ROOT'; // a test or a user override of the state folder
@@ -207,7 +210,7 @@ export function parseArgs(argv) {
     if (SWITCHES.has(name)) { out[name] = true; continue; }
     const value = argv[index + 1];
     if (value === undefined || value.startsWith('--')) {
-      if (name === 'part') out.part = ''; // a --part with no value must still be seen as given, never as absent
+      if (name === 'part' || name === 'under-step') out[name] = ''; // given with no value: seen as given, never as absent
       continue;
     }
     index += 1;
@@ -268,6 +271,7 @@ export function buildArguments(parsed, project, detailsText, environment = '', s
   const args = { key };
   if (environment) args.environment = environment;
   if (steps) args.steps = steps;
+  if (steps && parsed['under-step']) args.under_step = String(parsed['under-step']).trim();
   const fields = { ...parsed, project: parsed.project || project };
   for (const field of FIELD_ARGS) {
     if (fields[field]) args[field] = fields[field];
@@ -539,6 +543,18 @@ function trackTask(sessionId, tool, args, steps, env) {
   } else updateTaskStatus(sessionId, tool, args, root);
 }
 
+const NOTHING_SENT = 'nothing sent';
+
+// Why --under-step cannot work as given, or '': an id over the board's limit would be cut to another step's id, so
+// nothing is sent; with no step list nothing is sent either (a whole-card report could overwrite the session card).
+export function underStepProblem(parsed, steps) {
+  if (!('under-step' in parsed)) return '';
+  if (typeof parsed['under-step'] !== 'string' || !parsed['under-step'].trim()) return `--under-step needs a step id, ${NOTHING_SENT}`;
+  const id = parsed['under-step'].trim();
+  if (id.length > STEP_ID_MAX) return `--under-step id is over ${STEP_ID_MAX} characters, ${NOTHING_SENT}`;
+  return steps ? '' : `--under-step needs a step list (--steps with --step-active or --step-done), ${NOTHING_SENT}`;
+}
+
 export async function main(argv, env = process.env) {
   const parsed = parseArgs(argv);
   const tool = parsed.tool || 'report_progress';
@@ -553,11 +569,14 @@ export async function main(argv, env = process.env) {
   const environment = isProgress ? resolveEnvironment(env) : '';
   const { agent, model, ...withoutAgent } = parsed; // eslint-disable-line @typescript-eslint/no-unused-vars
   const context = isProgress ? stepContext(parsed, env) : { steps: null, fields: withoutAgent };
+  const underProblem = isProgress ? underStepProblem(parsed, context.steps) : '';
+  if (underProblem) return process.stderr.write(`report-progress: ${underProblem}\n`);
   const args = buildArguments(context.fields, project, readDetails(parsed['details-file']), environment, context.steps);
   if (!args) return process.stderr.write('report-progress: no key (give --key or --slice)\n');
   // A helper's card (--parent-key) shares the caller's session id but is not the session's task: only
   // the caller's own reports write or remove the task file.
-  if (!parsed['parent-key']) trackTask(parsed.session || env[SESSION_VARIABLE], tool, args, context.steps, env);
+  // A subtree report (--under-step) is a helper's list of children, not the session's own steps: no task file for it.
+  if (!parsed['parent-key'] && !args.under_step) trackTask(parsed.session || env[SESSION_VARIABLE], tool, args, context.steps, env);
   const outcome = await callTool(config, tool, toolArguments(tool, args));
   if (!outcome.ok) process.stderr.write(`report-progress: ${tool} skipped (${outcome.error})\n`);
 }

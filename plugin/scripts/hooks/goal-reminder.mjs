@@ -11,7 +11,8 @@
 // Output: PostToolUse additionalContext, or nothing.
 import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { STEPS_MAX, STEP_LABEL_MAX, STEP_NOTE_MAX, activeTaskCard } from '../report-progress.mjs';
+import { STEPS_MAX, STEP_ID_MAX, STEP_LABEL_MAX, STEP_NOTE_MAX, activeTaskCard } from '../report-progress.mjs';
+import { STEP_DEPTH_MAX } from './background-agents.mjs';
 import { markWaitingDone } from './session-done.mjs';
 import { CLOSED_BY, parseInput, readGoal, readPrompt, readStdinText, sessionIdOf, stateRoot, touchSeen, updateGoal, writePrompt } from './hook-input.mjs';
 
@@ -26,12 +27,28 @@ function text(value) {
   return typeof value === 'string' ? value : '';
 }
 
+// The session's steps as it sent them, ids and children included, so the hooks can send them again unchanged. At most
+// STEPS_MAX nodes in all (nested ones count) and STEP_DEPTH_MAX levels: what the board would refuse is cut here.
+function stepLevel(list, depth, budget) {
+  const out = [];
+  for (const step of list) {
+    if (budget.left <= 0) break;
+    if (!step || typeof step.label !== 'string' || !STEP_STATES.has(step.state)) continue;
+    budget.left -= 1;
+    const children = Array.isArray(step.children) && depth < STEP_DEPTH_MAX ? stepLevel(step.children, depth + 1, budget) : null;
+    out.push({
+      ...(typeof step.id === 'string' && step.id ? { id: step.id.slice(0, STEP_ID_MAX) } : {}),
+      label: step.label.slice(0, STEP_LABEL_MAX),
+      state: step.state,
+      ...(step.note ? { note: String(step.note).slice(0, STEP_NOTE_MAX) } : {}),
+      ...(children ? { children } : {}),
+    });
+  }
+  return out;
+}
+
 function stepsOf(value) {
-  if (!Array.isArray(value)) return null;
-  return value
-    .filter((step) => step && typeof step.label === 'string' && STEP_STATES.has(step.state))
-    .slice(0, STEPS_MAX)
-    .map((step) => ({ label: step.label.slice(0, STEP_LABEL_MAX), state: step.state, ...(step.note ? { note: String(step.note).slice(0, STEP_NOTE_MAX) } : {}) }));
+  return Array.isArray(value) ? stepLevel(value, 1, { left: STEPS_MAX }) : null;
 }
 
 // The open question after this report: the board clears it on done, on needs_you null and on a text-less
@@ -48,7 +65,9 @@ export function cardUpdate(input, goal) {
   const call = input.tool_input && typeof input.tool_input === 'object' ? input.tool_input : {};
   const key = text(call.key);
   if (!match || !key) return null;
-  if (!(goal && goal.key === key) && !(match[1] === 'report_progress' && call.agent === SESSION_AGENT)) return null;
+  // A report with under_step is a helper's list of children of one step: it changes none of the session's own fields
+  // (steps, title, why, closed, question), whatever status or title it carries.
+  if (call.under_step) return null;  if (!(goal && goal.key === key) && !(match[1] === 'report_progress' && call.agent === SESSION_AGENT)) return null;
   const steps = stepsOf(call.steps);
   const base = goal && goal.key === key ? goal : { goalAt: undefined, title: '', why: '', steps: [] };
   const closed = match[1] === 'mark_done' || call.status === 'done';

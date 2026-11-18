@@ -7,10 +7,10 @@ import { join } from 'node:path';
 import { describe, test } from 'node:test';
 import { setTimeout } from 'node:timers';
 import { fileURLToPath } from 'node:url';
-import { AGENT_FRESH_MS, mergeSteps, readBackgroundAgents, subagentsDir } from './background-agents.mjs';
+import { AGENT_FRESH_MS, mergeSteps, placeAgents, readBackgroundAgents, subagentsDir } from './background-agents.mjs';
 import { closeAnsweredWaiting, handle as remind, REMINDER_TEXT } from './goal-reminder.mjs';
 import { addStoppedAgent, hasMarker, listMarkers, readGoal, readStdinText, readStoppedAt, removeGoal, touchSeen, updateGoal, writeGoal, writeJson, writeMarker, writePrompt } from './hook-input.mjs';
-import { DEAD_SESSION_MS, run as runDone } from './session-done.mjs';
+import { DEAD_SESSION_MS, run as runDone, startContext } from './session-done.mjs';
 import { execFileSync } from 'node:child_process';
 import { branchOf, run as runWaiting, titleOf, usableCwd } from './session-waiting.mjs';
 import { cleanUpAfterTests, envFor, callsOf, replyOk, runNode, startFakeBoard, trackedTemp } from '../test-helpers.mjs';
@@ -37,10 +37,12 @@ function sessionWithAgents(agents, now = NOW) {
   mkdirSync(subagents, { recursive: true });
   for (const agent of agents) {
     const record = join(subagents, `agent-${agent.id}.jsonl`);
-    writeFileSync(record, '{}\n');
+    const lines = [{ type: 'user', message: { role: 'user', content: agent.prompt || 'Do the work' } }];
+    if (agent.model) lines.push({ type: 'assistant', message: { role: 'assistant', model: agent.model, content: [] } });
+    writeFileSync(record, `${lines.map((line) => JSON.stringify(line)).join('\n')}\n`);
     const at = new Date(now - agent.ageMs);
     utimesSync(record, at, at);
-    writeFileSync(join(subagents, `agent-${agent.id}.meta.json`), JSON.stringify({ agentType: 'general-purpose', description: agent.description, ...(agent.finished ? { finished: true } : {}) }));
+    writeFileSync(join(subagents, `agent-${agent.id}.meta.json`), JSON.stringify({ agentType: 'general-purpose', ...(agent.description ? { description: agent.description } : {}), ...(agent.finished ? { finished: true } : {}), ...(agent.shape ? { requestShape: agent.shape } : {}) }));
   }
   return transcript;
 }
@@ -84,22 +86,123 @@ describe('background agents', () => {
     assert.deepEqual(readBackgroundAgents({}, NOW), []);
   });
 
-  test('mergeSteps keeps the sent steps, gives the active slot to the first running agent and never lists two active', () => {
-    const sent = [{ label: 'Write text', state: 'active' }, { label: 'Ship', state: 'pending' }];
+  test('an agent with no description is labelled by the start of its prompt, never by its type; the model is read', () => {
+    const transcript = sessionWithAgents([
+      { id: 'a1', prompt: 'Compare sync-first and cache-first for a notes app, then write up the trade-offs in detail', ageMs: MINUTE, model: 'model-small' },
+      { id: 'a2', description: 'Record the audio', ageMs: 2 * MINUTE },
+    ]);
+    const agents = readBackgroundAgents({ transcript_path: transcript }, NOW);
+    const bare = agents.find((agent) => agent.id === 'a1');
+    assert.equal(bare.label, 'Helper agent: Compare sync-first and cache-first for a notes ap…');
+    assert.equal(bare.model, 'model-small');
+    assert.ok(agents.every((agent) => !agent.label.includes('general-purpose')));
+  });
+
+  test('a secret in an agent prompt or description is masked in its label', () => {
+    const secret = ['hunter', 'two', 'value'].join('');
+    const transcript = sessionWithAgents([
+      { id: 'a1', prompt: `use the token: ${secret} to call the API`, ageMs: MINUTE },
+      { id: 'a2', description: `password=${secret}`, prompt: 'x', ageMs: MINUTE },
+    ]);
+    const agents = readBackgroundAgents({ transcript_path: transcript }, NOW);
+    for (const agent of agents) assert.ok(!agent.label.includes(secret), agent.label);
+    assert.ok(agents.find((agent) => agent.id === 'a1').label.startsWith('Helper agent: '));
+  });
+
+  test('mergeSteps puts an agent under the step that was running, keeps the session steps as sent and lets several agents run', () => {
+    const sent = [{ label: 'Plan', state: 'done' }, { label: 'Record audio', state: 'active' }, { label: 'Ship', state: 'pending' }];
     const agents = [
-      { id: 'a', label: 'Translate texts', state: 'active' },
+      { id: 'a', label: 'Translate texts', state: 'active', model: 'model-small' },
       { id: 'b', label: 'Draw pictures', state: 'active' },
       { id: 'c', label: 'Check links', state: 'done' },
     ];
-    const merged = mergeSteps(sent, agents);
-    assert.deepEqual(merged.map((step) => `${step.label}:${step.state}`), ['Write text:pending', 'Ship:pending', 'Translate texts:active', 'Draw pictures:pending', 'Check links:done']);
-    assert.equal(merged.filter((step) => step.state === 'active').length, 1);
+    const parents = placeAgents(sent, agents);
+    assert.deepEqual(parents, { a: 'label:Record audio', b: 'label:Record audio', c: 'label:Record audio' });
+    const merged = mergeSteps(sent, agents, parents);
+    assert.deepEqual(merged.map((step) => `${step.label}:${step.state}`), ['Plan:done', 'Record audio:active', 'Ship:pending']);
+    const rows = merged[1].children;
+    assert.deepEqual(rows.map((step) => `${step.label}:${step.state}`), ['Translate texts:active', 'Draw pictures:active', 'Check links:done']);
+    assert.deepEqual(rows.map((step) => step.note), ['Helper agent · model-small', 'Helper agent', 'Helper agent']);
+    assert.ok(rows.every((step) => step.id.startsWith('agent-') && !('children' in step)), 'no children sent: a helper\'s subtree is kept by the board');
   });
 
-  test('mergeSteps leaves the sent list as sent when no agent runs, and skips a label the session already has', () => {
-    const sent = [{ label: 'Write text', state: 'active' }];
-    assert.deepEqual(mergeSteps(sent, [{ id: 'c', label: 'Check links', state: 'done' }]).map((step) => step.state), ['active', 'done']);
-    assert.equal(mergeSteps(sent, [{ id: 'd', label: 'Write text', state: 'active' }]).length, 1);
+  test('mergeSteps puts an agent at the root when no step was running, or its recorded step is gone', () => {
+    const sent = [{ label: 'Plan', state: 'pending' }];
+    const agents = [{ id: 'a', label: 'Helper', state: 'active' }];
+    assert.deepEqual(placeAgents(sent, agents), { a: '' });
+    assert.deepEqual(mergeSteps(sent, agents, { a: '' }).map((step) => step.label), ['Plan', 'Helper']);
+    assert.deepEqual(mergeSteps(sent, agents, { a: 'label:Gone' }).map((step) => step.label), ['Plan', 'Helper']);
+  });
+
+  test('placeAgents keeps the place recorded when the agent was first seen, and the places of agents no longer listed', () => {
+    const agents = [{ id: 'a', label: 'Helper', state: 'active' }];
+    assert.deepEqual(placeAgents([{ label: 'Later', state: 'active' }], agents, { a: 'label:Earlier', old: 'id:s1' }), { a: 'label:Earlier', old: 'id:s1' });
+  });
+
+  test('placement is by id: two steps with one label, the agent goes under the one it ran under', () => {
+    const sent = [{ id: 's1', label: 'Review', state: 'done' }, { id: 's2', label: 'Review', state: 'active' }];
+    const agents = [{ id: 'a', label: 'H', state: 'active' }];
+    const parents = placeAgents(sent, agents);
+    assert.equal(parents.a, 'id:s2');
+    const merged = mergeSteps(sent, agents, parents);
+    assert.equal('children' in merged[0], false);
+    assert.deepEqual(merged[1].children.map((step) => step.id), ['agent-a']);
+  });
+
+  test('a step with its own children keeps them and gets the agent rows after them (a helper child is not lost)', () => {
+    const sent = [{ id: 's3', label: 'Record audio', state: 'active', children: [{ label: 'Mic', state: 'done' }] }];
+    const merged = mergeSteps(sent, [{ id: 'a', label: 'H', state: 'active' }], { a: 'id:s3' });
+    assert.deepEqual(merged[0].children.map((step) => step.label), ['Mic', 'H']);
+  });
+
+  test('a step the session marked done is sent active, with a note, while its agent runs; a finished agent leaves it done', () => {
+    const sent = [{ id: 's3', label: 'Record audio', state: 'done', children: [{ label: 'Mic', state: 'done' }] }];
+    const running = mergeSteps(sent, [{ id: 'a', label: 'H', state: 'active' }], { a: 'id:s3' });
+    assert.equal(running[0].state, 'active');
+    assert.match(running[0].note, /still running/);
+    assert.equal(running[0].children[1].state, 'active');
+    const finished = mergeSteps(sent, [{ id: 'a', label: 'H', state: 'done' }], { a: 'id:s3' });
+    assert.equal(finished[0].state, 'done');
+  });
+
+  test('a nested step with a running agent makes its done ancestors active too', () => {
+    const sent = [{ id: 'p', label: 'P', state: 'done', children: [{ id: 'c', label: 'C', state: 'done' }] }];
+    const merged = mergeSteps(sent, [{ id: 'a', label: 'H', state: 'active' }], { a: 'id:c' });
+    assert.deepEqual([merged[0].state, merged[0].children[0].state], ['active', 'active']);
+  });
+
+  test('when the last agent under a step ages out, the step is sent with its own children list so the old row goes', () => {
+    const sent = [{ id: 's3', label: 'Record audio', state: 'active' }];
+    const merged = mergeSteps(sent, [], { gone: 'id:s3' });
+    assert.deepEqual(merged, [{ id: 's3', label: 'Record audio', state: 'active', children: [] }]);
+  });
+
+  test('an agent row leaves room for its helper\'s subtree: never deeper than level 3, else under the level-2 ancestor', () => {
+    const deep = [{ id: 'l1', label: 'L1', state: 'active', children: [{ id: 'l2', label: 'L2', state: 'active', children: [{ id: 'l3', label: 'L3', state: 'active', children: [{ id: 'l4', label: 'L4', state: 'active' }] }] }] }];
+    const agents = [{ id: 'a', label: 'H', state: 'active' }];
+    const level3 = mergeSteps(deep, agents, { a: 'id:l3' });
+    assert.deepEqual(level3[0].children[0].children.map((step) => step.id), ['l3', 'agent-a'], 'row beside L3, under L2');
+    assert.deepEqual(level3[0].children[0].children[0].children.map((step) => step.id), ['l4'], 'L3 keeps only its own child');
+    const level2 = mergeSteps(deep, agents, { a: 'id:l2' });
+    assert.deepEqual(level2[0].children[0].children.map((step) => step.id), ['l3', 'agent-a'], 'owner L2: row at level 3');
+  });
+
+  test('the 200-step budget counts nested steps', () => {
+    const sent = [{ label: 'big', state: 'pending', children: Array.from({ length: 198 }, (_, index) => ({ label: `c${index}`, state: 'pending' })) }];
+    const merged = mergeSteps(sent, [{ id: 'a', label: 'H', state: 'active' }, { id: 'b', label: 'I', state: 'active' }], {});
+    assert.equal(merged.length, 2, 'only one root agent row fits in 200');
+  });
+
+  test('mergeSteps over the 200-step limit drops the oldest finished agents first', () => {
+    const sent = Array.from({ length: 198 }, (_, index) => ({ label: `s${index}`, state: 'pending' }));
+    const agents = [
+      { id: 'old', label: 'Old done', state: 'done' },
+      { id: 'run', label: 'Running', state: 'active' },
+      { id: 'new', label: 'New done', state: 'done' },
+    ];
+    const merged = mergeSteps(sent, agents, {});
+    assert.equal(merged.length, 200);
+    assert.deepEqual(merged.slice(198).map((step) => step.label), ['Running', 'New done']);
   });
 });
 
@@ -130,8 +233,106 @@ describe('Stop, SubagentStop and UserPromptSubmit (session-done)', () => {
     assert.equal(call.tool, 'report_progress');
     assert.equal(call.args.status, 'in_progress');
     assert.equal(call.args.note, 'background agents running');
-    assert.deepEqual(call.args.steps.map((step) => `${step.label}:${step.state}`), ['Write text:pending', 'Ship:pending', 'Draw pictures:active', 'Translate texts:pending']);
+    assert.deepEqual(call.args.steps.map((step) => `${step.label}:${step.state}`), ['Write text:active', 'Ship:pending']);
+    const rows = call.args.steps[0].children;
+    assert.deepEqual(rows.map((step) => `${step.label}:${step.state}`), ['Draw pictures:active', 'Translate texts:active'], 'both agents run, under the step that was running');
+    assert.deepEqual(readGoal('sess-1', root, NOW).agentParents, { a1: 'label:Write text', a2: 'label:Write text' });
     assert.equal(readGoal('sess-1', root, NOW).closed, false);
+  });
+
+  test('SubagentStart records the running step by id before the send, sends the row, and tells the helper its key and row id', async () => {
+    const { board, root, env, input } = await setup([]);
+    withCard(root, { steps: [{ id: 's1', label: 'Write text', state: 'active' }, { id: 's2', label: 'Ship', state: 'pending' }] });
+    const start = input('SubagentStart', { agent_id: 'a9' });
+    await runDone(start, env, {}, NOW);
+    board.server.close();
+    const [call] = callsOf(board);
+    assert.deepEqual(call.args.steps[0].children.map((step) => step.id), ['agent-a9']);
+    assert.deepEqual(readGoal('sess-1', root, NOW).agentParents, { a9: 'id:s1' });
+    const context = JSON.parse(startContext(start, env, root, NOW)).hookSpecificOutput;
+    assert.equal(context.hookEventName, 'SubagentStart');
+    assert.ok(context.additionalContext.includes(CARD) && context.additionalContext.includes('agent-a9'));
+  });
+
+  test('an agent recorded at start with no files yet keeps its active row for 10 minutes from its start, then is dropped', async () => {
+    const { board, root, env, input } = await setup([]);
+    withCard(root, { steps: [{ id: 's1', label: 'Write text', state: 'active' }] });
+    await runDone(input('SubagentStart', { agent_id: 'a9' }), env, {}, NOW);
+    await runDone(input('Stop'), env, {}, NOW + MINUTE);
+    await runDone(input('Stop'), env, {}, NOW + AGENT_FRESH_MS + MINUTE);
+    board.server.close();
+    const [, early, late] = callsOf(board);
+    assert.equal(early.tool, 'report_progress');
+    assert.deepEqual(early.args.steps[0].children.map((step) => `${step.id}:${step.state}`), ['agent-a9:active']);
+    assert.equal(late.tool, 'mark_done', 'past 10 minutes with no files the agent is dropped');
+  });
+
+  test('two agents starting at once: the later hook keeps the first one\'s place and sends both rows', async () => {
+    const root = folder();
+    withCard(root, { steps: [{ id: 's1', label: 'Write text', state: 'active' }] });
+    const transcript = sessionWithAgents([{ id: 'a1', description: 'First', ageMs: MINUTE }, { id: 'a2', description: 'Second', ageMs: MINUTE }]);
+    const board = await startFakeBoard(replyOk);
+    const env = envFor(board.url, root);
+    const start = (agentId) => ({ session_id: 'sess-1', cwd: process.cwd(), hook_event_name: 'SubagentStart', agent_id: agentId, transcript_path: transcript });
+    updateGoal('sess-1', root, NOW, (current) => ({ ...current, agentParents: { a1: 'id:s1' } })); // the other hook wrote after this one read
+    await runDone(start('a2'), env, {}, NOW);
+    board.server.close();
+    const [call] = callsOf(board);
+    assert.deepEqual(readGoal('sess-1', root, NOW).agentParents, { a1: 'id:s1', a2: 'id:s1' });
+    assert.deepEqual(call.args.steps[0].children.map((step) => step.id), ['agent-a1', 'agent-a2']);
+  });
+
+  test('SubagentStart with no transcript_path sends no row for an agent recorded earlier', async () => {
+    const root = folder();
+    withCard(root, { steps: [{ id: 's1', label: 'Write text', state: 'active' }], agentParents: { old: 'id:s1' } });
+    const board = await startFakeBoard(replyOk);
+    await runDone({ session_id: 'sess-1', cwd: process.cwd(), hook_event_name: 'SubagentStart', agent_id: 'a2' }, envFor(board.url, root), {}, NOW);
+    board.server.close();
+    assert.equal(callsOf(board).length, 1);
+    assert.deepEqual(callsOf(board)[0].args.steps[0].children.map((step) => step.id), []);
+    assert.deepEqual(readGoal('sess-1', root, NOW).agentParents, { old: 'id:s1', a2: 'id:s1' });
+  });
+
+  test('the saved sig is the one of the tree sent, built from the merged places', async () => {
+    const root = folder();
+    withCard(root, { steps: [{ id: 's1', label: 'Write text', state: 'active' }] });
+    const transcript = sessionWithAgents([{ id: 'a1', description: 'First', ageMs: MINUTE }, { id: 'a2', description: 'Second', ageMs: MINUTE }]);
+    const board = await startFakeBoard(replyOk);
+    updateGoal('sess-1', root, NOW, (current) => ({ ...current, agentParents: { a1: 'id:s1' } }));
+    await runDone({ session_id: 'sess-1', cwd: process.cwd(), hook_event_name: 'SubagentStart', agent_id: 'a2', transcript_path: transcript }, envFor(board.url, root), {}, NOW);
+    board.server.close();
+    assert.equal(readGoal('sess-1', root, NOW).sig, JSON.stringify(callsOf(board)[0].args.steps));
+  });
+
+  test('a foreground agent changes nothing on the card and gets no row id', async () => {
+    const root = folder();
+    withCard(root);
+    const transcript = sessionWithAgents([{ id: 'f1', description: 'Waited for', ageMs: MINUTE, shape: 'foreground' }]);
+    const board = await startFakeBoard(replyOk);
+    const env = envFor(board.url, root);
+    const start = { session_id: 'sess-1', cwd: process.cwd(), hook_event_name: 'SubagentStart', agent_id: 'f1', transcript_path: transcript };
+    await runDone(start, env, {}, NOW);
+    board.server.close();
+    assert.equal(callsOf(board).length, 0);
+    assert.deepEqual(readGoal('sess-1', root, NOW).agentParents, {});
+    assert.equal(startContext(start, env, root, NOW), '');
+  });
+
+  test('the place recorded at start holds after the session moves on; a failed send keeps the place', async () => {
+    const root = folder();
+    const env = envFor('http://127.0.0.1:1', root);
+    withCard(root, { steps: [{ id: 's1', label: 'Write text', state: 'active' }, { id: 's2', label: 'Ship', state: 'pending' }] });
+    const transcript = sessionWithAgents([{ id: 'a9', description: 'Helper', ageMs: MINUTE }]);
+    await runDone({ session_id: 'sess-1', cwd: process.cwd(), hook_event_name: 'SubagentStart', agent_id: 'a9', transcript_path: transcript }, env, {}, NOW);
+    assert.deepEqual(readGoal('sess-1', root, NOW).agentParents, { a9: 'id:s1' }, 'saved although the send failed');
+    updateGoal('sess-1', root, NOW, (current) => ({ ...current, steps: [{ id: 's1', label: 'Write text', state: 'done' }, { id: 's2', label: 'Ship', state: 'active' }] }));
+    const board = await startFakeBoard(replyOk);
+    await runDone({ session_id: 'sess-1', cwd: process.cwd(), hook_event_name: 'Stop', transcript_path: transcript }, envFor(board.url, root), {}, NOW);
+    board.server.close();
+    const [call] = callsOf(board);
+    assert.equal(call.args.steps[0].state, 'active', 'done step with a running agent is sent active');
+    assert.deepEqual(call.args.steps[0].children.map((step) => step.id), ['agent-a9']);
+    assert.equal('children' in call.args.steps[1], false);
   });
 
   test('SubagentStop turns the stopped agent done and sends the list once', async () => {
@@ -141,7 +342,7 @@ describe('Stop, SubagentStop and UserPromptSubmit (session-done)', () => {
     board.server.close();
     const calls = callsOf(board);
     assert.equal(calls.length, 1, 'the unchanged list is not sent twice');
-    assert.deepEqual(calls[0].args.steps.filter((step) => step.label !== 'Write text' && step.label !== 'Ship').map((step) => `${step.label}:${step.state}`), ['Translate texts:done', 'Draw pictures:active']);
+    assert.deepEqual(calls[0].args.steps[0].children.map((step) => `${step.label}:${step.state}`), ['Translate texts:done', 'Draw pictures:active']);
   });
 
   test('UserPromptSubmit reopens a card the Stop hook closed; an open card is left alone', async () => {
@@ -287,12 +488,12 @@ describe('review fixes (session-done, background agents)', () => {
     assert.notEqual(goal.sig, '');
   });
 
-  test('mergeSteps keeps a new agent whose label an earlier finished agent had, and agents with equal labels', () => {
+  test('mergeSteps keeps agents with equal labels, each its own row', () => {
     const merged = mergeSteps([], [
       { id: 'a', label: 'Write text', state: 'done' },
       { id: 'b', label: 'Write text', state: 'active' },
     ]);
-    assert.deepEqual(merged.map((step) => `${step.label}:${step.state}`), ['Write text:done', 'Write text:active']);
+    assert.deepEqual(merged.map((step) => `${step.label}:${step.state}:${step.id}`), ['Write text:done:agent-a', 'Write text:active:agent-b']);
   });
 });
 
@@ -489,6 +690,47 @@ describe('goal reminder and card key (goal-reminder)', () => {
     for (let index = 0; index < 4; index += 1) assert.equal(remind(toolInput({ agent_id: 'a1' }), env, NOW), '');
   });
 
+  test('the session\'s steps are stored with ids and children; a report with under_step never replaces them', () => {
+    const root = folder();
+    const env = { AGENT_BOARD_SESSION_ROOT: root };
+    remind(promptInput, env, NOW);
+    const steps = [{ id: 's1', label: 'Plan', state: 'active', children: [{ label: 'Draft', state: 'pending' }] }];
+    remind(toolInput({ tool_name: BOARD_TOOL, tool_input: { key: CARD, agent: 'session', title: 'T', steps } }), env, NOW);
+    assert.deepEqual(readGoal('sess-1', root, NOW).steps, steps);
+    remind(toolInput({ tool_name: BOARD_TOOL, tool_input: { key: CARD, under_step: 'agent-abc', steps: [{ label: 'fr', state: 'active' }] } }), env, NOW + 1000);
+    assert.deepEqual(readGoal('sess-1', root, NOW + 1000).steps, steps);
+  });
+
+  test('a helper\'s plain report on the session key (agent_id set, no under_step) never replaces the session\'s steps', () => {
+    const root = folder();
+    const env = { AGENT_BOARD_SESSION_ROOT: root };
+    remind(promptInput, env, NOW);
+    const steps = [{ id: 's1', label: 'Plan', state: 'active' }];
+    remind(toolInput({ tool_name: BOARD_TOOL, tool_input: { key: CARD, agent: 'session', title: 'T', steps } }), env, NOW);
+    remind(toolInput({ agent_id: 'a1', tool_name: BOARD_TOOL, tool_input: { key: CARD, agent: 'session', steps: [{ label: 'mine', state: 'active' }] } }), env, NOW + 1000);
+    assert.deepEqual(readGoal('sess-1', root, NOW + 1000).steps, steps);
+  });
+
+  test('a helper report with under_step, even done or titled, changes none of the session\'s goal fields', () => {
+    const root = folder();
+    const env = { AGENT_BOARD_SESSION_ROOT: root };
+    remind(promptInput, env, NOW);
+    remind(toolInput({ tool_name: BOARD_TOOL, tool_input: { key: CARD, agent: 'session', title: 'T', why: 'W', needs_you: 'Q?' } }), env, NOW);
+    const before = readGoal('sess-1', root, NOW);
+    remind(toolInput({ tool_name: BOARD_TOOL, tool_input: { key: CARD, under_step: 'agent-abc', status: 'done', title: 'Helper', why: 'H', needs_you: null } }), env, NOW + 1000);
+    const after = readGoal('sess-1', root, NOW + 1000);
+    for (const field of ['title', 'why', 'closed', 'needsYou']) assert.equal(after[field], before[field], field);
+  });
+
+  test('the stored steps keep at most 200 nodes in all, nested ones counted', () => {
+    const root = folder();
+    const env = { AGENT_BOARD_SESSION_ROOT: root };
+    remind(promptInput, env, NOW);
+    const steps = [{ label: 'big', state: 'active', children: Array.from({ length: 250 }, (_, index) => ({ label: `c${index}`, state: 'pending' })) }];
+    remind(toolInput({ tool_name: BOARD_TOOL, tool_input: { key: CARD, agent: 'session', title: 'T', steps } }), env, NOW);
+    assert.equal(readGoal('sess-1', root, NOW).steps[0].children.length, 199);
+  });
+
   test('a main-thread report_progress with agent "session" records the card key, title and steps; no reminder follows', () => {
     const root = folder();
     const env = { AGENT_BOARD_SESSION_ROOT: root };
@@ -649,12 +891,14 @@ describe('Slice 29: background-agent state', () => {
     board.server.close();
     const [call] = callsOf(board);
     assert.equal(call.tool, 'report_progress');
-    assert.equal(call.args.steps.find((step) => step.label === 'Translate texts').state, 'active');
+    assert.equal(call.args.steps.flatMap((step) => [step, ...(step.children || [])]).find((step) => step.label === 'Translate texts').state, 'active');
   });
 
-  test('mergeSteps keeps one active step when the running agent has the label of the session\'s active step', () => {
-    const merged = mergeSteps([{ label: 'Translate texts', state: 'active' }, { label: 'Ship', state: 'pending' }], [{ id: 'a1', label: 'Translate texts', state: 'active' }]);
+  test('mergeSteps keeps the session\'s active step active when an agent with the same label runs under it', () => {
+    const sent = [{ label: 'Translate texts', state: 'active' }, { label: 'Ship', state: 'pending' }];
+    const merged = mergeSteps(sent, [{ id: 'a1', label: 'Translate texts', state: 'active' }], { a1: 'label:Translate texts' });
     assert.deepEqual(merged.map((step) => `${step.label}:${step.state}`), ['Translate texts:active', 'Ship:pending']);
+    assert.equal(merged[0].children[0].label, 'Translate texts');
   });
 
   test('a goal file removed during the call is not brought back, and a question asked during a resume call stays', async () => {
@@ -857,9 +1101,9 @@ describe('Slice 29: background-agent state', () => {
     assert.equal(existsSync(join(root, 'sess-1.stopped')), false);
   });
 
-  test('a session step with the agent\'s label keeps its own note', () => {
+  test('a session step with the agent\'s label stays as it is and the agent is its own row', () => {
     const merged = mergeSteps([{ label: 'Review', state: 'pending', note: 'my note' }], [{ id: 'a1', label: 'Review', state: 'active' }]);
-    assert.deepEqual(merged, [{ label: 'Review', state: 'active', note: 'my note' }]);
+    assert.deepEqual(merged, [{ label: 'Review', state: 'pending', note: 'my note' }, { id: 'agent-a1', label: 'Review', state: 'active', note: 'Helper agent' }]);
   });
 
   test('one session\'s hooks never write another session\'s card, and no hook report sends a title or why on a session card', async () => {

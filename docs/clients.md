@@ -296,9 +296,20 @@ at most 200 steps in all, at most 4 levels, and any number may be `active` at on
 - **Helpers report their own steps as children.** A helper agent reports its steps with `under_step`
   set to the id of the step it works on (this replaces the Slice 10 rule that helpers add no steps).
   The page unfolds them in place under that step, and the steps of several helpers may run at once.
-- **Background agents keep the step active.** Work handed to a background agent (translation,
-  illustration, a long build) keeps its step `active`, with a note naming the agent, until that
-  agent reports back; the card is not closed while it works.
+  Under the Claude Code plugin, a background agent's helper uses its own row id instead (next point).
+- **Background agents are child rows (Slice 40).** The plugin's `SubagentStart` hook records the step that is
+  running when the agent starts (by its `id` when the session gave one, else by its label: give an `id` to
+  every step an agent may run under) and puts the agent in the list as its own row under that step, after the
+  step's own children (the root when none was running). The row's `id` is `agent-<agent id>`, its label the
+  agent's description (with none, `Helper agent: <first words of its prompt>`), its note `Helper agent · <model>`,
+  and it is `active` while the agent works. The session's steps are sent as the session sent them; a step
+  its agent still runs under is sent `active` even if the session marked it done. The card is not closed while an agent works.
+  The hook returns the helper its card key and its row id as `additionalContext`, so the helper runs
+  `node report-progress.mjs --key <card key> --steps "a|b|c" --under-step agent-<agent id>` (the reporter
+  CLI's `--under-step`; other clients send `steps` with `under_step`) from its first step: the row exists by then.
+  The hooks send the row without `children`, so the board keeps what the helper reported under it. Over 200
+  steps (nested ones count) the oldest finished agents are dropped first.
+  Other work (a long build) that is not a background agent keeps its step `active`, with a note, until it finishes.
 - **Active work.** The Active work page lists a task while its status is `in_progress`, it has a
   steps list or an `agent`, and its last report is newer than the stale expiry (below), whether or
   not the cron has run yet. Send `agent`, `model` and `environment` with the steps.

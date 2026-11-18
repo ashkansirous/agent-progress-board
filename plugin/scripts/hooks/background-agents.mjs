@@ -2,14 +2,23 @@
 // `<session>/subagents/agent-<id>.jsonl` (its record, written while it works) and `agent-<id>.meta.json`
 // (`description`, `agentType`, `finished`). An agent whose record changed in the last AGENT_FRESH_MS is working.
 // Local files only; every helper fails open with an empty list.
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { Buffer } from 'node:buffer';
+import { closeSync, existsSync, openSync, readFileSync, readSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { STEP_LABEL_MAX, STEPS_MAX } from '../report-progress.mjs';
+import { STEP_LABEL_MAX, STEP_NOTE_MAX, STEPS_MAX } from '../report-progress.mjs';
 import { clip } from './hook-input.mjs';
+import { MASK_WINDOW, maskSecrets } from './waiting-card.mjs';
 
 export const AGENT_FRESH_MS = 10 * 60 * 1000;
 export const AGENT_STATE = { active: 'active', done: 'done' };
-export const AGENT_NOTE = 'running in background'; // the note on an agent's step
+export const AGENT_PREFIX = 'Helper agent'; // the start of an agent's label when it has no description, and of its note
+const PROMPT_CHARS_MAX = 50; // characters of the agent's prompt in its fallback label
+const HEAD_BYTES = 64 * 1024; // the part of an agent's record read for its prompt and model
+const AGENT_ID_PREFIX = 'agent-'; // the step id of an agent's row: stable across reports, so what a helper reported under it is kept
+export const STEP_DEPTH_MAX = 4; // the board's levels of sub-steps (src/domain/steps.ts, MAX_STEP_DEPTH)
+const RUNNING_NOTE = 'a background agent is still running'; // on a step the session marked done while its agent works
+const KEY_ID = 'id:'; // a step address in the goal file: by the session's own id, else by label
+const KEY_LABEL = 'label:';
 export const CARD_NOTE = 'background agents running'; // the note on the session card kept open for them
 const AGENT_FILE = /^agent-(.+)\.meta\.json$/;
 const SUBAGENT_FOLDER = 'subagents';
@@ -21,6 +30,22 @@ export function subagentsDir(input) {
   return transcript && TRANSCRIPT_EXT.test(transcript) ? join(transcript.replace(TRANSCRIPT_EXT, ''), SUBAGENT_FOLDER) : '';
 }
 
+const FOREGROUND_SHAPE = 'foreground'; // `requestShape` in an agent's meta file when the session waits for it
+
+// True when the agent's meta file says the session waits for it (a foreground agent gets no row). A file that does not
+// exist yet says nothing: the agent is treated as a background one, as before.
+export function isForegroundAgent(input, agentId) {
+  const dir = subagentsDir(input);
+  if (!dir || !agentId) return false;
+  return readMeta(join(dir, `agent-${agentId}.meta.json`)).requestShape === FOREGROUND_SHAPE;
+}
+
+// True when the agent's meta file exists: an agent recorded at start but without one has not written its files yet.
+export function hasAgentMeta(input, agentId) {
+  const dir = subagentsDir(input);
+  return Boolean(dir) && existsSync(join(dir, `agent-${agentId}.meta.json`));
+}
+
 function readMeta(file) {
   try {
     const value = JSON.parse(readFileSync(file, 'utf8'));
@@ -28,6 +53,53 @@ function readMeta(file) {
   } catch {
     return {};
   }
+}
+
+function lineOf(line) {
+  try {
+    return JSON.parse(line);
+  } catch {
+    return null; // a line cut by the end of the head
+  }
+}
+
+function promptOf(record) {
+  const content = record.message && record.message.content;
+  if (typeof content === 'string') return content;
+  const part = Array.isArray(content) ? content.find((item) => item && item.type === 'text' && typeof item.text === 'string') : null;
+  return part ? part.text : '';
+}
+
+// The first user text (the agent's prompt) and the first model name in the head of an agent's record.
+function headFacts(text) {
+  const facts = { prompt: '', model: '' };
+  for (const record of text.split('\n').map(lineOf).filter(Boolean)) {
+    if (!facts.prompt && record.type === 'user' && !record.isMeta) facts.prompt = promptOf(record);
+    if (!facts.model && record.type === 'assistant' && record.message && typeof record.message.model === 'string') facts.model = record.message.model;
+    if (facts.prompt && facts.model) break;
+  }
+  return facts;
+}
+
+function readHead(file) {
+  let fd;
+  try {
+    fd = openSync(file, 'r');
+    const buffer = Buffer.alloc(HEAD_BYTES);
+    return headFacts(buffer.toString('utf8', 0, readSync(fd, buffer, 0, HEAD_BYTES, 0)));
+  } catch {
+    return { prompt: '', model: '' };
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+}
+
+// The description; with none, "Helper agent: <first words of its prompt>"; never the bare agent type.
+function agentLabel(meta, head) {
+  const description = typeof meta.description === 'string' ? maskSecrets(meta.description.slice(0, MASK_WINDOW)) : '';
+  if (description.trim()) return clip(description, STEP_LABEL_MAX);
+  const words = clip(maskSecrets(head.prompt.slice(0, MASK_WINDOW)), PROMPT_CHARS_MAX); // mask first, then cut
+  return clip(words ? `${AGENT_PREFIX}: ${words}` : AGENT_PREFIX, STEP_LABEL_MAX);
 }
 
 function modifiedAt(file) {
@@ -74,10 +146,12 @@ export function readBackgroundAgents(input, now = Date.now(), stopped = {}) {
       .filter(Boolean)
       .map(([name, id]) => ({ id, meta: readMeta(join(dir, name)), atMs: modifiedAt(join(dir, `agent-${id}.jsonl`)) }))
       .filter((agent) => now - agent.atMs <= AGENT_FRESH_MS || stoppedRecently(stops, agent, now))
-      .map(({ id, meta, atMs }) => ({
+      .map((agent) => ({ ...agent, head: readHead(join(dir, `agent-${agent.id}.jsonl`)) }))
+      .map(({ id, meta, atMs, head }) => ({
         id,
         atMs,
-        label: clip(meta.description || meta.agentType || id, STEP_LABEL_MAX),
+        label: agentLabel(meta, head),
+        model: head.model,
         state: meta.finished === true || stoppedAfterLastWrite(stops, id, atMs) ? AGENT_STATE.done : AGENT_STATE.active,
       }))
       .sort((left, right) => left.atMs - right.atMs);
@@ -90,34 +164,134 @@ export function hasActiveAgent(agents) {
   return agents.some((agent) => agent.state === AGENT_STATE.active);
 }
 
-// The first running agent takes the active slot. When the session sent a step with the agent's own label, that step
-// (which was just made pending) is the agent's step and becomes the active one, since the label filter below drops
-// the agent itself; true when the slot is taken this way.
-function takeActiveSlot(own, agents) {
-  const first = agents.find((agent) => agent.state === AGENT_STATE.active);
-  const index = first ? own.findIndex((step) => step.label === first.label && step.state !== 'done') : -1;
-  if (index < 0) return false;
-  own[index] = { ...own[index], state: 'active', note: own[index].note || AGENT_NOTE }; // the session's own note stays
-  return true;
+// The row id of an agent: what its helper reports under (`under_step`), told to the helper at SubagentStart.
+export function agentRowId(agentId) {
+  return `${AGENT_ID_PREFIX}${agentId}`;
 }
 
-// The step list to send: the steps the session sent, then one step per background agent. The board accepts one
-// active step at most (src/domain/steps.ts), so the first running agent takes the active slot (the session is
-// idle while its agents work) and a step the session had active goes back to pending; further running agents
-// are pending with a note; finished ones are done. Labels the session itself sent are not repeated; agents with
-// the same label as each other each keep their own step.
-export function mergeSteps(sent, agents) {
-  const hasRunning = hasActiveAgent(agents);
-  const own = sent.map((step) => (hasRunning && step.state === 'active' ? { ...step, state: 'pending' } : step));
-  const known = new Set(own.map((step) => step.label));
-  let activeTaken = takeActiveSlot(own, agents);
-  const added = agents
-    .filter((agent) => !known.has(agent.label))
-    .map((agent) => {
-      if (agent.state === AGENT_STATE.done) return { label: agent.label, state: 'done' };
-      const state = activeTaken ? 'pending' : 'active';
-      activeTaken = true;
-      return { label: agent.label, state, note: AGENT_NOTE };
-    });
-  return [...own, ...added].slice(0, STEPS_MAX);
+// Every step of the tree with its path of indices, parents before their children.
+function walkSteps(steps, path = []) {
+  return steps.flatMap((step, index) => {
+    const here = [...path, index];
+    return [{ step, path: here }, ...walkSteps(Array.isArray(step.children) ? step.children : [], here)];
+  });
+}
+
+// A step's address in the goal file: its own `id` when the session gave one (stable), else its label.
+function stepKey(step) {
+  return typeof step.id === 'string' && step.id ? `${KEY_ID}${step.id}` : `${KEY_LABEL}${step.label}`;
+}
+
+// The address of the step the session had running (the last active one in tree order), '' when none: the step a
+// new agent goes under. Recorded when the agent starts (SubagentStart), so the session moving on changes nothing.
+export function runningKey(steps) {
+  const running = walkSteps(steps).filter(({ step }) => step.state === 'active');
+  return running.length ? stepKey(running[running.length - 1].step) : '';
+}
+
+// The parent address of every agent: what was recorded for it (`recorded`, the goal file's agentParents, kept for
+// agents no longer listed too), else the step the session has running now ('' = the root).
+export function placeAgents(steps, agents, recorded = {}) {
+  const now = runningKey(steps);
+  const parents = { ...recorded };
+  for (const agent of agents) if (typeof parents[agent.id] !== 'string') parents[agent.id] = now;
+  return parents;
+}
+
+// The path of the step an address names: by id, else the first step with that label that is not done (else the first),
+// null = the root. The agent's row is one level below its owner and the helper reports its own subtree below the row,
+// so the owner sits at STEP_DEPTH_MAX - 2 levels at the deepest: a deeper step gives the place to its ancestor there.
+function ownerPath(steps, parent) {
+  if (!parent) return null;
+  const found = walkSteps(steps).filter(({ step }) => stepKey(step) === parent);
+  const open = found.find(({ step }) => step.state !== AGENT_STATE.done);
+  const path = (open || found[0] || { path: null }).path;
+  return path ? path.slice(0, STEP_DEPTH_MAX - 2) : null;
+}
+
+function agentNode(agent) {
+  const note = agent.model ? `${AGENT_PREFIX} · ${agent.model}` : AGENT_PREFIX;
+  // No `children`: the board keeps what the helper reported under this id (Slice 39).
+  return { id: agentRowId(agent.id), label: agent.label, state: agent.state, note: clip(note, STEP_NOTE_MAX) };
+}
+
+function countSteps(steps) {
+  return steps.reduce((sum, step) => sum + 1 + countSteps(Array.isArray(step.children) ? step.children : []), 0);
+}
+
+// Agents that fit in the board's tree with the session's own steps: when over the limit, the oldest finished agents go
+// first, then the oldest running ones. `agents` is oldest first. `ownCount` counts every node, nested ones too.
+function fitAgents(ownCount, agents) {
+  const room = Math.max(0, STEPS_MAX - ownCount);
+  let over = agents.length - room;
+  const dropped = new Set();
+  for (const agent of [...agents.filter((a) => a.state === AGENT_STATE.done), ...agents.filter((a) => a.state !== AGENT_STATE.done)]) {
+    if (over <= 0) break;
+    dropped.add(agent.id);
+    over -= 1;
+  }
+  return agents.filter((agent) => !dropped.has(agent.id));
+}
+
+function pathKey(path) {
+  return path.join('.');
+}
+
+// Where each shown agent's row goes: Map of owner path key to its rows, and the root rows.
+function groupRows(sent, shown, parents) {
+  const under = new Map();
+  const roots = [];
+  for (const agent of shown) {
+    const path = ownerPath(sent, parents[agent.id]);
+    if (!path) roots.push(agentNode(agent));
+    else under.set(pathKey(path), [...(under.get(pathKey(path)) || []), { node: agentNode(agent), running: agent.state === AGENT_STATE.active }]);
+  }
+  return { under, roots };
+}
+
+// The path keys of the steps (and their parents) that have a running agent below: the board would finish them with
+// their children if the session had marked them done.
+function liveKeys(under) {
+  const keys = new Set();
+  for (const [key, rows] of under) {
+    if (!rows.some((row) => row.running)) continue;
+    const parts = key.split('.');
+    parts.forEach((_, index) => keys.add(parts.slice(0, index + 1).join('.')));
+  }
+  return keys;
+}
+
+// Owners of the agents that were recorded but are not shown now (aged out): they are sent with their own children
+// list even when it is empty, so the board drops the old row.
+function emptiedKeys(sent, shown, parents) {
+  const gone = Object.keys(parents).filter((id) => !shown.some((agent) => agent.id === id));
+  return new Set(gone.map((id) => ownerPath(sent, parents[id])).filter(Boolean).map(pathKey));
+}
+
+function attach(level, context, prefix = []) {
+  return level.map((step, index) => {
+    const path = [...prefix, index];
+    const key = pathKey(path);
+    const rows = (context.under.get(key) || []).map((row) => row.node);
+    const kept = Array.isArray(step.children) ? attach(step.children, context, path) : null;
+    const live = context.live.has(key) && step.state === AGENT_STATE.done;
+    const base = live ? { ...step, state: AGENT_STATE.active, note: clip(RUNNING_NOTE, STEP_NOTE_MAX) } : step;
+    if (kept || rows.length) return { ...base, children: [...(kept || []), ...rows] };
+    return context.emptied.has(key) ? { ...base, children: [] } : base;
+  });
+}
+
+// The step tree to send: the steps the session sent as it sent them (ids and children included, from the goal file),
+// and each background agent as its own child row after the step's own children, under the step recorded when the
+// agent started (`parents`, from placeAgents; the root when that step is gone, too deep, or none was running).
+// Running agents are `active` (several may be, the board allows it since Slice 39); a step with a running agent below
+// it is sent `active` even when the session marked it done, with a note, so the board never finishes the running
+// agent with it. An agent row is sent without `children`, so the board keeps what the helper reported under it. A
+// step whose agents all aged out is sent with its own children list, so the old row goes. Over the board's 200-step
+// limit (nested steps count) the oldest finished agents are dropped first.
+export function mergeSteps(sent, agents, parents = {}) {
+  const shown = fitAgents(countSteps(sent), agents);
+  const { under, roots } = groupRows(sent, shown, parents);
+  const context = { under, live: liveKeys(under), emptied: emptiedKeys(sent, shown, parents) };
+  return [...attach(sent, context), ...roots];
 }

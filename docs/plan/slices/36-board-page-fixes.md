@@ -12,7 +12,8 @@
 `web/src/projectFold.ts`, `web/src/Header.tsx`, `web/src/CapLine.tsx`, `web/src/TaskCost.tsx`,
 `web/src/strings.ts`, `web/src/planning.css`, `web/src/styles.css`, `test/web.test.ts`, `test/sessionWeb.test.ts`,
 `test/partsWeb.test.ts`, `test/projectFold.test.ts`, `e2e/board.spec.ts`, `e2e/active.spec.ts`,
-`e2e/projects.spec.ts`, `e2e/session.spec.ts`, `e2e/planning.spec.ts`, `docs/plan/slices/36-board-page-fixes.md`
+`e2e/projects.spec.ts`, `e2e/session.spec.ts`, `e2e/planning.spec.ts`, `web/src/hooks.ts`, `web/src/planningText.ts`,
+`docs/plan/slices/36-board-page-fixes.md`
 
 **Migrations:** none
 
@@ -32,6 +33,20 @@ medium), and an item opened from Active closes to the board.
 - Closing an item returns to the page it was opened from. The address stays `#/open/<key>` (Slice 10 rule).
 
 #### Work
+
+*In progress (wave 2026-11-18), draft PR.* Premise check at claim (wave 19, `origin/main` 58fdcbe), the builder reads
+these before the items below:
+- Slice 10 high #7 may already be done: `model.ts:59` and `cards.ts:24` use the server's `item.working`;
+  `heartbeat_at` is used only for sorting and display. Confirm and tick it with a pinning test, or fix what is left.
+- Line moves: `activeTasks` is `model.ts:58-60`; the tautology is `e2e/planning.spec.ts:52`; `CapLine.tsx:165`
+  (`capAltDroppedOne`/`capAltDroppedMany`); `TaskCost.tsx` plural is `projectOne`/`projectMany` (find it by name);
+  the state-center card in `CapCostSection.tsx` is line 507 (490 is the `<h2>`); `SetupPage.tsx:134`.
+- Slice 13 #7 (`needs_you:` note): it is the `NEEDS_YOU_NOTE_PREFIX` check in `historyWords` (`cards.ts` about line
+  105), a history-row rule; read what it does before changing it.
+- Touches may need `web/src/hooks.ts` (`useBoard`) for the UsagePage tab count and `web/src/planningText.ts`; both are
+  allowed.
+- Runs beside Slice 39, which also edits `web/src/strings.ts`, `e2e/active.spec.ts` and `test/web.test.ts`: add
+  separate keys and test cases, never rewrite the other's.
 
 Part A, open-item address (Slice 10):
 - [ ] check-2 #1 (medium): `dataDropped` (`web/src/boardState.ts:57`) is cleared only by a success. In

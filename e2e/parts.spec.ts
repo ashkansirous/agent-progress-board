@@ -104,7 +104,6 @@ test.describe("follow link under the tile", () => {
     await cardOf(tileTitled(page, FIVE_TITLE)).getByRole("link", { name: "Follow part B" }).click();
     await expect(page).toHaveURL(/#\/active\/recipe-box%2Fslice-4%2Fpart-B$/);
     const card = page.locator("li.active-card", { has: page.getByRole("heading", { level: 2, name: "Part B · Search box", exact: true }) });
-    await expect(card.getByRole("button", { name: "Hide steps" })).toHaveAttribute("aria-expanded", "true");
     await expect(card.locator(".step-row")).toHaveCount(5);
     await expect(card.locator(".active-meta")).toContainText("Slice 4 · Tag search");
     await card.getByRole("link", { name: "Back to Slice 4 · Tag search on the board" }).click();
@@ -118,11 +117,10 @@ test.describe("follow link under the tile", () => {
     await expect(page.getByRole("dialog")).toBeVisible();
   });
 
-  test("a key with no card shows the Active work page with nothing expanded", async ({ page }) => {
+  test("a key with no card shows the Active work page with both cards and their steps", async ({ page }) => {
     await openAt(page, "/#/active/nothing%2Fhere");
     await expect(page.locator("li.active-card")).toHaveCount(2);
-    await expect(page.getByRole("button", { name: "Hide steps" })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: /^Show all \d+ steps$/ })).toHaveCount(2);
+    await expect(page.getByRole("button", { name: /^(Hide steps|Show all \d+ steps)$/ })).toHaveCount(0);
   });
 });
 
@@ -162,7 +160,7 @@ test.describe("parts in the drawer", () => {
     expect(await css(button, "border-top-left-radius")).toBe("10px");
     await button.click();
     await expect(page).toHaveURL(/#\/active\/recipe-box%2Fslice-4%2Fpart-B$/);
-    await expect(page.getByRole("button", { name: "Hide steps" })).toHaveAttribute("aria-expanded", "true");
+    await expect(page.locator("li.active-card").filter({ hasText: "Part B · Search box" }).locator(".step-row").first()).toBeVisible();
   });
 
   test("a stale part reads Stale with its step and offers nothing to follow", async ({ page }) => {

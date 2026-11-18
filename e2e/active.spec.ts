@@ -2,7 +2,7 @@ import { expect, type Locator, type Page, test } from "@playwright/test";
 import type { BoardResponse } from "../src/api/boardDto";
 import exampleConfig from "../config/board.example.json" with { type: "json" };
 import { ItemStatus } from "../src/domain/item";
-import { activeBoard, activeTasks, CRASH, PART_B, PART_C, STALE } from "./activeFixture";
+import { activeBoard, activeTasks, CRASH, PART_B, PART_C, STALE, treeTasks } from "./activeFixture";
 import { demoBoard, SERVER_TIME } from "./fixture";
 import { expectLoadingAfterDelay, holdBoardRoute, pageSettled, pausedClock } from "./loadingClock";
 
@@ -122,37 +122,27 @@ test.describe("active work page", () => {
     expect(await css(card(page, "Crash opening an empty bed").locator(".active-type"), "color")).toBe(rgbOf(bugFg()));
   });
 
-  test("the toggle opens and closes the full list with Done, Now, Next and Later and the notes", async ({ page }) => {
+  test("the full list is always open, with Done, Now, Next and Later and the notes, and no toggle", async ({ page }) => {
     await openActive(page);
     const part = card(page, "Part C · Notification channel");
-    const toggle = part.getByRole("button", { name: "Show all 7 steps" });
-    await expect(toggle).toHaveAttribute("aria-expanded", "false");
-    await expect(part.locator(".step-row")).toHaveCount(0);
-    expect(await css(toggle, "min-height")).toBe("44px");
-    await toggle.click();
-    const hide = part.getByRole("button", { name: "Hide steps" });
-    await expect(hide).toHaveAttribute("aria-expanded", "true");
+    await expect(part.getByRole("button", { name: /^(Show all \d+ steps|Hide steps)$/ })).toHaveCount(0);
     await expect(part.locator(".step-row .step-state")).toHaveText(["Done", "Done", "Done", "Now", "Next", "Later", "Later"]);
     await expect(part.locator(".step-row-active .step-note")).toHaveText("Two helper agents count under this step");
     await expect(part.locator(".step-row-active")).toHaveAttribute("aria-current", "step");
-    expect(await css(part.locator(".step-row-active"), "background-color")).toBe(rgbOf(palette().stepActiveRow));
-    expect(await css(part.locator(".step-row-done .step-mark").first(), "background-color")).toBe(rgbOf(palette().stepDone));
-    await hide.click();
-    await expect(part.locator(".step-row")).toHaveCount(0);
-    await expect(part.getByRole("button", { name: "Show all 7 steps" })).toBeVisible();
+    expect(await css(part.locator(".step-row-active"), "background-color")).toBe(rgbOf(palette().sliceBg));
+    expect(await css(part.locator(".step-row-done .step-mark").first(), "background-color")).toBe(rgbOf(palette().doneFg));
   });
 
   test("a note shows under its label on the bug's pending step", async ({ page }) => {
     await openActive(page);
     const bug = card(page, "Crash opening an empty bed");
-    await bug.getByRole("button", { name: "Show all 4 steps" }).click();
     await expect(bug.locator(".step-note")).toHaveText("No tablet test: no tablet code changed");
     await expect(bug.locator(".step-row .step-state")).toHaveText(["Done", "Now", "Next", "Later"]);
   });
 
   test("a task with no active step reads Starting", async ({ page }) => {
     const starting = activeTasks().map((task) =>
-      task.key === PART_B ? { ...task, progress: { done: 0, total: 5, percent: 0, current: null } } : task,
+      task.key === PART_B ? { ...task, progress: { done: 0, total: 5, percent: 0, running: 0, current: null } } : task,
     );
     await openActive(page, activeBoard(starting));
     await expect(card(page, "Part B · Search box").locator(".progress-now")).toHaveText("Starting");
@@ -161,7 +151,6 @@ test.describe("active work page", () => {
   test("the link back opens the board with that task's detail", async ({ page }) => {
     await openActive(page);
     const part = card(page, "Part C · Notification channel");
-    await part.getByRole("button", { name: "Show all 7 steps" }).click();
     const link = part.getByRole("link", { name: "Back to Slice 9 · Frost alerts on the board" });
     await expect(link).toHaveAttribute("href", `#/open/${encodeURIComponent(PART_C)}`);
     await link.click();
@@ -173,7 +162,6 @@ test.describe("active work page", () => {
   test("closing the opened detail resets the address, so a reload keeps it closed and back and forward move it", async ({ page }) => {
     await openActive(page);
     const part = card(page, "Part C · Notification channel");
-    await part.getByRole("button", { name: "Show all 7 steps" }).click();
     await part.getByRole("link", { name: "Back to Slice 9 · Frost alerts on the board" }).click();
     const dialog = page.getByRole("dialog", { name: "Item details" });
     await expect(dialog).toBeVisible();
@@ -311,7 +299,7 @@ test.describe("steps on the board", () => {
     const board = demoBoard();
     const done = board.items.map((item) =>
       item.key === "garden-planner/slice-9"
-        ? { ...item, status: ItemStatus.Done, done_at: SERVER_TIME, progress: { done: 7, total: 7, percent: 100, current: null }, working: false }
+        ? { ...item, status: ItemStatus.Done, done_at: SERVER_TIME, progress: { done: 7, total: 7, percent: 100, running: 0, current: null }, working: false }
         : item,
     );
     await page.clock.setFixedTime(new Date(SERVER_TIME));
@@ -336,4 +324,119 @@ test("the stale task keeps its steps on the board but is not counted", async ({ 
   await page.keyboard.press("Escape");
   expect(STALE).toBe("garden-planner/slice-10");
   await expect(tabs(page).getByRole("link", { name: /^Active work/ }).locator(".tab-count")).toHaveText("3");
+});
+
+const BOOK_TITLE = "Implement Slice 7: audio in every language";
+
+/** The row of a step by its path number ("3.1.2"): the `li` that holds its button and, when open, its box. */
+function rowAt(owner: Locator, path: string): Locator {
+  const exact = new RegExp(`^${path.replace(/\./g, "\\.")}$`);
+  return owner.locator(".step-item").filter({ has: owner.page().locator(".step-mark", { hasText: exact }) });
+}
+
+async function openTree(page: Page, title: string): Promise<Locator> {
+  await openActive(page, activeBoard(treeTasks()));
+  return card(page, title);
+}
+
+test.describe("the step tree (Slice 39)", () => {
+  test("the header says 3 running while three leaves run, and the count is over leaves", async ({ page }) => {
+    await openActive(page, activeBoard(treeTasks()));
+    const book = card(page, BOOK_TITLE);
+    await expect(book.locator(".progress-now")).toHaveText("3 running");
+    await expect(book.locator(".progress-count")).toHaveText("5 of 12 steps · 42%");
+    await expect(book.locator(".step-bar .seg")).toHaveCount(12);
+  });
+
+  test("a wave with 26 of 30 done and none running reads Waiting for the next step, not Starting", async ({ page }) => {
+    await openActive(page, activeBoard(treeTasks()));
+    const wave = card(page, "Wave 3: thirty small steps");
+    await expect(wave.locator(".progress-now")).toHaveText("Waiting for the next step");
+    await expect(wave.locator(".progress-count")).toHaveText("26 of 30 steps · 87%");
+    await expect(wave.locator(".step-state").nth(26)).toHaveText("Next");
+    await expect(wave.locator(".step-state").nth(27)).toHaveText("Later");
+  });
+
+  test("tapping a parent unfolds its children in place, numbered by path and indented 26px per level", async ({ page }) => {
+    const book = await openTree(page, BOOK_TITLE);
+    await expect(book.locator(".step-row")).toHaveCount(5);
+    const record = rowAt(book, "3");
+    await expect(record.locator(".step-row")).toHaveAttribute("aria-expanded", "false");
+    await record.locator(".step-row").click();
+    await expect(record.locator(".step-row")).toHaveAttribute("aria-expanded", "true");
+    const helper = rowAt(book, "3.1");
+    await expect(helper).toBeVisible();
+    expect(await css(helper, "padding-left")).toBe("26px");
+    await helper.locator(".step-row").click();
+    await expect(rowAt(book, "3.1.2")).toBeVisible();
+    expect(await css(rowAt(book, "3.1.2"), "padding-left")).toBe("52px");
+    await rowAt(book, "3.1.2").locator(".step-row").click();
+    await expect(rowAt(book, "3.1.2.2")).toContainText("Check pronunciation");
+    expect(await css(rowAt(book, "3.1.2.2"), "padding-left")).toBe("78px");
+    await expect(book.locator(".step-row")).toHaveCount(5 + 1 + 6 + 3);
+  });
+
+  test("the arrow is drawn only on rows with children, and a leaf row opens too", async ({ page }) => {
+    const book = await openTree(page, BOOK_TITLE);
+    await expect(rowAt(book, "3").locator(".step-arrow svg")).toHaveCount(1);
+    await expect(rowAt(book, "1").locator(".step-arrow svg")).toHaveCount(0);
+    await rowAt(book, "1").locator(".step-row").click();
+    await expect(rowAt(book, "1").locator(".step-box")).toBeVisible();
+  });
+
+  test("one row's open state does not close another's", async ({ page }) => {
+    const book = await openTree(page, BOOK_TITLE);
+    await rowAt(book, "1").locator(".step-row").click();
+    await rowAt(book, "2").locator(".step-row").click();
+    await expect(book.locator(".step-box")).toHaveCount(2);
+    await rowAt(book, "1").locator(".step-row").click();
+    await expect(book.locator(".step-box")).toHaveCount(1);
+    await expect(rowAt(book, "2").locator(".step-box")).toBeVisible();
+  });
+
+  test("a parent reads X of Y sub-steps done with its running count, its state text and its open box", async ({ page }) => {
+    const book = await openTree(page, BOOK_TITLE);
+    const record = rowAt(book, "3");
+    await expect(record.locator(".step-note")).toHaveText("3 of 8 sub-steps done · 3 running");
+    await expect(record.locator(".step-state")).toHaveText("Running · 1 h 02 min");
+    await record.locator(".step-row").click();
+    const box = record.locator(".step-box");
+    await expect(box.locator(".step-times")).toHaveText("Started 12:46 · running for 1 h 02 min");
+    await expect(box.locator(".step-kids")).toHaveText("1 sub-steps below; tap one to open it");
+    expect(await css(box, "margin-left")).toBe("62px");
+  });
+
+  test("a done leaf opens to its note and its start, finish and duration, and a waiting one says Not started yet", async ({ page }) => {
+    const book = await openTree(page, BOOK_TITLE);
+    await expect(rowAt(book, "2").locator(".step-state")).toHaveText("Done · 8 min");
+    await rowAt(book, "2").locator(".step-row").click();
+    await expect(rowAt(book, "2").locator(".step-box")).toContainText("Text for 15 languages, 42 lines each");
+    await expect(rowAt(book, "2").locator(".step-times")).toHaveText("Started 12:35 · finished 12:43 · took 8 min");
+    await expect(rowAt(book, "4").locator(".step-state")).toHaveText("Next");
+    await expect(rowAt(book, "5").locator(".step-state")).toHaveText("Later");
+    await rowAt(book, "4").locator(".step-row").click();
+    await expect(rowAt(book, "4").locator(".step-times")).toHaveText("Not started yet");
+  });
+
+  test("every running step wears a ring that turns every 1.4 s, a parent included", async ({ page }) => {
+    const book = await openTree(page, BOOK_TITLE);
+    await rowAt(book, "3").locator(".step-row").click();
+    await rowAt(book, "3.1").locator(".step-row").click();
+    await rowAt(book, "3.1.2").locator(".step-row").click();
+    await expect(book.locator(".step-ring")).toHaveCount(6);
+    const ring = rowAt(book, "3.1.2.2").locator(".step-ring");
+    expect(await css(ring, "animation-name")).toBe("ring-turn");
+    expect(await css(ring, "animation-duration")).toBe("1.4s");
+    expect(await css(ring, "animation-iteration-count")).toBe("infinite");
+    await expect(rowAt(book, "3").locator(".step-ring circle")).toHaveAttribute("stroke-dasharray", "20 59");
+    await expect(rowAt(book, "1").locator(".step-ring")).toHaveCount(0);
+  });
+
+  test("under reduced motion the rings stay drawn and do not turn", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    const book = await openTree(page, BOOK_TITLE);
+    const ring = rowAt(book, "3").locator(".step-ring");
+    await expect(ring).toBeVisible();
+    expect(await css(ring, "animation-name")).toBe("none");
+  });
 });

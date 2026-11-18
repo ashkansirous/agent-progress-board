@@ -120,7 +120,7 @@ test.describe("card drawer", () => {
     await expect(panel.getByRole("heading", { level: 2 })).toHaveText(CRASH_QUESTION);
     await expect(panel).toContainText("session 4f2a · Laptop · waiting 6 min");
     await expect(panel.locator(".drawer-after")).toHaveText("After you answer: I read the log and write the cause into Slice 12.");
-    await expect(panel.locator(".drawer-step-state")).toHaveText(["Done", "Now", "Next", "Later"]);
+    await expect(panel.locator(".step-row .step-state")).toHaveText(["Done", "Now", "Next", "Later"]);
     await expect(panel.locator("input, textarea")).toHaveCount(0);
     const box = (await panel.boundingBox())!;
     if (isPhone()) {
@@ -142,7 +142,7 @@ test.describe("card drawer", () => {
       "Connected the iPhone 8 over USB",
       "Found 3 crash logs from release 2.3.1, all at start-up",
     ]);
-    await expect(panel.locator(".drawer-step-state")).toHaveText(["Done", "Now", "Next", "Later", "Later"]);
+    await expect(panel.locator(".step-row .step-state")).toHaveText(["Done", "Now", "Next", "Later", "Later"]);
     await expect(panel.getByRole("link", { name: "Pull request #88" })).toBeVisible();
     const rows = panel.locator(".drawer-history li");
     await expect(rows).toHaveText([
@@ -153,7 +153,7 @@ test.describe("card drawer", () => {
       "10:05Started",
       "13:46Reading the logs",
     ]);
-    expect(await css(panel.locator(".drawer-step-active"), "background-color")).toBe(rgbOf(palette().sliceBg));
+    expect(await css(panel.locator(".step-row-active"), "background-color")).toBe(rgbOf(palette().sliceBg));
   });
 
   test("opens from a stale row with the Stale kicker and the steps it had", async ({ page }) => {
@@ -163,7 +163,7 @@ test.describe("card drawer", () => {
     const panel = drawer(page);
     await expect(panel.locator(".kicker")).toHaveText("Stale");
     await expect(panel).toContainText("session 7b3d · Cloud VM · no activity for 15 min");
-    await expect(panel.locator(".drawer-step-label")).toHaveText(["Take the screenshots", "Add captions", "Upload"]);
+    await expect(panel.locator(".step-label")).toHaveText(["Take the screenshots", "Add captions", "Upload"]);
     await expect(panel.locator(".drawer-history li").last()).toContainText("Stale: no activity for 15 min");
   });
 

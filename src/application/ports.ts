@@ -34,10 +34,30 @@ export interface ItemWrite {
   /** What the caller gave; on an existing key only these fields change, decided in SQL. */
   input: ReportInput;
   now: string;
+  /**
+   * Compare-and-swap for an `under_step` write: when set (even to null), the row is written only while
+   * its stored steps text still equals this, else `save` throws `StepsChangedError` and writes nothing.
+   */
+  ifStepsText?: string | null;
+}
+
+/** A guarded save found the stored steps changed since they were read (Slice 39). */
+export class StepsChangedError extends Error {
+  constructor() {
+    super("the steps changed since they were read");
+  }
+}
+
+/** An item with the raw steps column it was read with, the token a guarded `save` compares. */
+export interface ItemWithStepsText {
+  item: Item | null;
+  stepsText: string | null;
 }
 
 export interface ItemRepository {
   find(key: string): Promise<Item | null>;
+  /** `find` plus the raw stored steps text, read in the same statement. */
+  findWithStepsText(key: string): Promise<ItemWithStepsText>;
   /**
    * One atomic upsert plus its event row in one batch: writes only the given fields, never
    * touches created_at, and sets or clears done_at from the status change. SQL decides whether

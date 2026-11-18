@@ -13,7 +13,7 @@ import { expandParts } from "../domain/parts";
 import { DEFAULT_STALE_AFTER_MINUTES, expiryMinutesFor, hasOpenQuestion, SESSION_AGENT, staleCutoff } from "../domain/stale";
 import { checkReport, DomainError, newItem, type ReportInput, withQuestion } from "../domain/upsert";
 import { resolveWindowHours, type WindowConfig, windowCutoff } from "../domain/window";
-import { type BoardRow, type ItemRepository, LIST_EVENT_LIMIT } from "./ports";
+import { type BoardRow, type ItemRepository, LIST_EVENT_LIMIT, StepsChangedError } from "./ports";
 
 export type AskHumanInput = Omit<ReportInput, "type" | "status">;
 
@@ -38,15 +38,56 @@ export async function reportProgress(
   input: ReportInput,
   clock: Clock,
 ): Promise<Item> {
+  if (input.under_step !== undefined || input.steps !== undefined) return saveStepsReport(repo, input, clock);
   return saveReport(repo, input, await repo.find(input.key), clock);
 }
 
-/** `reportProgress` for a caller that has already read the stored item (one find per call). */
-async function saveReport(repo: ItemRepository, input: ReportInput, existing: Item | null, clock: Clock): Promise<Item> {
+/** Tries of a read-modify-write of the steps column before the report is refused as busy. */
+export const UNDER_STEP_TRIES = 5;
+
+/** Longest random wait between two tries, so helpers that collided do not retry in step; 5 tries stay well under a second. */
+const UNDER_STEP_BACKOFF_MS = 40;
+
+function pause(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Every write of the steps column (a whole list or an `under_step` subtree) is built from one read of the
+ * stored tree, so it is a compare-and-swap: the write applies only while the stored steps are the ones read,
+ * else it re-reads and re-merges the kept children (a few bounded tries), so a whole-list report never drops
+ * a helper's concurrent subtree and two helpers reporting at once both survive (Slice 39).
+ */
+async function saveStepsReport(repo: ItemRepository, input: ReportInput, clock: Clock): Promise<Item> {
+  for (let attempt = 0; attempt < UNDER_STEP_TRIES; attempt += 1) {
+    const { item, stepsText } = await repo.findWithStepsText(input.key);
+    try {
+      return await saveReport(repo, input, item, clock, stepsText);
+    } catch (error) {
+      if (!(error instanceof StepsChangedError)) throw error;
+    }
+    await pause(Math.random() * UNDER_STEP_BACKOFF_MS);
+  }
+  const field = input.under_step === undefined ? "steps" : "under_step";
+  throw new DomainError(
+    field,
+    `field ${field}: temporary, other helpers kept changing the steps and nothing was saved; send the same report again`,
+    true,
+  );
+}
+
+/** `reportProgress` for a caller that has already read the stored item (one find per call); `stepsText` guards the write when given. */
+async function saveReport(
+  repo: ItemRepository,
+  input: ReportInput,
+  existing: Item | null,
+  clock: Clock,
+  stepsText?: string | null,
+): Promise<Item> {
   const now = clock.now().toISOString();
-  const checked = withQuestion(checkReport(input), existing, now);
+  const checked = withQuestion(checkReport(input, existing, now), existing, now);
   await assertItemFits(repo, checked, existing);
-  return repo.save({ insert: existing ?? newItem(checked, now), input: checked, now });
+  return repo.save({ insert: existing ?? newItem(checked, now), input: checked, now, ifStepsText: stepsText });
 }
 
 /**

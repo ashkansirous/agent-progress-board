@@ -4,7 +4,7 @@ import { StepState } from "../src/domain/stepTypes";
 import { HEARTBEAT_MINUTES, SERVER_INSTRUCTIONS } from "../src/mcp/instructions";
 import { postMcp, WRITE_TOKEN } from "./helpers";
 
-const MAX_CHARACTERS = 2400;
+const MAX_CHARACTERS = 2900; // 2400 until Slice 39 added the step tree, under_step and step id rules
 
 describe("server instructions", () => {
   it("sends the reporting rules in the initialize result", async () => {

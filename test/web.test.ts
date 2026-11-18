@@ -3,10 +3,11 @@ import type { BoardItemDto, BoardResponse } from "../src/api/boardDto";
 import { ItemStatus, ItemType, Priority } from "../src/domain/item";
 import { boardReducer, INITIAL_STATE } from "../web/src/boardState";
 import type { StepState } from "../src/domain/stepTypes";
+import { storedStep } from "./stepFixtures";
 import { groupBoard } from "../src/domain/boardGroups";
 import { activeTasks, projectLabel, waitingItems } from "../web/src/model";
 import { openItemHash, openKeyOf, Route, routeOf } from "../web/src/route";
-import { currentStepText, progressText, stepWords } from "../web/src/stepsText";
+import { currentStepText, durationText, leafCounts, progressText, secondLine, shownState, stateText, stepWords, timesText } from "../web/src/stepsText";
 import { LOCALES, pickLocale, translator } from "../web/src/strings";
 import { looksFor, paletteVars } from "../web/src/theme";
 import { ageText, clockTime, hoursSince } from "../web/src/time";
@@ -162,21 +163,75 @@ describe("active work", () => {
   });
 
   it("names the steps Done, Now, Next and Later, and a finished task all Done", () => {
-    const steps = ["done", "done", "active", "pending", "pending", "pending"].map((state, i) => ({
-      label: `S${i}`,
-      state: state as StepState,
-      note: null,
-    }));
+    const steps = ["done", "done", "active", "pending", "pending", "pending"].map((state, i) =>
+      storedStep(`S${i}`, state as StepState),
+    );
     expect(stepWords(steps, false).map((w) => w.key)).toEqual(["stepDone", "stepDone", "stepNow", "stepNext", "stepLater", "stepLater"]);
     expect(new Set(stepWords(steps, true).map((w) => w.key))).toEqual(new Set(["stepDone"]));
   });
 
-  it("reads Starting with no active step, the label while one is active and Done once finished", () => {
+  it("reads Starting before anything is done, the label while one leaf runs, N running for several, and Done once finished", () => {
     const t = translator("en");
-    const progress = { done: 1, total: 4, percent: 25, current: null };
-    expect(currentStepText(item({ progress }), t)).toBe("Starting");
-    expect(currentStepText(item({ progress: { ...progress, current: "Review 1" } }), t)).toBe("Review 1");
+    const none = { done: 0, total: 4, percent: 0, running: 0, current: null };
+    const progress = { done: 1, total: 4, percent: 25, running: 0, current: null };
+    expect(currentStepText(item({ progress: none }), t)).toBe("Starting");
+    expect(currentStepText(item({ progress }), t)).toBe("Waiting for the next step");
+    expect(currentStepText(item({ progress: { ...progress, running: 1, current: "Review 1" } }), t)).toBe("Review 1");
+    expect(currentStepText(item({ progress: { ...progress, running: 3 } }), t)).toBe("3 running");
     expect(currentStepText(item({ progress, status: ItemStatus.Done }), t)).toBe("Done");
     expect(progressText(item({ progress }), t)).toBe("1 of 4 steps · 25%");
+  });
+});
+
+describe("step tree text (Slice 39)", () => {
+  const t = translator("en");
+  const started = "2026-11-18T13:12:00.000Z";
+  const finishedAt = "2026-11-18T13:20:00.000Z";
+  const NOW_MS = Date.parse("2026-11-18T14:14:00.000Z");
+  const clock = { finished: false, nowMs: NOW_MS };
+  const leaf = (label: string, state: StepState, extra = {}) => storedStep(label, state, extra);
+
+  it("shows a parent as running when any leaf below it runs, so it never reads Next beside a running ring", () => {
+    const parent = leaf("P", "pending" as StepState, { children: [leaf("a", "done" as StepState), leaf("b", "active" as StepState)] });
+    expect(shownState(parent, false)).toBe("active");
+    expect(shownState(leaf("P", "pending" as StepState, { children: [leaf("a", "pending" as StepState)] }), false)).toBe("pending");
+    expect(shownState(parent, true)).toBe("done");
+    expect(shownState(leaf("P", "active" as StepState), false)).toBe("active");
+  });
+
+  it("words durations as N min and N h NN min", () => {
+    expect(durationText(8 * 60_000, t)).toBe("8 min");
+    expect(durationText(62 * 60_000, t)).toBe("1 h 02 min");
+    expect(durationText(5_000, t)).toBe("1 min");
+  });
+
+  it("reads the state text: Done with its time, Running with its time, Next for the first waiting one, Later after", () => {
+    const done = leaf("A", "done" as StepState, { started_at: started, done_at: finishedAt });
+    const running = leaf("B", "active" as StepState, { started_at: "2026-11-18T13:12:00.000Z" });
+    const waiting = leaf("C", "pending" as StepState);
+    expect(stateText(done, clock, false, t)).toBe("Done · 8 min");
+    expect(stateText(running, clock, false, t)).toBe("Running · 1 h 02 min");
+    expect(stateText(waiting, clock, true, t)).toBe("Next");
+    expect(stateText(waiting, clock, false, t)).toBe("Later");
+    expect(stateText(waiting, { ...clock, finished: true }, true, t)).toBe("Done");
+  });
+
+  it("reads the open box's times line for done, running and waiting steps", () => {
+    const done = leaf("A", "done" as StepState, { started_at: started, done_at: finishedAt });
+    const running = leaf("B", "active" as StepState, { started_at: started });
+    expect(timesText(done, clock, t)).toBe(`Started ${clockTime(started)} · finished ${clockTime(finishedAt)} · took 8 min`);
+    expect(timesText(running, clock, t)).toBe(`Started ${clockTime(started)} · running for 1 h 02 min`);
+    expect(timesText(leaf("C", "pending" as StepState), clock, t)).toBe("Not started yet");
+  });
+
+  it("counts a parent's leaves in its second line and leaves out the parts that are empty", () => {
+    const children = [leaf("a", "done" as StepState), leaf("b", "active" as StepState), leaf("c", "active" as StepState), leaf("d", "pending" as StepState)];
+    const parent = leaf("P", "active" as StepState, { children, note: "Helper agent" });
+    expect(leafCounts(parent, false)).toEqual({ done: 1, total: 4, running: 2 });
+    expect(secondLine(parent, false, t)).toBe("1 of 4 sub-steps done · 2 running · Helper agent");
+    const calm = leaf("P", "pending" as StepState, { children: [leaf("a", "done" as StepState), leaf("b", "pending" as StepState)] });
+    expect(secondLine(calm, false, t)).toBe("1 of 2 sub-steps done");
+    expect(secondLine(leaf("L", "pending" as StepState, { note: "why" }), false, t)).toBe("why");
+    expect(secondLine(leaf("L", "pending" as StepState), false, t)).toBeNull();
   });
 });

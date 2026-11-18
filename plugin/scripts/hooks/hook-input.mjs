@@ -3,7 +3,8 @@
 // A hook must be fast and fail open, so every helper here swallows errors.
 // Files live in the state folder (report-progress.mjs stateRoot): `<id>` (waiting marker), `<id>.goal.json`
 // (the session's own card), `<id>.prompt.json` (the reminder's prompt counter) and `<id>.seen` (last activity).
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync,mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { projectSlug, resolveConfig, stateRoot } from '../report-progress.mjs';
 
@@ -14,7 +15,7 @@ export const CLOSED_BY = { stop: 'stop', session: 'session' };
 const GOAL_SUFFIX = '.goal.json';
 const PROMPT_SUFFIX = '.prompt.json';
 const SEEN_SUFFIX = '.seen';
-const AGENTS_SUFFIX = '.agents.json';
+const STOPPED_SUFFIX = '.stopped';
 
 export function parseInput(text) {
   try {
@@ -49,12 +50,40 @@ function sessionFile(id, suffix, root) {
   return safe ? join(root, `${safe}${suffix}`) : '';
 }
 
-function writeJson(file, value) {
+// Written to a temp file of its own, then renamed over the target, so a reader never sees half a file and two
+// writers never share a temp file.
+// On Windows a rename fails with EPERM/EBUSY/EACCES while another hook holds the target, so it is retried a few times
+// with a short synchronous pause (about 100 ms in all) before the write is given up.
+const RENAME_BUSY = new Set(['EPERM', 'EBUSY', 'EACCES']);
+const RENAME_PAUSES_MS = [10, 20, 30, 40];
+
+function pauseSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+function renameWithRetry(temp, file, rename) {
+  for (const pause of RENAME_PAUSES_MS) {
+    try {
+      rename(temp, file);
+      return;
+    } catch (error) {
+      if (!RENAME_BUSY.has(error && error.code)) throw error;
+      pauseSync(pause);
+    }
+  }
+  rename(temp, file);
+}
+
+export function writeJson(file, value, rename = renameSync) {
   if (!file) return;
+  const temp = `${file}.${process.pid}-${Math.random().toString(36).slice(2)}.tmp`;
   try {
     mkdirSync(dirname(file), { recursive: true });
-    writeFileSync(file, JSON.stringify(value));
-  } catch { /* fail open: the session is then judged by the board's own rules */ }
+    writeFileSync(temp, JSON.stringify(value));
+    renameWithRetry(temp, file, rename);
+  } catch {
+    removeFile(temp); /* fail open: the session is then judged by the board's own rules */
+  }
 }
 
 function readJson(file) {
@@ -123,17 +152,66 @@ export function readMarkerKey(input, root) {
   return value && typeof value.key === 'string' ? value.key : '';
 }
 
-// Ids of the agents whose SubagentStop ran (`<id>.agents.json`), so a later Stop counts them done even when
-// their meta file does not say `finished`.
-export function readStoppedAgents(id, root, now = Date.now()) {
-  const value = readFreshJson(sessionFile(id, AGENTS_SUFFIX, root), now);
-  return value && Array.isArray(value.ids) ? value.ids.filter((agentId) => typeof agentId === 'string') : [];
+// How long a stopped agent's file is kept: longer than background-agents AGENT_FRESH_MS (10 min) plus its resume slack,
+// so an agent whose last write came after its stop is never listed without its stop time.
+const STOPPED_KEEP_MS = 12 * 60 * 1000;
+
+// The stopped agents of a session: one small file per agent in `<id>.stopped/` holding `{ id, at }`. Parallel
+// SubagentStop hooks each write only their own file (temp, then rename), so none can lose another's stop and no
+// lock is needed.
+function stoppedDir(id, root) {
+  return sessionFile(id, STOPPED_SUFFIX, root);
 }
 
+// The file name is a hash of the whole agent id, so two ids that differ only in characters safeId would replace
+// cannot share a file; the id itself is kept inside the file.
+function stoppedFile(id, agentId, root) {
+  const dir = stoppedDir(id, root);
+  if (!dir || typeof agentId !== 'string' || !agentId) return '';
+  return join(dir, `${createHash('sha256').update(agentId).digest('hex').slice(0, 32)}.json`);
+}
+
+// The session's stopped-agents folder goes with the rest of its state files.
+function removeStoppedFolder(id, root) {
+  const dir = stoppedDir(id, root);
+  if (!dir) return;
+  try {
+    rmSync(dir, { recursive: true, force: true });
+  } catch { /* the next call retries */ }
+}
+
+function stoppedEntries(id, root) {
+  const dir = stoppedDir(id, root);
+  try {
+    return readdirSync(dir)
+      .filter((name) => name.endsWith('.json'))
+      .map((name) => ({ file: join(dir, name), value: readJson(join(dir, name)) }))
+      .filter(({ value }) => value && typeof value.id === 'string' && Number.isFinite(value.at));
+  } catch {
+    return [];
+  }
+}
+
+// `{ agentId: stoppedAtMs }` of the agents whose SubagentStop ran and that were not resumed since, so a later Stop
+// counts them done even when their meta file does not say `finished`.
+export function readStoppedAt(id, root) {
+  return Object.fromEntries(stoppedEntries(id, root).map(({ value }) => [value.id, value.at]));
+}
+
+// A resumed agent: only its own file goes. A file already gone is fine.
+export function removeStoppedAgent(id, agentId, root) {
+  removeFile(stoppedFile(id, agentId, root));
+}
+
+// Records the stop time of an agent (a resumed agent that stops again gets a new time) and deletes the files older
+// than STOPPED_KEEP_MS, one by one, so the folder stays small.
 export function addStoppedAgent(id, agentId, root, now = Date.now()) {
-  if (!agentId) return;
-  const ids = readStoppedAgents(id, root, now);
-  if (!ids.includes(agentId)) writeJson(sessionFile(id, AGENTS_SUFFIX, root), { ids: [...ids, agentId] });
+  const file = stoppedFile(id, agentId, root);
+  if (!file) return;
+  writeJson(file, { id: agentId, at: now });
+  for (const entry of stoppedEntries(id, root)) {
+    if (now - entry.value.at > STOPPED_KEEP_MS) removeFile(entry.file);
+  }
 }
 
 export function hasMarker(input, root) {
@@ -182,9 +260,23 @@ export function readSeen(id, root) {
 // last report that carried a title, which is the only one the reminder counts; `closed` is set when the card was
 // finished and `closedBy` says who ('stop' for the Stop hook, 'session' for the session's own done), so only a
 // Stop-closed card is reopened; `needsYou` is the open question the session sent, which every hook report repeats; `sig` is the list the hooks last sent, so an unchanged list
-// is not sent twice.
+// is not sent twice; `held` is set when Stop left the card open for running background agents, so the last agent's
+// SubagentStop closes it unless the main transcript changed after `heldAt` (the time Stop held the card).
 export function writeGoal(id, goal, root, now = Date.now()) {
   writeJson(sessionFile(id, GOAL_SUFFIX, root), { at: now, goalAt: now, ...goal });
+}
+
+// Read, change and write the goal file with no lock: the file is read again right before the write and written
+// temp-then-rename, so the window for a lost update is the few milliseconds of `change`, which never waits on the
+// network. `change(current)` gets the file's content (null when the file is gone) and returns the goal to write, or
+// null to write nothing, so a removed file is never brought back by a caller that returns null for it. `at` never
+// moves back.
+export function updateGoal(id, root, now, change) {
+  const current = readGoal(id, root, now);
+  const next = change(current);
+  if (!next) return;
+  const wanted = Number.isFinite(next.at) ? next.at : now;
+  writeGoal(id, { ...next, at: Math.max(wanted, current ? current.at : 0) }, root, now);
 }
 
 function goalSteps(value) {
@@ -198,7 +290,10 @@ export function readGoal(id, root, now = Date.now()) {
   const value = readFreshJson(sessionFile(id, GOAL_SUFFIX, root), now);
   if (!value || !Number.isFinite(value.at)) return null;
   const goalAt = Number.isFinite(value.goalAt) ? value.goalAt : value.at;
-  if (now - goalAt > SESSION_FILE_MAX_AGE_MS) return null;
+  if (now - goalAt > SESSION_FILE_MAX_AGE_MS) {
+    removeStoppedFolder(id, root); // the session ended: its stop files go with it
+    return null;
+  }
   const text = (field) => (typeof field === 'string' ? field : '');
   return {
     at: value.at,
@@ -212,11 +307,14 @@ export function readGoal(id, root, now = Date.now()) {
     closedBy: value.closedBy === CLOSED_BY.stop || value.closedBy === CLOSED_BY.session ? value.closedBy : '',
     needsYou: text(value.needsYou),
     sig: text(value.sig),
+    held: value.held === true,
+    heldAt: Number.isFinite(value.heldAt) ? value.heldAt : 0,
   };
 }
 
 export function removeGoal(id, root) {
   removeFile(sessionFile(id, GOAL_SUFFIX, root));
+  removeStoppedFolder(id, root);
 }
 
 // `{ at, tools, reminded }` of the session's current prompt, kept by the reminder hook.

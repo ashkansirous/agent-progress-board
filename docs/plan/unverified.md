@@ -3,6 +3,15 @@
 Every open "Not yet verified" check, one block per slice. A check that passes, or that the
 owner confirms, is removed here and its slice marked `verified`.
 
+### Slice 30: The plugin's usage and cap scripts: review leftovers ([slice](slices/30-usage-script-fixes.md))
+
+- A real session on the owner's machine sends cap readings after a plan switch with the address unusable.
+- The `docs/setup/cloud.md` setup loop on a real cloud box.
+
+### Slice 29: Session cards keep background agents' state right ([slice](slices/29-agent-state-fixes.md))
+
+- On the owner's machine: one session with two parallel background agents. Both agents' steps show, the card closes after the last stops, and the title stays.
+
 ### Slice 28: Cloud and VM sessions report their usage under their own label ([slice](slices/28-cloud-usage.md))
 
 - A real cloud session's usage shows on the usage page under its own label.

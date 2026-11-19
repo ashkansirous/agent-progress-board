@@ -12,6 +12,8 @@ import {
   isWorkingCard,
   opensCardDrawer,
   ownerStepDetails,
+  cardQuestion,
+  linkBoardAddress,
   ownerStepFallback,
   purposeText,
   questionStart,
@@ -232,5 +234,18 @@ describe("history in plain words", () => {
 
   it("fills every <board address> for text that holds no link (Slice 43)", () => {
     expect(fillBoardAddress("a <board address>/#/x and <board address>", "https://b.test")).toBe("a https://b.test/#/x and https://b.test");
+  });
+
+  it("Slice 45: the details text links a board page and writes a bare address as the origin", () => {
+    const origin = "https://b.test";
+    expect(linkBoardAddress("see <board address>/#/setup and <board address>.", origin)).toBe(`see [${origin}/#/setup](${origin}/#/setup) and ${origin}.`);
+    expect(linkBoardAddress("nothing", origin)).toBe("nothing");
+  });
+
+  it("Slice 45: one reading of what a card asks serves the card and the drawer heading", () => {
+    const step = item({ type: ItemType.WaitingForMe, key: "p/slice-4/check-0a1b2c3d4e5f", title: "Open the page", needs_you: null });
+    expect(cardQuestion(step)).toBe("Open the page");
+    expect(cardQuestion(item({ needs_you: "Which phone?" }))).toBe("Which phone?");
+    expect(cardQuestion(item({ needs_you: null, why: null }))).toBeNull();
   });
 });

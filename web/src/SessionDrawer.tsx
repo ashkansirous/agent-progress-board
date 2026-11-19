@@ -2,7 +2,7 @@ import type { BoardItemDto } from "../../src/api/boardDto";
 import { ItemStatus } from "../../src/domain/item";
 import { SESSION_STALE_AFTER_MINUTES } from "../../src/domain/stale";
 import { SliceOfCard } from "./ChecksView";
-import { doneSoFar, eventKeys, historyWords, isOwnerStep, isQuestion, isSessionItem, isStaleSession, isWorkingCard, purposeText, sessionLabel, waitingText } from "./cards";
+import { cardQuestion, doneSoFar, eventKeys, historyWords, isOwnerStep, isQuestion, isSessionItem, isStaleSession, isWorkingCard, purposeText, sessionLabel, waitingText } from "./cards";
 import { DetailsBody, useDialogFocus } from "./Detail";
 import { CloseIcon } from "./icons";
 import { projectLabel } from "./model";
@@ -92,13 +92,13 @@ function DrawerLinks({ item }: { item: BoardItemDto }) {
     <div className="drawer-section">
       <h3>{t("links")}</h3>
       <span className="drawer-links">
-        {item.links.map((link) =>
+        {item.links.map((link, index) =>
           isSafeHttpUrl(link.url) ? (
-            <a key={`${link.label}|${link.url}`} href={link.url} target="_blank" rel="noreferrer noopener">
+            <a key={`${link.label}|${link.url}|${index}`} href={link.url} target="_blank" rel="noreferrer noopener">
               {link.label}
             </a>
           ) : (
-            <span key={`${link.label}|${link.url}`}>{link.label}</span>
+            <span key={`${link.label}|${link.url}|${index}`}>{link.label}</span>
           ),
         )}
       </span>
@@ -144,7 +144,7 @@ export function SessionDrawer({ item, onClose }: DrawerProps) {
       <aside className={phone ? "card-drawer card-drawer-phone" : "card-drawer"} role="dialog" aria-modal="true" aria-label={t("cardDetails")}>
         <TopRow item={item} kicker={kicker} onClose={onClose} closeRef={closeRef} />
         <div className="drawer-heading">
-          <h2><AddressText text={(question ? (item.needs_you ?? item.title) : item.title)} /></h2>
+          <h2><AddressText text={question ? (cardQuestion(item) ?? item.title) : item.title} /></h2>
           {purpose && isSessionItem(item) && <span className="drawer-purpose">{purpose}</span>}
           <span className="drawer-meta">{metaText(item, kicker, view)}</span>
         </div>

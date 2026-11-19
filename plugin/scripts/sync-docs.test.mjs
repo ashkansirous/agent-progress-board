@@ -1039,6 +1039,13 @@ describe('Slice 31: plan sync reads the documents right', () => {
 describe('Slice 43: code spans keep their names', () => {
   const table = (row) => `## Status\n\n| # | Slice | Status | PR | Issue | File |\n| --- | --- | --- | --- | --- | --- |\n${row}\n`;
 
+  test('Slice 45: a double-backtick span keeps its text, a lone mark is dropped, an unmatched backtick stays', () => {
+    assert.equal(plain('run ``a`b_c`` now'), 'run a`b_c now');
+    assert.equal(plain('a `` b'), 'a `` b');
+    assert.equal(plain(`keep \uE000 and \`x_y\` here`), 'keep and x_y here');
+    assert.equal(plain('**bold** `a_b`'), 'bold a_b');
+  });
+
   test('plain keeps the text inside backticks, underscores and stars included, and drops the marks', () => {
     assert.equal(plain('set `AGENT_BOARD_URL` and `a*b` first'), 'set AGENT_BOARD_URL and a*b first');
     assert.equal(plain('use `AGENT_BOARD_URL`'), 'use AGENT_BOARD_URL');

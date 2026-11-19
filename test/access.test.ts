@@ -155,7 +155,8 @@ describe("the remote key set", () => {
         .fn()
         .mockImplementationOnce(() => new Promise<CryptoKey>((_resolve, reject) => { release = () => reject(new errors.JWKSTimeout()); }))
         .mockRejectedValue(new errors.JWKSTimeout());
-      const getKey = guardedKeys(remote as never, { now: () => new Date(clock.at) });
+      const guarded = guardedKeys(remote as never, { now: () => new Date(clock.at) });
+      const getKey = async (...args: Parameters<typeof guarded>) => guarded(...args);
       const slow = getKey(header, {} as never).catch((error: unknown) => error);
       clock.at += sec(8);
       release?.();
@@ -176,7 +177,8 @@ describe("the remote key set", () => {
         .mockImplementationOnce(() => new Promise<CryptoKey>((resolve) => { settle.ok = () => resolve(fakeKey); }))
         .mockImplementationOnce(() => new Promise<CryptoKey>((_resolve, reject) => { settle.fail = () => reject(new errors.JWKSTimeout()); }))
         .mockResolvedValue(fakeKey);
-      const getKey = guardedKeys(remote as never, { now: () => new Date(clock.at) });
+      const guarded = guardedKeys(remote as never, { now: () => new Date(clock.at) });
+      const getKey = async (...args: Parameters<typeof guarded>) => guarded(...args);
       const early = getKey(header, {} as never);
       const failing = getKey(header, {} as never).catch((error: unknown) => error);
       settle.fail?.();
@@ -190,7 +192,8 @@ describe("the remote key set", () => {
     it("a clock that moves back does not hold the cool-down until it catches up", async () => {
       const clock = { at: 1_000_000 };
       const remote = vi.fn().mockRejectedValueOnce(new errors.JWKSTimeout()).mockResolvedValue(fakeKey);
-      const getKey = guardedKeys(remote as never, { now: () => new Date(clock.at) });
+      const guarded = guardedKeys(remote as never, { now: () => new Date(clock.at) });
+      const getKey = async (...args: Parameters<typeof guarded>) => guarded(...args);
       await expect(getKey(header, {} as never)).rejects.toBeInstanceOf(KeyFetchFailure);
       clock.at -= sec(3600);
       expect(await getKey(header, {} as never)).toBe(fakeKey);

@@ -41,6 +41,11 @@ export function ownerStepFallback(item: BoardItemDto): string | null {
   return item.why ? item.title : null;
 }
 
+/** What a card asks: its own question, else (an owner step, or a card with a why) its title; null when it asks nothing. The one reading for the card and its drawer heading. */
+export function cardQuestion(item: BoardItemDto): string | null {
+  return item.needs_you ?? ownerStepFallback(item);
+}
+
 /** The steps under an owner step's title (the doc sync's `details_md`, Slice 44), or null when it has none or is not an owner step. */
 export function ownerStepDetails(item: BoardItemDto): string | null {
   return isOwnerStep(item) && item.details_md ? item.details_md : null;
@@ -65,6 +70,14 @@ const BOARD_ADDRESS_LINK = /<board address>(?:\/#\/[A-Za-z0-9._~/-]*[A-Za-z0-9_~
 /** Card text for a place that holds no link (an aria-label, Markdown): every `<board address>` becomes the origin. */
 export function fillBoardAddress(text: string, origin: string): string {
   return text.replaceAll(BOARD_ADDRESS, origin);
+}
+
+/** Markdown text with each `<board address>/#/page` as a link to that page of the board and a bare `<board address>` as the origin (Slice 45). */
+export function linkBoardAddress(text: string, origin: string): string {
+  return text.replace(BOARD_ADDRESS_LINK, (match) => {
+    const address = origin + match.slice(BOARD_ADDRESS.length);
+    return match === BOARD_ADDRESS ? address : `[${address}](${address})`;
+  });
 }
 
 /** A piece of card text: plain text, or a link to a page of the board itself. */

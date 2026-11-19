@@ -101,8 +101,9 @@ export function titleFields(text) {
 }
 
 const EMPHASIS_MARKS = /[*_`]+/g;
-// A code span: its text is group 1. An unmatched backtick is no span and stays as written.
-const CODE_SPAN = /`([^`\n]+)`/g;
+// A code span, single or double backticks: its text is group 1 (double) or group 2 (single). An unmatched backtick is no
+// span and stays as written.
+const CODE_SPAN = /``([^\n]+?)``|`([^`\n]+)`/g;
 // Real emphasis (CommonMark): the mark touches text on its inner side and is not inside a word, so `AGENT_BOARD_URL`
 // and `my_page` keep their underscores; `**` and `__` go first, then `*` and `_`.
 // The text between the marks is capped at SPAN_CAP characters, so an unmatched opener scans a bounded window and a
@@ -130,11 +131,12 @@ function stripEmphasis(text) {
 // Markdown to plain text: links keep their label and real emphasis marks go; the text inside a code span stays as
 // written (`AGENT_BOARD_URL` keeps its underscores), and so do intraword `_` and `*` and an unmatched backtick.
 export function plain(text) {
-  const linked = String(text || '').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1');
+  // A literal span mark in the line is dropped first, so the restore below cannot read it as a code span's place.
+  const linked = String(text || '').replaceAll(SPAN_MARK, '').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1');
   // Each code span becomes one placeholder character while emphasis goes, so bold around a span still matches.
   const spans = [];
-  const masked = linked.replace(CODE_SPAN, (_whole, inner) => {
-    spans.push(inner);
+  const masked = linked.replace(CODE_SPAN, (_whole, double, single) => {
+    spans.push(double ?? single);
     return SPAN_MARK;
   });
   let next = 0;

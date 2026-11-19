@@ -239,8 +239,9 @@ test.describe("Needs you cards say what is needed (Slice 27)", () => {
     await openWith(page, { "recipe-box/ask-migration": { key: "recipe-box/slice-4/check-0a1b2c3d4e5f", title, why: "Slice 4: Tag search — read <board address>/#/usage." } });
     const card = page.locator(".question-card").filter({ hasText: "AGENT_BOARD_URL" });
     const origin = new URL(page.url()).origin;
-    // The phone card names the project in that slot (PhoneV2), so only the desktop card carries the label.
-    if (!isPhone()) await expect(card.locator(".question-label")).toHaveText("Your step");
+    // The phone card names the project in that slot (PhoneV2); an owner step leads it with "Your step" (Slice 45).
+    if (isPhone()) await expect(card.locator(".question-project")).toContainText("Your step");
+    else await expect(card.locator(".question-label")).toHaveText("Your step");
     await expect(card).not.toContainText("<board address>");
     await expect(card).toContainText(`open ${origin}/#/setup, then set AGENT_BOARD_URL`);
     await expect(card.getByRole("link", { name: "/#/setup" })).toHaveAttribute("href", `${origin}/#/setup`);

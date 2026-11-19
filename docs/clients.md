@@ -493,8 +493,10 @@ Reply text (parse it as for the other tools): `{"project":"demo-app","created":1
   docs status of `done` always wins, because docs record a finish only after it happened.
 - A key missing from the snapshot becomes `done` (event note "Left the plan") if the sync had
   it in the project's last snapshot. Items only ever reported live are never touched by a
-  snapshot. An empty list closes every doc-sync item of the project. If a closed key returns in
-  a later snapshot, it carries a new docs status and reopens.
+  snapshot. An empty list closes every doc-sync item of the project, on purpose: a finished
+  project has an empty status table and its cards should close. The plugin's sync says so on
+  stderr when it sends one (`closed=` counts them, 0 when the board holds none). If a closed key
+  returns in a later snapshot, it carries a new docs status and reopens.
 - The same snapshot twice changes nothing: no write, no event, `updated_at` untouched.
 - A sync records an event (source `doc-sync`) only when the shown status changes, and takes over
   the item's `source` only then.

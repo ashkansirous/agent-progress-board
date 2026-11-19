@@ -429,6 +429,16 @@ describe("result size limit", () => {
     expect(out.links.map((link) => link.url)).toEqual(links.map((link) => link.url));
   });
 
+  it("Slice 46 review #7: an oversize reply with no links at all never says links were dropped, and links make it say so", () => {
+    const bare = Object.fromEntries(Array.from({ length: 3000 }, (_, n) => [`field_${n}`, "v".repeat(30)]));
+    const none = fitList([{ key: "k", ...bare }]) as { note?: string };
+    expect(replyLength(none)).toBeLessThanOrEqual(MAX_RESULT_CHARS);
+    expect(none.note ?? "").not.toContain("links were dropped");
+    const links = Array.from({ length: 5 }, (_, n) => ({ label: `l${n}`, url: `https://example.com/${n}/${"u".repeat(20_000)}` }));
+    const withLinks = fitList([{ key: "k", title: "Kept", links }]) as { note: string };
+    expect(withLinks.note).toContain("links were dropped");
+  });
+
   it("Slice 45 #2: when links cannot fit, the last resort drops every link and the item stays listed", () => {
     const links = Array.from({ length: 5 }, (_, n) => ({ label: `l${n}`, url: `https://example.com/${n}/${"u".repeat(20_000)}` }));
     const entry = { key: "k", project: "p", title: "Kept", status: "open", links };

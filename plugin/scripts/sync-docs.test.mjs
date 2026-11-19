@@ -1022,6 +1022,20 @@ describe('Slice 31: plan sync reads the documents right', () => {
     assert.equal(spaced.title, 'Slice 5: Set variables');
   });
 
+  test('Slice 46 #2: a bar inside a double-backtick span does not split, and a lone backtick inside it does not end it', () => {
+    const double = ownerOf('### Slice 5: x\n\n- **You:** run ``a | b`` and check | then open https://x.test\n');
+    assert.equal(double.title, 'Slice 5: run a | b and check');
+    assert.equal(double.details_md, 'then open https://x.test');
+    const inner = ownerOf('### Slice 5: x\n\n- **You:** run ``a ` | b`` and check | then stop\n');
+    assert.equal(inner.title, 'Slice 5: run a ` | b and check');
+    assert.equal(inner.details_md, 'then stop');
+  });
+
+  test('Slice 46 #9: an action that is only "Slice N:" keeps its steps as the action', () => {
+    const owner = ownerOf('### Slice 5: x\n\n- **You:** Slice 5: | go to https://claude.ai/code\n');
+    assert.equal(owner.title, 'Slice 5: go to https://claude.ai/code');
+  });
+
   test('Slice 44: a bar inside a code span, or with no space on a side, does not split', () => {
     const inCode = ownerOf('### Slice 5: x\n\n- **You:** run `cat log | grep ERROR` and check the count\n');
     assert.equal(inCode.title, 'Slice 5: run cat log | grep ERROR and check the count');

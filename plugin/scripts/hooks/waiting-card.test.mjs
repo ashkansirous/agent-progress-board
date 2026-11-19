@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { after, describe, test } from 'node:test';
 import { writeGoal } from './hook-input.mjs';
 import { run as runWaiting } from './session-waiting.mjs';
-import { afterAnswerOf, cardText, endsWithQuestion, lastAssistant, maskSecrets, questionOf, toolText } from './waiting-card.mjs';
+import { MASK_WINDOW, afterAnswerOf, cardText, endsWithQuestion, lastAssistant, maskSecrets, questionOf, tailOf, toolText } from './waiting-card.mjs';
 import { cleanUpAfterTests, envFor, callsOf, replyOk, startFakeBoard, trackedTemp } from '../test-helpers.mjs';
 
 after(cleanUpAfterTests);
@@ -270,6 +270,10 @@ describe('Slice 31: the secret mask, sentences and the transcript window', () =>
     ['a plain command is left alone', 'git log -1 --format=%H', 'git log -1 --format=%H'],
     ['Slice 45 #12: double-escaped JSON', String.raw`echo "{\\"password\\":\\"hunter2\\"}" x`, String.raw`echo "{\\"password\\":***`],
     ['Slice 45 #12: a short flag leading a continuation line', 'docker login -u me \\\n-p hunter2', 'docker login -u me \\\n-p ***'],
+    ['Slice 46 #7: a compiler flag is not a password flag', 'cc -Wall main.c', 'cc -Wall main.c'],
+    ['Slice 46 #7: a flag leading a line that does not continue a command', 'ok\n-s foo', 'ok\n-s foo'],
+    ['Slice 46 review #2: a flag leading a line after a PowerShell backtick', 'docker login -u me `\n-p hunter2', 'docker login -u me `\n-p ***'],
+    ['Slice 46 review #2: a flag leading a line after a cmd caret', 'docker login -u me ^\n-p hunter2', 'docker login -u me ^\n-p ***'],
     ['Slice 45 #12: psql -W with a value', 'psql -W hunter2 db', 'psql -W ***'],
     ['Slice 45 #12: "The password is" with the value on the next line', 'The password is\nhunter2\nnext', 'The password is\n***\nnext'],
     ['Slice 45 #12: "the token was" at the line end', 'the token was\n\nabc123', 'the token was\n\n***'],
@@ -287,6 +291,62 @@ describe('Slice 31: the secret mask, sentences and the transcript window', () =>
     assert.ok(!JSON.stringify(elicit).includes('bodyline'), JSON.stringify(elicit));
     const open = cardText('idle_prompt', '', { text: `Is this the key?\n${pem.slice(0, -26)}\n${'x'.repeat(5000)}?`, tool: null });
     assert.ok(!JSON.stringify(open).includes('bodyline'), JSON.stringify(open));
+  });
+
+  test('Slice 46 review #2: the first line of every text is masked as a possible continuation, whether or not it was cut', () => {
+    assert.equal(maskSecrets('-p hunter2'), '-p ***');
+    assert.equal(maskSecrets('ok\n-p hunter2'), 'ok\n-p hunter2', 'a later line that follows no continuation mark is left alone');
+    assert.ok(!toolText({ name: 'Bash', input: { command: '-p hunter2 db' } }).includes('hunter2'), 'toolText: a command detail that is a cut of a longer command');
+    assert.ok(!JSON.stringify(cardText('permission_prompt', '-p hunter2', { text: '', tool: null })).includes('hunter2'), 'cardText: the notification message');
+    assert.equal(maskSecrets('cc -Wall x\n-s foo'), 'cc -Wall x\n-s foo');
+    const tail = tailOf(`${'word '.repeat(2000)}\n-p hunter2\nShould I go on?`);
+    assert.equal(tail.cutStart, true);
+    assert.equal(tail.text.startsWith('-p hunter2'), true);
+    const card = cardText('elicitation_dialog', '', { text: `${'word '.repeat(2000)}\n-p hunter2 is the password\nShould I go on?`, tool: null });
+    assert.ok(!JSON.stringify(card).includes('hunter2'), JSON.stringify(card));
+    assert.equal(tailOf('short text').cutStart, false);
+  });
+
+  test('Slice 46 check-2 #2: an uncut text keeps a long first line such as a path', () => {
+    const path = `/${'a'.repeat(60)}/${'b'.repeat(40)}`;
+    assert.equal(tailOf(`${path}\nShould I go on?`).text, `${path}\nShould I go on?`);
+  });
+
+  test('Slice 46 review #7: the tail scan masks a PEM block that starts before the cut and runs into the tail', () => {
+    const body = Array.from({ length: 300 }, (_, row) => `pembody${row}abcdefghijklmnopqrstuvwxyz`).join('\n');
+    const tail = tailOf(`before\n-----BEGIN ${'PRIVATE KEY'}-----\n${body}\n-----END ${'PRIVATE KEY'}-----\nAfter it, is it fine?`);
+    assert.ok(!tail.text.includes('pembody'), 'the block is replaced before the cut');
+    assert.ok(tail.text.endsWith('After it, is it fine?'));
+    const open = tailOf(`-----BEGIN ${'PRIVATE KEY'}-----\n${body}\n${'x'.repeat(5000)}`);
+    assert.ok(!open.text.includes('pembody'));
+  });
+
+  test('Slice 46 review pass 2 #5: a tail that starts inside a key body is masked up to and including the END line', () => {
+    const body = Array.from({ length: 300 }, (_, row) => `keybody${String(row).padStart(3, '0')}${'A'.repeat(50)}`).join('\n');
+    const whole = `-----BEGIN ${'PRIVATE KEY'}-----\n${body}\n-----END ${'PRIVATE KEY'}-----\nAfter it, is it fine?`;
+    const tail = tailOf(`${'lead '.repeat(200)}\n${whole}`);
+    assert.ok(!tail.text.includes('keybody'), tail.text.slice(0, 200));
+    assert.ok(!tail.text.includes('-----END'));
+    assert.ok(tail.text.endsWith('After it, is it fine?'));
+    const inside = whole.slice(whole.indexOf('keybody100') - 1).replace(/^[^\n]*\n/, '');
+    assert.ok(inside.length > MASK_WINDOW);
+    const cut = tailOf(inside);
+    assert.ok(!cut.text.includes('keybody'), 'a long text that begins inside the body');
+    const lead = `${'word '.repeat(2000)}\n`; // the cut falls in this line, so the tail begins at the key rows
+    const short = tailOf(`${lead}${'A'.repeat(64)}\n${'B'.repeat(64)}\nAB12\n-----END ${'PRIVATE KEY'}-----\nShould I go on?`);
+    assert.equal(short.text, '***\nShould I go on?');
+    assert.equal(tailOf(`${lead}${'A'.repeat(64)}\nnot a key line\nShould I go on?`).text, '***not a key line\nShould I go on?', 'no END line: masked to the end of the base64 run');
+  });
+
+  test('Slice 46 review pass 3 #1: a tail that starts inside a key body with no END line is masked to the end of the run', () => {
+    const body = Array.from({ length: 300 }, (_, row) => `keybody${String(row).padStart(3, '0')}${'A'.repeat(50)}`).join('\n');
+    const open = tailOf(`${'lead '.repeat(200)}\n-----BEGIN ${'PRIVATE KEY'}-----\n${body}`);
+    assert.ok(!open.text.includes('keybody'), 'a text that ends inside the body');
+    const lead = `${'word '.repeat(2000)}\n`;
+    const ends = tailOf(`${lead}${'B'.repeat(64)}\n${'C'.repeat(64)}\nAB12`);
+    assert.equal(ends.text, '***');
+    const then = tailOf(`${lead}${'B'.repeat(64)}\n${'C'.repeat(64)}\nShould I go on?`);
+    assert.ok(!then.text.includes('BBBB') && then.text.endsWith('Should I go on?'), then.text);
   });
 
   test('check 2 #3: an 80,000-word single line is masked in well under 200 ms', () => {

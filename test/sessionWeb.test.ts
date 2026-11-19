@@ -266,6 +266,12 @@ describe("history in plain words", () => {
     expect(linkBoardAddress("`a <board address>/#/x b`", origin)).toBe(`\`a ${origin}/#/x b\``);
   });
 
+  it("Slice 46 #9: a label with a ] or a target with a ) is still one link", () => {
+    const origin = "https://b.test";
+    expect(linkBoardAddress("[the [old] page <board address>/#/a](https://x.test) then <board address>/#/b", origin)).toBe(`[the [old] page ${origin}/#/a](https://x.test) then [${origin}/#/b](${origin}/#/b)`);
+    expect(linkBoardAddress("[wiki](https://x.test/A_(b)) and <board address>/#/c", origin)).toBe(`[wiki](https://x.test/A_(b)) and [${origin}/#/c](${origin}/#/c)`);
+  });
+
   it("Slice 45: one reading of what a card asks serves the card and the drawer heading", () => {
     const step = item({ type: ItemType.WaitingForMe, key: "p/slice-4/check-0a1b2c3d4e5f", title: "Open the page", needs_you: null });
     expect(cardQuestion(step)).toBe("Open the page");

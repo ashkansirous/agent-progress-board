@@ -944,19 +944,22 @@ describe('the task heartbeat (Slice 13)', () => {
 });
 
 describe('Slice 45 (Slice 30 follow-ups): a module that cannot load', () => {
-  test('an importer is not thrown at, and the reason is kept in usage-tick.log in the state folder', async () => {
+  test('Slice 46 #3: an importer gets the failed import rethrown, the reason is kept in usage-tick.log, and a direct run still exits 0', async () => {
     const temp = mkdtempSync(join(tmpdir(), 'board-tick-import-'));
     try {
       cpSync(fileURLToPath(new URL('.', import.meta.url)), join(temp, 'scripts'), { recursive: true });
       rmSync(join(temp, 'scripts', 'cap-reading.mjs'));
-      writeFileSync(join(temp, 'wrap.mjs'), "await import('./scripts/usage-tick.mjs');\nconsole.log('imported');\n");
+      writeFileSync(join(temp, 'wrap.mjs'), "try { await import('./scripts/usage-tick.mjs'); console.log('imported'); } catch { console.log('rejected'); }\n");
       const state = join(temp, 'data', 'state');
-      const result = await runNode(join(temp, 'wrap.mjs'), [], envFor('http://127.0.0.1:9', state, { CLAUDE_PLUGIN_DATA: join(temp, 'data') }));
+      const childEnv = envFor('http://127.0.0.1:9', state, { CLAUDE_PLUGIN_DATA: join(temp, 'data') });
+      const result = await runNode(join(temp, 'wrap.mjs'), [], childEnv);
       assert.equal(result.code, 0, result.stderr);
-      assert.match(result.stdout, /imported/);
+      assert.match(result.stdout, /rejected/);
       const log = readFileSync(join(state, 'usage-tick.log'), 'utf8');
       assert.match(log, /Error/);
       assert.match(log, /cap-reading/);
+      const direct = await runNode(join(temp, 'scripts', 'usage-tick.mjs'), ['--run'], childEnv);
+      assert.equal(direct.code, 0, direct.stderr);
     } finally {
       rmSync(temp, { recursive: true, force: true });
     }

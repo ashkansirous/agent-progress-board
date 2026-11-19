@@ -79,7 +79,16 @@ interface CutPlan {
   /** The fewest entries shown before long strings are cut instead. */
   minShown: number;
   build: (shown: number, clip: number | null, dropLongLinks?: boolean) => Truncated;
+  /** Whether any entry holds a non-empty `links` list: with none, the drop-links pass would only rebuild the same reply. */
+  hasLinks: boolean;
   fallback: Truncated;
+}
+
+/** True when `value` holds a non-empty `links` list at any depth. */
+function holdsLinks(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(holdsLinks);
+  if (value === null || typeof value !== "object") return false;
+  return Object.entries(value).some(([name, field]) => (name === "links" && Array.isArray(field) ? field.length > 0 : holdsLinks(field)));
 }
 
 /** The length of the reply as the client receives it: the data block plus the note block. */
@@ -115,7 +124,8 @@ function cutReply(plan: CutPlan): Truncated {
     if (replyLength(reply) <= MAX_RESULT_CHARS) return reply;
   }
   // Still over: urls are never cut, so the kept entries lose every link (the note says so); the item stays listed.
-  for (const clip of STRING_CLIPS) {
+  // With no link anywhere there is nothing to drop and the passes would rebuild the same replies.
+  for (const clip of plan.hasLinks ? STRING_CLIPS : []) {
     const reply = plan.build(plan.minShown, clip, true);
     if (replyLength(reply) <= MAX_RESULT_CHARS) return reply;
   }
@@ -145,6 +155,7 @@ export function fitList<T>(entries: T[]): unknown {
     sizes,
     fixed: 2,
     minShown: 1,
+    hasLinks: entries.some(holdsLinks),
     build: (shown, clip, dropLongLinks = false) => {
       const kept = entries.slice(0, shown);
       const data = clip === null ? kept : kept.map((entry) => clipStrings(entry, clip, dropLongLinks));
@@ -174,6 +185,7 @@ export function fitItem<T extends { key: string; events: unknown[] }>(item: T): 
     sizes,
     fixed: bareLength,
     minShown: 0,
+    hasLinks: holdsLinks(item),
     build: (shown, clip, dropLongLinks = false) => {
       const kept = item.events.slice(0, shown);
       const data = { ...item, events: kept };

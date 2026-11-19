@@ -1,7 +1,12 @@
 ### Slice 45 — Review follow-ups left open by the night 2026-11-18-1602
 
-*Planned 2026-11-19 by the feedback loop ([note](../notes/2026-11-18-1602-feedback-loop.md)). Parked: feedback loop,
-waits for the user. Nothing here is built; the owner decides which items to build.*
+*Planned 2026-11-19 by the feedback loop ([note](../notes/2026-11-18-1602-feedback-loop.md)). Nothing here is built.*
+
+*Settled 2026-11-19 by the starter session, under the owner's standing rule (no review or approval round; 2026-11-18:
+"you should not fucking wait for my fucking review"): build every item below, item 12 (privacy) first, then 1-3. An
+item whose fix needs a choice the slice files leave open takes the option that keeps the shown behaviour closest to
+the slice's own Decision and records it under* Found while building. *Item 8's live check is Claude's (Chrome), not
+the owner's.*
 
 **Touches:** `src/mcp/tools.ts`, `src/application/board.ts`, `src/domain/upsert.ts`, `plugin/scripts/sync-docs.mjs`,
 `web/src/cards.ts`, `web/src/SessionCards.tsx`, `web/src/usage*`, `docs/clients.md`, the tests beside each

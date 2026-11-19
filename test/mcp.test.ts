@@ -255,12 +255,17 @@ describe("mark_done, ask_human, get_item", () => {
     expect(item.needs_you).toBe("Which phone?");
   });
 
-  it("a new ask replaces after_answer, and clears it when the ask omits it", async () => {
+  it("a new ask replaces after_answer, keeps the stored one when the ask omits it, and clears it on null (Slice 45)", async () => {
     await callTool("report_progress", { ...SLICE, status: "in_progress" });
     await callTool("ask_human", { key: SLICE.key, project: "demo-app", title: "Q", why: "First?", after_answer: "Then deploy" });
     await callTool("ask_human", { key: SLICE.key, project: "demo-app", title: "Q", why: "Second?" });
-    const item = (await callTool("get_item", { key: SLICE.key })).data as Record<string, unknown>;
-    expect(item).toMatchObject({ needs_you: "Second?", after_answer: null });
+    const kept = (await callTool("get_item", { key: SLICE.key })).data as Record<string, unknown>;
+    expect(kept).toMatchObject({ needs_you: "Second?", after_answer: "Then deploy" });
+    await callTool("ask_human", { key: SLICE.key, project: "demo-app", title: "Q", needs_you: "Third?", after_answer: "Then test" });
+    await callTool("ask_human", { key: SLICE.key, project: "demo-app", title: "Q", needs_you: "Fourth?" });
+    expect(((await callTool("get_item", { key: SLICE.key })).data as Record<string, unknown>)).toMatchObject({ needs_you: "Fourth?", after_answer: "Then test" });
+    await callTool("ask_human", { key: SLICE.key, project: "demo-app", title: "Q", needs_you: "Fifth?", after_answer: null });
+    expect(((await callTool("get_item", { key: SLICE.key })).data as Record<string, unknown>)).toMatchObject({ needs_you: "Fifth?", after_answer: null });
   });
 
   it("ask_human on a done item of another type is an error result naming that it is done", async () => {
@@ -383,6 +388,22 @@ describe("result size limit", () => {
     expect(replyLength(fit)).toBeLessThanOrEqual(MAX_RESULT_CHARS);
     expect(fit.data.events[0]!.n).toBe(0);
     expect(fit.data.events.length).toBeLessThan(300);
+  });
+
+  it("Slice 45 #1: a clipped oversize reply keeps every link url whole", () => {
+    const links = Array.from({ length: 2 }, (_, n) => ({ label: "l".repeat(300), url: `https://example.com/${n}/${"u".repeat(3000)}` }));
+    const entry = { key: "k", why: "y".repeat(80_000), links };
+    const out = (fitList([entry]) as { data: { links: { url: string }[] }[] }).data[0]!;
+    expect(out.links.map((link) => link.url)).toEqual(links.map((link) => link.url));
+  });
+
+  it("Slice 45 #3: a huge item keeps its key, title and status in the cut reply", () => {
+    const fields = Object.fromEntries(Array.from({ length: 3000 }, (_, n) => [`field_${n}`, "v".repeat(30)]));
+    const huge = { key: "k", project: "p", title: "Huge item", status: "in_progress", ...fields, events: [{ note: "n" }] };
+    const fit = fitItem(huge) as { data: Record<string, unknown>; note: string };
+    expect(replyLength(fit)).toBeLessThanOrEqual(MAX_RESULT_CHARS);
+    expect(fit.data).toMatchObject({ key: "k", title: "Huge item", status: "in_progress" });
+    expect(fit.note).toContain("key, title and status");
   });
 
   it("list_open keeps the whole reply under the size limit when one item alone is huge", async () => {

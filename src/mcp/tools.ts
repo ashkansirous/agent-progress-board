@@ -41,8 +41,8 @@ class Truncated {
   ) {}
 }
 
-/** Identity and time fields a clip never touches: cutting one makes a key that names no item or a time that is no time. */
-const UNCLIPPED_FIELDS = new Set(["key", "parent_key", "project", "type", "status", "at"]);
+/** Identity, link and time fields a clip never touches: cutting one makes a key that names no item, a URL that goes nowhere or a time that is no time. */
+const UNCLIPPED_FIELDS = new Set(["key", "parent_key", "project", "type", "status", "at", "url"]);
 
 function isUnclipped(name: string): boolean {
   return UNCLIPPED_FIELDS.has(name) || name.endsWith("_at");
@@ -52,7 +52,7 @@ function clipText(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max)}...` : text;
 }
 
-/** Free text cut to `max` characters; key, parent_key, project, type, status and every time field stay whole. */
+/** Free text cut to `max` characters; key, parent_key, project, type, status, link urls and every time field stay whole. */
 function clipStrings(value: unknown, max: number): unknown {
   if (typeof value === "string") return clipText(value, max);
   if (Array.isArray(value)) return value.map((entry) => clipStrings(entry, max));
@@ -143,6 +143,15 @@ export function fitList<T>(entries: T[]): unknown {
   });
 }
 
+/** What the last-resort reply of an item keeps: its key, and its title, project, type and status cut short. */
+function identityOf(item: { key: string }): Record<string, unknown> {
+  const fields = item as unknown as Record<string, unknown>;
+  const kept: Record<string, unknown> = { key: item.key };
+  for (const name of ["project", "type", "status"]) if (typeof fields[name] === "string") kept[name] = fields[name];
+  if (typeof fields.title === "string") kept.title = clipText(fields.title, STRING_CLIPS[0]!);
+  return kept;
+}
+
 /** The item as it is when it fits the limit, else a `Truncated` (newest events kept) whose measured reply fits it. */
 export function fitItem<T extends { key: string; events: unknown[] }>(item: T): unknown {
   const bareLength = JSON.stringify({ ...item, events: [] }).length;
@@ -159,7 +168,10 @@ export function fitItem<T extends { key: string; events: unknown[] }>(item: T): 
       const data = { ...item, events: kept };
       return new Truncated(clip === null ? data : clipStrings(data, clip), cutNote(shown, item.events.length, clip, "events", advice));
     },
-    fallback: new Truncated({ key: item.key }, `truncated: 0 of ${item.events.length} events shown; the item alone is over the size limit${advice}`),
+    fallback: new Truncated(
+      identityOf(item),
+      `truncated: 0 of ${item.events.length} events shown; the item alone is over the size limit, so only its key, title and status are shown; ask for the rest with list_open${advice}`,
+    ),
   });
 }
 

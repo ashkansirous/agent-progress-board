@@ -22,12 +22,12 @@ Slice 32 findings are medium correctness faults. This slice gathers them so none
 
 #### Work (each item names where it came from; the slice files hold the full text)
 
-1. Slice 32, check pass 3 (medium): a clipped oversize `list_open`/`get_item` reply cuts `links[].url` and returns a
+1. [x] Slice 32, check pass 3 (medium): a clipped oversize `list_open`/`get_item` reply cuts `links[].url` and returns a
    broken URL (`src/mcp/tools.ts:49`, not re-read here). Verify: a test with an item whose links push the reply over
    50,000 characters gets whole URLs or none.
-2. Slice 32, check pass 3 (medium): `ask_human` sends `after_answer ?? null`, which erases a stored `after_answer` on a
+2. [x] Slice 32, check pass 3 (medium): `ask_human` sends `after_answer ?? null`, which erases a stored `after_answer` on a
    re-ask (`src/application/board.ts:113`, not re-read here). Verify: a re-ask without `after_answer` keeps the stored one.
-3. Slice 32, check pass 3 (medium): `fitItem` can fall back to a bare `{key}` for a huge item (`src/mcp/tools.ts:144`).
+3. [x] Slice 32, check pass 3 (medium): `fitItem` can fall back to a bare `{key}` for a huge item (`src/mcp/tools.ts:144`).
    Verify: a huge item keeps its title and status in the cut reply.
 4. Slice 32, the other five check-pass-3 findings: see "Follow-up from check pass 3" in
    [Slice 32](32-questions-and-rules.md).

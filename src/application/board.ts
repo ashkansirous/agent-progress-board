@@ -179,10 +179,10 @@ async function askOnItem(
   }
   const { key, title, why, needs_you, after_answer } = input;
   if (needs_you === null) return saveReport(repo, { key, why, needs_you: null }, existing, clock);
-  if (needs_you?.trim()) return saveReport(repo, { key, why, needs_you, after_answer: after_answer ?? null }, existing, clock);
+  if (needs_you?.trim()) return saveReport(repo, { key, why, needs_you, after_answer }, existing, clock);
   const kept = hasOpenQuestion(existing, staleAfterMinutes, clock.now()) ? existing.needs_you : null;
   const question = why?.trim() ? why : (kept ?? title);
-  return saveReport(repo, { key, needs_you: question, after_answer: after_answer ?? null }, existing, clock);
+  return saveReport(repo, { key, needs_you: question, after_answer }, existing, clock);
 }
 
 async function isDocSynced(repo: ItemRepository, item: Item): Promise<boolean> {

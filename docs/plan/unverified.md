@@ -3,6 +3,11 @@
 Every open "Not yet verified" check, one block per slice. A check that passes, or that the
 owner confirms, is removed here and its slice marked `verified`.
 
+### Slice 44: English only, and an owner step reads as a short title plus its steps ([slice](slices/44-english-only-owner-steps.md))
+
+- After the release, the page reads English on a browser set to German.
+- A `**You:** ` line in the new form shows on the board as "Slice N: <action>" with its steps underneath.
+
 ### Slice 43: Owner steps on the board read right ([slice](slices/43-owner-cards-read-right.md))
 
 - The Verification box in the slice: after the release and one doc sync on the live board, "Needs you" shows owner steps as "Your step" with working links and `AGENT_BOARD_URL` in full.

@@ -24,6 +24,7 @@ owner's config repo. Decisions in [Slice 20](docs/plan/slices/20-plugin-connect.
 | --- | --- | --- | --- | --- | --- |
 | 49 | Follow-ups left open by Slice 48 | planned | | | [slice](docs/plan/slices/49-slice-48-follow-ups.md) |
 | 50 | Item tools one by one and in batches, archive instead of delete | planned | | | [slice](docs/plan/slices/50-batch-and-archive.md) |
+| 51 | Bug: blocked step state, true step times, a visible reason when a card reopens | planned (owner 2026-11-19) | | | [slice](docs/plan/slices/51-blocked-steps-true-times.md) |
 
 Notes:
 

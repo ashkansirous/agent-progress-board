@@ -7,10 +7,12 @@ be title: slice XXX: set the environment variables for claude-environment. descr
 click on xxx and complete 2 steps."* Starts after Slice 43 (both edit `plugin/scripts/sync-docs.mjs` and the card
 components).
 
-**Touches:** `web/src/strings.ts`, every `web/src` file that calls `pickLocale` or reads `LOCALES`, the tests and e2e
-specs that use the `de` table, `plugin/scripts/sync-docs.mjs`, `plugin/scripts/sync-docs.test.mjs`,
-`plugin/skills/agent-board/SKILL.md`, `src/mcp/instructions.ts` (only if it describes the owner-step line),
-`docs/plan/slices/44-english-only-owner-steps.md`
+*In progress (wave 2026-11-19), draft PR.*
+
+**Touches:** `web/src/strings.ts`, `web/src/App.tsx`, `test/web.test.ts`, `test/partsWeb.test.ts`,
+`test/capCostFormat.test.ts`, `test/planningText.test.ts`, `test/sessionWeb.test.ts`, `e2e/projects.spec.ts`,
+`plugin/scripts/sync-docs.mjs`, `plugin/scripts/sync-docs.test.mjs`, `plugin/skills/agent-board/SKILL.md`,
+`src/mcp/instructions.ts` (only if it describes the owner-step line), `docs/plan/slices/44-english-only-owner-steps.md`
 
 **Migrations:** none
 

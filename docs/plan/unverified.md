@@ -3,6 +3,10 @@
 Every open "Not yet verified" check, one block per slice. A check that passes, or that the
 owner confirms, is removed here and its slice marked `verified`.
 
+### Slice 48: Follow-ups left open by Slice 47 ([slice](slices/48-slice-47-follow-ups.md))
+
+- Items 1 and 2: on the live page, an aborted first load shows no stranded spinner, and returning to `#/needs-you` or an Active card scrolls again.
+
 ### Slice 47: Open review follow-ups of Slices 33 to 36, 39 to 41 and 46 ([slice](slices/47-open-follow-ups.md))
 
 - Switching Board, Active work and Usage on the live page reloads the board each time, with no stale data shown.

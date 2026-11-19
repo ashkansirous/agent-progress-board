@@ -50,3 +50,4 @@ Rows moved out of `plan.md`'s status table once built.
 | 45 | Review follow-ups left open by the night 2026-11-18-1602 | built | #167 | | [45](../slices/45-night-1602-follow-ups.md) |
 | 46 | Follow-ups left open by Slice 45 | built | #172 | | [46](../slices/46-slice-45-follow-ups.md) |
 | 47 | Open review follow-ups of Slices 33 to 36, 39 to 41 and 46 | built | #179 | | [47](../slices/47-open-follow-ups.md) |
+| 48 | Follow-ups left open by Slice 47 | built | #184 | | [48](../slices/48-slice-47-follow-ups.md) |

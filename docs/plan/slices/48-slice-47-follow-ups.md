@@ -1,6 +1,6 @@
 ### Slice 48 — Follow-ups left open by Slice 47
 
-**Status:** *Built (wave 2026-11-19), PR #184, not merged. Lint, typecheck, 440 node, 773 vitest and 336 e2e tests (6 skipped) green at 08:19Z; live page checks not yet run.* Settled 2026-11-19 by the starter session under the owner's standing rule ("build all", no review
+**Status:** *Built (wave 2026-11-19), merged as PR #184 (0abc466), 2026-11-19T08:22Z. Lint, typecheck, 440 node, 773 vitest and 336 e2e tests (6 skipped) green at 08:19Z; live page checks not yet run.* Settled 2026-11-19 by the starter session under the owner's standing rule ("build all", no review
 round): build every item, the two loading-state findings first.
 
 *Planned 2026-11-19 by the feedback loop of night 2026-11-19-0554 ([note](../notes/2026-11-19-0554-feedback-loop.md),
@@ -105,6 +105,6 @@ converged after the third check pass; no crash, data-loss, security or privacy f
 - Skipped #3 (`reviews/pr-184-check-2-medium.md`): "Item 1 (a spinner stranded after an aborted first load) is marked built, but the only change in `subscribe` is a comment" - item 1's note in this slice already records it as not reproducible, with guard tests.
 - Skipped #5 (`reviews/pr-184-check-medium.md`): "Slice 48 item 1 (stranded spinner after aborted first load) is marked built but the only change is a comment" - item 1's note in the slice already proves the path unreachable, with guard tests in test/boardStore.test.ts.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-19)
 
 - The agent prune rule lives only in `liveAgentIds` (plugin/scripts/hooks/background-agents.mjs) used by `runningIds` in session-done.mjs; a read it cannot make prunes nothing (Slice 48: docs/plan/slices/48-slice-47-follow-ups.md).

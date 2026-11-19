@@ -41,6 +41,18 @@ export function ownerStepFallback(item: BoardItemDto): string | null {
   return item.why ? item.title : null;
 }
 
+/** The steps under an owner step's title (the doc sync's `details_md`, Slice 44), or null when it has none or is not an owner step. */
+export function ownerStepDetails(item: BoardItemDto): string | null {
+  return isOwnerStep(item) && item.details_md ? item.details_md : null;
+}
+
+const STEP_URL = /https?:\/\/(?:[^\s<>()[\]`]|\([^\s<>()[\]`]*\)|\[[^\s<>()[\]`]*\])+/g;
+
+/** The http(s) addresses a step's text names, without the sentence punctuation after them. */
+export function stepUrls(text: string): string[] {
+  return [...new Set((text.match(STEP_URL) ?? []).map((url) => url.replace(/[.,;:!?'"]+$/, "")))];
+}
+
 /** "Your step" for an owner step, else "Question" (the label on a "Needs you" card). */
 export function cardLabel(item: BoardItemDto, t: Translate): string {
   return t(isOwnerStep(item) ? "yourStepLabel" : "questionLabel");

@@ -58,7 +58,10 @@ first); the plugin installs no hook for it.
   another repo), an interactive session, a deploy, a merge, CI, or a PR. Any other word keeps the card ("waits for the
   user", "the owner's go", "waits for Slice 6 and the store pick").
 - Each bullet under a slice's block in `unverified.md` is a check inside the slice. A bullet that starts `**You:**`
-  is a step only the person can do: it becomes a "Waiting on you" card of its own, not a check.
+  is a step only the person can do: it becomes a "Waiting on you" card of its own, not a check. Write it as
+  `**You:** <short action> | <steps>` (a bar with a space on both sides, outside a code span): the card's title is
+  `Slice <N>: <short action>` (cut at 80 characters) and the steps, with their direct link, are the card's text
+  underneath. A line with no bar is all action; an empty action keeps the plain title.
 - Lettered groups (`**A. Title**`) in a slice file's Work section are the slice's parts.
 - At most 200 items and 1000 items plus parts go in one call; over either nothing is sent (one stderr line).
 

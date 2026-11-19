@@ -68,8 +68,10 @@ every 5 minutes while working, a question in `needs_you`, and `mark_done` when t
 In a repo that keeps its plan in `docs/plan/` (see `docs/setup/plan-sync.md` in the plugin repository), every step
 only the person can do (a console form, a permission, an approval, something on their own device) is written in
 `docs/plan/unverified.md` in the same turn you name it, under that slice's `### Slice N: <title>` heading, as a line
-that starts `- **You:**` and carries its direct link. The plan sync turns that line into a "Waiting on you" card; a
-step that is only said in chat never reaches the board. A park reason that starts with "waits for", "waiting on" or "behind"
+that starts `- **You:**` and carries its direct link. Write it as `- **You:** <short action> | <steps>`: the short
+action is the card title (the sync adds `Slice <N>: ` in front and cuts the title at 80 characters), and the steps,
+with the direct link, are its description. A line with no `|` is all title. The plan sync turns that line into a
+"Waiting on you" card; a step that is only said in chat never reaches the board. A park reason that starts with "waits for", "waiting on" or "behind"
 followed by an interactive session, a deploy, a merge, CI, a PR or another slice ("waits for the deploy to finish")
 is work, not the person's, and no card is raised; if the reason also names the user, the owner or "you", the card stays.
 

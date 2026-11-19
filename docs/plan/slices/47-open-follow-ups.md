@@ -1,5 +1,7 @@
 ### Slice 47 — Open review follow-ups of Slices 33 to 36, 39 to 41 and 46
 
+*In progress (wave 2026-11-19), draft PR.*
+
 **Status:** planned. Settled 2026-11-19 by the starter session under the owner's standing rule ("build all", no review
 round): build every item, correctness and privacy findings first.
 
@@ -8,7 +10,15 @@ finding 6). The night stopped with "no planned slices left" while these follow-u
 plan.md *Outstanding work* lines marked "no slice yet". The loop plans; it does not build. Parked so no night builds it
 before the owner has seen it; the owner's standing rule ("build all", no review round) may settle it at once.*
 
-**Touches:** to be settled when the slice is built; the source slice files name the code for each item.
+**Touches:** web/src/boardStore.ts, web/src/boardState.ts, web/src/BoardPage.tsx, web/src/projectFold.ts, web/src/cards.ts, web/src/route.ts, web/src/useRoute.ts, web/src/ActivePage.tsx, web/src/stepsView.tsx, web/src/UsagePage.tsx, src/domain/item.ts, src/api/board.ts, src/api/boardDto.ts, src/domain/steps.ts, src/domain/errors.ts, src/domain/docSync.ts, src/domain/parts.ts, src/domain/boardGroups.ts, src/domain/usage.ts, src/domain/stale.ts, src/application/board.ts, src/application/usage.ts, src/infrastructure/d1Repository.ts, src/mcp/tools.ts, plugin/scripts/report-progress.mjs, plugin/scripts/sync-docs.mjs, plugin/scripts/hooks/background-agents.mjs, plugin/scripts/hooks/session-done.mjs, plugin/scripts/hooks/goal-reminder.mjs, plugin/scripts/hooks/hook-input.mjs, plugin/scripts/hooks/waiting-card.mjs, plugin/scripts/hooks/hooks.test.mjs, plugin/scripts/hooks/waiting-card.test.mjs, test/stale.test.ts, test/usageTools.test.ts, test/syncSnapshot.test.ts, e2e/active.spec.ts, e2e/loadingClock.ts, docs/clients.md, plus new tests beside each.
+
+**Migrations:** none.
+
+*Premise check 2026-11-19 (`reviews/s47-premise.md`): every finding of items 1-8 still open on `origin/main` 77a72f1.
+Decision (coordinator, obvious choice): the Slice 13 #7 marker for `needs_you:` notes (1q) is derived at read from the
+note prefix, never stored (repo rule: never store a derived value), so no migration. Findings the source slices declined
+by design (e.g. 5e: `isWaitingClosable` stays, held equal to `WAITING_ROWS`; 3h write-once `details_md`; 6a first report
+binds) keep the settled rule and are recorded as such, not rebuilt.*
 
 #### Work
 

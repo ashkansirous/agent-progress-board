@@ -7,7 +7,7 @@ be title: slice XXX: set the environment variables for claude-environment. descr
 click on xxx and complete 2 steps."* Starts after Slice 43 (both edit `plugin/scripts/sync-docs.mjs` and the card
 components).
 
-*Built 2026-11-19, PR #160, not merged; the two Verification lines need the release.*
+*Built 2026-11-19, merged as PR #160 (ee47e3f); the two Verification lines need the release.*
 
 **Touches:** `web/src/strings.ts`, `web/src/App.tsx`, `test/web.test.ts`, `test/partsWeb.test.ts`,
 `test/capCostFormat.test.ts`, `test/planningText.test.ts`, `test/sessionWeb.test.ts`, `test/usageWeb.test.ts`, `e2e/projects.spec.ts`, `web/src/cards.ts`,
@@ -78,7 +78,7 @@ components).
 - Skipped #4 (`reviews/pr-160-medium.md`): "The overflow of a cut title goes in front of the steps in details_md." - the Decision says the title is "cut at 80 characters with the rest in the description", so the cut-off part leads the description by the slice's own rule.
 - Skipped #6 (`reviews/pr-160-high.md`): "The Decision says number and date formats stay in the viewer's locale through Intl, but `locale: "en"` is hard-coded." - the Decision says formats stay "through Intl, as today", and today every non-German viewer already got the "en" locale from `pickLocale`; passing `navigator.language` broke the setup e2e date.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-19)
 
 - The owner-step title rule (`**You:** <action> | <steps>` into `Slice N: <action>` plus details) lives only in `ownerTitleFields` in `plugin/scripts/sync-docs.mjs`; the card's steps text only in `ownerStepDetails` in `web/src/cards.ts`. The page has one string table (English) and no locale picking (Slice 44: docs/plan/slices/44-english-only-owner-steps.md).
 

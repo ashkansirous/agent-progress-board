@@ -184,3 +184,5 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
   host name stays out of the repo and the items (Slice 43: docs/plan/slices/43-owner-cards-read-right.md).
 - `plain()` in `plugin/scripts/sync-docs.mjs` keeps code spans; `checkHash` keeps its old reading so stored check keys do
   not change (Slice 43: docs/plan/slices/43-owner-cards-read-right.md).
+- The owner-step title rule (`**You:** <action> | <steps>` into `Slice N: <action>` plus details) lives only in `ownerTitleFields` in `plugin/scripts/sync-docs.mjs`; the card's steps text only in `ownerStepDetails` in `web/src/cards.ts`. The page has one string table (English) and no locale picking (Slice 44:
+  docs/plan/slices/44-english-only-owner-steps.md).

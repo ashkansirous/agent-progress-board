@@ -7,7 +7,7 @@
 This is a horizontal cut (one layer, many readers), named as the exception to vertical slices. Almost every item edits
 `src/infrastructure/d1Repository.ts`, and splitting them across slices would make every wave conflict on that file.
 
-*Built 2026-11-18 (wave night 2026-11-18-1602), PR #150, not merged. Lint, typecheck, 707 vitest and 367 plugin tests green; no device surface. Migration 0008 not yet applied remotely.*
+*Built 2026-11-18 (wave night 2026-11-18-1602), merged as PR #150 (891c371). Lint, typecheck, 707 vitest and 367 plugin tests green; no device surface. Migration 0008 not yet applied remotely.*
 
 *Changed while building:*
 - Migration 0008 holds two indexes: `(status, heartbeat_at)` for `EXPIRED_ROWS` and a partial index for the waiting-card query.
@@ -118,7 +118,7 @@ review read: `reviews/pr-150-high.md` 7/7, `reviews/pr-150-medium.md` 9/9, `revi
 - Skipped #8 (`reviews/pr-150-check-medium.md`): "A close guarded out because the row moved is not counted in raced" - a guarded close means a newer report already moved the item; nothing to resend.
 - Follow-up #9 (`reviews/pr-150-check-medium.md`): note a dropped older status in the event.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-19)
 
 - A status report applies only when its time is at or after `live_status_at` (`NEXT_STATUS` in `src/infrastructure/d1Repository.ts`); `heartbeat_at` and `updated_at` keep the later time. A status-less report moves `live_status_at` only when it revives, with the same condition. Never compare a status with `heartbeat_at` (Slice 34: docs/plan/slices/34-storage-queries.md).
 - The waiting-card close rule (no slice or part parent, not doc-synced, 24 h) exists twice: `isWaitingClosable` in `src/domain/stale.ts` and the cron query `WAITING_ROWS` in `src/infrastructure/d1Repository.ts`. `test/stale.test.ts` holds them equal; change both (Slice 34: docs/plan/slices/34-storage-queries.md).

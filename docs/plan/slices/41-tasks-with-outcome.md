@@ -9,7 +9,7 @@ board. for example, for a slice, the task is implementing slice, the outcome is 
 
 Runs after Slices 39 and 40. The owner's config repo has a matching slice for its wave tooling.
 
-*Built 2026-11-18 (wave night 2026-11-18-1602), PR #151, not merged. Migration 0009 (`items.outcome TEXT`, plain ADD COLUMN). Checked before the merge of main: lint, typecheck, 675 vitest, 381 plugin tests and 320 e2e (4 skipped) green; no device surface beyond the browser e2e. Not yet verified live: see the end of this file.*
+*Built 2026-11-18 (wave night 2026-11-18-1602), merged as PR #151 (da2fbef). Migration 0009 (`items.outcome TEXT`, plain ADD COLUMN). Checked before the merge of main: lint, typecheck, 675 vitest, 381 plugin tests and 320 e2e (4 skipped) green; no device surface beyond the browser e2e. Not yet verified live: see the end of this file.*
 
 *Changed while building:*
 
@@ -174,7 +174,7 @@ are waiting on the board", "1 question is waiting on the board". Removed: the "n
 - Follow-up (`reviews/pr-151-check-2-medium.md` #2, low): "the CLI cannot clear an outcome that the MCP tool clears with null" - left open.
 - Follow-up (`reviews/pr-151-check-2-medium.md` #3, low, unconfirmed): "Scenario: marked orchestrator holds needsYou at its first close attempt" - left open; the check pass converged after the second round.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-19)
 
 - The own-card binding rule lives only in `mayBindCard` (`plugin/scripts/hooks/goal-reminder.mjs`): the first own-card report binds, a new key moves the card only after the bound card is closed. Hooks heartbeat a slice card but never close it, mark it done or set its status (Slice 41: docs/plan/slices/41-tasks-with-outcome.md).
 - A working card is an in_progress (or stale) item with an outcome, or agent "session": one rule, `isSessionItem` in `web/src/cards.ts`; never a second copy (Slice 41: docs/plan/slices/41-tasks-with-outcome.md).

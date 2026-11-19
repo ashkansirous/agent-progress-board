@@ -2,7 +2,7 @@ import type { MouseEvent } from "react";
 import type { BoardItemDto } from "../../src/api/boardDto";
 import { StepState } from "../../src/domain/stepTypes";
 import { OutcomeLine } from "./ActiveCard";
-import { cardLabel, cardQuestion, fillBoardAddress, isOwnerStep, ownerStepDetails, resolveBoardAddress, sessionLabel, stepUrls, waitingText } from "./cards";
+import { cardLabel, cardQuestion, fillBoardAddress, isOwnerStep, ownerStepDetails, resolveBoardAddress, sessionLabel, stepUrls, waitingText, withoutBoardPages } from "./cards";
 import { projectLabel } from "./model";
 import { isSafeHttpUrl } from "./safeUrl";
 import { ageText } from "./time";
@@ -82,7 +82,7 @@ export function QuestionCard({ item, onOpen }: CardProps) {
   const work = item.title !== question ? item.title : null;
   const why = item.why && item.why !== question ? item.why : null;
   const steps = ownerStepDetails(item);
-  const stepLinks: CardLink[] = stepUrls(steps ? fillBoardAddress(steps, window.location.origin) : "").filter(isSafeHttpUrl).map((url) => ({ label: url, url }));
+  const stepLinks: CardLink[] = stepUrls(steps ? fillBoardAddress(withoutBoardPages(steps), window.location.origin) : "").filter(isSafeHttpUrl).map((url) => ({ label: url, url }));
   const links: CardLink[] = dedupeLinks([...addressLinks([work, question, why, item.after_answer, steps]), ...stepLinks, ...item.links.filter((link) => isSafeHttpUrl(link.url))]);
   // The whole card opens the drawer (a tap on its padding too); the button keeps the keyboard and the screen reader
   // path, and a link inside the card follows its own address.

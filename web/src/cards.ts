@@ -67,6 +67,13 @@ export function cardLabel(item: BoardItemDto, t: Translate): string {
 const BOARD_ADDRESS = "<board address>";
 const BOARD_ADDRESS_LINK = /<board address>(?:\/#\/[A-Za-z0-9._~/-]*[A-Za-z0-9_~/-])?/g;
 
+const BOARD_PAGE = /<board address>\/#\/[A-Za-z0-9._~/-]*[A-Za-z0-9_~/-]/g;
+
+/** The text without its `<board address>/#/page` links: the row of links under a card builds those once, from the card's text, so a step's own link scan skips them. */
+export function withoutBoardPages(text: string): string {
+  return text.replace(BOARD_PAGE, " ");
+}
+
 /** Card text for a place that holds no link (an aria-label, Markdown): every `<board address>` becomes the origin. */
 export function fillBoardAddress(text: string, origin: string): string {
   return text.replaceAll(BOARD_ADDRESS, origin);
@@ -116,15 +123,22 @@ export function opensCardDrawer(item: BoardItemDto): boolean {
   return isQuestion(item) || isOwnerStep(item) || isSessionItem(item);
 }
 
+/** Brand and product names that start a sentence capitalised and stay so after a label; a word that is none of these is a plain word. */
+const KEPT_CAPITALS = new Set([
+  "Android", "Anthropic", "Apple", "Chrome", "Claude", "Cloudflare", "Docker", "Firefox", "Git", "GitHub", "Google", "Linux",
+  "Node", "Playwright", "Safari", "Slack", "Vitest", "Windows", "Wrangler", "Xcode",
+]);
+
 /**
- * The text with its first letter lower case. The word stays as written when it is "I" or when its second letter is not
- * a lower-case letter (an acronym such as "API" or "CI", a brand such as "iOS" is lower already).
+ * The text with its first letter lower case. The word stays as written when it is "I", when its second letter is not
+ * a lower-case letter (an acronym such as "API" or "CI", a brand such as "iOS" is lower already), when it has a capital
+ * inside it ("GitHub") or when it is one of the brand names in `KEPT_CAPITALS` ("Cloudflare").
  */
 function lowerFirst(text: string): string {
-  const word = text.split(/\s/, 1)[0] ?? "";
+  const word = (text.split(/\s/, 1)[0] ?? "").replace(/[^\p{L}\p{N}].*$/u, "");
   const second = word.charAt(1);
   const secondIsLower = second !== "" && second === second.toLowerCase() && second !== second.toUpperCase();
-  if (word === "I" || (word.length > 1 && !secondIsLower)) return text;
+  if (word === "I" || (word.length > 1 && !secondIsLower) || /\p{Lu}/u.test(word.slice(1)) || KEPT_CAPITALS.has(word)) return text;
   return text.charAt(0).toLowerCase() + text.slice(1);
 }
 

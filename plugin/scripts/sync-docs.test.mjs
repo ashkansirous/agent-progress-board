@@ -548,7 +548,8 @@ describe('sync-docs CLI', () => {
     const snapshot = collect({ root: planRoot(`### Product\n\n${HEADER}`), project: PROJECT });
     assert.deepEqual(snapshot.items, []);
     assert.equal(snapshot.notices.length, 1);
-    assert.match(snapshot.notices[0], /status table empty/);
+    assert.match(snapshot.notices[0], /status table empty, sending an empty snapshot/);
+    assert.match(snapshot.notices[0], /closed= counts them, 0 when it holds none/);
   });
 
   test('FL-1402: a conflict-marked plan.md sends no empty snapshot', () => {
@@ -1022,6 +1023,18 @@ describe('Slice 31: plan sync reads the documents right', () => {
     const after = ownerOf('### Slice 5: x\n\n- **You:** run `a | b` | then open https://x.test\n');
     assert.equal(after.title, 'Slice 5: run a | b');
     assert.equal(after.details_md, 'then open https://x.test');
+  });
+
+  test('Slice 45: a bar inside bold text or a link does not split, and a line already starting "Slice N:" keeps it once', () => {
+    const bold = ownerOf('### Slice 5: x\n\n- **You:** do **a | b** first | then open https://x.test\n');
+    assert.equal(bold.title, 'Slice 5: do a | b first');
+    assert.equal(bold.details_md, 'then open https://x.test');
+    const link = ownerOf('### Slice 5: x\n\n- **You:** open [the a | b page](https://x.test/p) now | then stop\n');
+    assert.equal(link.title, 'Slice 5: open the a | b page now');
+    assert.equal(link.details_md, 'then stop');
+    const twice = ownerOf('### Slice 5: x\n\n- **You:** Slice 5: set it up | then test\n');
+    assert.equal(twice.title, 'Slice 5: set it up');
+    assert.equal(twice.details_md, 'then test');
   });
 
   test('Slice 44: steps written as nested bullets after the bar are the description', () => {

@@ -529,12 +529,21 @@ function ownerStepFull(entry) {
 }
 
 // The index of the first " | " (a bar with a space before it or first on the line, and a space after it or last on the line)
-// outside a code span, or -1.
+// outside a code span, a link's label or address, and bold text, or -1.
 function actionBar(raw) {
   let inCode = false;
+  let inBold = false;
+  let labelDepth = 0;
+  let inAddress = false;
   for (let index = 0; index < raw.length; index += 1) {
-    if (raw[index] === '`') inCode = !inCode;
-    else if (!inCode && raw[index] === '|' && (index + 1 === raw.length || raw[index + 1] === ' ') && (index === 0 || raw[index - 1] === ' ')) return index;
+    const char = raw[index];
+    if (char === '`') inCode = !inCode;
+    else if (inCode) continue;
+    else if (char === '*' && raw[index + 1] === '*') { inBold = !inBold; index += 1; }
+    else if (char === '[') labelDepth += 1;
+    else if (char === ']' && labelDepth > 0) { labelDepth -= 1; if (labelDepth === 0 && raw[index + 1] === '(') { inAddress = true; index += 1; } }
+    else if (char === ')' && inAddress) inAddress = false;
+    else if (!inBold && labelDepth === 0 && !inAddress && char === '|' && (index + 1 === raw.length || raw[index + 1] === ' ') && (index === 0 || raw[index - 1] === ' ')) return index;
   }
   return -1;
 }
@@ -561,7 +570,8 @@ function ownerTitleFields(number, raw) {
   const bar = actionBar(raw);
   const before = flatten(plain(bar < 0 ? raw : raw.slice(0, bar)));
   const after = bar < 0 ? '' : flatten(plain(raw.slice(bar + 1)));
-  const action = before || after;
+  // A line that already starts "Slice N:" with this slice's number keeps it once.
+  const action = (before || after).replace(new RegExp(`^Slice\\s+${number}\\s*:\\s*`, 'i'), '');
   const steps = before ? after : '';
   if (!action) return null;
   const heading = `Slice ${number}: ${action}`;
@@ -799,7 +809,7 @@ export function collect(parsed, env = process.env) {
     repoUrl: parsed['repo-url'] || (parsed.root ? '' : remoteUrl(repo)),
   });
   const notices = [...slices.notices, ...snapshot.notices, ...unparkedNotices(readParked(parsed.parked), rows)];
-  if (!rows.length) notices.push('sync-docs: status table empty, closing all items of the project\n');
+  if (!rows.length) notices.push('sync-docs: status table empty, sending an empty snapshot: the board closes the project\'s doc-synced items it holds (closed= counts them, 0 when it holds none)\n');
   return { project, ...snapshot, notices };
 }
 

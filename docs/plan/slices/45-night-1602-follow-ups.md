@@ -39,10 +39,10 @@ Slice 32 findings are medium correctness faults. This slice gathers them so none
    live board after the release (line in `docs/plan/unverified.md`).
    Also: Slice 43's new Environment e2e (the faked `2026-11-11#2` key) was never run against the old code, so it is not
    shown to catch the regression; run it on the commit before PR #156 and record the failure.
-9. Slice 44: the three check-pass lows in [Slice 44](44-english-only-owner-steps.md) (*From review*).
-10. Slice 41: `lowerFirst` lowercases brand names ("Cloudflare" becomes "cloudflare"); skipped three times as "cannot tell
+9. [x] Slice 44: the three check-pass lows in [Slice 44](44-english-only-owner-steps.md) (*From review*).
+10. [x] Slice 41: `lowerFirst` lowercases brand names ("Cloudflare" becomes "cloudflare"); skipped three times as "cannot tell
     without a list" ([Slice 41](41-tasks-with-outcome.md) *From review*).
-11. `plugin/scripts/sync-docs.mjs` prints "status table empty, closing all items of the project" whenever the status table
+11. [x] `plugin/scripts/sync-docs.mjs` prints "status table empty, closing all items of the project" whenever the status table
     has no rows, yet the summary says `closed=0` (wave 7 index pass and housekeeping 7; first seen in the
     2026-11-17-2023 note, item 17). Check what an empty table really does and make the message say it.
 12. [x] Slice 31 (privacy, build first): the waiting-card mask still lets known shapes through, listed in

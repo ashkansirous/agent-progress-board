@@ -20,6 +20,7 @@ import {
   resolveBoardAddress,
   sessionLabel,
   stepUrls,
+  withoutBoardPages,
   waitingText,
 } from "../web/src/cards";
 import { groupBoard } from "../src/domain/boardGroups";
@@ -123,10 +124,18 @@ describe("card words", () => {
 
   it("lowers the first letter of an outcome word, except 'I' and a word whose second letter is not lower case", () => {
     const line = (outcome: string) => purposeText(item({ outcome, why: null }), t);
-    expect(line("Xcode build passes")).toBe("Outcome: xcode build passes");
+    expect(line("Fix build passes")).toBe("Outcome: fix build passes");
     expect(line("I fixed it")).toBe("Outcome: I fixed it");
     expect(line("CI passes")).toBe("Outcome: CI passes");
     expect(line("A plan")).toBe("Outcome: a plan");
+  });
+
+  it("Slice 45: a brand name keeps its capital after the label, an ordinary word does not", () => {
+    const line = (outcome: string) => purposeText(item({ outcome, why: null }), t);
+    expect(line("Cloudflare Worker deployed")).toBe("Outcome: Cloudflare Worker deployed");
+    expect(line("GitHub PR merged")).toBe("Outcome: GitHub PR merged");
+    expect(line("Cloudflare's cache cleared")).toBe("Outcome: Cloudflare's cache cleared");
+    expect(line("Deploy the Worker")).toBe("Outcome: deploy the Worker");
   });
 
   it("says how long a question has waited, in minutes then hours, and nothing without a first-asked time", () => {
@@ -247,5 +256,10 @@ describe("history in plain words", () => {
     expect(cardQuestion(step)).toBe("Open the page");
     expect(cardQuestion(item({ needs_you: "Which phone?" }))).toBe("Which phone?");
     expect(cardQuestion(item({ needs_you: null, why: null }))).toBeNull();
+  });
+
+  it("Slice 45: a step's own link scan skips the board pages the link row already builds", () => {
+    const text = "open <board address>/#/setup then https://claude.ai/code and <board address>.";
+    expect(stepUrls(fillBoardAddress(withoutBoardPages(text), "https://b.test"))).toEqual(["https://claude.ai/code", "https://b.test"]);
   });
 });

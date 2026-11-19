@@ -400,4 +400,22 @@ describe("concurrent under_step reports (Slice 39)", () => {
     await expect(attempt).rejects.toThrow(/temporary.*send the same report again/);
     await expect(attempt).rejects.toMatchObject({ retryable: true });
   });
+
+  it("reads the parent chain once, not again on each retry of a steps write (Slice 47 2e)", async () => {
+    await callTool("report_progress", { ...TASK, steps: [step("English", "active")] });
+    const parentKey = "demo-app/slice-1";
+    const parentReads: string[] = [];
+    const inner = new D1ItemRepository(env.DB);
+    const repo = Object.create(inner) as D1ItemRepository;
+    repo.find = async (key: string) => {
+      parentReads.push(key);
+      return inner.find(key);
+    };
+    repo.save = async () => {
+      throw new StepsChangedError();
+    };
+    const report = { key: TASK.key, parent_key: parentKey, steps: [{ label: "X", state: StepState.Active }] };
+    await expect(reportProgress(repo, report, { now: () => new Date() })).rejects.toThrow(/temporary/);
+    expect(parentReads.filter((key) => key === parentKey)).toHaveLength(1);
+  });
 });

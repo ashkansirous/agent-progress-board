@@ -63,6 +63,31 @@ test.describe("project blocks", () => {
     await expect(project(page, "Recipe Box").locator(".project-body")).toHaveCount(0);
   });
 
+  test("the waiting-questions link opens a folded project with a question, and folding it ends the link (Slice 47 6d)", async ({ page }) => {
+    // The phone lists every question above the projects, so only the desktop has a section inside a project block.
+    test.skip(test.info().project.name === "phone", "the phone's questions sit above the projects");
+    await page.addInitScript(
+      ([key]) => {
+        // The questions the click saw are the ones on the board, so the stored fold holds (a new question would reopen it).
+        window.localStorage.setItem(key!, JSON.stringify({ "recipe-box": { open: false, questions: ["recipe-box/waiting-1", "recipe-box/waiting-2", "recipe-box/waiting-3"] } }));
+      },
+      [STORAGE_KEY],
+    );
+    await openBoard(page);
+    const needsYou = project(page, "Recipe Box").locator("[data-needs-you]");
+    if ((await expanded(page, "Recipe Box").getAttribute("aria-expanded")) === "true") await expanded(page, "Recipe Box").click();
+    await expect(expanded(page, "Recipe Box")).toHaveAttribute("aria-expanded", "false");
+    await page.evaluate(() => {
+      window.location.hash = "#/needs-you";
+    });
+    await expect(expanded(page, "Recipe Box")).toHaveAttribute("aria-expanded", "true");
+    await expect(needsYou).toBeVisible();
+    await expanded(page, "Recipe Box").click();
+    // The address stays, so other projects with a question stay open; only the folded block ends its own forcing (review #5).
+    await expect(page).toHaveURL(/#\/needs-you$/);
+    await expect(expanded(page, "Recipe Box")).toHaveAttribute("aria-expanded", "false");
+  });
+
   test("the page draws expanded projects when storage fails", async ({ page }) => {
     await page.addInitScript(() => {
       Object.defineProperty(window, "localStorage", {

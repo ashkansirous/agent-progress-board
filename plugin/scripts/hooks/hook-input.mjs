@@ -379,8 +379,9 @@ function startsOf(value) {
   return Object.fromEntries(Object.entries(value).filter(([, at]) => Number.isFinite(at)));
 }
 
-// `{ agentId: label }`: the label of the step each background agent was placed under when it was first seen ('' = the
-// root), kept so a later report puts the agent in the same place (background-agents.mjs, placeAgents).
+// `{ agentId: address }`: the address of the step each background agent was placed under when it was first seen ('' =
+// the root; `id:<step id>` or `label:<label>`, see `stepKey` in background-agents.mjs), kept so a later report puts the
+// agent in the same place (placeAgents).
 function parentsOf(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   return Object.fromEntries(Object.entries(value).filter(([, label]) => typeof label === 'string'));

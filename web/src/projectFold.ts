@@ -1,6 +1,8 @@
 import { useCallback, useState } from "react";
 import type { ProjectGroups } from "../../src/domain/boardGroups";
 import { type OpenMap, readOpenMap, resolveOpen } from "./foldRules";
+import { NEEDS_YOU_HASH } from "./route";
+import { useAddressHash } from "./useRoute";
 
 /** The viewer's fold choices, one object in localStorage: project id to "open" (true) or "folded" (false). */
 export const FOLD_STORAGE_KEY = "board.projectOpen";
@@ -17,9 +19,14 @@ function storeMap(map: OpenMap): void {
   }
 }
 
-/** The project ids a joined key holds, or null when there is nothing to prune by: no answer, a failed load or an empty board. */
-export function pruneIdsOf(joined: string | undefined): string[] | null {
-  return joined ? joined.split("\n") : null;
+/**
+ * The project ids a key made with `JSON.stringify(ids)` holds, or null when there is nothing to prune by: no answer, a
+ * failed load or an empty board. JSON, not a joined string, so an id holding any character stays one id (Slice 47 1n).
+ */
+export function pruneIdsOf(encoded: string | undefined): string[] | null {
+  if (!encoded) return null;
+  const ids: unknown = JSON.parse(encoded);
+  return Array.isArray(ids) && ids.length > 0 ? ids.filter((id): id is string => typeof id === "string") : null;
 }
 
 /** The stored map without the projects the board no longer has; the same object when nothing was dropped. */
@@ -44,7 +51,13 @@ export function pruneStoredFolds(ids: readonly string[]): void {
  */
 export function useProjectOpen(group: ProjectGroups): [boolean, () => void] {
   const [stored, setStored] = useState(readStored);
-  const open = resolveOpen(stored, group);
+  const onAddress = useAddressHash() === NEEDS_YOU_HASH;
+  // A fold click ends the forcing for this block only, until the owner leaves the address; the address stays, so the
+  // other projects with a question stay open (Slice 47 6d, review #5).
+  const [released, setReleased] = useState(false);
+  if (!onAddress && released) setReleased(false);
+  const showQuestions = onAddress && !released;
+  const open = resolveOpen(stored, group, showQuestions);
   const id = group.id;
   const questions = group.needs_you;
   const toggle = useCallback(() => {
@@ -54,6 +67,7 @@ export function useProjectOpen(group: ProjectGroups): [boolean, () => void] {
     const next: OpenMap = { ...current, [id]: { open: !open, questions } };
     storeMap(next);
     setStored(next);
-  }, [stored, id, open, questions]);
+    if (showQuestions) setReleased(true);
+  }, [stored, id, open, questions, showQuestions]);
   return [open, toggle];
 }

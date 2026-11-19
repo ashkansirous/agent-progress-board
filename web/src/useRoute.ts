@@ -8,6 +8,11 @@ function subscribeToHash(notify: () => void): () => void {
 
 const currentHash = (): string => window.location.hash;
 
+/** The address hash as it is now; a page that reacts to a link on itself (`#/needs-you`) reads it here. */
+export function useAddressHash(): string {
+  return useSyncExternalStore(subscribeToHash, currentHash);
+}
+
 /** The view the address hash names; follows the browser's back and forward buttons and the tab links. */
 export function useRoute(): Route {
   return routeOf(useSyncExternalStore(subscribeToHash, currentHash));

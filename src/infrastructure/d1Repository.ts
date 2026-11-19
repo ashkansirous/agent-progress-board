@@ -26,6 +26,7 @@ import {
   ItemStatus,
   ItemType,
   type Priority,
+  STATUS_DROPPED_NOTE,
 } from "../domain/item";
 import {
   EXPIRING_STATUSES,
@@ -514,7 +515,7 @@ export class D1ItemRepository implements ItemRepository, UsageRepository {
     const { key, note } = write.input;
     const guarded = write.ifStepsText !== undefined;
     const stored = await this.db.prepare("SELECT * FROM items WHERE key = ?1").bind(key).first<SyncItemRow>();
-    const eventNote = note ?? (changesOnlyHeartbeat(stored, write) ? HEARTBEAT_NOTE : null);
+    const eventNote = note ?? quietNote(stored, write);
     const statements = [
       this.db.prepare(UPSERT_ITEM).bind(...upsertParams(write)),
       this.db.prepare(INSERT_EVENT).bind(write.now, eventNote, key),
@@ -596,12 +597,12 @@ export class D1ItemRepository implements ItemRepository, UsageRepository {
   }
 }
 
+const ENCODER = new TextEncoder();
+
 /**
  * The close rows as JSON texts of at most `CLOSE_CHUNK_ROWS` rows and `CLOSE_CHUNK_BYTES` bytes each: one text is one statement parameter, and
  * D1 caps a statement at 100 KB, so a big close is several statements in the one batch, not one parameter that fails it.
  */
-const ENCODER = new TextEncoder();
-
 export function closeChunks(closes: SyncRow[]): string[] {
   const chunks: string[] = [];
   let rows: string[] = [];
@@ -638,6 +639,22 @@ function changesOnlyHeartbeat(stored: SyncItemRow | null, { input, now }: ItemWr
   });
 }
 
+/**
+ * The history note of a report with no note of its own: nothing but a heartbeat changed, and then the dropped-status
+ * note when the only thing given beyond it was an older status. A report that also changed another field gets no
+ * note, so the real change is not hidden under one that says it was ignored (Slice 47 review #3).
+ */
+function quietNote(stored: SyncItemRow | null, write: ItemWrite): string | null {
+  if (!changesOnlyHeartbeat(stored, write)) return null;
+  return statusDropped(stored, write) ? STATUS_DROPPED_NOTE : HEARTBEAT_NOTE;
+}
+
+/** True when the request names a status other than the stored one but is older than `live_status_at`, so `NEXT_STATUS` drops it: the history row says so (Slice 47, Slice 34 follow-up #9). */
+function statusDropped(stored: SyncItemRow | null, { input, now }: ItemWrite): boolean {
+  if (!stored || input.status === undefined || stored.live_status_at === null) return false;
+  return now < stored.live_status_at && input.status !== stored.status;
+}
+
 function upsertParams({ insert, input, now, ifStepsText }: ItemWrite): (string | number | null)[] {
   return [
     insert.key, insert.project, insert.parent, insert.type, insert.priority, insert.status, insert.title,
@@ -666,9 +683,22 @@ function bySeriesThenTime(a: UsageSampleRow, b: UsageSampleRow): number {
   );
 }
 
-function compareText(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
+/** Orders text by code point, which is the order of its UTF-8 bytes (SQLite's); JS `<` orders by UTF-16 unit, so a character above U+FFFF would sort before U+E000 to U+FFFF (Slice 47 5a). */
+export function compareText(a: string, b: string): number {
+  let i = 0;
+  let j = 0;
+  while (i < a.length && j < b.length) {
+    const left = a.codePointAt(i)!;
+    const right = b.codePointAt(j)!;
+    if (left !== right) return left < right ? -1 : 1;
+    i += left > MAX_BMP_CODE_POINT ? 2 : 1;
+    j += right > MAX_BMP_CODE_POINT ? 2 : 1;
+  }
+  if (i < a.length) return 1;
+  return j < b.length ? -1 : 0;
 }
+
+const MAX_BMP_CODE_POINT = 0xffff;
 
 function toUsageSample(row: UsageSampleRow): UsageSample {
   return {

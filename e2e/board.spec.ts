@@ -293,6 +293,7 @@ test.describe("open item leaves the board", () => {
       at: `2026-11-15T1${3 - index}:00:00.000Z`,
       status: ItemStatus.InProgress,
       note,
+      marker: null,
     }));
     const board = demoBoard(base.items.map((item) => (item.key === "recipe-box/slice-4" ? { ...item, events } : item)));
     await serveBoard(page, board);

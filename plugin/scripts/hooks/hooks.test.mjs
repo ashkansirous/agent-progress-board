@@ -1559,3 +1559,69 @@ describe('writeJson rename retry', () => {
     assert.deepEqual(readdirSync(root), []);
   });
 });
+
+describe('Slice 47 follow-ups (agent rows, sender log)', () => {
+  async function setup() {
+    const board = await startFakeBoard(replyOk);
+    const root = folder();
+    const env = envFor(board.url, root);
+    withCard(root, { steps: [{ id: 's1', label: 'Write text', state: 'active' }] });
+    const input = (event, agents, extra = {}) => ({ session_id: 'sess-1', cwd: process.cwd(), hook_event_name: event, transcript_path: sessionWithAgents(agents), ...extra });
+    return { board, root, env, input };
+  }
+
+  test('4a: an agent that stopped before it wrote any file gets no placeholder row at the next Stop', async () => {
+    const { board, env, input } = await setup();
+    await runDone(input('SubagentStart', [], { agent_id: 'a9' }), env, {}, NOW);
+    await runDone(input('SubagentStop', [], { agent_id: 'a9' }), env, {}, NOW + 1000);
+    await runDone(input('Stop', []), env, {}, NOW + MINUTE);
+    board.server.close();
+    assert.equal(callsOf(board).at(-1).tool, 'mark_done', 'no active row is left for the stopped agent');
+  });
+
+  test('4e and 4l: the helper is told its row id quoted, and told nothing once the card is closed', async () => {
+    const { board, root, env, input } = await setup();
+    const start = input('SubagentStart', [], { agent_id: 'a9' });
+    assert.ok(JSON.parse(startContext(start, env, root, NOW)).hookSpecificOutput.additionalContext.includes('--under-step "agent-a9"'));
+    updateGoal('sess-1', root, NOW, (current) => ({ ...current, closed: true, closedBy: 'session' }));
+    assert.equal(startContext(start, env, root, NOW), '');
+    board.server.close();
+  });
+
+  test('4f: a recorded place and start older than a day are dropped at the next goal write; a newer one stays', async () => {
+    const { board, root, env, input } = await setup();
+    const day = 24 * 60 * MINUTE;
+    updateGoal('sess-1', root, NOW, (current) => ({ ...current, agentParents: { old: 'id:s1', fresh: 'id:s1' }, agentStarts: { old: NOW - day - MINUTE, fresh: NOW - MINUTE } }));
+    await runDone(input('SubagentStart', [], { agent_id: 'a9' }), env, {}, NOW);
+    board.server.close();
+    const goal = readGoal('sess-1', root, NOW);
+    assert.deepEqual(Object.keys(goal.agentParents).sort(), ['a9', 'fresh']);
+    assert.deepEqual(Object.keys(goal.agentStarts).sort(), ['a9', 'fresh']);
+  });
+
+  test('4j: a foreground agent is never listed as a background one', () => {
+    const transcript = sessionWithAgents([{ id: 'f1', description: 'Waited for', ageMs: MINUTE, shape: 'foreground' }, { id: 'b1', description: 'Runs on', ageMs: MINUTE }]);
+    assert.deepEqual(readBackgroundAgents({ transcript_path: transcript }, NOW).map((agent) => agent.id), ['b1']);
+  });
+
+  test('4c: an agent label is one flat line, whatever whitespace the description and the prompt hold', () => {
+    const transcript = sessionWithAgents([{ id: 'a', description: 'Write\n  the   text', ageMs: MINUTE }, { id: 'b', prompt: 'Read\nthe\n\nlogs', ageMs: 2 * MINUTE }]);
+    const labels = Object.fromEntries(readBackgroundAgents({ transcript_path: transcript }, NOW).map((agent) => [agent.id, agent.label]));
+    assert.equal(labels.a, 'Write the text');
+    assert.equal(labels.b, 'Helper agent: Read the logs');
+  });
+
+  test('8h: a sender-log copy left by a killed hook is swept at the next trim, a fresh one is not', () => {
+    const root = folder();
+    const stale = join(root, 'senders.log.111.tmp');
+    const fresh = join(root, 'senders.log.222.tmp');
+    writeFileSync(stale, 'x');
+    writeFileSync(fresh, 'x');
+    const old = new Date(NOW - 20 * MINUTE);
+    utimesSync(stale, old, old);
+    writeFileSync(join(root, 'senders.log'), `${'x'.repeat(200)}\n`.repeat(450));
+    logSender(root, 'session-done:report_progress', 'sess-1', CARD, ['status']);
+    assert.equal(existsSync(stale), false);
+    assert.equal(existsSync(fresh), true);
+  });
+});

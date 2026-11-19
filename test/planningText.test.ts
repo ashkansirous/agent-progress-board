@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { BoardPartDto } from "../src/api/boardDto";
 import { SliceState } from "../src/domain/boardGroups";
 import { PartState } from "../src/domain/parts";
-import { checksLine, nowLine, slicePlannedText, summaryText } from "../web/src/planningText";
+import { ItemStatus } from "../src/domain/item";
+import { checksLine, looseCardCount, looseCountOf, looseHeadKey, nowLine, slicePlannedText, summaryText } from "../web/src/planningText";
 import { translator } from "../web/src/strings";
 
 const en = translator();
@@ -71,5 +72,25 @@ describe("check and slice words", () => {
     expect(slicePlannedText({ number: 12 }, en)).toBe("Slice 12 planned");
     expect(slicePlannedText({ number: null }, en)).toBe("A slice is planned");
     expect(slicePlannedText(null, en)).toBe("No slice yet");
+  });
+
+  it("never says '0 checks' on the loose-checks card when only stale or blocked loose checks are left (Slice 47 3c)", () => {
+    expect(looseCardCount(4, 6)).toBe(4);
+    expect(looseCardCount(0, 2)).toBe(2);
+  });
+
+  it("gives the drawer heading and its list header the card's number, also with only blocked checks (Slice 47 review #2)", () => {
+    const blocked = [
+      { key: "a", title: "A", status: ItemStatus.Blocked },
+      { key: "b", title: "B", status: ItemStatus.Blocked },
+    ];
+    expect(looseCountOf(blocked)).toBe(2);
+    expect(looseCountOf([...blocked, { key: "c", title: "C", status: ItemStatus.Open }])).toBe(1);
+  });
+
+  it("does not say 'not tried' in the list header when only blocked checks are listed (Slice 47 review #2)", () => {
+    const blocked = [{ key: "a", title: "A", status: ItemStatus.Blocked }];
+    expect(looseHeadKey(blocked)).toBe("drawerLooseChecksHead");
+    expect(looseHeadKey([...blocked, { key: "c", title: "C", status: ItemStatus.Open }])).toBe("drawerChecksHead");
   });
 });

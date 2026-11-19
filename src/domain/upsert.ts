@@ -2,6 +2,7 @@ import {
   ANSWERED_NOTE,
   DEFAULT_PRIORITY,
   MAX_NEEDS_YOU_NOTE,
+  neutralizeMarker,
   NEEDS_YOU_NOTE_PREFIX,
   NOTE_SEPARATOR,
   type Item,
@@ -91,6 +92,11 @@ export function checkReport(input: ReportInput, existing: Pick<Item, "steps"> | 
 /** What the stored item says of its question; the rules below compare the report with it. */
 type QuestionState = Pick<Item, "needs_you" | "needs_you_at" | "status"> | null;
 
+/** A report whose note is stored with no server marker before it: a caller's note that reads like a marker is led in (Slice 47 1q). */
+function standingNote<T extends { note?: string }>(input: T): T {
+  return input.note === undefined ? input : { ...input, note: neutralizeMarker(input.note) };
+}
+
 /** The history note: the server's marker first, the caller's own note kept beside it. */
 function withMarker(marker: string, note: string | undefined): string {
   return note ? `${marker}${NOTE_SEPARATOR}${note}` : marker;
@@ -117,20 +123,23 @@ function answersQuestion(input: ReportInput, existing: QuestionState): boolean {
  * and sends no question, clears them too (see `answersQuestion`). Anything else, a repeated
  * in-progress heartbeat included, leaves them as stored.
  */
-export function withQuestion(input: ReportInput, existing: QuestionState, now: string): ReportInput {
+export function withQuestion(sent: ReportInput, existing: QuestionState, now: string): ReportInput {
+  // Only the server writes a marker: a caller's own note that would stand first and read like one is led in
+  // (Slice 47 1q). A note that follows the server's marker is never first, so it is left as written (review #4).
+  const input = sent;
   const done = input.status === ItemStatus.Done;
   if (input.needs_you && !done) return withAsked(input, existing, now);
   const clears = done || input.needs_you === null || (input.needs_you === undefined && answersQuestion(input, existing));
-  if (!clears) return input;
-  const answered = existing?.needs_you ? { note: withMarker(ANSWERED_NOTE, input.note) } : {};
-  return { ...input, ...answered, needs_you: null, after_answer: null, needs_you_at: null };
+  if (!clears) return standingNote(input);
+  const lead = existing?.needs_you ? { note: withMarker(ANSWERED_NOTE, input.note) } : standingNote(input);
+  return { ...input, ...lead, needs_you: null, after_answer: null, needs_you_at: null };
 }
 
 /** A question given: kept as first asked when the text is unchanged, else stamped now with a history note. */
 function withAsked(input: ReportInput, existing: QuestionState, now: string): ReportInput {
   const sameQuestion = existing?.needs_you === input.needs_you;
   const firstAsked = sameQuestion ? existing?.needs_you_at : null;
-  if (firstAsked) return { ...input, needs_you_at: firstAsked };
+  if (firstAsked) return standingNote({ ...input, needs_you_at: firstAsked });
   if (!sameQuestion && existing?.needs_you && input.after_answer === undefined) input = { ...input, after_answer: null };
   const firstLine = input.needs_you!.split("\n")[0]!.slice(0, MAX_NEEDS_YOU_NOTE);
   return { ...input, needs_you_at: now, note: withMarker(`${NEEDS_YOU_NOTE_PREFIX}${firstLine}`, input.note) };

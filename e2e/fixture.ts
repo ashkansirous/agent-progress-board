@@ -4,7 +4,7 @@ import type { ItemStatus, Priority } from "../src/domain/item";
 import { groupBoard } from "../src/domain/boardGroups";
 import { type CheckRow, checksBySlice } from "../src/domain/checks";
 import { splitSliceTitle } from "../src/domain/docSync";
-import { ItemType } from "../src/domain/item";
+import { eventMarkerOf, ItemType } from "../src/domain/item";
 import { partLetterOf, PartState, partsProgress, partStateOf, shownStatusOf } from "../src/domain/parts";
 import { isWorkingNow, normalizeSteps, stepProgress } from "../src/domain/steps";
 import type { Step, StepState } from "../src/domain/stepTypes";
@@ -127,7 +127,7 @@ export function itemOfIn(seed: SeedItem, all: SeedItem[]): BoardItemDto {
     parts,
     parts_progress: parts ? partsProgress(parts.map((part) => part.state)) : null,
     active_part_key: active?.key ?? null,
-    events: seed.events.map((e) => ({ at: atClock(e.at), status: e.status as ItemStatus, note: e.note })),
+    events: seed.events.map((e) => ({ at: atClock(e.at), status: e.status as ItemStatus, note: e.note, marker: eventMarkerOf(e.note) })),
   };
 }
 

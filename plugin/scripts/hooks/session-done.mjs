@@ -43,8 +43,21 @@ function callOptions(options) {
 function saveGoal(id, patch, root, now, doneAt = now) {
   updateGoal(id, root, now, (current) => {
     if (!current) return null;
-    return { ...current, at: now, ...(typeof patch === 'function' ? patch(current, doneAt) : patch) };
+    return pruneAgents({ ...current, at: now, ...(typeof patch === 'function' ? patch(current, doneAt) : patch) }, now);
   });
+}
+
+const AGENT_KEEP_MS = 24 * 60 * 60 * 1000; // an agent recorded as started this long ago is long finished: its place and start go
+
+// The recorded places and starts of agents that started more than AGENT_KEEP_MS ago, dropped from the file content that
+// is about to be written (the content re-read inside updateGoal, so no concurrent hook's entry is lost). An agent with
+// no recorded start is kept: nothing says how old it is (Slice 47 4f).
+export function pruneAgents(content, now) {
+  const starts = content.agentStarts || {};
+  const old = (agentId) => Number.isFinite(starts[agentId]) && now - starts[agentId] > AGENT_KEEP_MS;
+  if (!Object.keys(starts).some(old)) return content;
+  const keep = (map) => Object.fromEntries(Object.entries(map || {}).filter(([agentId]) => !old(agentId)));
+  return { ...content, agentParents: keep(content.agentParents), agentStarts: keep(content.agentStarts) };
 }
 
 // The recorded places after another write: what the file holds now wins, and only the places it lacks are added, so a
@@ -91,7 +104,7 @@ function currentAgents(input, id, root, now) {
 async function stopCard(input, env, goal, root, now, options) {
   const config = resolveConfig(env);
   const id = sessionIdOf(input);
-  const agents = knownAgents(input, currentAgents(input, id, root, now), goal.agentParents, goal.agentStarts, now);
+  const agents = knownAgents(input, id, root, goal.agentParents, goal.agentStarts, now);
   if (hasActiveAgent(agents)) {
     const parents = placeAgents(goal.steps, agents, goal.agentParents);
     const steps = mergeSteps(goal.steps, agents, parents);
@@ -182,7 +195,7 @@ function releaseHold(id, root, now) {
 // left the card open for the agents (`held`) and none is running any more, the turn is over: the card is closed.
 async function subagentCard(input, env, goal, root, now, options) {
   const id = sessionIdOf(input);
-  const agents = knownAgents(input, currentAgents(input, id, root, now), goal.agentParents, goal.agentStarts, now);
+  const agents = knownAgents(input, id, root, goal.agentParents, goal.agentStarts, now);
   if (goal.held && !hasActiveAgent(agents)) {
     if (mainThreadWorked(input, goal)) return releaseHold(id, root, now); // a new turn is running: its own Stop closes the card
     return closeCard(resolveConfig(env), goal, id, root, now, options);
@@ -212,7 +225,7 @@ async function startCard(input, env, goal, root, now, options) {
   // here replaces the board's, so it must hold every known agent, not only this one.
   const merged = readGoal(id, root, now) || goal;
   const placed = merged.agentParents || parents;
-  const agents = knownAgents(input, currentAgents(input, id, root, now), placed, merged.agentStarts || {}, now);
+  const agents = knownAgents(input, id, root, placed, merged.agentStarts || {}, now);
   const steps = mergeSteps(merged.steps, agents, placed);
   const body = keepQuestion(goal, { key: goal.key, status: 'in_progress', source: HOOK_SOURCE, steps, note: CARD_NOTE });
   const patch = (current) => ({ sig: JSON.stringify(steps), agentParents: mergeParents(current, placed) });
@@ -223,9 +236,13 @@ async function startCard(input, env, goal, root, now, options) {
 // its recorded start (`starts`, the goal file's agentStarts), then dropped.
 // An agent that aged out of the list has files, so it gets no row; only one with no files yet does.
 // With no agent folder to look in (no usable transcript_path) nothing is known about the recorded agents: no plain rows.
-function knownAgents(input, listed, parents, starts, now) {
+// An agent that has stopped (SubagentStop) gets no plain row: it is not running, whatever its files say (Slice 47 4a).
+function knownAgents(input, id, root, parents, starts, now) {
+  const listed = currentAgents(input, id, root, now);
   if (!subagentsDir(input)) return listed;
+  const stopped = readStoppedAt(id, root);
   const missing = Object.keys(parents).filter((agentId) => !listed.some((agent) => agent.id === agentId)
+    && !Object.hasOwn(stopped, agentId)
     && now - (starts[agentId] ?? -Infinity) <= PENDING_AGENT_MS && !hasAgentMeta(input, agentId));
   return [...listed, ...missing.map((agentId) => ({ id: agentId, label: AGENT_PREFIX, model: '', state: AGENT_STATE.active, atMs: now }))];
 }
@@ -235,10 +252,11 @@ export function startContext(input, env, root, now = Date.now()) {
   const id = sessionIdOf(input);
   const goal = id ? readGoal(id, root, now) : null;
   const agentId = typeof input.agent_id === 'string' ? input.agent_id : '';
-  if (!goal || !goal.key || !agentId || !resolveConfig(env) || isForegroundAgent(input, agentId)) return '';
+  // A closed card takes no more reports: the helper is not told to report under it (Slice 47 4l).
+  if (!goal || !goal.key || goal.closed || !agentId || !resolveConfig(env) || isForegroundAgent(input, agentId)) return '';
   const row = agentRowId(agentId);
   const script = join(dirname(fileURLToPath(import.meta.url)), '..', 'report-progress.mjs');
-  const text = `Board card: key "${goal.key}". Your own row on it is the step with id "${row}". To show your steps there, report them with under_step "${row}" (the board's report_progress tool with key, under_step and steps, or: node "${script}" --key "${goal.key}" --steps "a|b|c" --under-step ${row}). Do not report any other step or open a card of your own.`;
+  const text = `Board card: key "${goal.key}". Your own row on it is the step with id "${row}". To show your steps there, report them with under_step "${row}" (the board's report_progress tool with key, under_step and steps, or: node "${script}" --key "${goal.key}" --steps "a|b|c" --under-step "${row}"). Do not report any other step or open a card of your own.`;
   return JSON.stringify({ hookSpecificOutput: { hookEventName: EVENT.subagentStart, additionalContext: text } });
 }
 

@@ -5,7 +5,7 @@ import { type BoardConfig, configFromRecord } from "../config";
 import { groupBoard } from "../domain/boardGroups";
 import { type CheckRow, type CheckView, checksBySlice } from "../domain/checks";
 import { splitSliceTitle } from "../domain/docSync";
-import { type Item, type ItemStatus, ItemType } from "../domain/item";
+import { eventMarkerOf, type Item, type ItemStatus, ItemType } from "../domain/item";
 import { hasOpenQuestion } from "../domain/stale";
 import { activePartOf, partLetterOf, partsProgress, partStateOf, shownStatusOf } from "../domain/parts";
 import { isWorkingNow, stepProgress } from "../domain/steps";
@@ -92,12 +92,12 @@ function partsByParent(rows: BoardRow[], config: BoardConfig, now: Date): Map<st
 }
 
 /** The types that name a slice in `parent_key`: a part or check belongs to it, a bug or problem is planned into it (Slice 14). */
-const SLICE_CHILD_TYPES: readonly ItemType[] = [ItemType.Part, ItemType.Check, ItemType.Bug, ItemType.Problem];
+const SLICE_NAMING_TYPES: readonly ItemType[] = [ItemType.Part, ItemType.Check, ItemType.Bug, ItemType.Problem];
 
 /** The slice a part, check, bug or problem names, as data (key, number, title); the page words it. Null when it names no slice on the board. */
 function parentSliceOf(row: BoardRow, ctx: PartsContext): ParentSliceDto | null {
   const slice =
-    SLICE_CHILD_TYPES.includes(row.type) && row.parent_key ? (ctx.sliceByKey.get(row.parent_key) ?? row.parentSlice ?? undefined) : undefined;
+    SLICE_NAMING_TYPES.includes(row.type) && row.parent_key ? (ctx.sliceByKey.get(row.parent_key) ?? row.parentSlice ?? undefined) : undefined;
   if (!slice) return null;
   return { key: slice.key, number: splitSliceTitle(slice.key, slice.title).number, title: slice.title };
 }
@@ -156,7 +156,7 @@ function itemDto(row: BoardRow, ctx: PartsContext): BoardItemDto {
     progress: stepProgress(item.steps, item.status),
     working: item.type !== ItemType.Check && isWorkingNow({ ...item, ...expiry }, config.staleAfterMinutes, now),
     ...partsInfo,
-    events: item.events.map(({ at, status, note }) => ({ at, status, note })),
+    events: item.events.map(({ at, status, note }) => ({ at, status, note, marker: eventMarkerOf(note) })),
   };
 }
 

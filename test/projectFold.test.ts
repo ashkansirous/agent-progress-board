@@ -23,13 +23,15 @@ describe("prunedMap (Slice 36)", () => {
 });
 
 describe("pruneIdsOf (Slice 36)", () => {
-  it("prunes by the ids of a loaded board that has projects", () => {
-    expect(pruneIdsOf("a\nb")).toEqual(["a", "b"]);
+  it("prunes by the ids of a loaded board that has projects, even an id with a newline in it (Slice 47 1n)", () => {
+    expect(pruneIdsOf(JSON.stringify(["a", "b"]))).toEqual(["a", "b"]);
+    expect(pruneIdsOf(JSON.stringify(["a\nb"]))).toEqual(["a\nb"]);
   });
 
   it("prunes nothing for a failed load (no data) or an empty board", () => {
     expect(pruneIdsOf(undefined)).toBeNull();
     expect(pruneIdsOf("")).toBeNull();
+    expect(pruneIdsOf("[]")).toBeNull();
   });
 });
 
@@ -64,6 +66,12 @@ describe("resolveOpen", () => {
     const folded = { p: { open: false, questions: ["p/q1"] } };
     expect(resolveOpen(folded, group(["p/q1", "p/q2"]))).toBe(true);
     expect(resolveOpen(folded, group(["p/q2"]))).toBe(true);
+  });
+
+  it("opens a folded project with a question while the address asks for the questions (Slice 47 6d)", () => {
+    const folded = { p: { open: false, questions: ["p/q1"] } };
+    expect(resolveOpen(folded, group(["p/q1"]), true)).toBe(true);
+    expect(resolveOpen(folded, group([], 1), true)).toBe(false);
   });
 
   it("keeps the stored choice when the questions are all answered", () => {

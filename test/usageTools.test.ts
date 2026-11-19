@@ -9,10 +9,10 @@ import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { ACCESS_JWT_HEADER, type AccessKeys } from "../src/api/access";
 import { route, type RouterEnv } from "../src/api/router";
 import type { UsagePageResponse, UsageResponse } from "../src/api/usageDto";
-import { thinOldUsage } from "../src/application/usage";
+import { clampedStart, thinOldUsage } from "../src/application/usage";
 import worker from "../src/index";
 import { totalOf, useBetween, usageDeltas } from "../src/domain/usage";
-import { D1ItemRepository, SAMPLES_FROM, THIN_ROWS } from "../src/infrastructure/d1Repository";
+import { compareText, D1ItemRepository, SAMPLES_FROM, THIN_ROWS } from "../src/infrastructure/d1Repository";
 import { callTool, countRows, READ_TOKEN, resetBoard } from "./helpers";
 
 const TEAM = "https://team.cloudflareaccess.com";
@@ -542,5 +542,27 @@ describe("task titles and session windows (Slice 34)", () => {
     await env.DB.prepare("INSERT INTO usage_series (kind, value, first_seen) VALUES ('environment', ' LAPTOP', '2026-11-01T00:00:00.000Z')").run();
     const windows = await repo().sessionWindowsFrom("2026-11-01T00:00:00.000Z", 10);
     expect(windows.map((w) => w.environment)).toEqual(["Chat"]);
+  });
+});
+
+describe("compareText (Slice 47 5a)", () => {
+  it("orders by code point, like SQLite's byte order, not by UTF-16 unit", () => {
+    expect(compareText("￿", "\u{10000}")).toBe(-1);
+    expect(compareText("\u{10000}", "￿")).toBe(1);
+    expect(compareText("abc", "abc")).toBe(0);
+    expect(compareText("ab", "abc")).toBe(-1);
+    expect(compareText("abc", "ab")).toBe(1);
+  });
+});
+
+describe("clampedStart (Slice 47 7d)", () => {
+  it("compares moments, not text: a stored time without milliseconds is clamped like one with them", () => {
+    const now = new Date("2026-11-19T06:00:00.500Z");
+    const earliest = clampedStart("2000-01-01T00:00:00Z", now);
+    expect(earliest).toMatch(/\.500Z$/);
+    const withoutMs = earliest.replace(/\.\d+Z$/, "Z"); // half a second before the earliest moment, but "Z" sorts after "."
+    expect(clampedStart(withoutMs, now)).toBe(earliest);
+    expect(clampedStart("2026-11-18T00:00:00Z", now)).toBe("2026-11-18T00:00:00Z");
+    expect(clampedStart("not a time", now)).toBe(earliest);
   });
 });

@@ -5,7 +5,7 @@ import { PartState } from "../../src/domain/parts";
 import { useState } from "react";
 import { ChevronIcon, PhoneIcon } from "./icons";
 import { FollowLink } from "./PartsView";
-import { checksLine, looseLine, nowLine, partsCountText, pillText, sliceNumberText } from "./planningText";
+import { checksLine, looseCardCount, looseLine, nowLine, partsCountText, pillText, sliceNumberText } from "./planningText";
 import { useView } from "./view";
 
 interface PlannedProps {
@@ -120,7 +120,7 @@ export function PlannedSection({ slices, items, looseCount, looseNotTried, onOpe
         {slices.map((slice) => (
           <SliceCard key={slice.key} slice={slice} item={items.get(slice.key)} onOpenItem={onOpenItem} />
         ))}
-        {looseCount > 0 && <LooseCard count={looseNotTried} onOpen={onOpen} />}
+        {looseCount > 0 && <LooseCard count={looseCardCount(looseNotTried, looseCount)} onOpen={onOpen} />}
       </div>
     </div>
   );

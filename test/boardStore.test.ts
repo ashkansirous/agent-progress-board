@@ -62,7 +62,8 @@ describe("the shared board store", () => {
       off();
       await vi.advanceTimersByTimeAsync(0);
       expect(pending[0]!.signal.aborted).toBe(true);
-      expect(store.getState()).toMatchObject({ loading: false, slow: false });
+      // A first load with nothing to show stays "loading" (Slice 47 1c): the next page does not paint an empty body.
+      expect(store.getState()).toMatchObject({ loading: true, slow: false });
     } finally {
       vi.useRealTimers();
     }
@@ -117,12 +118,39 @@ describe("the shared board store", () => {
     expect(store.getState()).toMatchObject({ loading: true, slow: true });
   });
 
-  it("leaves loading false after the last reader aborts a first load with nothing read, until a later reader loads", async () => {
+  it("keeps loading true (never a blank first frame) after the last reader aborts a first load with nothing read (Slice 47 1c)", async () => {
     const { store } = setup();
     const off = store.subscribe(() => {});
     off();
     await vi.advanceTimersByTimeAsync(SLOW_MS);
-    expect(store.getState()).toMatchObject({ loading: false, slow: false, data: null, error: null });
+    expect(store.getState()).toMatchObject({ loading: true, slow: false, data: null, error: null });
+  });
+
+  it("does not turn a throwing listener into a failed load (Slice 47 1b)", async () => {
+    const { store, pending } = setup();
+    const heard = vi.fn();
+    store.subscribe(() => {
+      throw new Error("listener fault");
+    });
+    store.subscribe(heard);
+    pending[0]!.resolve(fakeBoard());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(store.getState()).toMatchObject({ loading: false, error: null });
+    expect(store.getState().data?.working_count).toBe(2);
+    expect(heard).toHaveBeenCalled();
+  });
+
+  it("lets the first page carry on a load a passive reader already started instead of repeating it (Slice 47 1d)", async () => {
+    const { store, fetchBoard, pending } = setup();
+    store.subscribePassive(() => {});
+    expect(fetchBoard).toHaveBeenCalledTimes(1);
+    store.subscribe(() => {});
+    expect(fetchBoard).toHaveBeenCalledTimes(1);
+    expect(pending[0]!.signal.aborted).toBe(false);
+    pending[0]!.resolve(fakeBoard());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(store.getState().data?.working_count).toBe(2);
+    expect(store.getState().settles).toBe(1);
   });
 
   it("keeps the last answer for the next page and reloads it once", async () => {
@@ -139,6 +167,48 @@ describe("the shared board store", () => {
     expect(fetchBoard).toHaveBeenCalledTimes(2);
   });
 
+  it("reloads on a page switch when the cached answer is old, so an item the cache lacks can open (Slice 47 1a)", async () => {
+    const { store, fetchBoard, pending } = setup();
+    const off = store.subscribe(() => {});
+    pending[0]!.resolve(fakeBoard());
+    await vi.advanceTimersByTimeAsync(0);
+    off();
+    vi.setSystemTime(Date.now() + 60_000);
+    store.subscribe(() => {});
+    expect(fetchBoard).toHaveBeenCalledTimes(2);
+    expect(store.getState().data?.working_count).toBe(2);
+  });
+
+  it("reloads on every page switch, even when the cached answer is a second old (Slice 47 review #2)", async () => {
+    const { store, fetchBoard, pending } = setup();
+    const off = store.subscribe(() => {});
+    pending[0]!.resolve(fakeBoard());
+    await vi.advanceTimersByTimeAsync(0);
+    off();
+    vi.setSystemTime(Date.now() + 1000);
+    store.subscribe(() => {});
+    expect(fetchBoard).toHaveBeenCalledTimes(2);
+  });
+
+  it("reloads on a page switch right after a failed load, and counts failures as settled loads (Slice 47 review #1)", async () => {
+    const fetchBoard = vi.fn(() => Promise.reject(new Error("down")));
+    const store = createBoardStore({ fetchBoard, startPolling: () => () => {}, slowAfterMs: SLOW_MS });
+    const off = store.subscribe(() => {});
+    await vi.advanceTimersByTimeAsync(0);
+    expect(store.getState()).toMatchObject({ error: { status: null }, settles: 1 });
+    off();
+    store.subscribe(() => {});
+    expect(fetchBoard).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not count an aborted load as settled (Slice 47 review #1)", () => {
+    const { store } = setup();
+    const off = store.subscribe(() => {});
+    off();
+    vi.advanceTimersByTime(0);
+    expect(store.getState().settles).toBe(0);
+  });
+
   it("lets a passive reader load once, without polling, and only while nothing was read", () => {
     const { store, fetchBoard, startPolling } = setup();
     store.subscribePassive(() => {});
@@ -153,8 +223,8 @@ describe("the shared board store", () => {
     const off = store.subscribe(() => {});
     off();
     vi.advanceTimersByTime(0);
-    expect(pending[1]!.signal.aborted).toBe(false);
-    pending[1]!.resolve(fakeBoard());
+    expect(pending[0]!.signal.aborted).toBe(false);
+    pending[0]!.resolve(fakeBoard());
     await Promise.resolve();
     await Promise.resolve();
     expect(store.getState().data?.working_count).toBe(2);
@@ -167,6 +237,6 @@ describe("the shared board store", () => {
     off();
     offPassive();
     vi.advanceTimersByTime(0);
-    expect(pending[1]!.signal.aborted).toBe(true);
+    expect(pending[0]!.signal.aborted).toBe(true);
   });
 });

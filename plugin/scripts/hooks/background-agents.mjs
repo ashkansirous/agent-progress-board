@@ -145,6 +145,7 @@ export function readBackgroundAgents(input, now = Date.now(), stopped = {}) {
       .map((name) => AGENT_FILE.exec(name))
       .filter(Boolean)
       .map(([name, id]) => ({ id, meta: readMeta(join(dir, name)), atMs: modifiedAt(join(dir, `agent-${id}.jsonl`)) }))
+      .filter((agent) => agent.meta.requestShape !== FOREGROUND_SHAPE) // the session waits for a foreground agent: no row (Slice 47 4j)
       .filter((agent) => now - agent.atMs <= AGENT_FRESH_MS || stoppedRecently(stops, agent, now))
       .map((agent) => ({ ...agent, head: readHead(join(dir, `agent-${agent.id}.jsonl`)) }))
       .map(({ id, meta, atMs, head }) => ({

@@ -74,6 +74,12 @@ describe('keys and config', () => {
     assert.doesNotMatch(source, /workers\.dev|secrets\.env|AGENT_BOARD_SECRETS_FILE/);
   });
 
+  test('--clear-outcome sends outcome null, and an --outcome text still sends the text (Slice 47 6b)', () => {
+    assert.equal(buildArguments(parseArgs(['--key', 'demo/task-1', '--clear-outcome']), 'demo').outcome, null);
+    assert.equal(buildArguments(parseArgs(['--key', 'demo/task-1', '--outcome', 'Code merged']), 'demo').outcome, 'Code merged');
+    assert.equal('outcome' in buildArguments(parseArgs(['--key', 'demo/task-1']), 'demo'), false);
+  });
+
   test('--slice N --waiting builds the /waiting key through sliceKey', () => {
     assert.equal(buildArguments(parseArgs(['--slice', '03', '--waiting']), 'demo').key, 'demo/slice-3/waiting');
     assert.equal(buildArguments(parseArgs(['--slice', '03']), 'demo').key, 'demo/slice-3');

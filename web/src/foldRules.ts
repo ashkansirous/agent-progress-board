@@ -37,9 +37,11 @@ export function isQuiet(group: ProjectGroups): boolean {
  * Whether a project block is open. A click is stored with the question keys the block showed then. A block
  * opens when storage failed, or when it shows a question key the click did not see (a question is never
  * hidden); otherwise it takes the stored choice; with nothing stored, open unless the project is quiet.
+ * While the address asks for the questions (`#/needs-you`), a project with a question is open (Slice 47 6d).
  */
-export function resolveOpen(stored: OpenMap | null, group: ProjectGroups): boolean {
+export function resolveOpen(stored: OpenMap | null, group: ProjectGroups, showQuestions = false): boolean {
   if (stored === null) return true;
+  if (showQuestions && group.needs_you.length > 0) return true;
   const choice = Object.hasOwn(stored, group.id) ? stored[group.id] : undefined;
   if (!choice) return !isQuiet(group);
   if (group.needs_you.some((key) => !choice.questions.includes(key))) return true;

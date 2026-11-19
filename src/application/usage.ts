@@ -287,9 +287,12 @@ function rangeStart(range: UsageRange, now: Date, cap: CapState): string {
 }
 
 /** The range never starts earlier than the longest range, so a stray reading time cannot make the bucket list huge. */
-function clampedStart(from: string, now: Date): string {
+export function clampedStart(from: string, now: Date): string {
   const earliest = daysBefore(now, MAX_RANGE_DAYS);
-  return from < earliest ? earliest : from;
+  // Compared as moments, not as text: a stored time without milliseconds sorts wrong against one with them (Slice 47 7d).
+  // An unreadable `from` would compare as NaN and pass unclamped: it gets the earliest moment instead (review #6).
+  const start = Date.parse(from);
+  return Number.isNaN(start) || start < Date.parse(earliest) ? earliest : from;
 }
 
 /** Deltas of the range, only those that fall in the chosen plan's time (no readings: every plan). */

@@ -49,3 +49,4 @@ Rows moved out of `plan.md`'s status table once built.
 | 44 | English only, and an owner step reads as a short title plus its steps | built | #160 | | [44](../slices/44-english-only-owner-steps.md) |
 | 45 | Review follow-ups left open by the night 2026-11-18-1602 | built | #167 | | [45](../slices/45-night-1602-follow-ups.md) |
 | 46 | Follow-ups left open by Slice 45 | built | #172 | | [46](../slices/46-slice-45-follow-ups.md) |
+| 47 | Open review follow-ups of Slices 33 to 36, 39 to 41 and 46 | built | #179 | | [47](../slices/47-open-follow-ups.md) |

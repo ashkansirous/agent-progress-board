@@ -12,6 +12,7 @@ owner confirms, is removed here and its slice marked `verified`.
 
 - The Verification box in the slice: after the release and one doc sync on the live board, "Needs you" shows owner steps as "Your step" with working links and `AGENT_BOARD_URL` in full.
 - The phone card shows the project name, not "Your step" (check pass 2 #6, follow-up).
+- After the release, the live Usage page's Environment tab shows no "NaN:00" label and no overlapping "Reset" (the live cause was never reproduced; [Slice 45](slices/45-night-1602-follow-ups.md) item 8).
 
 ### Slice 41: Only a task with an outcome gets a card ([slice](slices/41-tasks-with-outcome.md))
 

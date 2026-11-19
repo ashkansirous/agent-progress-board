@@ -22,9 +22,11 @@ owner's config repo. Decisions in [Slice 20](docs/plan/slices/20-plugin-connect.
 
 | Slice | Title | Status | PR | Issue | File |
 | --- | --- | --- | --- | --- | --- |
+| 46 | Follow-ups left open by Slice 45 | parked: feedback loop, waits for the user | | | [46](docs/plan/slices/46-slice-45-follow-ups.md) |
 
 Notes:
 
+- [Feedback loop 2026-11-19 night 0243](docs/plan/notes/2026-11-19-0243-feedback-loop.md): what the audit of the eighth night found.
 - [Feedback loop 2026-11-18 night 1602](docs/plan/notes/2026-11-18-1602-feedback-loop.md): what the audit of the seventh night found.
 
 - [Feedback loop 2026-11-17 night 2023](docs/plan/notes/2026-11-17-2023-feedback-loop.md): what the audit of the sixth night found.
@@ -72,6 +74,7 @@ Notes:
 - **Follow-ups left open by Slices 34 and 41** (no slice yet): Slice 34's five lows of its second check pass (UTF-16 order in `bySeriesThenTime`, unbounded environment count, a report stamped ahead of real time, a misplaced doc comment, `isWaitingClosable` unused in production), its follow-ups #3 (one change rule) and #9 (note a dropped older status); Slice 41's three lows of its second check pass (a session's second task card never binds, the CLI cannot clear an outcome, an orchestrator's first close attempt) and the "Needs you" scroll from Active work. Listed in [Slice 34](docs/plan/slices/34-storage-queries.md) and [Slice 41](docs/plan/slices/41-tasks-with-outcome.md) *From review*.
 - Slice 35's four low review findings have no slice yet and need one planned: see *Open items* in [Slice 35](docs/plan/slices/35-usage-page-fixes.md).
 - **Slice 45 built the follow-ups of Slices 29 to 32, 37, 38 and 41 to 44** ([Slice 45](docs/plan/slices/45-night-1602-follow-ups.md), PR #167). Not built, with reasons in its *Found while building*: item 13 #1 and #3 (Slice 30), item 14 #4 and check-3 #3 (Slice 29), item 4 #8 (Slice 32), item 7 #3 (Slice 43). Item 8's live "NaN:00" check waits for the batched release (in `docs/plan/unverified.md`).
+- **Follow-ups left open by Slice 45** are [Slice 46](docs/plan/slices/46-slice-45-follow-ups.md), parked for the owner: two important correctness faults (a held Stop report can re-open a closed card; a `|` inside a double-backtick span splits an owner-step title), five lows, and whether an empty status table should close the project's doc-synced items.
 - `D:\tmp-mirror-stage` (two copied doc files) was left at the drive root by night 2026-11-18-1602 wave 3's mirror agent; every agent's delete was blocked by a safety check, so it waits for the owner to delete it. The guard gap is a ClaudeSkills plan item (ClaudeSkills #350).
 - **Review follow-ups were planned as Slices 29 to 38, and all ten are built (night 2026-11-18-1602)** (re-checked against `origin/main` d654e9b on 2026-11-18, owner: "double check and plan the follow up work"). Waves, decided by the planning session: 1 = 29, 30, 31, 38; 2 = 32, 35; 3 = 33; 4 = 34; Slice 37 was built before 36, so 36 follows 37. Already fixed or gone, so not planned: Slice 13 #9b (heartbeat advice), Slice 18 #2, Slice 22 c2 #5 and high #4, Slice 27 chk #4, chk #7, high #9, Slice 19 chk #2; Slice 26 chk #1 is probably gone and gets a closing test in Slice 35.
 - **Ideas to check (owner, 2026-11-18), from the survey of similar tools:** (1) Claude Code's OpenTelemetry metrics as a usage source, (2) a board answer that goes back to the waiting agent (needs the owner's yes: read-mostly rule), (3) Backlog.md folders as a second plan format for `sync_snapshot`. None is a slice yet ([note](docs/plan/notes/2026-11-18-similar-tools.md)).

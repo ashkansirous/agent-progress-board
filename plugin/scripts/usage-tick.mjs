@@ -44,6 +44,7 @@ import { TASK_MAX_AGE_MS, TASK_STATUS, callTool, projectSlug, readPlanCapEnabled
 // background run: it never loads the modules that only the run needs (Slice 30). Anything else that
 // imports this file (the tests, the background run) gets them loaded before its first use.
 const RUN_FLAG = '--run';
+export const LOG_FILE = 'usage-tick.log'; // before the module loads below: a failed load writes it
 const HOOK_CALL = isInvokedDirectly() && !process.argv.includes(RUN_FLAG);
 let sendCapReading;
 let readGoal;
@@ -58,9 +59,8 @@ if (!HOOK_CALL) {
     ({ readGoal } = await import('./hooks/hook-input.mjs'));
     ({ agentKindOf, emptyFileState, listRecordFiles, metaKindOf, scanFile } = await import('./usage-report.mjs'));
   } catch (error) {
-    logSkipped(error); // fails open: a module that cannot load ends the run quietly
+    logSkipped(error); // fails open: a module that cannot load ends the run quietly, for an importer too
     if (isInvokedDirectly()) process.exit(0);
-    throw error;
   }
 }
 
@@ -619,8 +619,16 @@ export async function runTick({ env = process.env, now = Date.now(), taskRoot = 
   }
 }
 
+// The reason a run was skipped: the error's name on stderr, and (the background run's stderr goes nowhere) the name and
+// the first line of its message in `usage-tick.log` in the state folder, the last one only. Never throws.
 function logSkipped(error) {
   process.stderr.write(`usage-tick: skipped (${error && error.name})\n`);
+  try {
+    const root = stateRoot();
+    mkdirSync(root, { recursive: true });
+    const message = String((error && error.message) || '').split('\n')[0].slice(0, 200);
+    writeFileSync(join(root, LOG_FILE), `${new Date().toISOString()} ${error && error.name}: ${message}\n`);
+  } catch { /* fails open */ }
 }
 
 // A script path that cannot be resolved counts as not invoked directly: the import must never throw.

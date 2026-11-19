@@ -233,6 +233,20 @@ describe('sendCapReading', () => {
     assert.deepEqual(planSince({ plan: 'max' }, 'max', 99), { plan: 'max', since: 99 });
   });
 
+  test('planSince pulls a saved time ahead of now back to now (a clock set back, Slice 45)', () => {
+    assert.deepEqual(planSince({ plan: 'max', since: 500 }, 'max', 99), { plan: 'max', since: 99 });
+    assert.deepEqual(planSince({ plan: 'max', since: 99 }, 'max', 99), { plan: 'max', since: 99 });
+  });
+
+  test('the dead `plan` field of an old state file is dropped on the next write (Slice 45)', async () => {
+    writeCredentials();
+    writeFileSync(join(dir, CAP_STATE_FILE), JSON.stringify({ plan: 'max', planSeen: { plan: 'other', since: 0 } }));
+    await send(NOW, routed(answering({}, false)));
+    const saved = JSON.parse(readFileSync(join(dir, CAP_STATE_FILE), 'utf8'));
+    assert.equal('plan' in saved, false);
+    assert.equal(saved.planSeen.plan, PLAN);
+  });
+
   test('first-ever run: a file written before the plugin first saw the plan is held, a newer one is sent (Slice 30, review 2)', async () => {
     writeCredentials();
     writeLatestFile(NOW - 60000, { seven_day: { used_percentage: 42 } });

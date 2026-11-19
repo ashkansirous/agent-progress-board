@@ -4,7 +4,7 @@
 // Run: node --test plugin/scripts/usage-tick.test.mjs
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import fs, { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import fs, { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { EventEmitter } from 'node:events';
 import { createServer } from 'node:http';
 import { syncBuiltinESMExports } from 'node:module';
@@ -931,6 +931,26 @@ describe('the task heartbeat (Slice 13)', () => {
       await tick({ env: { ...env, ...off } });
       assert.deepEqual(reports.map((r) => r.name), ['report_progress'], JSON.stringify(off));
       rmSync(join(claudeDir, STATE_FILE), { force: true });
+    }
+  });
+});
+
+describe('Slice 45 (Slice 30 follow-ups): a module that cannot load', () => {
+  test('an importer is not thrown at, and the reason is kept in usage-tick.log in the state folder', async () => {
+    const temp = mkdtempSync(join(tmpdir(), 'board-tick-import-'));
+    try {
+      cpSync(fileURLToPath(new URL('.', import.meta.url)), join(temp, 'scripts'), { recursive: true });
+      rmSync(join(temp, 'scripts', 'cap-reading.mjs'));
+      writeFileSync(join(temp, 'wrap.mjs'), "await import('./scripts/usage-tick.mjs');\nconsole.log('imported');\n");
+      const state = join(temp, 'data', 'state');
+      const result = await runNode(join(temp, 'wrap.mjs'), [], envFor('http://127.0.0.1:9', state, { CLAUDE_PLUGIN_DATA: join(temp, 'data') }));
+      assert.equal(result.code, 0, result.stderr);
+      assert.match(result.stdout, /imported/);
+      const log = readFileSync(join(state, 'usage-tick.log'), 'utf8');
+      assert.match(log, /Error/);
+      assert.match(log, /cap-reading/);
+    } finally {
+      rmSync(temp, { recursive: true, force: true });
     }
   });
 });

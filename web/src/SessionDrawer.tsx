@@ -2,10 +2,11 @@ import type { BoardItemDto } from "../../src/api/boardDto";
 import { ItemStatus } from "../../src/domain/item";
 import { SESSION_STALE_AFTER_MINUTES } from "../../src/domain/stale";
 import { SliceOfCard } from "./ChecksView";
-import { doneSoFar, eventKeys, historyWords, isQuestion, isSessionItem, isStaleSession, isWorkingCard, purposeText, sessionLabel, waitingText } from "./cards";
+import { doneSoFar, eventKeys, historyWords, isOwnerStep, isQuestion, isSessionItem, isStaleSession, isWorkingCard, purposeText, sessionLabel, waitingText } from "./cards";
 import { DetailsBody, useDialogFocus } from "./Detail";
 import { CloseIcon } from "./icons";
 import { projectLabel } from "./model";
+import { AddressText } from "./SessionCards";
 import { isSafeHttpUrl } from "./safeUrl";
 import { StepRows } from "./stepsView";
 import { ageText, clockTime } from "./time";
@@ -24,13 +25,13 @@ enum Kicker {
 }
 
 function kickerOf(item: BoardItemDto): Kicker {
-  if (isQuestion(item)) return Kicker.Need;
+  if (isQuestion(item) || isOwnerStep(item)) return Kicker.Need;
   if (isWorkingCard(item)) return Kicker.Work;
   return isStaleSession(item) ? Kicker.Stale : Kicker.Other;
 }
 
 function kickerText(item: BoardItemDto, kicker: Kicker, t: ReturnType<typeof useView>["t"]): string {
-  if (kicker === Kicker.Need) return t("needsYou");
+  if (kicker === Kicker.Need) return isOwnerStep(item) ? t("yourStepLabel") : t("needsYou");
   if (kicker === Kicker.Work) return t("kickerWorking");
   return kicker === Kicker.Stale ? t("statusStale") : statusName(item.status, t);
 }
@@ -143,7 +144,7 @@ export function SessionDrawer({ item, onClose }: DrawerProps) {
       <aside className={phone ? "card-drawer card-drawer-phone" : "card-drawer"} role="dialog" aria-modal="true" aria-label={t("cardDetails")}>
         <TopRow item={item} kicker={kicker} onClose={onClose} closeRef={closeRef} />
         <div className="drawer-heading">
-          <h2>{question ? item.needs_you : item.title}</h2>
+          <h2><AddressText text={(question ? (item.needs_you ?? item.title) : item.title)} /></h2>
           {purpose && isSessionItem(item) && <span className="drawer-purpose">{purpose}</span>}
           <span className="drawer-meta">{metaText(item, kicker, view)}</span>
         </div>
@@ -156,7 +157,7 @@ export function SessionDrawer({ item, onClose }: DrawerProps) {
           <DoneSoFar item={item} />
         ) : (
           <>
-            {item.why && <p className="drawer-why">{item.why}</p>}
+            {item.why && <p className="drawer-why"><AddressText text={item.why} /></p>}
             <DetailsBody item={item} />
           </>
         )}

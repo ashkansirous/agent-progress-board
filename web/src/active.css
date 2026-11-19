@@ -19,16 +19,6 @@
   font-weight: 600;
 }
 
-.view-tabs-phone .view-tab-label {
-  gap: 4px;
-}
-
-.view-tabs-phone .tab-count {
-  padding: 0 5px;
-  font-size: 10px;
-  font-weight: 700;
-}
-
 /* Page */
 
 .active-page {

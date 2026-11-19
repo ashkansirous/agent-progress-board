@@ -128,7 +128,8 @@ export function UsagePage({ env }: { env: Environment }) {
     <UsageViewProvider value={view}>
       <div className={env.phone ? "app phone" : "app"} style={paletteVars(state.controls, env.scheme)}>
         <div className="page usage-page">
-          {!env.phone && <ViewTabs current={Route.Usage} phone={false} t={env.t} activeCount={activeCount} />}
+          {/* The same bar at the top on every page and both layouts (the PhoneV2 and ActiveV3Phone mocks). */}
+          <ViewTabs current={Route.Usage} t={env.t} activeCount={activeCount} />
           <UsageHeader
             controls={state.controls}
             params={params}
@@ -140,8 +141,6 @@ export function UsagePage({ env }: { env: Environment }) {
             <Body state={state} retry={retry} />
           </div>
         </div>
-        {/* PhoneUsage still draws the bottom tab bar; Board and Active work moved their bar to the top (PhoneV2, ActiveV3Phone). */}
-        {env.phone && <ViewTabs current={Route.Usage} phone t={env.t} activeCount={activeCount} />}
       </div>
     </UsageViewProvider>
   );

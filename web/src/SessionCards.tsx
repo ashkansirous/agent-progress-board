@@ -2,15 +2,63 @@ import type { MouseEvent } from "react";
 import type { BoardItemDto } from "../../src/api/boardDto";
 import { StepState } from "../../src/domain/stepTypes";
 import { OutcomeLine } from "./ActiveCard";
-import { sessionLabel, waitingText } from "./cards";
+import { cardLabel, ownerStepFallback, resolveBoardAddress, sessionLabel, waitingText } from "./cards";
 import { projectLabel } from "./model";
 import { isSafeHttpUrl } from "./safeUrl";
 import { ageText } from "./time";
 import { useView } from "./view";
 
+/** Card text for a screen reader: a link to a board page is read by its page name, not its `/#/page` address. */
+function spokenText(text: string): string {
+  const origin = window.location.origin;
+  return resolveBoardAddress(text, origin)
+    .map((part) => (part.href ? part.text.slice(origin.length).replace(/^\/#\/?/, "") || part.text : part.text))
+    .join("");
+}
+
 interface CardProps {
   item: BoardItemDto;
   onOpen: (key: string) => void;
+}
+
+/**
+ * Card text with `<board address>` read as this page's own origin and `<board address>/#/page` as a link to that page
+ * of the board (Slice 43); the same tab, because it is the board itself. `asText` keeps the link out (a card's body is
+ * one button, which holds no link): its links sit in the row under it instead.
+ */
+export function AddressText({ text, asText = false }: { text: string; asText?: boolean }) {
+  return (
+    <>
+      {resolveBoardAddress(text, window.location.origin).map((part, index) =>
+        part.href && !asText ? (
+          // The text is replaced whole on every report, so the position is its identity.
+          <a key={index} href={part.href}>
+            {part.text}
+          </a>
+        ) : (
+          part.text
+        ),
+      )}
+    </>
+  );
+}
+
+/** Card text with `<board address>` read as this page's origin, as plain text (for a string that goes through `t`). */
+function addressAsText(text: string): string {
+  return resolveBoardAddress(text, window.location.origin).map((part) => part.text).join("");
+}
+
+/** The board pages a card's text names (`<board address>/#/setup`), as links for the row under the card. */
+function addressLinks(texts: Array<string | null>): CardLink[] {
+  const urls = texts.flatMap((text) => resolveBoardAddress(text ?? "", window.location.origin).flatMap((part) => (part.href ? [part.href] : [])));
+  return [...new Set(urls)].map((url) => ({ label: url.slice(window.location.origin.length) || url, url, sameTab: true }));
+}
+
+interface CardLink {
+  label: string;
+  url: string;
+  /** A page of this board opens in this tab, like the same link in the drawer; any other link opens a new one. */
+  sameTab?: boolean;
 }
 
 /**
@@ -23,10 +71,11 @@ export function QuestionCard({ item, onOpen }: CardProps) {
   const waiting = waitingText(item, nowMs, t);
   const session = sessionLabel(item, t);
   const asked = t("askedBy", { session });
-  const question = item.needs_you ?? (item.why ? item.title : null);
+  // An owner step's own text is its title, with or without a why (the drawer heading reads it the same way).
+  const question = item.needs_you ?? ownerStepFallback(item);
   const work = item.title !== question ? item.title : null;
   const why = item.why && item.why !== question ? item.why : null;
-  const links = item.links.filter((link) => isSafeHttpUrl(link.url));
+  const links: CardLink[] = [...addressLinks([work, question, why, item.after_answer]), ...item.links.filter((link) => isSafeHttpUrl(link.url))];
   // The whole card opens the drawer (a tap on its padding too); the button keeps the keyboard and the screen reader
   // path, and a link inside the card follows its own address.
   const openFromPadding = (event: MouseEvent<HTMLDivElement>) => {
@@ -37,26 +86,26 @@ export function QuestionCard({ item, onOpen }: CardProps) {
     onOpen(item.key);
   };
   return (
-    <div className="question-card" role="group" aria-label={question ?? item.title} onClick={openFromPadding}>
+    <div className="question-card" role="group" aria-label={spokenText(question ?? item.title)} onClick={openFromPadding}>
       <button type="button" className="question-body" onClick={() => onOpen(item.key)}>
         <span className="question-top">
           {phone ? (
             <span className="question-project">{projectLabel(item.project, projects)}</span>
           ) : (
-            <span className="question-label">{t("questionLabel")}</span>
+            <span className="question-label">{cardLabel(item, t)}</span>
           )}
           {waiting && <span className="question-waiting">{waiting}</span>}
         </span>
-        {work && <span className="question-work">{work}</span>}
-        {question ? <span className="question-text">{question}</span> : <span className="question-text question-none">{t("noQuestionRecorded")}</span>}
-        {why && <span className="question-why">{why}</span>}
-        {item.after_answer && <span className="question-after">{t("afterThen", { text: item.after_answer })}</span>}
+        {work && <span className="question-work"><AddressText text={work} asText /></span>}
+        {question ? <span className="question-text"><AddressText text={question} asText /></span> : <span className="question-text question-none">{t("noQuestionRecorded")}</span>}
+        {why && <span className="question-why"><AddressText text={why} asText /></span>}
+        {item.after_answer && <span className="question-after">{t("afterThen", { text: addressAsText(item.after_answer) })}</span>}
         {item.needs_you ? <span className="question-asked">{phone ? asked : `${asked} · ${t("answerInSession")}`}</span> : null}
       </button>
       {links.length > 0 && (
         <span className="question-links">
           {links.map((link) => (
-            <a key={`${link.label}|${link.url}`} href={link.url} target="_blank" rel="noreferrer noopener">
+            <a key={`${link.label}|${link.url}`} href={link.url} {...(link.sameTab ? {} : { target: "_blank", rel: "noreferrer noopener" })}>
               {link.label}
             </a>
           ))}

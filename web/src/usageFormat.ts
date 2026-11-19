@@ -6,8 +6,6 @@ const MINUTES_PER_HOUR = 60;
 const CLOCK_DIGITS = 2;
 const MILLION = 1_000_000;
 const THOUSAND = 1_000;
-const DAY_KEY_LENGTH = "YYYY-MM-DD".length;
-const HOUR_KEY_LENGTH = "YYYY-MM-DDTHH".length;
 const NICE_STEPS = [1, 2, 2.5, 5];
 const NICE_BASE = 10;
 
@@ -54,23 +52,40 @@ export function longReset(locale: string, iso: string, offset: OffsetAt): string
   return `${dayText(locale, date)} ${month}, ${clockAt(iso, offset)}`;
 }
 
-/** The time a bucket key (`YYYY-MM-DD` or `YYYY-MM-DDTHH`) starts, as a viewer-time millisecond value. */
+// A bucket key is a day (`2026-11-10`) or an hour (`2026-11-10T13`), each with `#2`, `#3` ... when its local time
+// came round again; the mark is read off the end, so no key shape depends on the key's length.
+const BUCKET_KEY = /^(\d{4}-\d{2}-\d{2})(?:T(\d{2}))?(?![\dT])/;
+
+interface BucketTime {
+  date: Date;
+  isHour: boolean;
+}
+
+function parseBucket(bucket: string): BucketTime | null {
+  const match = BUCKET_KEY.exec(bucket);
+  if (!match) return null;
+  const isHour = match[2] !== undefined;
+  const date = new Date(Date.parse(`${match[1]}T${match[2] ?? "00"}:00:00Z`));
+  return Number.isNaN(date.getTime()) ? null : { date, isHour };
+}
+
+/** The time a bucket key starts, as a viewer-time millisecond value; NaN for a key of no known shape. */
 export function bucketStartMs(bucket: string): number {
-  if (bucket.length === DAY_KEY_LENGTH) return Date.parse(`${bucket}T00:00:00Z`);
-  return Date.parse(`${bucket.slice(0, HOUR_KEY_LENGTH)}:00:00Z`);
+  return parseBucket(bucket)?.date.getTime() ?? Number.NaN;
 }
 
-/** "Tue 10" for a day bucket, "13:00" for an hour bucket. */
+/** "Tue 10" for a day bucket, "13:00" for an hour bucket; empty for a key of no known shape, never "NaN". */
 export function bucketLabel(locale: string, bucket: string): string {
-  const date = new Date(bucketStartMs(bucket));
-  if (bucket.length === DAY_KEY_LENGTH) return dayText(locale, date);
-  return `${pad(date.getUTCHours())}:00`;
+  const parsed = parseBucket(bucket);
+  if (!parsed) return "";
+  return parsed.isHour ? `${pad(parsed.date.getUTCHours())}:00` : dayText(locale, parsed.date);
 }
 
-/** One letter for a day bucket (the phone), the hour for an hour bucket. */
+/** One letter for a day bucket (the phone), the hour for an hour bucket; empty for a key of no known shape. */
 export function bucketLetter(locale: string, bucket: string): string {
-  if (bucket.length !== DAY_KEY_LENGTH) return pad(new Date(bucketStartMs(bucket)).getUTCHours());
-  return part(locale, new Date(bucketStartMs(bucket)), { weekday: "narrow" });
+  const parsed = parseBucket(bucket);
+  if (!parsed) return "";
+  return parsed.isHour ? pad(parsed.date.getUTCHours()) : part(locale, parsed.date, { weekday: "narrow" });
 }
 
 /** "34.2%"; a whole percent shows no decimal. */

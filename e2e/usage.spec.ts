@@ -10,7 +10,6 @@ const USAGE_ROUTE = "**/api/usage?*";
 const BOARD_ROUTE = "**/api/board";
 const USAGE_PAGE = "/#/usage";
 const LOCAL_HOSTS = ["127.0.0.1", "localhost"];
-const PHONE_HEIGHT = 844;
 
 const isPhone = () => test.info().project.name === "phone";
 
@@ -125,6 +124,24 @@ test.describe("usage page", () => {
     expect(await legend.allTextContents()).toEqual(["reviewer", "builder"]);
   });
 
+  test("the Environment split draws real axis labels and the Reset mark clear of the y-axis labels (Slice 43)", async ({ page }) => {
+    const base = demoUsage();
+    // The window starts at the left edge (the reset line sits there) and day 2's key carries a repeat mark, the one
+    // key shape the old length-based parser turned into "NaN:00".
+    const buckets = base.buckets.map((bucket, i) => (i === 1 ? { ...bucket, key: `${bucket.key}#2` } : bucket));
+    await openUsage(page, () => ({ ...base, buckets }));
+    await pressed(page, isPhone() ? "Env" : "Environment", "Split tokens by").click();
+    const chart = page.locator("#tokens-title").locator("xpath=ancestor::section").locator("svg.chart");
+    await expect(chart).not.toContainText("NaN");
+    if (isPhone()) return; // the phone chart draws letters and no Reset word
+    await expect(chart.locator("text.axis-text", { hasText: "Wed 11" }).first()).toBeVisible();
+    const resetBox = (await chart.locator("text.reset-text").first().boundingBox())!;
+    for (const label of await chart.locator('text.axis-text[text-anchor="end"]').all()) {
+      const box = (await label.boundingBox())!;
+      expect(box.x + box.width).toBeLessThanOrEqual(resetBox.x);
+    }
+  });
+
   test("a series with no environment (only sent while no environment on the board is named) is named for the main machine, with a hint to label it, never Not set (Slice 28)", async ({ page }) => {
     const base = demoUsage();
     const unlabelled = { name: null, label: null, color_index: 0, values: base.buckets.map(() => 1_000_000) };
@@ -197,18 +214,15 @@ test.describe("usage page", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Usage" })).toBeVisible();
   });
 
-  test("the view switcher is a segmented bar on the desktop and a bottom bar on the phone", async ({ page }) => {
+  test("the view switcher is a segmented bar at the top, on the desktop and on the phone (Slice 43)", async ({ page }) => {
     await openUsage(page);
     const nav = page.getByRole("navigation", { name: "Views" });
-    if (!isPhone()) {
-      expect(await css(nav, "background-color")).toBe(rgbOf(palette().tabBg));
-      expect(await css(nav.getByRole("link", { name: "Usage" }), "background-color")).toBe(rgbOf(palette().tabOn));
-      return;
-    }
-    expect(await css(nav, "position")).toBe("sticky");
-    const box = await nav.boundingBox();
-    expect((box?.y ?? 0) + (box?.height ?? 0)).toBeGreaterThan(PHONE_HEIGHT - 2);
-    expect(await nav.locator("svg").count()).toBe(3);
+    expect(await css(nav, "background-color")).toBe(rgbOf(palette().tabBg));
+    expect(await css(nav.getByRole("link", { name: "Usage" }), "background-color")).toBe(rgbOf(palette().tabOn));
+    const box = (await nav.boundingBox())!;
+    expect(box.y).toBeLessThan(80);
+    expect(await nav.locator("svg").count()).toBe(0);
+    if (isPhone()) expect(await css(nav, "position")).not.toBe("sticky");
   });
 
   test("a wait over 500 ms shows the loading card, in the config palette", async ({ page }) => {

@@ -72,6 +72,26 @@ export function xForReset(iso: string, buckets: Bucket[], frame: Frame): number 
   return xForTime(iso, buckets, frame);
 }
 
+/** Where the "Reset" word sits: its x and which side of that x the text runs to. */
+export interface ResetLabelPlace {
+  x: number;
+  anchor: "start" | "end";
+}
+
+/**
+ * The "Reset" word's place beside a reset line at `lineX` (Slice 43): it starts `gap` right of the line, never left of
+ * the plot's left edge (so never over the y-axis label column, even for a reset line at that edge), and flips to the
+ * line's left when it would run past the right edge.
+ */
+export function resetLabelPlace(lineX: number, frame: Frame, labelWidth: number, gap: number): ResetLabelPlace {
+  const start = Math.max(lineX, frame.x0) + gap;
+  if (start + labelWidth <= frame.x1) return { x: start, anchor: "start" };
+  // Left of the line only when the whole word fits there; else it stays right of the line, never across it.
+  const end = lineX - gap;
+  if (end - labelWidth >= frame.x0) return { x: end, anchor: "end" };
+  return { x: start, anchor: "start" };
+}
+
 /** The x of the centre of bucket `index`. */
 export function xForBucket(index: number, count: number, frame: Frame): number {
   return frame.x0 + ((index + 0.5) * (frame.x1 - frame.x0)) / count;

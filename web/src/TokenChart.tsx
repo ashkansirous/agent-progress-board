@@ -7,6 +7,7 @@ import {
   isInRange,
   labelEvery,
   roundedTopPath,
+  resetLabelPlace,
   stackSegments,
   xForBucket,
   xForReset,
@@ -50,6 +51,7 @@ const SERIES_LABEL_GAP = 8;
 const SERIES_LABEL_MAX = 16;
 const RESET_LABEL_GAP = 6;
 const RESET_LABEL_DROP = 12;
+const RESET_CHAR_WIDTH = 0.62;
 const FIRST = 0;
 
 const SPLIT_CHOICES: [Split, StringKey, StringKey][] = [
@@ -152,6 +154,15 @@ function Axes({ props }: { props: BarsProps }) {
   );
 }
 
+function ResetText({ x, layout, text }: { x: number; layout: ChartLayout; text: string }) {
+  const place = resetLabelPlace(x, layout.frame, text.length * layout.font * RESET_CHAR_WIDTH, RESET_LABEL_GAP);
+  return (
+    <text className="reset-text" x={place.x} y={layout.frame.yTop + RESET_LABEL_DROP} textAnchor={place.anchor} fontSize={layout.font}>
+      {text}
+    </text>
+  );
+}
+
 function ResetLines({ props }: { props: BarsProps }) {
   const { data, buckets, layout, view } = props;
   if (buckets.length === 0) return null;
@@ -164,11 +175,7 @@ function ResetLines({ props }: { props: BarsProps }) {
         return (
           <g key={w.started_at}>
             <line className="reset-line" x1={x} x2={x} y1={layout.frame.yTop} y2={layout.frame.yBottom} />
-            {!view.phone && (
-              <text className="reset-text" x={x + RESET_LABEL_GAP} y={layout.frame.yTop + RESET_LABEL_DROP} fontSize={layout.font}>
-                {view.t("resetShort")}
-              </text>
-            )}
+            {!view.phone && <ResetText x={x} layout={layout} text={view.t("resetShort")} />}
           </g>
         );
       })}

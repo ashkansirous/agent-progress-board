@@ -55,35 +55,6 @@
   box-shadow: 0 1px 2px var(--shadow);
 }
 
-.view-tabs-phone {
-  position: sticky;
-  bottom: 0;
-  align-self: stretch;
-  gap: 0;
-  padding: 6px 8px 16px;
-  border-top: 1px solid var(--hairline);
-  border-radius: 0;
-  background: var(--page);
-}
-
-.view-tabs-phone .view-tab {
-  flex: 1;
-  flex-direction: column;
-  justify-content: center;
-  gap: 3px;
-  min-height: 52px;
-  padding: 0;
-  border-radius: 0;
-  background: none;
-  box-shadow: none;
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.view-tabs-phone .view-tab[aria-current="page"] {
-  color: var(--text);
-}
-
 /* Page frame and controls */
 
 .usage-page {

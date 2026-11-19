@@ -2,14 +2,19 @@ import { describe, expect, it } from "vitest";
 import type { BoardItemDto } from "../src/api/boardDto";
 import { ANSWERED_NOTE, HEARTBEAT_NOTE, ItemStatus, ItemType, NEEDS_YOU_NOTE_PREFIX, NOTE_SEPARATOR, Priority } from "../src/domain/item";
 import {
+  cardLabel,
   doneSoFar,
+  fillBoardAddress,
   historyWords,
+  isOwnerStep,
   isQuestion,
   isStaleSession,
   isWorkingCard,
   opensCardDrawer,
+  ownerStepFallback,
   purposeText,
   questionStart,
+  resolveBoardAddress,
   sessionLabel,
   waitingText,
 } from "../web/src/cards";
@@ -180,6 +185,43 @@ describe("history in plain words", () => {
     const timed = item({ key: "p/t", needs_you: "Q", needs_you_at: "2026-11-17T10:00:00.000Z" });
     const untimed = item({ key: "p/u", needs_you: "Q", needs_you_at: null });
     expect(groupBoard([untimed, timed], [], ["p"])[0]!.needs_you).toEqual(["p/t", "p/u"]);
+  });
+
+  it("labels an owner step \"Your step\" and an agent's question \"Question\" (Slice 43)", () => {
+    const step = item({ key: "p/slice-4/check-0a1b2c3d", type: ItemType.WaitingForMe, agent: null, status: ItemStatus.Open, working: false });
+    expect(isOwnerStep(step)).toBe(true);
+    expect(opensCardDrawer(step)).toBe(true);
+    expect(cardLabel(step, t)).toBe("Your step");
+    expect(cardLabel(item({ key: "p/q", needs_you: "Which?" }), t)).toBe("Question");
+    expect(isOwnerStep(item({ ...step, key: "p/waiting-9c1e" }))).toBe(false);
+    expect(isOwnerStep(item({ ...step, needs_you: "Which?" }))).toBe(false);
+    expect(cardLabel(step, translator("de"))).toBe("Dein Schritt");
+  });
+
+  it("an owner step with no why still asks its title; another card asks nothing without a why (Slice 43)", () => {
+    const step = item({ key: "p/slice-4/check-0a1b2c3d", title: "Connect the phone", type: ItemType.WaitingForMe, agent: null, status: ItemStatus.Open, why: null });
+    expect(ownerStepFallback(step)).toBe("Connect the phone");
+    expect(ownerStepFallback(item({ ...step, key: "p/waiting-9c1e" }))).toBeNull();
+    expect(ownerStepFallback(item({ ...step, key: "p/waiting-9c1e", why: "Because" }))).toBe("Connect the phone");
+  });
+
+  it("reads <board address> as the page's origin and links a board page (Slice 43)", () => {
+    const origin = "https://board.example.test";
+    expect(resolveBoardAddress("open <board address>/#/setup, then <board address>/#/usage.", origin)).toEqual([
+      { text: "open " },
+      { text: `${origin}/#/setup`, href: `${origin}/#/setup` },
+      { text: ", then " },
+      { text: `${origin}/#/usage`, href: `${origin}/#/usage` },
+      { text: "." },
+    ]);
+    expect(resolveBoardAddress("go to <board address> now", origin)).toEqual([{ text: "go to " }, { text: origin }, { text: " now" }]);
+    expect(resolveBoardAddress("nothing here", origin)).toEqual([{ text: "nothing here" }]);
+    expect(resolveBoardAddress("", origin)).toEqual([]);
+    expect(resolveBoardAddress("(<board address>/#/open/p/slice-4)", origin)[1]).toEqual({ text: `${origin}/#/open/p/slice-4`, href: `${origin}/#/open/p/slice-4` });
+  });
+
+  it("fills every <board address> for text that holds no link (Slice 43)", () => {
+    expect(fillBoardAddress("a <board address>/#/x and <board address>", "https://b.test")).toBe("a https://b.test/#/x and https://b.test");
   });
 
   it("has the German words too", () => {

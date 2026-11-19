@@ -99,13 +99,56 @@ export function titleFields(text) {
   return rest ? { title, details_md: rest } : { title };
 }
 
-// Markdown to plain text: links keep their label, emphasis and code marks go.
+const EMPHASIS_MARKS = /[*_`]+/g;
+// A code span: its text is group 1. An unmatched backtick is no span and stays as written.
+const CODE_SPAN = /`([^`\n]+)`/g;
+// Real emphasis (CommonMark): the mark touches text on its inner side and is not inside a word, so `AGENT_BOARD_URL`
+// and `my_page` keep their underscores; `**` and `__` go first, then `*` and `_`.
+// The text between the marks is capped at SPAN_CAP characters, so an unmatched opener scans a bounded window and a
+// long line costs time in proportion to its length, not its square.
+const SPAN_CAP = 1000;
+// Strong emphasis opens and closes only at a word boundary too, so `my__private__fn` keeps its underscores.
+const STRONG = new RegExp(String.raw`(?<![A-Za-z0-9])(\*\*|__)(?=\S)(.{1,${SPAN_CAP}}?)(?<=\S)\1(?![A-Za-z0-9])`, 'g');
+const EM_STAR = new RegExp(String.raw`(?<![A-Za-z0-9*])\*(?=[^\s*])(.{1,${SPAN_CAP}}?)(?<=[^\s*])\*(?![A-Za-z0-9*])`, 'g');
+const EM_UNDERSCORE = new RegExp(String.raw`(?<![A-Za-z0-9_])_(?=[^\s_])(.{1,${SPAN_CAP}}?)(?<=[^\s_])_(?![A-Za-z0-9_])`, 'g');
+// One private-use character stands for a code span while emphasis is stripped.
+const SPAN_MARK = '';
+const SPAN_MARKS = //g;
+// A `**` or `__` standing alone between spaces (an empty bold) holds no text, so it goes too.
+const BARE_MARKS = /(^|\s)(?:\*\*|__)(?=\s|$)/g;
+const NESTING_PASSES = 2;
+
+function stripEmphasis(text) {
+  let out = text;
+  for (let pass = 0; pass < NESTING_PASSES; pass++) {
+    out = out.replace(STRONG, '$2').replace(EM_STAR, '$1').replace(EM_UNDERSCORE, '$1');
+  }
+  return out.replace(BARE_MARKS, '$1');
+}
+
+// Markdown to plain text: links keep their label and real emphasis marks go; the text inside a code span stays as
+// written (`AGENT_BOARD_URL` keeps its underscores), and so do intraword `_` and `*` and an unmatched backtick.
 export function plain(text) {
-  return String(text || '').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/[*_`]+/g, '').replace(/\s+/g, ' ').trim();
+  const linked = String(text || '').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1');
+  // Each code span becomes one placeholder character while emphasis goes, so bold around a span still matches.
+  const spans = [];
+  const masked = linked.replace(CODE_SPAN, (_whole, inner) => {
+    spans.push(inner);
+    return SPAN_MARK;
+  });
+  let next = 0;
+  const restored = stripEmphasis(masked).replace(SPAN_MARKS, () => spans[next++] ?? '');
+  return restored.replace(/\s+/g, ' ').trim();
+}
+
+// The earlier reading of a line (every mark stripped, code spans too): the check key hashes this, so keys already on
+// the board stay the same when `plain` keeps code spans.
+function hashText(text) {
+  return String(text || '').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(EMPHASIS_MARKS, '').replace(/\s+/g, ' ').trim();
 }
 
 export function checkHash(line) {
-  const normal = plain(line.replace(/^\s*[-*]\s+/, '')).toLowerCase().replace(/[.\s]+$/, '');
+  const normal = hashText(line.replace(/^\s*[-*]\s+/, '')).toLowerCase().replace(/[.\s]+$/, '');
   return createHash('sha1').update(normal).digest('hex').slice(0, HASH_LENGTH);
 }
 

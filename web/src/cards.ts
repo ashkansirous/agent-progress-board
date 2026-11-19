@@ -87,7 +87,9 @@ const LINK_LABEL = "(?:[^\\[\\]\\n]|\\[[^\\]\\n]*\\])*";
 const LINK_TARGET = "(?:[^()\\n]|\\([^)\\n]*\\))*";
 // A code span opens with a run of backticks and closes at the next run of exactly as many (`` a ` b `` is one span), the
 // way `sync-docs.mjs` reads it (Slice 47 8d); group 2 is the opening run, matched again by the back-reference. The scan
-// for the closing run stops after CODE_SPAN_MAX characters, so a long line of unmatched runs costs linear time (Slice 47).
+// for the closing run stops after CODE_SPAN_MAX characters: each opening run costs at most that many steps, so a long line
+// of unmatched runs costs time linear in its length (times that fixed bound), and a span longer than the bound is not
+// read as a span (Slice 47; Slice 48 5).
 const CODE_SPAN_MAX = 2000;
 const CODE_SPAN = `((?<!\`)(\`+)(?!\`)[^\\n]{0,${CODE_SPAN_MAX}}?(?<!\`)\\2(?!\`))`;
 const MARKDOWN_ADDRESS = new RegExp(`${CODE_SPAN}|(\\[${LINK_LABEL}\\]\\(${LINK_TARGET}\\))|(${BOARD_ADDRESS_LINK.source})`, "g");
@@ -212,14 +214,15 @@ export function waitingText(item: BoardItemDto, nowMs: number, t: Translate): st
  */
 export function eventKeys(events: BoardEventDto[]): string[] {
   const seen = new Map<string, number>();
-  return events
-    .map((event) => `${event.at}|${event.status}|${event.note ?? ""}`)
-    .reduceRight<string[]>((keys, base) => {
-      const nth = (seen.get(base) ?? 0) + 1;
-      seen.set(base, nth);
-      keys.unshift(`${base}|${nth}`);
-      return keys;
-    }, []);
+  const keys: string[] = new Array<string>(events.length);
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index]!;
+    const base = `${event.at}|${event.status}|${event.note ?? ""}`;
+    const nth = (seen.get(base) ?? 0) + 1;
+    seen.set(base, nth);
+    keys[index] = `${base}|${nth}`;
+  }
+  return keys;
 }
 
 /** The lines of details_md as plain bullets ("Done so far"); a leading list marker is dropped. */

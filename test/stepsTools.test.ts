@@ -407,9 +407,9 @@ describe("concurrent under_step reports (Slice 39)", () => {
     const parentReads: string[] = [];
     const inner = new D1ItemRepository(env.DB);
     const repo = Object.create(inner) as D1ItemRepository;
-    repo.find = async (key: string) => {
+    repo.findChain = async (key: string, limit: number) => {
       parentReads.push(key);
-      return inner.find(key);
+      return inner.findChain(key, limit);
     };
     repo.save = async () => {
       throw new StepsChangedError();

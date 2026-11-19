@@ -161,6 +161,32 @@ export function readBackgroundAgents(input, now = Date.now(), stopped = {}) {
   }
 }
 
+// How long an agent may be quiet and still count as running: a crashed agent ages out after this (Slice 48 3).
+export const AGENT_LIVE_MS = 24 * 60 * 60 * 1000;
+
+// Returns undefined when the agent folder is missing or unreadable, so nothing is pruned on a guess.
+// The ids of the agents that still run, the one rule for what the goal file's prune must keep: the meta file does not
+// say `finished`, the agent did not stop (its record unchanged since the stop), and its record was written within
+// AGENT_LIVE_MS. The listed agents of `readBackgroundAgents` are only those written in the last 10 minutes, so a long
+// silent tool call is not listed but is kept; one quiet for a day is taken as crashed (Slice 48 3, pr-184-check-medium #1).
+export function liveAgentIds(input, stopped = {}, now = Date.now()) {
+  const dir = subagentsDir(input);
+  if (!dir) return undefined;
+  const stops = stopTimes(stopped);
+  try {
+    return readdirSync(dir)
+      .map((name) => AGENT_FILE.exec(name))
+      .filter(Boolean)
+      .map(([name, id]) => ({ id, meta: readMeta(join(dir, name)), atMs: modifiedAt(join(dir, `agent-${id}.jsonl`)) }))
+      .filter((agent) => agent.meta.requestShape !== FOREGROUND_SHAPE && agent.meta.finished !== true)
+      .filter((agent) => !stoppedAfterLastWrite(stops, agent.id, agent.atMs))
+      .filter((agent) => now - agent.atMs <= AGENT_LIVE_MS)
+      .map((agent) => agent.id);
+  } catch {
+    return undefined; // unknown, not "none running": the caller prunes nothing (pr-184-check-2-medium #1)
+  }
+}
+
 export function hasActiveAgent(agents) {
   return agents.some((agent) => agent.state === AGENT_STATE.active);
 }

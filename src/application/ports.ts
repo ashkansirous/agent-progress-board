@@ -82,6 +82,11 @@ export interface ItemRepository {
   /** `find` plus the raw stored steps text, read in the same statement. */
   findWithStepsText(key: string): Promise<ItemWithStepsText>;
   /**
+   * The item at `key`, then its parent, then that one's parent, nearest first, at most `limit` items, in one read
+   * (Slice 48 9). It ends at a missing item or a key already listed, so a stored loop ends the walk.
+   */
+  findChain(key: string, limit: number): Promise<Item[]>;
+  /**
    * One atomic upsert plus its event row in one batch: writes only the given fields, never
    * touches created_at, and sets or clears done_at from the status change. SQL decides whether
    * anything changed (and so the event note); the item returned is the stored row.

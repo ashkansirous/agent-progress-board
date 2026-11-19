@@ -121,17 +121,11 @@ function changesRelation(input: ReportInput, existing: Item): boolean {
   );
 }
 
-/** The parent and its ancestors by key, read one by one up to `MAX_PARENT_DEPTH` (a stored loop ends the walk). */
+/** The parent and its ancestors by key, read in one query up to `MAX_PARENT_DEPTH` (a stored loop ends the walk). */
 async function loadParents(repo: ItemRepository, start: string | null | undefined): Promise<Map<string, Item>> {
-  const rows = new Map<string, Item>();
-  let key = start;
-  while (key && rows.size < MAX_PARENT_DEPTH && !rows.has(key)) {
-    const row = await repo.find(key);
-    if (!row) break;
-    rows.set(key, row);
-    key = row.parent_key;
-  }
-  return rows;
+  if (!start) return new Map();
+  const chain = await repo.findChain(start, MAX_PARENT_DEPTH);
+  return new Map(chain.map((row) => [row.key, row]));
 }
 
 /** A rule's reason as the error a tool returns: the reason names its field before the colon. */

@@ -260,7 +260,18 @@ describe("history in plain words", () => {
     expect(linkBoardAddress("nothing", origin)).toBe("nothing");
   });
 
+  it("reads a code span up to the 2000-character bound and not beyond it (Slice 48 5)", () => {
+    const origin = "https://b.test";
+    const address = "<board address>/#/setup";
+    // A span with exactly `content` characters between its backticks, an address at its start.
+    const span = (content: number) => `\`${address} ${"x".repeat(content - address.length - 1)}\``;
+    const filled = `${origin}/#/setup`;
+    expect(linkBoardAddress(span(2000), origin)).toBe(`\`${filled} ${"x".repeat(2000 - address.length - 1)}\``);
+    expect(linkBoardAddress(span(2001), origin)).toContain(`[${filled}](${filled})`);
+  });
+
   it("reads a long line of unmatched backtick runs in linear time (Slice 47 review #5)", () => {
+    const origin = "https://b.test";
     const lineOf = (runs: number) => Array.from({ length: runs }, (_, i) => "`".repeat(i + 1)).join(" ");
     const timeOf = (line: string) => {
       const started = performance.now();

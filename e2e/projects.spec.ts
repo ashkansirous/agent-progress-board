@@ -88,6 +88,31 @@ test.describe("project blocks", () => {
     await expect(expanded(page, "Recipe Box")).toHaveAttribute("aria-expanded", "false");
   });
 
+  test("the waiting-questions link scrolls again when the address returns to it: needs-you, another page, needs-you (Slice 48 2)", async ({ page }) => {
+    test.skip(test.info().project.name === "phone", "the phone's questions sit above the projects");
+    await page.addInitScript(() => {
+      const scrolls: string[] = [];
+      (window as unknown as { __needsYouScrolls: string[] }).__needsYouScrolls = scrolls;
+      const original = Element.prototype.scrollIntoView;
+      Element.prototype.scrollIntoView = function (this: Element, ...args: Parameters<Element["scrollIntoView"]>) {
+        if (this.hasAttribute("data-needs-you")) scrolls.push("needs-you");
+        return original.apply(this, args);
+      };
+    });
+    await openBoard(page);
+    const scrolls = () => page.evaluate(() => (window as unknown as { __needsYouScrolls: string[] }).__needsYouScrolls.length);
+    const goTo = (hash: string) =>
+      page.evaluate((value) => {
+        window.location.hash = value;
+      }, hash);
+    await goTo("#/needs-you");
+    await expect.poll(scrolls).toBeGreaterThanOrEqual(1);
+    const before = await scrolls();
+    await goTo("#/");
+    await goTo("#/needs-you");
+    await expect.poll(scrolls).toBeGreaterThan(before);
+  });
+
   test("the page draws expanded projects when storage fails", async ({ page }) => {
     await page.addInitScript(() => {
       Object.defineProperty(window, "localStorage", {

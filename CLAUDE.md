@@ -186,3 +186,5 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
   not change (Slice 43: docs/plan/slices/43-owner-cards-read-right.md).
 - The owner-step title rule (`**You:** <action> | <steps>` into `Slice N: <action>` plus details) lives only in `ownerTitleFields` in `plugin/scripts/sync-docs.mjs`; the card's steps text only in `ownerStepDetails` in `web/src/cards.ts`. The page has one string table (English) and no locale picking (Slice 44:
   docs/plan/slices/44-english-only-owner-steps.md).
+- A doc-synced waiting item's `details_md` follows the document line: a non-null value replaces it, null clears it. The rule is `detailsOf` in `src/domain/docSync.ts` (Slice 45: docs/plan/slices/45-night-1602-follow-ups.md).
+- Every plugin card report goes through `sendCardReport` in `plugin/scripts/report-progress.mjs`, which logs the sender (hook name, session id, field names only, never text) to `senders.log`; never send a card report around it (Slice 45: docs/plan/slices/45-night-1602-follow-ups.md).

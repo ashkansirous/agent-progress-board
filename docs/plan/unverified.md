@@ -34,7 +34,6 @@ owner confirms, is removed here and its slice marked `verified`.
 ### Slice 35: Usage page and cost figures: review leftovers ([slice](slices/35-usage-page-fixes.md))
 
 - On a phone or desktop in a zone with daylight saving, the Usage page's bars, reset markers and labels line up across a clock change (next change: late March).
-- **You:** read the German strings `kindsSecondFraction`, `kindsSecondMultiple`, `multipleOther` and `hourAgain` on `<board address>/#/usage` (native read).
 
 ### Slice 32: Open questions are counted and kept right; `ask_human` can set `needs_you` ([slice](slices/32-questions-and-rules.md))
 
@@ -48,7 +47,7 @@ owner confirms, is removed here and its slice marked `verified`.
 ### Slice 37: Access answers, ending a grant, and the setup page's leftovers ([slice](slices/37-access-and-grants.md))
 
 - Key cool-down: see the Decision above (`guardedKeys` in `src/api/access.ts`).
-- **You:** on your phone, open `<board address>/#/setup`: it lists the claude.ai grant; ending it and reconnecting works.
+- Claude checks in Chrome (owner, 2026-11-19: "open it with claude in chrome and check it"): the setup page lists the claude.ai grant; ending it and reconnecting works. First try 2026-11-19 00:30: the page never finished loading for the Chrome tools in 90 s, so it is still open.
 
 ### Slice 31: Plan sync and waiting cards read the documents and transcripts right ([slice](slices/31-sync-and-waiting-text.md))
 
@@ -66,7 +65,6 @@ owner confirms, is removed here and its slice marked `verified`.
 
 ### Slice 28: Cloud and VM sessions report their usage under their own label ([slice](slices/28-cloud-usage.md))
 
-- **You:** in the cloud environment's settings at https://claude.ai/code (the settings icon on your environment's row under **Cloud**), add under **Environment variables** `AGENT_BOARD_URL=<board address>`, `AGENT_BOARD_TOKEN=<a rotatable write token>` and `AGENT_BOARD_ENV=cloud`, add the board host under **Allowed domains**, and save. The scripts and hooks come from the owner's config repo (its Slice 27); without these values the cloud hook stays silent.
 - A real cloud session's usage shows on the usage page under its own label.
 - The owner's main machine shows its new label after the plugin switch.
 - The cloud records path `/root/.claude` is untried in a real cloud session.
@@ -171,7 +169,6 @@ owner confirms, is removed here and its slice marked `verified`.
 
 - On the deployed board after some days of real reports: the estimate for a model that ran alone matches a hand calculation from the page's own numbers.
 - Dark desktop values.
-- German locale on the page.
 - Pixel-level chart marks.
 - The page on the owner's phone.
 

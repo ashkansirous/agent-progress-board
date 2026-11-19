@@ -11,7 +11,7 @@ import { basename, join } from 'node:path';
 import { describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { sliceKey } from './report-progress.mjs';
-import { MAX_CHECKS, MAX_EXPANDED_ITEMS, MAX_ITEMS, SourceError, WAIT_TARGETS, buildItems, buildSnapshot, checkHash, collect, filesForSlice, gitSource, hasEmptyStatusTable, mapStatus, openForOwner, parkNote, parseParts, parsePlanTable, parseParked, parseUnverified, readUnverified, safeLinkPath, syncLine, titleFields, waitsOnlyOnWork } from './sync-docs.mjs';
+import { MAX_CHECKS, MAX_EXPANDED_ITEMS, MAX_ITEMS, SourceError, WAIT_TARGETS, buildItems, buildSnapshot, checkHash, collect, filesForSlice, gitSource, hasEmptyStatusTable, mapStatus, openForOwner, parkNote, plain, parseParts, parsePlanTable, parseParked, parseUnverified, readUnverified, safeLinkPath, syncLine, titleFields, waitsOnlyOnWork } from './sync-docs.mjs';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
 const SCRIPT = join(here, 'sync-docs.mjs');
@@ -973,5 +973,53 @@ describe('Slice 31: plan sync reads the documents right', () => {
   test('the title of a parked card loses a trailing attribution', () => {
     const card = byKey(buildItems({ project: PROJECT, planText: table('| 9 | Nine | parked: pick the store (user, 2026-11-15) | | | |') }))['demo-app/slice-9/waiting'];
     assert.equal(card.title, 'pick the store');
+  });
+});
+
+describe('Slice 43: code spans keep their names', () => {
+  const table = (row) => `## Status\n\n| # | Slice | Status | PR | Issue | File |\n| --- | --- | --- | --- | --- | --- |\n${row}\n`;
+
+  test('plain keeps the text inside backticks, underscores and stars included, and drops the marks', () => {
+    assert.equal(plain('set `AGENT_BOARD_URL` and `a*b` first'), 'set AGENT_BOARD_URL and a*b first');
+    assert.equal(plain('use `AGENT_BOARD_URL`'), 'use AGENT_BOARD_URL');
+  });
+
+  test('plain still strips emphasis outside code spans and keeps link labels', () => {
+    assert.equal(plain('**You:** open [the _page_](https://x.test/a_b) now'), 'You: open the page now');
+    assert.equal(plain('a _b_ `c_d` __e__'), 'a b c_d e');
+    assert.equal(plain('call my__private__fn and AGENT__X, a**b'), 'call my__private__fn and AGENT__X, a**b');
+  });
+
+  test('intraword underscores and stars stay, outside code spans too; real emphasis goes', () => {
+    assert.equal(plain('set AGENT_BOARD_URL and open <board address>/#/my_page, 2*3'), 'set AGENT_BOARD_URL and open <board address>/#/my_page, 2*3');
+    assert.equal(plain('a **bold** and *it* and _it_ and **_both_** word'), 'a bold and it and it and both word');
+  });
+
+  test('an unmatched backtick stays as written; a pair is a code span (CommonMark)', () => {
+    assert.equal(plain('odd ` mark and SNAKE_CASE'), 'odd ` mark and SNAKE_CASE');
+    assert.equal(plain('odd ` mark `SNAKE_CASE'), 'odd mark SNAKE_CASE');
+  });
+
+  test('emphasis around a code span goes and the span keeps its text', () => {
+    assert.equal(plain('**Set `AGENT_BOARD_URL` now**'), 'Set AGENT_BOARD_URL now');
+    assert.equal(plain('_use `a_b`_ and **`c*d`**'), 'use a_b and c*d');
+  });
+
+  test('a long line of unmatched openers is read in linear time', () => {
+    const line = '**x '.repeat(50000);
+    const started = Date.now();
+    assert.equal(plain(line), line.replace(/\s+/g, ' ').trim());
+    assert.ok(Date.now() - started < 3000);
+  });
+
+  test('an owner step keeps `AGENT_BOARD_URL` in its title', () => {
+    const planText = table('| 5 | Cloud | planned | | | |');
+    const unverifiedText = '### Slice 5: x\n\n- **You:** set `AGENT_BOARD_URL` in the cloud environment.\n';
+    const owner = buildItems({ project: PROJECT, planText, unverifiedText }).filter((item) => item.type === 'waiting_for_me');
+    assert.equal(owner[0].title, 'set AGENT_BOARD_URL in the cloud environment.');
+  });
+
+  test('the check key does not move when a line has a code span with underscores', () => {
+    assert.equal(checkHash('- set `AGENT_BOARD_URL` first'), checkHash('set AGENTBOARDURL first'));
   });
 });

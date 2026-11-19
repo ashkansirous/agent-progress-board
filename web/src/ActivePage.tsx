@@ -86,7 +86,7 @@ export function ActivePage({ env }: { env: Environment }) {
       <div className={env.phone ? "app phone" : "app"} style={paletteVars(state.config, env.scheme)}>
         <div className="page active-page">
           {/* The same bar at the top on every page and both layouts (the PhoneV2 and ActiveV3Phone mocks). */}
-          <ViewTabs current={Route.Active} phone={false} t={env.t} activeCount={count} />
+          <ViewTabs current={Route.Active} t={env.t} activeCount={count} />
           <header className="header">
             <div className="header-text">
               <h1>{env.t("activeTitle")}</h1>

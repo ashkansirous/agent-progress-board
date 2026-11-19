@@ -147,7 +147,7 @@ export function BoardPage(props: PageProps) {
       <div className={env.phone ? "app phone" : "app"} style={paletteVars(state.config, env.scheme)}>
         <div className="page board-page" inert={open ? true : undefined}>
           {/* The same bar at the top on the phone as on the desktop (the PhoneV2 mock); the other pages keep the bottom bar. */}
-          <ViewTabs current={Route.Board} phone={false} t={env.t} activeCount={state.data?.working_count} />
+          <ViewTabs current={Route.Board} t={env.t} activeCount={state.data?.working_count} />
           <Header
             groups={state.data?.groups ?? null}
             updatedAt={state.updatedAt}

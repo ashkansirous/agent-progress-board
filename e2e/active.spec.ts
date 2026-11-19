@@ -101,6 +101,19 @@ test.describe("active work page", () => {
     expect(await css(tabs(page), "position")).not.toBe("sticky");
   });
 
+  test("the top tab bar and the count pill fit the viewport without overflow, on the phone too (Slice 43)", async ({ page }) => {
+    await openActive(page);
+    const nav = await tabs(page).boundingBox();
+    const pill = await tabs(page).locator(".tab-count").boundingBox();
+    const viewport = page.viewportSize()?.width ?? 0;
+    expect((nav?.x ?? -1) + (nav?.width ?? Number.MAX_VALUE)).toBeLessThanOrEqual(viewport);
+    expect(pill?.x ?? -1).toBeGreaterThanOrEqual(nav?.x ?? Number.MAX_VALUE);
+    expect((pill?.x ?? 0) + (pill?.width ?? Number.MAX_VALUE)).toBeLessThanOrEqual((nav?.x ?? 0) + (nav?.width ?? 0));
+    const overflow = await tabs(page).evaluate((el) => el.scrollWidth - el.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+  });
+
   test("the Active work tab is current and shows the number of cards", async ({ page }) => {
     await openActive(page);
     const tab = tabs(page).getByRole("link", { name: /^Active work/ });

@@ -1,11 +1,11 @@
 import { barWidth } from "../web/src/usageFormat";
 import { describe, expect, it } from "vitest";
 import { BucketUnit, bucketsBetween, offsetForZone, UsageRange } from "../src/domain/usage";
-import { capAxisTop, capTicks, chartBuckets, isInRange, labelEvery, roundedTopPath, stackSegments, xForReset, xForTime, yForValue } from "../web/src/chartGeometry";
+import { capAxisTop, capTicks, chartBuckets, isInRange, labelEvery, resetLabelPlace, roundedTopPath, stackSegments, xForReset, xForTime, yForValue } from "../web/src/chartGeometry";
 import { Route, routeOf } from "../web/src/route";
 import { usageQuery } from "../web/src/usageQuery";
 import {
-  bucketLabel, bucketLetter, clockAt, isPlaced, longReset, millionsText, niceScale, costPercentText, percentText, shortTaskTitle, timeUntil, tokenText, weekdayClock,
+  bucketLabel, bucketLetter, bucketStartMs, clockAt, isPlaced, longReset, millionsText, niceScale, costPercentText, percentText, shortTaskTitle, timeUntil, tokenText, weekdayClock,
 } from "../web/src/usageFormat";
 import { translator } from "../web/src/strings";
 import { INITIAL_USAGE_STATE, usageReducer } from "../web/src/usageState";
@@ -53,6 +53,21 @@ describe("number and time text", () => {
     expect(bucketLetter("en-US", "2026-11-10")).toBe("T");
   });
 
+  it("labels every key shape a chart can get and never prints NaN (Slice 43)", () => {
+    const keys = ["2026-11-10", "2026-11-10T13", "2026-11-01T01#2", "2026-11-01T01#3", "2026-11-01#2", "2026-11-10T13:30", "", "x", "2026-13-45", "2026-11-10T99"];
+    for (const key of keys) {
+      expect(bucketLabel("en-US", key)).not.toContain("NaN");
+      expect(bucketLetter("en-US", key)).not.toContain("NaN");
+    }
+    expect(bucketLabel("en-US", "2026-11-01T01#2")).toBe("01:00");
+    expect(bucketLetter("en-US", "2026-11-01T01#2")).toBe("01");
+    expect(bucketLabel("en-US", "2026-11-01#2")).toBe("Sun 1");
+    expect(bucketLabel("en-US", "2026-11-10T13:30")).toBe("13:00");
+    expect(bucketLabel("en-US", "x")).toBe("");
+    expect(bucketLabel("en-US", "2026-11-10T99")).toBe("");
+    expect(bucketStartMs("x")).toBeNaN();
+  });
+
   it("counts the time to a reset, or none once it passed", () => {
     expect(timeUntil("2026-11-16T15:58:00.000Z", "2026-11-16T13:48:00.000Z")).toEqual({ hours: 2, minutes: 10 });
     expect(timeUntil("2026-11-16T13:00:00.000Z", "2026-11-16T13:48:00.000Z")).toBeNull();
@@ -95,6 +110,24 @@ describe("axes", () => {
 });
 
 describe("geometry", () => {
+  it("keeps the Reset word inside the plot, clear of the y-axis labels, at the left edge and the right (Slice 43)", () => {
+    const left = resetLabelPlace(FRAME.x0, FRAME, 36, 6);
+    expect(left).toEqual({ x: FRAME.x0 + 6, anchor: "start" });
+    expect(resetLabelPlace(FRAME.x0 - 20, FRAME, 36, 6).x).toBe(FRAME.x0 + 6);
+    expect(resetLabelPlace(500, FRAME, 36, 6)).toEqual({ x: 506, anchor: "start" });
+    const right = resetLabelPlace(FRAME.x1 - 10, FRAME, 36, 6);
+    expect(right.anchor).toBe("end");
+    expect(right.x).toBe(FRAME.x1 - 16);
+  });
+
+  it("never draws the Reset word across its line: with no room on either side it stays right of the line (Slice 43)", () => {
+    const narrow = { ...FRAME, x0: 100, x1: 130 };
+    const place = resetLabelPlace(115, narrow, 36, 6);
+    expect(place).toEqual({ x: 121, anchor: "start" });
+    const tight = { ...FRAME, x0: 100, x1: 150 };
+    expect(resetLabelPlace(145, tight, 36, 6)).toEqual({ x: 139, anchor: "end" });
+  });
+
   it("places a time on the day axis, clamped to the plot", () => {
     expect(xForTime("2026-11-10T00:00:00.000Z", DAYS, FRAME)).toBe(48);
     expect(xForTime("2026-11-10T12:00:00.000Z", DAYS, FRAME)).toBeCloseTo(48 + 928 / 14);

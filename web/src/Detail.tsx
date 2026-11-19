@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { BoardEventDto, BoardItemDto } from "../../src/api/boardDto";
-import { eventKeys, isSessionItem } from "./cards";
+import { eventKeys, fillBoardAddress, isSessionItem } from "./cards";
 import { PartChecklist, SliceChecks, SliceOfCard } from "./ChecksView";
 import { CloseIcon } from "./icons";
 import { Markdown } from "./Markdown";
@@ -125,7 +125,7 @@ export function DetailsBody({ item }: { item: BoardItemDto }) {
     <div className="details">
       {!phone && <h3>{t("details")}</h3>}
       <div className="details-box">
-        <Markdown source={item.details_md} />
+        <Markdown source={fillBoardAddress(item.details_md, window.location.origin)} />
       </div>
     </div>
   );

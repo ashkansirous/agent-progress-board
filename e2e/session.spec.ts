@@ -233,4 +233,37 @@ test.describe("Needs you cards say what is needed (Slice 27)", () => {
     await expect(card.locator(".question-text")).toHaveText("No question recorded");
     await expect(card.locator(".question-work")).toHaveText("Approve the tags migration");
   });
+
+  test("an owner step is a \"Your step\" card, with the board address resolved and linked, and names kept whole (Slice 43)", async ({ page }) => {
+    const title = "open <board address>/#/setup, then set AGENT_BOARD_URL in the cloud environment";
+    await openWith(page, { "recipe-box/ask-migration": { key: "recipe-box/slice-4/check-0a1b2c3d4e5f", title, why: "Slice 4: Tag search — read <board address>/#/usage." } });
+    const card = page.locator(".question-card").filter({ hasText: "AGENT_BOARD_URL" });
+    const origin = new URL(page.url()).origin;
+    // The phone card names the project in that slot (PhoneV2), so only the desktop card carries the label.
+    if (!isPhone()) await expect(card.locator(".question-label")).toHaveText("Your step");
+    await expect(card).not.toContainText("<board address>");
+    await expect(card).toContainText(`open ${origin}/#/setup, then set AGENT_BOARD_URL`);
+    await expect(card.getByRole("link", { name: "/#/setup" })).toHaveAttribute("href", `${origin}/#/setup`);
+    await expect(card.getByRole("link", { name: "/#/usage" })).toHaveAttribute("href", `${origin}/#/usage`);
+    // A board page opens in this tab, and a screen reader never hears the placeholder.
+    await expect(card.getByRole("link", { name: "/#/setup" })).not.toHaveAttribute("target", "_blank");
+    expect(await card.getAttribute("aria-label")).not.toContain("<board address>");
+    await card.locator(".question-body").click();
+    const drawer = page.getByRole("dialog");
+    await expect(drawer.locator(".kicker")).toHaveText("Your step");
+    await expect(drawer.getByRole("heading", { level: 2 })).toContainText(`open ${origin}/#/setup`);
+  });
+
+  test("an owner step with no why shows its step text, not \"No question recorded\" (Slice 43)", async ({ page }) => {
+    await openWith(page, { "recipe-box/ask-migration": { key: "recipe-box/slice-4/check-0a1b2c3d4e5f", title: "Set AGENT_BOARD_URL in the cloud environment", why: "", links: [] } });
+    const card = page.locator(".question-card").filter({ hasText: "AGENT_BOARD_URL" });
+    await expect(card.locator(".question-text")).toHaveText("Set AGENT_BOARD_URL in the cloud environment");
+    await expect(card).not.toContainText("No question recorded");
+  });
+
+  test("a question an agent asked keeps the \"Question\" label (Slice 43)", async ({ page }) => {
+    await openBoard(page);
+    if (isPhone()) return;
+    await expect(page.locator(".question-card").filter({ hasText: "iPhone 8 or the iPad" }).locator(".question-label")).toHaveText("Question");
+  });
 });

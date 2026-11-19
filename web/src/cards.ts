@@ -25,6 +25,56 @@ export function isQuestion(item: BoardItemDto): boolean {
   return item.needs_you != null;
 }
 
+const OWNER_STEP_KEY = /\/slice-[^/]+\/check-[^/]+$/;
+
+/**
+ * A step the doc sync made from a `**You:**` line (Slice 43): a waiting item keyed `<project>/slice-<N>/check-<hash>`.
+ * It is the owner's own step, not a question an agent asked, so its card says "Your step".
+ */
+export function isOwnerStep(item: BoardItemDto): boolean {
+  return item.type === ItemType.WaitingForMe && item.needs_you == null && OWNER_STEP_KEY.test(item.key);
+}
+
+/** The question an owner step asks when it has none of its own: its title. Another card asks its title only with a why; with neither, nothing. */
+export function ownerStepFallback(item: BoardItemDto): string | null {
+  if (isOwnerStep(item)) return item.title;
+  return item.why ? item.title : null;
+}
+
+/** "Your step" for an owner step, else "Question" (the label on a "Needs you" card). */
+export function cardLabel(item: BoardItemDto, t: Translate): string {
+  return t(isOwnerStep(item) ? "yourStepLabel" : "questionLabel");
+}
+
+/** The placeholder the plan writes for the board's own host name, which the public repo cannot hold. */
+const BOARD_ADDRESS = "<board address>";
+const BOARD_ADDRESS_LINK = /<board address>(?:\/#\/[A-Za-z0-9._~/-]*[A-Za-z0-9_~/-])?/g;
+
+/** Card text for a place that holds no link (an aria-label, Markdown): every `<board address>` becomes the origin. */
+export function fillBoardAddress(text: string, origin: string): string {
+  return text.replaceAll(BOARD_ADDRESS, origin);
+}
+
+/** A piece of card text: plain text, or a link to a page of the board itself. */
+export type AddressPart = { text: string; href?: string };
+
+/**
+ * Splits card text so `<board address>` reads as the page's own origin (the host name never enters the repo or the stored
+ * item, the page knows it at read time) and `<board address>/#/page` becomes a link to that page (Slice 43).
+ */
+export function resolveBoardAddress(text: string, origin: string): AddressPart[] {
+  const parts: AddressPart[] = [];
+  let last = 0;
+  for (const match of text.matchAll(BOARD_ADDRESS_LINK)) {
+    if (match.index > last) parts.push({ text: text.slice(last, match.index) });
+    const address = origin + match[0].slice(BOARD_ADDRESS.length);
+    parts.push(match[0] === BOARD_ADDRESS ? { text: address } : { text: address, href: address });
+    last = match.index + match[0].length;
+  }
+  if (last < text.length) parts.push({ text: text.slice(last) });
+  return parts;
+}
+
 /** A session card an agent works on now, with no question open: it sits under "Working now". */
 export function isWorkingCard(item: BoardItemDto): boolean {
   return isSessionItem(item) && !isQuestion(item) && item.working;
@@ -38,7 +88,7 @@ export function isStaleSession(item: BoardItemDto): boolean {
 
 /** Cards that open the card drawer; every other item opens the item detail. */
 export function opensCardDrawer(item: BoardItemDto): boolean {
-  return isQuestion(item) || isSessionItem(item);
+  return isQuestion(item) || isOwnerStep(item) || isSessionItem(item);
 }
 
 /**

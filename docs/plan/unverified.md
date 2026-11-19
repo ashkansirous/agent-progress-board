@@ -3,6 +3,16 @@
 Every open "Not yet verified" check, one block per slice. A check that passes, or that the
 owner confirms, is removed here and its slice marked `verified`.
 
+### Slice 41: Only a task with an outcome gets a card ([slice](slices/41-tasks-with-outcome.md))
+
+- After the release and the config repo's matching slice, one wave night shows slice cards with their trees and no wave card.
+- A plain chat question makes no card.
+- The PostToolUse reminder fires once per prompt in a live Claude Code session.
+
+### Slice 34: Storage: queries, events and indexes ([slice](slices/34-storage-queries.md))
+
+- After the release, `wrangler d1 migrations list --remote` shows 0008 applied (read only).
+
 ### Slice 33: Doc sync never retypes live work, and checks and parts count right ([slice](slices/33-sync-and-checks-rules.md))
 
 - After the release, the owner's next plan sync shows the same `checks_not_tried` count as the slice files, and a stale or blocked check shows muted under its slice.

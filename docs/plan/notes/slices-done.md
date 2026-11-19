@@ -43,3 +43,5 @@ Rows moved out of `plan.md`'s status table once built.
 | 39 | Steps are a tree: sub-steps unfold in place, and several can run at once | built | #143 | | [39](../slices/39-step-tree.md) |
 | 40 | The plugin puts background agents into the step tree | built | #146 | | [40](../slices/40-agents-in-tree.md) |
 | 33 | Doc sync never retypes live work, and checks and parts count right | built | #147 | | [33](../slices/33-sync-and-checks-rules.md) |
+| 34 | Storage: queries, events and indexes | built | #150 | | [34](../slices/34-storage-queries.md) |
+| 41 | Only a task with an outcome gets a card | built | #151 | | [41](../slices/41-tasks-with-outcome.md) |

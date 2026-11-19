@@ -164,3 +164,17 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
   (`plugin/scripts/hooks/session-done.mjs`); the goal file is merged per agent (`mergeParents`), never a read-modify-write
   of the whole `agentParents` map; every agent label passes `maskSecrets` before it is cut or sent (Slice 40:
   docs/plan/slices/40-agents-in-tree.md).
+- A status report applies only when its time is at or after `live_status_at` (`NEXT_STATUS` in
+  `src/infrastructure/d1Repository.ts`); `heartbeat_at` and `updated_at` keep the later time. A status-less report moves
+  `live_status_at` only when it revives, with the same condition. Never compare a status with `heartbeat_at` (Slice 34:
+  docs/plan/slices/34-storage-queries.md).
+- The waiting-card close rule (no slice or part parent, not doc-synced, 24 h) exists twice: `isWaitingClosable` in
+  `src/domain/stale.ts` and the cron query `WAITING_ROWS` in `src/infrastructure/d1Repository.ts`. `test/stale.test.ts`
+  holds them equal; change both (Slice 34: docs/plan/slices/34-storage-queries.md).
+- `SYNC_EVENT` is bound by `changes() > 0` and kept adjacent to its upsert, like `INSERT_EVENT`; never insert an event
+  outside that binding (Slice 34: docs/plan/slices/34-storage-queries.md).
+- The own-card binding rule lives only in `mayBindCard` (`plugin/scripts/hooks/goal-reminder.mjs`): the first own-card
+  report binds, a new key moves the card only after the bound card is closed. Hooks heartbeat a slice card but never
+  close it, mark it done or set its status (Slice 41: docs/plan/slices/41-tasks-with-outcome.md).
+- A working card is an in_progress (or stale) item with an outcome, or agent "session": one rule, `isSessionItem` in
+  `web/src/cards.ts`; never a second copy (Slice 41: docs/plan/slices/41-tasks-with-outcome.md).

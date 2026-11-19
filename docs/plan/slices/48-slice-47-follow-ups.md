@@ -1,6 +1,6 @@
 ### Slice 48 — Follow-ups left open by Slice 47
 
-**Status:** planned. Settled 2026-11-19 by the starter session under the owner's standing rule ("build all", no review
+**Status:** *In progress (wave 2026-11-19), draft PR.* Settled 2026-11-19 by the starter session under the owner's standing rule ("build all", no review
 round): build every item, the two loading-state findings first.
 
 *Planned 2026-11-19 by the feedback loop of night 2026-11-19-0554 ([note](../notes/2026-11-19-0554-feedback-loop.md),

@@ -1,6 +1,6 @@
 ### Slice 45 — Review follow-ups left open by the night 2026-11-18-1602
 
-*Built (wave 2026-11-19), PR #167, not merged; the live-board check of item 8 waits for the night's batched release.* *Planned 2026-11-19 by the feedback loop ([note](../notes/2026-11-18-1602-feedback-loop.md)).*
+*Built (wave 2026-11-19), merged as PR #167 (bcdc87e); the live-board check of item 8 waits for the night's batched release.* *Planned 2026-11-19 by the feedback loop ([note](../notes/2026-11-18-1602-feedback-loop.md)).*
 
 *Settled 2026-11-19 by the starter session, under the owner's standing rule (no review or approval round; 2026-11-18:
 "you should not fucking wait for my fucking review"): build every item below, item 12 (privacy) first, then 1-3. An
@@ -102,7 +102,7 @@ Slice 32 findings are medium correctness faults. This slice gathers them so none
   6. `plugin/scripts/hooks/hook-input.mjs:77`: `removeStaleTemps` runs on every `writeJson` and one failed `statSync` ends the sweep; fix: try/catch per entry, sweep now and then.
   7. `plugin/scripts/hooks/waiting-card.mjs:242`: `SHORT_FLAG` at line start masks `cc -Wall ...` and `-s foo` lines; fix: require a space before `-W`, or limit the line-start form to continuation lines.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-19)
 
 - A doc-synced waiting item's `details_md` follows the document line: a non-null value replaces it, null clears it. The rule is `detailsOf` in `src/domain/docSync.ts` (Slice 45: docs/plan/slices/45-night-1602-follow-ups.md).
 - Every plugin card report goes through `sendCardReport` in `plugin/scripts/report-progress.mjs`, which logs the sender (hook name, session id, field names only, never text) to `senders.log`; never send a card report around it (Slice 45: docs/plan/slices/45-night-1602-follow-ups.md).

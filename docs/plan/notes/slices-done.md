@@ -47,3 +47,4 @@ Rows moved out of `plan.md`'s status table once built.
 | 41 | Only a task with an outcome gets a card | built | #151 | | [41](../slices/41-tasks-with-outcome.md) |
 | 43 | Owner steps on the board read right: real links, intact names, no needless questions | built | #156 | | [43](../slices/43-owner-cards-read-right.md) |
 | 44 | English only, and an owner step reads as a short title plus its steps | built | #160 | | [44](../slices/44-english-only-owner-steps.md) |
+| 45 | Review follow-ups left open by the night 2026-11-18-1602 | built | #167 | | [45](../slices/45-night-1602-follow-ups.md) |

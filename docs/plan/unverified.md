@@ -3,6 +3,10 @@
 Every open "Not yet verified" check, one block per slice. A check that passes, or that the
 owner confirms, is removed here and its slice marked `verified`.
 
+### Slice 45: Review follow-ups left open by the night 2026-11-18-1602 ([slice](slices/45-night-1602-follow-ups.md))
+
+- Item 8: the live board's Environment tab shows no "NaN:00" label after the night's batched release. Claude's check with Chrome after the release, not the owner's.
+
 ### Slice 44: English only, and an owner step reads as a short title plus its steps ([slice](slices/44-english-only-owner-steps.md))
 
 - After the release, the page reads English on a browser set to German.

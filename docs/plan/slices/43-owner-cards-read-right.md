@@ -1,5 +1,7 @@
 ### Slice 43 — Owner steps on the board read right: real links, intact names, no needless questions
 
+*In progress (wave 2026-11-19), draft PR.*
+
 *Planned 2026-11-18. The owner, at the board's "Needs you · 4" list: "what the fuck are these 4?"* What the screenshot
 showed, read against `origin/main`:
 - Every card is labelled "Question" (`questionLabel`, `web/src/strings.ts:286`), but three are steps for the owner, not
@@ -14,7 +16,9 @@ showed, read against `origin/main`:
   `agent-progress-board/bug-usage-env-axis-nan`; `bucketLabel`, `web/src/usageFormat.ts:64-68`).
 
 **Touches:** `plugin/scripts/sync-docs.mjs`, `plugin/scripts/sync-docs.test.mjs`, `web/src/strings.ts`, the card and
-drawer components that draw an owner step (`web/src/`), the Usage page's tab bar component, `web/src/usageFormat.ts`,
+drawer components that draw an owner step (`web/src/SessionCards.tsx`, `web/src/SessionDrawer.tsx`, `web/src/PhoneNeeds.tsx`,
+`web/src/ProjectGroup.tsx`, `web/src/cards.ts`, `web/src/model.ts`), the Usage page's tab bar component (`web/src/UsagePage.tsx`,
+`web/src/Header.tsx`, the page's CSS), `web/src/usageFormat.ts`,
 `web/src/chartGeometry.ts`, `test/` and `e2e/` files for each, `docs/plan/slices/43-owner-cards-read-right.md`
 
 **Migrations:** none

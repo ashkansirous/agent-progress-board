@@ -94,7 +94,9 @@ earlier count), #4 (`findChain` returns nothing for a limit under 1), #5 (proved
 check-medium #1 (a crashed agent quiet for 24 h is pruned); check-2 #1 (`liveAgentIds` returns undefined on a missing or
 unreadable folder, so nothing is pruned). The four nits of check-3 (an e2e wait between `#/` and `#/needs-you`, a
 per-scroll counter in the A, B, A test, a failed `statSync` read as unknown, `UNION` in `findChain`) are follow-ups:
-converged after the third check pass; no crash, data-loss, security or privacy fault.
+converged after the third check pass; no crash, data-loss, security or privacy fault. They are planned as
+[Slice 49](49-slice-48-follow-ups.md) (night 0734 loop), which reads the `statSync` one as the same data-loss class as
+check-2 #1.
 
 - Skipped #9 (`reviews/pr-184-high.md`): "`findChain` fetches a stored loop as repeated rows up to `limit` and cuts them in JS" - the extra rows are bounded by the limit of 20 and occur only for a stored parent loop; a cost, no wrong result.
 - Skipped #1 (`reviews/pr-184-medium.md`): "Writes that pass no running list prune nothing (hold, close, release), and Stop/SubagentStop/SubagentStart prune only after a successful send" - already recorded as the narrower prune rule in item 3 (after pr-184-high #6); old rows wait for the next successful send, no wrong data.

@@ -19,10 +19,6 @@ owner confirms, is removed here and its slice marked `verified`.
 - After the plugin updates and a session restarts, a Stop that follows a SubagentStop leaves the session card closed (item 1).
 - A waiting card whose question holds a `-p <secret>` line shows it masked on the board (item 7).
 
-### Slice 45: Review follow-ups left open by the night 2026-11-18-1602 ([slice](slices/45-night-1602-follow-ups.md))
-
-- Item 8: the live board's Environment tab shows no "NaN:00" label after the night's batched release. Claude's check with Chrome after the release, not the owner's.
-
 ### Slice 44: English only, and an owner step reads as a short title plus its steps ([slice](slices/44-english-only-owner-steps.md))
 
 - After the release, the page reads English on a browser set to German.
@@ -32,7 +28,7 @@ owner confirms, is removed here and its slice marked `verified`.
 
 - The Verification box in the slice: after the release and one doc sync on the live board, "Needs you" shows owner steps as "Your step" with working links and `AGENT_BOARD_URL` in full.
 - The phone card shows the project name, not "Your step" (check pass 2 #6, follow-up).
-- After the release, the live Usage page's Environment tab shows no "NaN:00" label and no overlapping "Reset" (the live cause was never reproduced; [Slice 45](slices/45-night-1602-follow-ups.md) item 8). When it passes, `mark_done` the bug card `agent-progress-board/bug-usage-env-axis-nan`.
+- The live Usage page's Environment tab shows no overlapping "Reset" across a weekly reset ([Slice 45](slices/45-night-1602-follow-ups.md) item 8). The "NaN:00" half passed in Chrome on 2026-11-19; the reset half could not be seen because no reset fell in the window (next: Tue 24 Nov). When it passes, `mark_done` the bug card `agent-progress-board/bug-usage-env-axis-nan`.
 
 ### Slice 41: Only a task with an outcome gets a card ([slice](slices/41-tasks-with-outcome.md))
 
@@ -78,7 +74,6 @@ owner confirms, is removed here and its slice marked `verified`.
 ### Slice 37: Access answers, ending a grant, and the setup page's leftovers ([slice](slices/37-access-and-grants.md))
 
 - Key cool-down: see the Decision above (`guardedKeys` in `src/api/access.ts`).
-- Claude checks in Chrome (owner, 2026-11-19: "open it with claude in chrome and check it"): the setup page lists the claude.ai grant; ending it and reconnecting works. First try 2026-11-19 00:30: the page never finished loading for the Chrome tools in 90 s, so it is still open.
 
 ### Slice 31: Plan sync and waiting cards read the documents and transcripts right ([slice](slices/31-sync-and-waiting-text.md))
 
@@ -97,7 +92,6 @@ owner confirms, is removed here and its slice marked `verified`.
 ### Slice 28: Cloud and VM sessions report their usage under their own label ([slice](slices/28-cloud-usage.md))
 
 - A real cloud session's usage shows on the usage page under its own label.
-- The owner's main machine shows its new label after the plugin switch.
 - The cloud records path `/root/.claude` is untried in a real cloud session.
 - The setup-time variables (unset during the setup script) are untried.
 - The Stop hook's detached send (`usage-tick` spawns a background run) is untried in a cloud VM.

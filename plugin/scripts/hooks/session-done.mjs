@@ -16,7 +16,7 @@ import { realpathSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isOrchestrator, resolveConfig } from '../report-progress.mjs';
-import { AGENT_FRESH_MS, AGENT_PREFIX, AGENT_STATE, CARD_NOTE, RESUME_SLACK_MS, agentRowId, hasActiveAgent, hasAgentMeta, isForegroundAgent, mergeSteps, placeAgents, readBackgroundAgents, subagentsDir } from './background-agents.mjs';
+import { AGENT_FRESH_MS, AGENT_PREFIX, AGENT_STATE, CARD_NOTE, RESUME_SLACK_MS, agentRowId, hasActiveAgent, hasAgentMeta, isForegroundAgent, mergeSteps, placeAgents, readBackgroundAgents, subagentsDir, liveAgentIds } from './background-agents.mjs';
 import {
   CLOSED_BY, HOOK_SOURCE, ORCH_CLOSE, HOOK_TIMEOUT_MS, addStoppedAgent, hasMarker, listMarkers, parseInput, readGoal, readMarkerKey, readSeen, readStdinText,
   readStoppedAt, removeMarker, removeStoppedAgent, sendCardReport, sessionContext, sessionIdOf, stateRoot, touchSeen, updateGoal,
@@ -40,10 +40,13 @@ function callOptions(options) {
 // have changed the file meanwhile, so only the fields in `patch` are written over the file's current content. A
 // file that is gone (the goal was removed meanwhile) is not written back. `patch` is an object, or a function of
 // the file's current content and the time the call returned that returns one.
-function saveGoal(id, patch, root, now, doneAt = now) {
+// `running` is the ids of the agents the hook just read as running: only a write that knows them prunes old agents. That
+// is only the card send that follows a successful report (Stop, SubagentStop, SubagentStart); the hold, close and release
+// writes prune nothing, so while sends keep failing old entries stay until the next send succeeds (Slice 48 6).
+function saveGoal(id, patch, root, now, doneAt = now, running = undefined) {
   updateGoal(id, root, now, (current) => {
     if (!current) return null;
-    return pruneAgents({ ...current, at: now, ...(typeof patch === 'function' ? patch(current, doneAt) : patch) }, now);
+    return pruneAgents({ ...current, at: now, ...(typeof patch === 'function' ? patch(current, doneAt) : patch) }, now, running);
   });
 }
 
@@ -51,13 +54,20 @@ const AGENT_KEEP_MS = 24 * 60 * 60 * 1000; // an agent recorded as started this 
 
 // The recorded places and starts of agents that started more than AGENT_KEEP_MS ago, dropped from the file content that
 // is about to be written (the content re-read inside updateGoal, so no concurrent hook's entry is lost). An agent with
-// no recorded start is kept: nothing says how old it is (Slice 47 4f).
-export function pruneAgents(content, now) {
+// no recorded start is kept: nothing says how old it is (Slice 47 4f). An agent still in `running` is kept however old,
+// and a write that does not know the running agents (`running` undefined) prunes nothing (Slice 48 3).
+export function pruneAgents(content, now, running = undefined) {
+  if (!running) return content;
   const starts = content.agentStarts || {};
-  const old = (agentId) => Number.isFinite(starts[agentId]) && now - starts[agentId] > AGENT_KEEP_MS;
+  const old = (agentId) => Number.isFinite(starts[agentId]) && now - starts[agentId] > AGENT_KEEP_MS && !running.includes(agentId);
   if (!Object.keys(starts).some(old)) return content;
   const keep = (map) => Object.fromEntries(Object.entries(map || {}).filter(([agentId]) => !old(agentId)));
   return { ...content, agentParents: keep(content.agentParents), agentStarts: keep(content.agentStarts) };
+}
+
+// The ids of the agents `pruneAgents` must keep: unfinished, not stopped, and written within a day (Slice 48 3).
+function runningIds(input, id, root, now) {
+  return liveAgentIds(input, readStoppedAt(id, root), now);
 }
 
 // The recorded places after another write: what the file holds now wins, and only the places it lacks are added, so a
@@ -70,7 +80,7 @@ async function sendCard(config, id, root, args, now, options) {
   const started = Date.now();
   const outcome = await sendCardReport(root, 'session-done', id, config, args.tool, args.body, callOptions(options));
   const gone = !outcome.ok && NO_ITEM.test(outcome.error || '');
-  if (outcome.ok || gone) saveGoal(id, args.patch, root, now, now + (Date.now() - started));
+  if (outcome.ok || gone) saveGoal(id, args.patch, root, now, now + (Date.now() - started), args.running);
   else process.stderr.write(`report-progress hook: card skipped (${outcome.error})\n`); // state unchanged: the next hook retries
   return outcome;
 }
@@ -114,7 +124,7 @@ async function stopCard(input, env, goal, root, now, options) {
     // the time the call returned, so its network time does not eat HELD_SLACK_MS.
     saveGoal(id, (current) => ({ ...heldFields(current, now), agentParents: mergeParents(current, parents) }), root, now);
     const patch = (current, doneAt) => ({ sig: JSON.stringify(steps), ...heldFields(current, doneAt), agentParents: mergeParents(current, parents) });
-    const outcome = await sendCard(config, id, root, { tool: 'report_progress', body, patch }, now, options);
+    const outcome = await sendCard(config, id, root, { tool: 'report_progress', body, patch, running: runningIds(input, id, root, now) }, now, options);
     return reCloseIfClosedMeanwhile(config, id, root, outcome, sentAt, options);
   }
   return closeCard(config, goal, id, root, now, options);
@@ -208,7 +218,7 @@ async function subagentCard(input, env, goal, root, now, options) {
   if (sig === goal.sig) return { skipped: 'steps unchanged' };
   const body = keepQuestion(goal, { key: goal.key, status: 'in_progress', source: HOOK_SOURCE, steps, ...(hasActiveAgent(agents) ? { note: CARD_NOTE } : {}) });
   const patch = (current) => ({ sig, agentParents: mergeParents(current, parents) });
-  return sendCard(resolveConfig(env), id, root, { tool: 'report_progress', body, patch }, now, options);
+  return sendCard(resolveConfig(env), id, root, { tool: 'report_progress', body, patch, running: runningIds(input, id, root, now) }, now, options);
 }
 
 // SubagentStart: the agent's place is recorded now (the step running when it starts, by id), before any send, and its
@@ -229,7 +239,7 @@ async function startCard(input, env, goal, root, now, options) {
   const steps = mergeSteps(merged.steps, agents, placed);
   const body = keepQuestion(goal, { key: goal.key, status: 'in_progress', source: HOOK_SOURCE, steps, note: CARD_NOTE });
   const patch = (current) => ({ sig: JSON.stringify(steps), agentParents: mergeParents(current, placed) });
-  return sendCard(resolveConfig(env), id, root, { tool: 'report_progress', body, patch }, now, options);
+  return sendCard(resolveConfig(env), id, root, { tool: 'report_progress', body, patch, running: runningIds(input, id, root, now) }, now, options);
 }
 
 // The listed agents plus a plain row for each recorded agent whose files do not exist yet, kept for PENDING_AGENT_MS from

@@ -75,7 +75,7 @@ const stepsField = z
   .nullable()
   .optional()
   .describe(
-    "The task's steps as a tree in order (at most 200 steps in all, 4 levels); several may be active; the newest list wins; null or empty clears it. With under_step it is only that step's children",
+    `The task's steps as a tree in order (at most ${MAX_STEPS} steps in all, ${MAX_STEP_DEPTH} levels); several may be active; the newest list wins; null or empty clears it. With under_step it is only that step's children`,
   );
 
 const underStepField = z

@@ -209,6 +209,36 @@ describe("the shared board store", () => {
     expect(store.getState().settles).toBe(0);
   });
 
+  it("a first listener after an aborted first load loads again, so loading never strands (Slice 48 1; regression guard)", () => {
+    const { store, fetchBoard, pending } = setup();
+    const offPassive = store.subscribePassive(() => {});
+    offPassive();
+    expect(pending[0]!.signal.aborted).toBe(true);
+    expect(store.getState()).toMatchObject({ loading: true, data: null, error: null, settles: 0 });
+    const offA = store.subscribe(() => {});
+    expect(fetchBoard).toHaveBeenCalledTimes(2);
+    expect(pending[1]!.signal.aborted).toBe(false);
+    offA();
+  });
+
+  it("a passive reader arriving while the deferred stop is pending never leaves loading stranded (Slice 48 1, review #5)", async () => {
+    const { store, fetchBoard, pending } = setup();
+    store.subscribePassive(() => {})(); // an aborted first load: loading true, nothing running
+    expect(pending[0]!.signal.aborted).toBe(true);
+    const off = store.subscribe(() => {}); // the first listener loads again
+    off(); // the deferred stop is now pending (stopTimer set)
+    store.subscribePassive(() => {});
+    expect(store.getState().loading).toBe(true);
+    // Either a request runs, or this reader started one: loading must end through settle().
+    const live = pending.filter((p) => !p.signal.aborted);
+    expect(live.length).toBeGreaterThan(0);
+    live[0]!.resolve(fakeBoard());
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(store.getState().loading).toBe(false);
+    expect(fetchBoard.mock.calls.length).toBeGreaterThan(1);
+  });
+
   it("lets a passive reader load once, without polling, and only while nothing was read", () => {
     const { store, fetchBoard, startPolling } = setup();
     store.subscribePassive(() => {});

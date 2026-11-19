@@ -258,6 +258,21 @@ describe("report_progress parent_key", () => {
     expect(changed.isError).toBe(true);
   });
 
+  it("reads an item and its ancestors in one query, nearest first, cut at the limit and at a stored loop (Slice 48 9)", async () => {
+    const [u1, u2, u3] = ["demo-app/u1", "demo-app/u2", "demo-app/u3"];
+    await callTool("report_progress", { key: u3, project: PROJECT, type: "unplanned", title: "u3" });
+    await callTool("report_progress", { key: u2, project: PROJECT, type: "unplanned", title: "u2", parent_key: u3 });
+    await callTool("report_progress", { key: u1, project: PROJECT, type: "unplanned", title: "u1", parent_key: u2 });
+    const repo = new D1ItemRepository(env.DB);
+    expect((await repo.findChain(u1, 20)).map((item) => item.key)).toEqual([u1, u2, u3]);
+    expect((await repo.findChain(u1, 2)).map((item) => item.key)).toEqual([u1, u2]);
+    expect(await repo.findChain("demo-app/none", 20)).toEqual([]);
+    expect(await repo.findChain(u1, 0)).toEqual([]);
+    expect((await repo.findChain(u1, 1)).map((item) => item.key)).toEqual([u1]);
+    await env.DB.prepare("UPDATE items SET parent_key = ?1 WHERE key = ?2").bind(u1, u3).run();
+    expect((await repo.findChain(u1, 20)).map((item) => item.key)).toEqual([u1, u2, u3]);
+  });
+
   it("rejects an item that is its own parent", async () => {
     const reply = await callTool("report_progress", { key: B, project: PROJECT, type: "part", title: "Page", parent_key: B });
     expect(reply.isError).toBe(true);

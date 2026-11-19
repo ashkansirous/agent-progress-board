@@ -55,6 +55,9 @@ export function useProjectOpen(group: ProjectGroups): [boolean, () => void] {
   // A fold click ends the forcing for this block only, until the owner leaves the address; the address stays, so the
   // other projects with a question stay open (Slice 47 6d, review #5).
   const [released, setReleased] = useState(false);
+  // Reset while rendering, React's "adjust state when an input changes" pattern: it re-renders at once, so no frame
+  // draws the stale value. An effect would do it a frame late, and the lint rule `react-hooks/set-state-in-effect`
+  // refuses it (Slice 48 6).
   if (!onAddress && released) setReleased(false);
   const showQuestions = onAddress && !released;
   const open = resolveOpen(stored, group, showQuestions);

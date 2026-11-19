@@ -7,10 +7,10 @@ import { join } from 'node:path';
 import { describe, test } from 'node:test';
 import { setTimeout } from 'node:timers';
 import { fileURLToPath } from 'node:url';
-import { AGENT_FRESH_MS, mergeSteps, placeAgents, readBackgroundAgents, subagentsDir } from './background-agents.mjs';
+import { AGENT_FRESH_MS, mergeSteps, placeAgents, readBackgroundAgents, subagentsDir, liveAgentIds } from './background-agents.mjs';
 import { closeAnsweredWaiting, handle as remind, REMINDER_TEXT } from './goal-reminder.mjs';
 import { SENDER_LOG_LINES, addStoppedAgent, hasMarker, listMarkers, logSender, readGoal, readStdinText, readStoppedAt, removeGoal, removeStoppedAgent, touchSeen, updateGoal, writeGoal, writeJson, writeMarker, writePrompt } from './hook-input.mjs';
-import { DEAD_SESSION_MS, closeDeadWaiting, markWaitingDone, run as runDone, startContext } from './session-done.mjs';
+import { DEAD_SESSION_MS, closeDeadWaiting, markWaitingDone, pruneAgents, run as runDone, startContext } from './session-done.mjs';
 import { execFileSync } from 'node:child_process';
 import { branchOf, run as runWaiting, titleOf, usableCwd } from './session-waiting.mjs';
 import { cleanUpAfterTests, envFor, callsOf, replyOk, runNode, startFakeBoard, trackedTemp } from '../test-helpers.mjs';
@@ -1597,6 +1597,39 @@ describe('Slice 47 follow-ups (agent rows, sender log)', () => {
     const goal = readGoal('sess-1', root, NOW);
     assert.deepEqual(Object.keys(goal.agentParents).sort(), ['a9', 'fresh']);
     assert.deepEqual(Object.keys(goal.agentStarts).sort(), ['a9', 'fresh']);
+  });
+
+  test('Slice 48 3: an agent started over a day ago that still runs keeps its place; a write that knows no running agents prunes nothing', () => {
+    const day = 24 * 60 * MINUTE;
+    const content = { agentParents: { long: 'id:s1', gone: 'id:s1' }, agentStarts: { long: NOW - 2 * day, gone: NOW - 2 * day } };
+    assert.deepEqual(Object.keys(pruneAgents(content, NOW, ['long']).agentParents), ['long']);
+    assert.deepEqual(Object.keys(pruneAgents(content, NOW, []).agentParents), []);
+    assert.equal(pruneAgents(content, NOW), content);
+  });
+
+  test('Slice 48 3 (review #2, check-medium #1): through the real reader, a 30 h old agent that still writes is kept; one quiet 25 h without finished, and a finished one, are pruned', () => {
+    const day = 24 * 60 * MINUTE;
+    const transcript = sessionWithAgents([
+      { id: 'writing', description: 'Long tool call', ageMs: 20 * MINUTE },
+      { id: 'crashed', description: 'Died', ageMs: 25 * 60 * MINUTE },
+      { id: 'done', description: 'Finished', ageMs: 20 * MINUTE, finished: true },
+    ]);
+    const input = { transcript_path: transcript };
+    const running = liveAgentIds(input, {}, NOW);
+    assert.deepEqual(running, ['writing']);
+    const started = NOW - 30 * 60 * MINUTE;
+    const content = { agentParents: { writing: 'id:s1', crashed: 'id:s1', done: 'id:s1' }, agentStarts: { writing: started, crashed: started, done: started } };
+    assert.deepEqual(Object.keys(pruneAgents(content, NOW, running).agentParents), ['writing']);
+    assert.ok(NOW - started > day);
+  });
+
+  test('Slice 48 3 (check-2-medium #1): a missing or unreadable agent folder gives no running list, so old entries are kept', () => {
+    const day = 24 * 60 * MINUTE;
+    const content = { agentParents: { old: 'id:s1' }, agentStarts: { old: NOW - 2 * day } };
+    const missing = { transcript_path: join(folder(), 'gone', 'session.jsonl') };
+    assert.equal(liveAgentIds(missing, {}, NOW), undefined);
+    assert.equal(liveAgentIds({}, {}, NOW), undefined);
+    assert.equal(pruneAgents(content, NOW, liveAgentIds(missing, {}, NOW)), content);
   });
 
   test('4j: a foreground agent is never listed as a background one', () => {

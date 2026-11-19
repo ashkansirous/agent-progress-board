@@ -250,6 +250,33 @@ test.describe("active work page", () => {
     await expect(dialog).toHaveCount(0);
   });
 
+  test("a card named by #/active/<key> scrolls again when the address returns to it: A, B, A (Slice 48 4)", async ({ page }) => {
+    await page.addInitScript(() => {
+      const scrolls: string[] = [];
+      (window as unknown as { __cardScrolls: string[] }).__cardScrolls = scrolls;
+      const original = Element.prototype.scrollIntoView;
+      Element.prototype.scrollIntoView = function (this: Element, ...args: Parameters<Element["scrollIntoView"]>) {
+        if (this.classList.contains("active-card")) scrolls.push(this.querySelector("h2")?.textContent ?? "");
+        return original.apply(this, args);
+      };
+    });
+    await openActive(page);
+    const scrolls = () => page.evaluate(() => (window as unknown as { __cardScrolls: string[] }).__cardScrolls);
+    const goTo = (key: string) =>
+      page.evaluate((hash) => {
+        window.location.hash = hash;
+      }, `#/active/${encodeURIComponent(key)}`);
+    // The last card scrolled to follows the address; a second visit to A must scroll A after B did (one naming may scroll
+    // its card more than once, so the test reads the last scroll, not a count).
+    const lastScrolled = async () => (await scrolls()).at(-1);
+    await goTo(PART_C);
+    await expect.poll(lastScrolled).toBe("Part C · Notification channel");
+    await goTo(PART_B);
+    await expect.poll(lastScrolled).toBe("Part B · Search box");
+    await goTo(PART_C);
+    await expect.poll(lastScrolled).toBe("Part C · Notification channel");
+  });
+
   test("a failed first load keeps the open-item address", async ({ page }) => {
     const hash = `#/open/${encodeURIComponent(PART_C)}`;
     await page.route(BOARD_ROUTE, (route) => route.fulfill({ status: 500, json: { error: "down" } }));

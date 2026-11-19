@@ -445,6 +445,30 @@ test.describe("states", () => {
     await expect(project(page, "Recipe Box")).toBeVisible();
   });
 
+  test("a first load aborted by leaving the page never strands a spinner: coming back loads again, and a failure shows Retry (Slice 48 1)", async ({ page }) => {
+    await pausedClock(page);
+    let failing = false;
+    const { requested, release } = await holdBoardRoute(page, demoBoard, { failWhile: () => failing });
+    await page.goto("/");
+    await requested;
+    // The only page leaves during the first load: the store aborts it and nothing is reading.
+    await page.evaluate(() => {
+      window.location.hash = "#/setup";
+    });
+    await expect(page.getByRole("heading", { level: 1, name: "Set up a chat" })).toBeVisible();
+    await page.clock.runFor(1); // the store's deferred stop (a 0 ms timer) runs on the page clock, which is paused
+    failing = true;
+    await page.evaluate(() => {
+      window.location.hash = "#/";
+    });
+    await expect(page.getByText("Couldn’t load the board")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
+    failing = false;
+    await page.getByRole("button", { name: "Retry" }).click();
+    release();
+    await expect(project(page, "Recipe Box")).toBeVisible();
+  });
+
   test("an unreachable API says so", async ({ page }) => {
     await page.route(BOARD_ROUTE, (route) => route.abort());
     await page.goto("/");

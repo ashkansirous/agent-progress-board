@@ -110,6 +110,8 @@ export function createBoardStore(parts: BoardStoreParts): BoardStore {
       if (!isLoadingNow()) void refresh();
       stopPolling = parts.startPolling(() => void refresh());
     }
+    // No branch for "loading true, nothing running": an aborted first load (loading left true on purpose) exists only when
+    // nothing is watched, so the next reader is always the first listener above, or a passive reader that loads (Slice 48 1).
     return () => {
       listeners.delete(notify);
       // Stopping waits one tick, so a page switch (leave, then subscribe) does not abort and reissue the read.

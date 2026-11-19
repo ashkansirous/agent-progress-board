@@ -178,3 +178,9 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
   close it, mark it done or set its status (Slice 41: docs/plan/slices/41-tasks-with-outcome.md).
 - A working card is an in_progress (or stale) item with an outcome, or agent "session": one rule, `isSessionItem` in
   `web/src/cards.ts`; never a second copy (Slice 41: docs/plan/slices/41-tasks-with-outcome.md).
+- An owner step (a waiting item from `ownerItem` with no `needs_you`) is recognised only by `isOwnerStep` in
+  `web/src/cards.ts`; never a second copy (Slice 43: docs/plan/slices/43-owner-cards-read-right.md).
+- `<board address>` is resolved only at read on the page (`resolveBoardAddress` / `fillBoardAddress`), never stored: the
+  host name stays out of the repo and the items (Slice 43: docs/plan/slices/43-owner-cards-read-right.md).
+- `plain()` in `plugin/scripts/sync-docs.mjs` keeps code spans; `checkHash` keeps its old reading so stored check keys do
+  not change (Slice 43: docs/plan/slices/43-owner-cards-read-right.md).

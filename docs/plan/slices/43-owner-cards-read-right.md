@@ -1,6 +1,6 @@
 ### Slice 43 — Owner steps on the board read right: real links, intact names, no needless questions
 
-*Built 2026-11-19 as PR #156, not yet verified on the live board (needs the release and one doc sync). Tests at the end: 724 vitest, 389 plugin, 330 e2e passed (4 skipped).*
+*Built 2026-11-19, merged as PR #156 (294fb7d), not yet verified on the live board (needs the release and one doc sync). Tests at the end: 724 vitest, 389 plugin, 330 e2e passed (4 skipped).*
 
 *Planned 2026-11-18. The owner, at the board's "Needs you · 4" list: "what the fuck are these 4?"* What the screenshot
 showed, read against `origin/main`:
@@ -95,7 +95,7 @@ drawer components that draw an owner step (`web/src/SessionCards.tsx`, `web/src/
   - #7 `web/src/chartGeometry.ts:90`: `resetLabelPlace` overflows the plot edge when the label fits on neither side; width is a character-count estimate.
   - #8 `web/src/SessionDrawer.tsx:147`: the drawer heading expression differs from `ownerStepFallback`; one helper should serve both.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-19)
 
 - An owner step (a waiting item from `ownerItem` with no `needs_you`) is recognised only by `isOwnerStep` in `web/src/cards.ts`; never a second copy (Slice 43: docs/plan/slices/43-owner-cards-read-right.md).
 - `<board address>` is resolved only at read on the page (`resolveBoardAddress` / `fillBoardAddress`), never stored: the host name stays out of the repo and the items (Slice 43: docs/plan/slices/43-owner-cards-read-right.md).

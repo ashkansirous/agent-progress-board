@@ -3,6 +3,11 @@
 Every open "Not yet verified" check, one block per slice. A check that passes, or that the
 owner confirms, is removed here and its slice marked `verified`.
 
+### Slice 43: Owner steps on the board read right ([slice](slices/43-owner-cards-read-right.md))
+
+- The Verification box in the slice: after the release and one doc sync on the live board, "Needs you" shows owner steps as "Your step" with working links and `AGENT_BOARD_URL` in full.
+- The phone card shows the project name, not "Your step" (check pass 2 #6, follow-up).
+
 ### Slice 41: Only a task with an outcome gets a card ([slice](slices/41-tasks-with-outcome.md))
 
 - After the release and the config repo's matching slice, one wave night shows slice cards with their trees and no wave card.

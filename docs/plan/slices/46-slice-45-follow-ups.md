@@ -35,9 +35,13 @@ so it gets one by-construction fix, not another patch.
 - [ ] 7: `plugin/scripts/hooks/waiting-card.mjs:242`: `SHORT_FLAG` at line start masks `cc -Wall ...` and `-s foo` lines;
   require a space before `-W`, or limit the line-start form to continuation lines.
 - [ ] 8 (medium, skipped #2 of `pr-167-medium`): an empty status table sends an empty snapshot that closes the project's
-  doc-synced items. Decide with the owner whether an empty table should close them (a finished project) or be refused.
+  doc-synced items. Decision (feedback loop, keeping what main does): an empty table still closes them, because a
+  finished project has an empty table and its cards should close (night 0243's housekeeping sync showed `closed=0`,
+  nothing lost). The work is only to make the message and `docs/clients.md` say so; the owner can reverse it.
 - [ ] 9: the skipped mediums of Slice 45's *From review* marked "follow-up": `MARKDOWN_ADDRESS` with `]` or `)`, the
-  emptied "Slice N:" action losing its steps, the PEM replace scanning before the 4096 cut.
+  emptied "Slice N:" action losing its steps, the PEM replace scanning before the 4096 cut, the `addStoppedAgent`
+  retry that repairs only one rmdir race (`pr-167-check-medium` #5), and the link-drop pass that rebuilds even when no
+  link was dropped (`pr-167-medium` #8).
 
 #### Verification
 

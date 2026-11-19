@@ -1,6 +1,7 @@
 ### Slice 48 — Follow-ups left open by Slice 47
 
-**Status:** parked: feedback loop, waits for the user.
+**Status:** planned. Settled 2026-11-19 by the starter session under the owner's standing rule ("build all", no review
+round): build every item, the two loading-state findings first.
 
 *Planned 2026-11-19 by the feedback loop of night 2026-11-19-0554 ([note](../notes/2026-11-19-0554-feedback-loop.md),
 pass 2). Slice 47's skipped review findings sat only in its *From review* and one plan.md *Outstanding work* line

@@ -260,10 +260,25 @@ describe('Slice 31: the secret mask, sentences and the transcript window', () =>
     ['a quoted JSON value', `{"password":"hunter2"}`, '{"password":***'],
     ['a sentence stop is masked with the rest of the line', 'set token=abc.', 'set token=***'],
     ['a plain command is left alone', 'git log -1 --format=%H', 'git log -1 --format=%H'],
+    ['Slice 45 #12: double-escaped JSON', String.raw`echo "{\\"password\\":\\"hunter2\\"}" x`, String.raw`echo "{\\"password\\":***`],
+    ['Slice 45 #12: a short flag leading a continuation line', 'docker login -u me \\\n-p hunter2', 'docker login -u me \\\n-p ***'],
+    ['Slice 45 #12: psql -W with a value', 'psql -W hunter2 db', 'psql -W ***'],
+    ['Slice 45 #12: "The password is" with the value on the next line', 'The password is\nhunter2\nnext', 'The password is\n***\nnext'],
+    ['Slice 45 #12: "the token was" at the line end', 'the token was\n\nabc123', 'the token was\n\n***'],
   ];
 
   test('the mask table: what is masked and what is left alone', () => {
     for (const [name, input, expected] of MASK_SHAPES) assert.equal(maskSecrets(input), expected, name);
+  });
+
+  test('Slice 45 #12: a PEM block whose header lies before the 4096-character window is masked', () => {
+    const pem = ['-----BEGIN ' + 'PRIVATE KEY-----', 'MIIEvQIBADANBgkqhkiG9w0BAQEFAASC', ...Array.from({ length: 200 }, (_, row) => `bodyline${row}abcdefghijklmnopqrstuvwxyz`), '-----END ' + 'PRIVATE KEY-----'].join('\n');
+    const card = cardText('idle_prompt', '', { text: `${pem}\nShould I go on?`, tool: null });
+    assert.deepEqual(card, { needsYou: 'Should I go on?', afterAnswer: '' });
+    const elicit = cardText('elicitation_dialog', '', { text: `${pem}\nWhat now?`, tool: null });
+    assert.ok(!JSON.stringify(elicit).includes('bodyline'), JSON.stringify(elicit));
+    const open = cardText('idle_prompt', '', { text: `Is this the key?\n${pem.slice(0, -26)}\n${'x'.repeat(5000)}?`, tool: null });
+    assert.ok(!JSON.stringify(open).includes('bodyline'), JSON.stringify(open));
   });
 
   test('check 2 #3: an 80,000-word single line is masked in well under 200 ms', () => {

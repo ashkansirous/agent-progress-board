@@ -29,8 +29,13 @@ const LINE_BREAK = /(\r\n|\r|\n)/;
 // A short flag whose letter starts a secret name (-p password, -k key, -t token, -s secret, -a auth), after a command
 // word: `-p hunter2` or glued `-phunter2` masks the rest of the line from the value. Over-masking is accepted
 // (`tar -tf x` masks "f x").
-const SHORT_FLAG = /[ \t]-[pktsaPKTSA](?:[ \t]+|(?=[^\s-]))/g;
-const ESCAPED_QUOTE = /\\(["'])/g;
+// A flag may lead its line (a continuation line of a wrapped command); `-W` is psql's password flag.
+const SHORT_FLAG = /(?:^|[ \t])-[pktsaPKTSAW](?:[ \t]+|(?=[^\s-]))/g;
+// An escaped quote at any depth (`\"`, `\\"`, ...) reads as a plain one.
+const ESCAPED_QUOTE = /\\+(["'])/g;
+// A secret name then is/was at the end of its line: the value is on a later line.
+const NAME_IS_ENDS = /^["']?[ \t]+(?:is|was)[ \t]*$/;
+const PEM_BLOCK = /-----BEGIN [A-Z0-9 ]+-----[\s\S]*?(?:-----END [A-Z0-9 ]+-----|$)/g;
 // Only this much of a text is masked and read: a card keeps the tail of the assistant text (the last sentence) and
 // the head of a command or message (clipped to 120 to 300 characters), so the rest is never scanned.
 export const MASK_WINDOW = 4096;
@@ -45,19 +50,19 @@ function isSecretName(name) {
 function unescapedCopy(line) {
   const drops = [];
   const scan = line.replace(ESCAPED_QUOTE, (match, quote, offset) => {
-    drops.push(offset - drops.length);
+    const at = offset - drops.length;
+    for (let drop = 0; drop < match.length - 1; drop += 1) drops.push(at);
     return quote;
   });
   return { scan, toLine: (index) => index + drops.filter((at) => at < index).length };
 }
 
-// Where a short flag's value starts in the line, or null (see SHORT_FLAG); the flag needs a command word before it
-// and a value after it.
+// Where a short flag's value starts in the line, or null (see SHORT_FLAG); the flag needs a value after it.
 function shortFlagPoint(line) {
   SHORT_FLAG.lastIndex = 0;
   for (let found = SHORT_FLAG.exec(line); found; found = SHORT_FLAG.exec(line)) {
     const point = found.index + found[0].length;
-    if (line.slice(0, found.index).trim() !== '' && line.slice(point).trim() !== '') return point;
+    if (line.slice(point).trim() !== '') return point;
   }
   return null;
 }
@@ -75,6 +80,10 @@ function maskLine(line) {
     const name = word[0];
     if (!isSecretName(name)) continue;
     const end = word.index + name.length;
+    if (NAME_IS_ENDS.test(scan.slice(end))) {
+      dangling = true;
+      continue;
+    }
     if (/^["']?[ \t]*$/.test(scan.slice(end))) ends = true;
     SEPARATOR.lastIndex = end;
     const sep = SEPARATOR.exec(scan);
@@ -148,7 +157,7 @@ function maskLongToken(token) {
 
 // Each rule is [pattern, replacement] or a function from text to text. Order matters: header and flag forms first.
 const SECRET_PATTERNS = [
-  [/-----BEGIN [A-Z0-9 ]+-----[\s\S]*?(?:-----END [A-Z0-9 ]+-----|$)/g, MASK],
+  [PEM_BLOCK, MASK],
   [/(\bBearer\s+)[^\s'"]+/gi, `$1${MASK}`],
   maskNameValue,
   [/((?:^|\s)(?:-u|--user)[= ]\s*)(?:"[^":\s]*:[^"]*"|'[^':\s]*:[^']*'|[^\s'":]+:[^\s'"]*)/g, `$1${MASK}`],
@@ -340,7 +349,9 @@ export function toolText(tool) {
 
 // The last MASK_WINDOW characters of a text, from a line start when the cut falls inside a line that has one after it.
 function tailOf(text) {
-  const whole = String(text || '');
+  let whole = String(text || '');
+  if (whole.length <= MASK_WINDOW) return whole;
+  whole = whole.replace(PEM_BLOCK, MASK); // a key block whose header lies before the cut is masked first
   if (whole.length <= MASK_WINDOW) return whole;
   const cut = whole.slice(-MASK_WINDOW);
   const lineStart = cut.indexOf('\n');

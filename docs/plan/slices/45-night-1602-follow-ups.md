@@ -45,7 +45,7 @@ Slice 32 findings are medium correctness faults. This slice gathers them so none
 11. `plugin/scripts/sync-docs.mjs` prints "status table empty, closing all items of the project" whenever the status table
     has no rows, yet the summary says `closed=0` (wave 7 index pass and housekeeping 7; first seen in the
     2026-11-17-2023 note, item 17). Check what an empty table really does and make the message say it.
-12. Slice 31 (privacy, build first): the waiting-card mask still lets known shapes through, listed in
+12. [x] Slice 31 (privacy, build first): the waiting-card mask still lets known shapes through, listed in
     [Slice 31](31-sync-and-waiting-text.md) lines 115-125 (double-escaped JSON passwords, a short flag on a continuation
     line, a PEM header before the 4096-character window, "The password is" with the value on the next line,
     `psql -W <value>`, a title masked after the 200-character cut, `branchOf` reading an ancestor repo's branch). This text

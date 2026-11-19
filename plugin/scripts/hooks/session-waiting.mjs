@@ -55,9 +55,11 @@ export function branchOf(cwd) {
 // when there is no branch to read).
 // A closed goal is finished work, so its title is not the title of a new waiting card.
 export function titleOf(input, context, goal) {
-  if (goal && goal.title && !goal.closed) return clip(goal.title, TITLE_LIMIT);
-  const branch = branchOf(typeof input.cwd === 'string' && input.cwd ? input.cwd : process.cwd());
-  return branch ? clip(`${context.project} · ${branch}`, TITLE_LIMIT) : context.project;
+  // Masked before the cut, so a secret the cut falls inside is never sent in part. With no usable cwd there is no
+  // branch: the hook's own folder may sit inside an unrelated repo.
+  if (goal && goal.title && !goal.closed) return clip(maskSecrets(goal.title), TITLE_LIMIT);
+  const branch = typeof input.cwd === 'string' && input.cwd ? branchOf(input.cwd) : null;
+  return branch ? clip(maskSecrets(`${context.project} · ${branch}`), TITLE_LIMIT) : maskSecrets(context.project);
 }
 
 // The stdin cwd, only when it is an absolute path to a folder that exists (git runs there to name the branch);
@@ -94,7 +96,7 @@ export async function run(input, env = process.env, options = {}) {
     project: context.project,
     type: 'waiting_for_me',
     status: 'open',
-    title: maskSecrets(titleOf({ ...input, cwd: usableCwd(input.cwd) }, context, goal)),
+    title: titleOf({ ...input, cwd: usableCwd(input.cwd) }, context, goal),
     needs_you: maskSecrets(card.needsYou),
     after_answer: card.afterAnswer ? maskSecrets(card.afterAnswer) : null,
     source: HOOK_SOURCE,

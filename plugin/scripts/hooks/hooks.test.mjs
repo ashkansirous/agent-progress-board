@@ -714,6 +714,18 @@ describe('waiting card title and folder (session-waiting)', () => {
     assert.equal(callsOf(board)[0].args.title, 'Rotate token: ***');
   });
 
+  test('Slice 45 #12: a title is masked before the 200-character cut, so a cut never leaves half a secret', () => {
+    const goal = { title: `${'x'.repeat(190)} token=abcdefghijklmnop`, closed: false };
+    const title = titleOf({}, { project: 'demo-app' }, goal);
+    assert.ok(!title.includes('abcd') && !title.includes('token=a'), title);
+    assert.ok(title.length <= 200, String(title.length));
+  });
+
+  test('Slice 45 #12: with no usable cwd there is no branch, never the hook folder\'s ancestor repo', () => {
+    assert.equal(titleOf({ cwd: undefined }, { project: 'demo-app' }, null), 'demo-app');
+    assert.equal(titleOf({}, { project: 'demo-app' }, null), 'demo-app');
+  });
+
   test('titleOf never sends a closed goal\'s title; an open goal\'s title still wins', () => {
     const repo = folder('board-repo-');
     startRepo(repo, 'topic-y');

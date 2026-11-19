@@ -3,6 +3,11 @@
 Every open "Not yet verified" check, one block per slice. A check that passes, or that the
 owner confirms, is removed here and its slice marked `verified`.
 
+### Slice 46: Follow-ups left open by Slice 45 ([slice](slices/46-slice-45-follow-ups.md))
+
+- After the plugin updates and a session restarts, a Stop that follows a SubagentStop leaves the session card closed (item 1).
+- A waiting card whose question holds a `-p <secret>` line shows it masked on the board (item 7).
+
 ### Slice 45: Review follow-ups left open by the night 2026-11-18-1602 ([slice](slices/45-night-1602-follow-ups.md))
 
 - Item 8: the live board's Environment tab shows no "NaN:00" label after the night's batched release. Claude's check with Chrome after the release, not the owner's.

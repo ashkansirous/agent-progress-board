@@ -99,7 +99,11 @@ Third check pass (pr-172-check-3-medium), seven nits, none blocking, left open a
 
 #### Not yet verified
 
-None (no device involved).
+Items 1, 7 and 9 change real hook behaviour that unit tests prove only with a stubbed clock (added by the night
+2026-11-19-0441 feedback loop, [note](../notes/2026-11-19-0441-feedback-loop.md)):
+
+- After the plugin updates and a session restarts, a Stop that follows a SubagentStop leaves the session card closed (item 1).
+- A waiting card whose question holds a `-p <secret>` line shows it masked on the board (item 7).
 
 #### Verification
 

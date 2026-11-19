@@ -8,8 +8,8 @@ saying "no slice is planned". Two of them are loading-state findings, which the 
 side effect of Slice 47's own change (an aborted first load now stays loading). The loop plans; it does not build.*
 
 **Touches:** web/src/boardStore.ts, web/src/boardState.ts, web/src/BoardPage.tsx, web/src/projectFold.ts,
-web/src/ProjectGroup.tsx, web/src/cards.ts (`eventKeys`), plugin/scripts/sync-docs.mjs (`CODE_SPAN`),
-plugin/scripts/hooks/session-done.mjs, e2e/, test/sessionWeb.test.ts.
+web/src/ProjectGroup.tsx, web/src/ActivePage.tsx (`scrolledId`), web/src/cards.ts (`eventKeys`, `CODE_SPAN`),
+src/mcp/schemas.ts, src/application/ports.ts, plugin/scripts/hooks/session-done.mjs, e2e/, test/sessionWeb.test.ts.
 
 **Source:** [Slice 47](47-open-follow-ups.md) *From review*; the slice file wins where this list differs. The review
 files are `reviews/pr-179-high.md`, `reviews/pr-179-medium.md`, `reviews/pr-179-check-2-medium.md` and
@@ -30,6 +30,10 @@ files are `reviews/pr-179-high.md`, `reviews/pr-179-medium.md`, `reviews/pr-179-
 - [ ] 6. **`useProjectOpen` calls `setReleased(false)` during render** (check-2 #4): move it to an effect or a keyed
   reset.
 - [ ] 7. **Undeclared `origin` in the `test/sessionWeb.test.ts` timing test** (pr-179-check-3-medium #1): declare it.
+- [ ] 8. **Slice 47 item 2q, left only because `src/mcp/schemas.ts` was outside its Touches** (Slice 47 *Work*, item 2):
+  build it or write the reason it is declined. Added by the 0554 loop, pass 3.
+- [ ] 9. **Slice 47 item 3b's sequential parent reads**, left because one read needs a new `ItemRepository` method in
+  `src/application/ports.ts` (Slice 47 *Work*, item 3): build it or write why not.
 
 #### Not yet verified
 

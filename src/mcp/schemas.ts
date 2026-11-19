@@ -212,7 +212,7 @@ const snapshotFields = {
   priority: z.enum(Priority).optional().describe("Used only when the key is new; the docs never change it later"),
   parent: detailShape.parent,
   why: detailShape.why,
-  details_md: detailShape.details_md.describe("The rest of a clipped title. A new key stores it; a stored item takes it only while its own details are empty, except an owner step in the documents, whose details follow the document line; null or left out keeps what is stored"),
+  details_md: detailShape.details_md.describe("The rest of a clipped title. A new key stores it; a stored item takes it only while its own details are empty, except an owner step in the documents, whose details follow the document line, and null clears them; for any other item null or left out keeps what is stored"),
   links: z.array(link).max(MAX_LINKS).optional(),
 };
 

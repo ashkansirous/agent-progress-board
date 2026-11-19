@@ -29,13 +29,24 @@ const LINE_BREAK = /(\r\n|\r|\n)/;
 // A short flag whose letter starts a secret name (-p password, -k key, -t token, -s secret, -a auth), after a command
 // word: `-p hunter2` or glued `-phunter2` masks the rest of the line from the value. Over-masking is accepted
 // (`tar -tf x` masks "f x").
-// A flag may lead its line (a continuation line of a wrapped command); `-W` is psql's password flag.
-const SHORT_FLAG = /(?:^|[ \t])-[pktsaPKTSAW](?:[ \t]+|(?=[^\s-]))/g;
+// A flag needs a space before it; one that leads its line counts only on a continuation line of a wrapped command (the
+// line before ends with a backslash: shortFlagPoint adds the space), so `cc -Wall x` and a bare `-s foo` line are left
+// alone. `-W` is psql's password flag; it counts only with a separate value (a glued `-Wall` is a compiler flag).
+// A line that ends with a shell continuation mark: a backslash (sh), a backtick (PowerShell) or a caret (cmd).
+const CONTINUATION_END = /[\\`^]\s*$/;
+const SHORT_FLAG =/[ \t](?:-[pktsaPKTSA](?:[ \t]+|(?=[^\s-]))|-W[ \t]+)/g;
 // An escaped quote at any depth (`\"`, `\\"`, ...) reads as a plain one.
 const ESCAPED_QUOTE = /\\+(["'])/g;
 // A secret name then is/was at the end of its line: the value is on a later line.
 const NAME_IS_ENDS = /^["']?[ \t]+(?:is|was)[ \t]*$/;
+const PEM_HEADER = '-----BEGIN ';
 const PEM_BLOCK = /-----BEGIN [A-Z0-9 ]+-----[\s\S]*?(?:-----END [A-Z0-9 ]+-----|$)/g;
+// A tail that starts inside a key's base64 body (its header lies before the cut): leading base64-only lines of 40 or
+// more characters (the last body line may be shorter), then the END line. All of it, END line included, is masked.
+const KEY_BODY_TAIL = /^(?:[A-Za-z0-9+/]{40,}={0,2}[ \t]*\r?\n)+(?:[A-Za-z0-9+/]+={0,2}[ \t]*\r?\n)?[ \t]*-----END [A-Z0-9 ]+-----/;
+// The same start with no END line in the window: the run of base64-only lines (40 or more characters) is masked to its
+// end, and a shorter last line only when it ends the text.
+const KEY_RUN_TAIL = /^(?:[A-Za-z0-9+/]{40,}={0,2}[ \t]*(?:\r?\n|$))+(?:[A-Za-z0-9+/]+={0,2}[ \t]*$)?/;
 // Only this much of a text is masked and read: a card keeps the tail of the assistant text (the last sentence) and
 // the head of a command or message (clipped to 120 to 300 characters), so the rest is never scanned.
 export const MASK_WINDOW = 4096;
@@ -58,10 +69,12 @@ function unescapedCopy(line) {
 }
 
 // Where a short flag's value starts in the line, or null (see SHORT_FLAG); the flag needs a value after it.
-function shortFlagPoint(line) {
+function shortFlagPoint(line, continued) {
+  const lead = continued ? ' ' : '';
+  const scan = `${lead}${line}`;
   SHORT_FLAG.lastIndex = 0;
-  for (let found = SHORT_FLAG.exec(line); found; found = SHORT_FLAG.exec(line)) {
-    const point = found.index + found[0].length;
+  for (let found = SHORT_FLAG.exec(scan); found; found = SHORT_FLAG.exec(scan)) {
+    const point = found.index + found[0].length - lead.length;
     if (line.slice(point).trim() !== '') return point;
   }
   return null;
@@ -71,7 +84,7 @@ function shortFlagPoint(line) {
 // from the separator to its end (`point` is the index where the mask starts, else null). A secret name and separator
 // with no value after them leave the line as it is and set `dangling`: the value is on a later line. A secret name
 // that ends the line with no separator sets `ends`: a next line that starts with `:` or `=` is its separator.
-function maskLine(line) {
+function maskLine(line, continued = false) {
   const { scan, toLine } = unescapedCopy(line);
   let dangling = false;
   let ends = false;
@@ -93,14 +106,14 @@ function maskLine(line) {
       dangling = true;
       continue;
     }
-    return withFlag(line, { line: `${line.slice(0, toLine(point))}${MASK}`, point: toLine(point), dangling: false, ends: false });
+    return withFlag(line, continued, { line: `${line.slice(0, toLine(point))}${MASK}`, point: toLine(point), dangling: false, ends: false });
   }
-  return withFlag(line, { line, point: null, dangling, ends });
+  return withFlag(line, continued, { line, point: null, dangling, ends });
 }
 
 // `named` (the result of the name rule) unless a short flag's value starts earlier on the line.
-function withFlag(line, named) {
-  const flag = shortFlagPoint(line);
+function withFlag(line, continued, named) {
+  const flag = shortFlagPoint(line, continued);
   if (flag === null || (named.point !== null && named.point <= flag)) return named;
   return { line: `${line.slice(0, flag)}${MASK}`, point: flag, dangling: false, ends: false };
 }
@@ -109,21 +122,23 @@ function withFlag(line, named) {
 // break) where it starts in the text, where it starts in the output, and where its mask starts (null for none), so
 // an offset in the text can be found in the output. A line after a dangling name is masked whole (the next
 // non-empty one; blank lines pass).
-function maskLines(text) {
+function maskLines(text, leadContinued = false) {
   const parts = text.split(LINE_BREAK);
   const pieces = [];
   let out = '';
   let from = 0;
   let waiting = false;
   let ends = false;
+  let continued = leadContinued; // the last non-blank line ended with a continuation mark (see CONTINUATION_END)
   parts.forEach((part, index) => {
     const isLine = index % 2 === 0;
     let result = { line: part, point: null, dangling: false, ends: false };
     if (isLine && part.trim() !== '') {
       const whole = waiting || (ends && /^\s*[=:]/.test(part));
-      result = whole ? { line: MASK, point: 0, dangling: false, ends: false } : maskLine(part);
+      result = whole ? { line: MASK, point: 0, dangling: false, ends: false } : maskLine(part, continued);
       waiting = result.dangling;
       ends = result.ends;
+      continued = CONTINUATION_END.test(part);
     }
     pieces.push({ from, to: from + part.length, at: out.length, point: result.point });
     out += result.line;
@@ -132,8 +147,10 @@ function maskLines(text) {
   return { text: out, pieces };
 }
 
+// The first line of any text may be a cut of a longer command, so a leading short flag on it is always masked
+// (over-masking a first line that starts with `-s` is accepted).
 function maskNameValue(text) {
-  return maskLines(text).text;
+  return maskLines(text, true).text;
 }
 
 // Where an offset of the unmasked text falls in the masked one: before a line's mask point it is the same offset
@@ -295,7 +312,7 @@ function plainSentence(sentence) {
 // by offset: a sentence that crosses a mask point ends with the mask, so no part of a secret value is ever sent.
 function sentencesOf(text) {
   const raw = String(text || '');
-  const lines = maskLines(raw);
+  const lines = maskLines(raw, true); // the first line may be a cut of a longer command (see maskNameValue)
   const toMasked = offsetMapper(lines.pieces);
   const bounds = [];
   let start = 0;
@@ -318,6 +335,7 @@ function sentText(sentence, masked) {
 
 // The text with secret-looking values replaced by ***: bearer strings, the rest of any line after a secret name and
 // its separator (see SECRET_PARTS), passwords inside URLs and well-known token shapes.
+// The first line of any text may be a cut of a longer command, so a leading short flag on it is always masked.
 export function maskSecrets(text) {
   return SECRET_PATTERNS.reduce((masked, rule) => (typeof rule === 'function' ? rule(masked) : masked.replace(rule[0], rule[1])), String(text || ''));
 }
@@ -347,15 +365,24 @@ export function toolText(tool) {
   return detail ? `${tool.name}: ${clip(maskSecrets(detail.slice(0, MASK_WINDOW)).replace(/\s+/g, ' ').trim(), COMMAND_LIMIT)}` : tool.name;
 }
 
-// The last MASK_WINDOW characters of a text, from a line start when the cut falls inside a line that has one after it.
-function tailOf(text) {
-  let whole = String(text || '');
-  if (whole.length <= MASK_WINDOW) return whole;
-  whole = whole.replace(PEM_BLOCK, MASK); // a key block whose header lies before the cut is masked first
-  if (whole.length <= MASK_WINDOW) return whole;
+// { text, cutStart }: the last MASK_WINDOW characters of a text, from a line start when the cut falls inside a line that
+// has one after it. `cutStart` is true when the text begins where a cut was made: the line before it is gone, so its
+// first line may be the continuation of a command (see maskSecrets).
+function maskKeyBodyStart(text) {
+  return text.replace(KEY_BODY_TAIL, MASK).replace(KEY_RUN_TAIL, MASK);
+}
+
+export function tailOf(text) {
+  let whole = String(text || ''); // an uncut text keeps its first line (a long path is not a key body)
+  if (whole.length <= MASK_WINDOW) return { text: whole, cutStart: false };
+  // A key block whose header lies before the cut is masked first; only the last such header can run into the tail.
+  const header = whole.lastIndexOf(PEM_HEADER, whole.length - MASK_WINDOW);
+  if (header >= 0) whole = whole.slice(0, header) + whole.slice(header).replace(PEM_BLOCK, MASK);
+  if (whole.length <= MASK_WINDOW) return { text: whole, cutStart: false };
   const cut = whole.slice(-MASK_WINDOW);
   const lineStart = cut.indexOf('\n');
-  return lineStart < 0 || lineStart === cut.length - 1 ? cut : cut.slice(lineStart + 1);
+  const fromLine = lineStart < 0 || lineStart === cut.length - 1 ? cut : cut.slice(lineStart + 1);
+  return { text: maskKeyBodyStart(fromLine), cutStart: true };
 }
 
 // The card text for a Notification, or null when nothing is asked: { needsYou, afterAnswer }.
@@ -366,7 +393,8 @@ function tailOf(text) {
 // a line, question mark included); every text that reaches the board is masked before it is cut, so a cut never
 // leaves half a secret.
 export function cardText(type, rawMessage, rawAssistant) {
-  const assistant = { ...rawAssistant, text: tailOf(rawAssistant.text) };
+  const tail = tailOf(rawAssistant.text);
+  const assistant = { ...rawAssistant, text: tail.text };
   const idle = type === NOTIFICATION.idle;
   if (idle) {
     if (!endsWithQuestion(assistant.text)) return null;

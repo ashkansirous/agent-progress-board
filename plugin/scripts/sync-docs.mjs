@@ -532,11 +532,27 @@ function ownerStepFull(entry) {
 // outside a code span, a link's label or address, and bold text, or -1.
 const INLINE_LINK = /^\[[^\]]*\]\([^)]*\)/;
 
+// The end of the code span whose opening run of backticks starts at `index`: it closes at the next run of exactly as many
+// backticks (so ``a | b`` is one span and a lone ` inside it does not end it), or just past the opening run when none follows.
+function codeSpanEnd(raw, index) {
+  let width = 0;
+  while (raw[index + width] === '`') width += 1;
+  let at = index + width;
+  while (at < raw.length) {
+    if (raw[at] !== '`') { at += 1; continue; }
+    let run = 0;
+    while (raw[at + run] === '`') run += 1;
+    if (run === width) return at + run;
+    at += run;
+  }
+  return index + width; // no closing run: the backticks are plain characters
+}
+
 // The end of the code span, bold run or link that starts at `index`, or -1 when none starts there. An opener with no
 // closer later in the line is a plain character, so a stray `[`, `**` or backtick never hides the bar after it.
 function spanEnd(raw, index) {
   const char = raw[index];
-  if (char === '`') { const close = raw.indexOf('`', index + 1); return close < 0 ? -1 : close + 1; }
+  if (char === '`') return codeSpanEnd(raw, index);
   if (char === '*' && raw[index + 1] === '*') { const close = raw.indexOf('**', index + 2); return close < 0 ? -1 : close + 2; }
   if (char === '[') { const link = INLINE_LINK.exec(raw.slice(index)); return link ? index + link[0].length : -1; }
   return -1;
@@ -580,8 +596,11 @@ function ownerTitleFields(number, raw) {
   const before = flatten(plain(bar < 0 ? raw : raw.slice(0, bar)));
   const after = bar < 0 ? '' : flatten(plain(raw.slice(bar + 1)));
   // A line that already starts "Slice N:" with this slice's number keeps it once.
-  const action = (before || after).replace(new RegExp(`^Slice\\s+${number}\\s*:\\s*`, 'i'), '');
-  const steps = before ? after : '';
+  // The prefix is dropped before the choice, so an action that was only "Slice N:" is empty and the steps take its place.
+  const prefix = new RegExp(`^Slice\\s+${number}\\s*:\\s*`, 'i');
+  const lead = before.replace(prefix, '');
+  const action = lead || after.replace(prefix, '');
+  const steps = lead ? after : '';
   if (!action) return null;
   const heading = `Slice ${number}: ${action}`;
   const cut = heading.length > OWNER_TITLE_LIMIT ? codePointBoundary(heading, OWNER_TITLE_LIMIT - 1) : heading.length;

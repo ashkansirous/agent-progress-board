@@ -59,8 +59,9 @@ if (!HOOK_CALL) {
     ({ readGoal } = await import('./hooks/hook-input.mjs'));
     ({ agentKindOf, emptyFileState, listRecordFiles, metaKindOf, scanFile } = await import('./usage-report.mjs'));
   } catch (error) {
-    logSkipped(error); // fails open: a module that cannot load ends the run quietly, for an importer too
+    logSkipped(error); // fails open for a direct run: a module that cannot load ends it quietly
     if (isInvokedDirectly()) process.exit(0);
+    throw error; // an importer would otherwise run with undefined functions
   }
 }
 

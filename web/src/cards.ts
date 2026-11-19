@@ -79,8 +79,13 @@ export function fillBoardAddress(text: string, origin: string): string {
   return text.replaceAll(BOARD_ADDRESS, origin);
 }
 
-/** A code span, or a whole inline link `[label](target)`, or a `<board address>` with an optional page. */
-const MARKDOWN_ADDRESS = new RegExp(`(\`[^\`\\n]*\`)|(\\[[^\\]\\n]*\\]\\([^)\\n]*\\))|(${BOARD_ADDRESS_LINK.source})`, "g");
+/**
+ * A code span, or a whole inline link `[label](target)` (the label may hold one level of `[...]`, the target one of
+ * `(...)`, as in a Wikipedia address), or a `<board address>` with an optional page.
+ */
+const LINK_LABEL = "(?:[^\\[\\]\\n]|\\[[^\\]\\n]*\\])*";
+const LINK_TARGET = "(?:[^()\\n]|\\([^)\\n]*\\))*";
+const MARKDOWN_ADDRESS = new RegExp(`(\`[^\`\\n]*\`)|(\\[${LINK_LABEL}\\]\\(${LINK_TARGET}\\))|(${BOARD_ADDRESS_LINK.source})`, "g");
 
 /**
  * Markdown text with each `<board address>/#/page` as a link to that page of the board and a bare `<board address>` as

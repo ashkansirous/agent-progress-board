@@ -78,16 +78,27 @@ function renameWithRetry(temp, file, rename) {
 // same file once it is this old.
 const STALE_TEMP_MS = 10 * 60 * 1000;
 
+// A hook is one short process, so each file's temps are swept once per process, on its first write: later writes of the
+// same file skip the directory listing. One temp file that cannot be read (already gone, held) never ends the sweep.
+const sweptFiles = new Set();
+
 function removeStaleTemps(file) {
+  const dir = dirname(file);
+  if (sweptFiles.has(file)) return;
+  sweptFiles.add(file);
   try {
     const prefix = `${basename(file)}.`;
-    const dir = dirname(file);
     for (const name of readdirSync(dir)) {
       if (!name.startsWith(prefix) || !name.endsWith('.tmp')) continue;
-      const path = join(dir, name);
-      if (Date.now() - statSync(path).mtimeMs > STALE_TEMP_MS) removeFile(path);
+      removeIfStale(join(dir, name));
     }
-  } catch { /* the next write retries */ }
+  } catch { /* the next process retries */ }
+}
+
+function removeIfStale(path) {
+  try {
+    if (Date.now() - statSync(path).mtimeMs > STALE_TEMP_MS) removeFile(path);
+  } catch { /* gone or unreadable: the next process retries */ }
 }
 
 export function writeJson(file, value, rename = renameSync) {
@@ -173,6 +184,7 @@ export function readMarkerKey(input, root) {
 // How long a stopped agent's file is kept: longer than background-agents AGENT_FRESH_MS (10 min) plus its resume slack,
 // so an agent whose last write came after its stop is never listed without its stop time.
 const STOPPED_KEEP_MS = 12 * 60 * 1000;
+const STOPPED_WRITE_TRIES = 4; // the first write and up to three more, each repairing one removed-folder race
 
 // The stopped agents of a session: one small file per agent in `<id>.stopped/` holding `{ id, at }`. Parallel
 // SubagentStop hooks each write only their own file (temp, then rename), so none can lose another's stop and no
@@ -229,9 +241,11 @@ export function removeStoppedAgent(id, agentId, root) {
 export function addStoppedAgent(id, agentId, root, now = Date.now(), write = writeJson) {
   const file = stoppedFile(id, agentId, root);
   if (!file) return;
+  // A concurrent removeStoppedAgent may remove the empty folder between mkdir and the temp file's write, once per
+  // resumed agent: the first write is unconditional (a second stop of the same agent id updates `at`), then write
+  // again only while the file is missing, up to STOPPED_WRITE_TRIES times in all.
   write(file, { id: agentId, at: now });
-  // A concurrent removeStoppedAgent may have removed the empty folder between mkdir and the temp file's write: once more.
-  if (!existsSync(file)) write(file, { id: agentId, at: now });
+  for (let attempt = 1; attempt < STOPPED_WRITE_TRIES && !existsSync(file); attempt += 1) write(file, { id: agentId, at: now });
   for (const entry of stoppedEntries(id, root)) {
     if (now - entry.value.at > STOPPED_KEEP_MS) removeFile(entry.file);
   }
@@ -331,6 +345,7 @@ export function readGoal(id, root, now = Date.now()) {
     closed: value.closed === true,
     closedBy: value.closedBy === CLOSED_BY.stop || value.closedBy === CLOSED_BY.session ? value.closedBy : '',
     closedAt: Number.isFinite(value.closedAt) ? value.closedAt : 0,
+    closing: Number.isFinite(value.closing) ? value.closing : 0, // when a close call started and has not returned (session-done.mjs)
     needsYou: text(value.needsYou),
     sig: text(value.sig),
     kind: cardKindOf(value), // 'task' or 'slice': a slice card's status is doc sync's, so session-done never closes it

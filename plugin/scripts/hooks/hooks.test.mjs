@@ -1152,6 +1152,84 @@ describe('Slice 29: background-agent state', () => {
     assert.deepEqual([goal.closed, goal.held], [true, false]);
   });
 
+  test('Slice 46 #1: a close still in flight when the held report returns is sent again after it', async () => {
+    const root = folder();
+    let during = () => {};
+    const board = await startFakeBoard((record, res) => { during(); replyOk(record, res); });
+    const env = envFor(board.url, root);
+    withCard(root);
+    const running = sessionWithAgents([{ id: 'a1', description: 'Translate texts', ageMs: MINUTE }]);
+    during = () => { // the last SubagentStop began its close call: the file does not show the card closed yet
+      during = () => {};
+      writeGoal('sess-1', { ...readGoal('sess-1', root, NOW), closing: Date.now() }, root, NOW);
+    };
+    await runDone(stopInput(running, 'Stop'), env, {}, NOW - 120_000);
+    board.server.close();
+    assert.deepEqual(callsOf(board).map((call) => call.tool), ['report_progress', 'mark_done']);
+    const goal = readGoal('sess-1', root, NOW);
+    assert.deepEqual([goal.closed, goal.closing], [true, 0]);
+  });
+
+  test('Slice 46 review pass 2 #1: a failed close leaves no close in flight, so a later Stop report does not re-close the card', async () => {
+    const root = folder();
+    const failing = await startFakeBoard((_, res) => { res.writeHead(500); res.end('boom'); });
+    withCard(root);
+    await runDone({ session_id: 'sess-1', cwd: process.cwd(), hook_event_name: 'Stop' }, envFor(failing.url, root), {}, NOW);
+    failing.server.close();
+    const failed = readGoal('sess-1', root, NOW);
+    assert.deepEqual([failed.closed, failed.closing], [false, 0], 'the failed close clears closing and writes no close time');
+    const board = await startFakeBoard(replyOk);
+    const running = sessionWithAgents([{ id: 'a1', description: 'Translate texts', ageMs: MINUTE }]);
+    await runDone(stopInput(running, 'Stop'), envFor(board.url, root), {}, NOW - 120_000);
+    board.server.close();
+    assert.deepEqual(callsOf(board).map((call) => call.tool), ['report_progress']);
+    assert.equal(readGoal('sess-1', root, NOW).closed, false);
+  });
+
+  test('Slice 46 review #1: a close written right after the hold, before the report goes out, is sent again', async () => {
+    const root = folder();
+    let closedAt = 0;
+    let during = () => {};
+    const board = await startFakeBoard((record, res) => { during(); replyOk(record, res); });
+    const env = envFor(board.url, root);
+    withCard(root);
+    const running = sessionWithAgents([{ id: 'a1', description: 'Translate texts', ageMs: MINUTE }]);
+    // A clock that moves 10 ms per read, so "just after the hold was written" is a time the test can name: the first
+    // read that finds the hold in the file is the earliest a later clock value can be, and a close written one tick
+    // before it is the last close the hold could have let in before the report's own clock reading in the old code.
+    const realNow = Date.now;
+    let tick = realNow.call(Date);
+    let last = tick;
+    let reading = false;
+    Date.now = () => {
+      tick += 10;
+      if (!reading && !closedAt) {
+        reading = true;
+        try {
+          const goal = readGoal('sess-1', root, NOW);
+          if (goal && goal.held) closedAt = last + 5;
+        } finally {
+          reading = false;
+        }
+      }
+      last = tick;
+      return tick;
+    };
+    during = () => {
+      during = () => {};
+      Date.now = realNow; // the clock is only needed up to the report
+      writeGoal('sess-1', { ...readGoal('sess-1', root, NOW), closed: true, closedBy: 'stop', closedAt, closing: 0, held: false, heldAt: 0 }, root, NOW);
+    };
+    try {
+      await runDone(stopInput(running, 'Stop'), env, {}, NOW - 120_000);
+    } finally {
+      Date.now = realNow;
+      board.server.close();
+    }
+    assert.ok(closedAt > 0, 'the test saw the hold written');
+    assert.deepEqual(callsOf(board).map((call) => call.tool), ['report_progress', 'mark_done']);
+  });
+
   test('a SubagentStop while another agent still runs does not close the card', async () => {
     const board = await startFakeBoard(replyOk);
     const root = folder();
@@ -1235,6 +1313,22 @@ describe('Slice 29: background-agent state', () => {
     await runDone(stopInput(transcript, 'Stop'), env, {}, NOW);
     board.server.close();
     assert.deepEqual(stoppedIds(root), ['a2']);
+  });
+
+  test('Slice 46 #9: a stop file whose folder was removed twice meanwhile is still written', () => {
+    const root = folder();
+    let calls = 0;
+    const flaky = (file, value) => { calls += 1; if (calls > 2) writeJson(file, value); }; // the first two writes land in a removed folder
+    addStoppedAgent('sess-1', 'a1', root, NOW, flaky);
+    assert.equal(calls, 3);
+    assert.deepEqual(stoppedIds(root), ['a1']);
+  });
+
+  test('Slice 46 check-2 #1: a second stop of the same agent id updates its stop time', () => {
+    const root = folder();
+    addStoppedAgent('sess-1', 'a1', root, NOW - 5 * MINUTE);
+    addStoppedAgent('sess-1', 'a1', root, NOW);
+    assert.equal(readStoppedAt('sess-1', root).a1, NOW);
   });
 
   test('a stop file of a removed state folder or an unreadable one is ignored, and no lock folder is made', () => {
@@ -1335,7 +1429,6 @@ describe('Slice 29: background-agent state', () => {
   test('Slice 45: a temp file a killed hook left behind is removed by the next write of the same file, a fresh one is kept', () => {
     const root = folder();
     const file = join(root, 'x.goal.json');
-    writeJson(file, { a: 1 });
     const stale = `${file}.1-dead.tmp`;
     const fresh = `${file}.2-live.tmp`;
     writeFileSync(stale, '{');
@@ -1347,12 +1440,32 @@ describe('Slice 29: background-agent state', () => {
     assert.equal(existsSync(fresh), true);
   });
 
+  test('Slice 46 #6: the sweep runs once per file per process', () => {
+    const root = folder();
+    const file = join(root, 'y.goal.json');
+    const stale = `${file}.1-dead.tmp`;
+    writeFileSync(stale, '{');
+    const old = new Date(Date.now() - 60 * 60 * 1000);
+    utimesSync(stale, old, old);
+    writeJson(file, { a: 1 });
+    assert.equal(existsSync(stale), false);
+    const later = `${file}.3-dead.tmp`;
+    writeFileSync(later, '{');
+    utimesSync(later, old, old);
+    writeJson(file, { a: 2 });
+    assert.equal(existsSync(later), true, 'a second write of the same file in this process does not list the folder again');
+  });
+
   test('Slice 45: the sender log names the hook, session and the fields a card report sent, and stays short', () => {
     const root = folder();
     logSender(root, 'session-done:report_progress', 'sess-1', 'demo-app/session-sess-1', ['status', 'title']);
     assert.match(readFileSync(join(root, 'senders.log'), 'utf8'), /session-done:report_progress sess-1 demo-app\/session-sess-1 status,title\n$/);
-    for (let n = 0; n < SENDER_LOG_LINES * 2 + 5; n += 1) logSender(root, 'h', 'sess-1', 'k', []);
-    assert.ok(readFileSync(join(root, 'senders.log'), 'utf8').split('\n').filter(Boolean).length <= SENDER_LOG_LINES * 2);
+    const key = 'demo-app/session-0123456789abcdef0123456789abcdef'; // real lines are about 100 bytes
+    for (let n = 0; n < SENDER_LOG_LINES * 5; n += 1) logSender(root, 'session-done:report_progress', 'sess-1', key, ['status', 'steps']);
+    const kept = readFileSync(join(root, 'senders.log'), 'utf8').split('\n').filter(Boolean);
+    assert.ok(kept.length < SENDER_LOG_LINES * 5, 'the log was cut once it passed the byte threshold (about 80 KB, so 800 to 1,300 lines of 60 to 100 bytes, not 400)');
+    assert.ok(kept.length >= SENDER_LOG_LINES, 'the cut keeps the newest SENDER_LOG_LINES lines');
+    assert.deepEqual(readdirSync(root).filter((name) => name.endsWith('.tmp')), [], 'the trim leaves no temp file');
   });
 
   test('Slice 45 #4: the waiting card, its close and the dead-session sweep are logged with their sender', async () => {

@@ -40,7 +40,7 @@
 // AGENT_BOARD_URL / AGENT_BOARD_TOKEN. State lives under CLAUDE_PLUGIN_DATA (see stateRoot).
 
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -190,8 +190,9 @@ export function safeId(id) {
 
 // Who sent a report for a session card (Slice 29, "find the title overwrite"): one line `time sender session key fields`
 // appended to `senders.log` in the state folder (`sender` names the script and tool, the last column the field names of
-// the report, so a `title` or `why` sent by a writer shows), the file cut to its last SENDER_LOG_LINES lines once it grows
-// past twice that. Never throws, never holds any text of the card.
+// the report, so a `title` or `why` sent by a writer shows), the file cut to its last SENDER_LOG_LINES lines once it is
+// past SENDER_LOG_TRIM_BYTES (about 80 KB) and holds more than twice that many lines: with real lines of 60 to 100 bytes
+// it holds 800 to 1,300 lines before the cut, not 400. Never throws, never holds any text of the card.
 const SENDER_LOG = 'senders.log';
 export const SENDER_LOG_LINES = 200;
 export function logSender(root, sender, id, key, fields = [], now = Date.now()) {
@@ -200,9 +201,25 @@ export function logSender(root, sender, id, key, fields = [], now = Date.now()) 
     mkdirSync(root, { recursive: true });
     const file = join(root, SENDER_LOG);
     appendFileSync(file, `${new Date(now).toISOString()} ${sender} ${safeId(id)} ${key ?? '-'} ${fields.join(',')}\n`);
-    const lines = readFileSync(file, 'utf8').split('\n').filter(Boolean);
-    if (lines.length > SENDER_LOG_LINES * 2) writeFileSync(file, `${lines.slice(-SENDER_LOG_LINES).join('\n')}\n`);
+    if (statSync(file).size > SENDER_LOG_TRIM_BYTES) trimSenderLog(file);
   } catch { /* fails open */ }
+}
+
+// Only a file past SENDER_LOG_TRIM_BYTES is read at all, and the cut copy is written beside it and renamed over it, so a
+// reader never sees a half-written log (a line appended during the cut can still be lost: it is a diagnostic log).
+const SENDER_LOG_LINE_BYTES = 100; // a real line is about 100 bytes (time 25, sender, 36-character session id, key, fields)
+const SENDER_LOG_TRIM_BYTES = SENDER_LOG_LINES * 2 * SENDER_LOG_LINE_BYTES * 2; // 2x margin: longer lines still hold over 2x lines at the threshold
+function trimSenderLog(file) {
+  const lines = readFileSync(file, 'utf8').split('\n').filter(Boolean);
+  if (lines.length <= SENDER_LOG_LINES * 2) return;
+  const temp = `${file}.${process.pid}.tmp`;
+  try {
+    writeFileSync(temp, `${lines.slice(-SENDER_LOG_LINES).join('\n')}\n`);
+    renameSync(temp, file);
+  } catch (error) {
+    rmSync(temp, { force: true }); // a failed rename (a reader holds the log) leaves no temp file behind
+    throw error;
+  }
 }
 
 // The one way a script sends a card report (report_progress or mark_done on a card's key): the sender is logged first,

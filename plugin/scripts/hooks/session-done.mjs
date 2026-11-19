@@ -27,6 +27,7 @@ export const EVENT = { stop: 'Stop', subagentStart: 'SubagentStart', subagentSto
 export const NOTE = { stopped: 'Session stopped', resumed: 'Session resumed', ended: 'Session ended' };
 const HELD_SLACK_MS = RESUME_SLACK_MS; // transcript writes this soon after Stop belong to the Stop itself
 const PENDING_AGENT_MS = AGENT_FRESH_MS; // an agent with no files yet keeps its row this long from its recorded start
+const CLOSING_WINDOW_MS = HOOK_TIMEOUT_MS + 500; // a close that started this recently may still be in flight
 const SWEEP_LIMIT = 5; // dead waiting cards closed per run, so one hook never passes its time budget
 const NO_ITEM = /no item/;
 
@@ -95,11 +96,11 @@ async function stopCard(input, env, goal, root, now, options) {
     const parents = placeAgents(goal.steps, agents, goal.agentParents);
     const steps = mergeSteps(goal.steps, agents, parents);
     const body = keepQuestion(goal, { key: goal.key, status: 'in_progress', source: HOOK_SOURCE, note: CARD_NOTE, steps });
+    const sentAt = Date.now(); // taken before the hold is written: a close that sees the hold is written at or after it
     // Held before the call, so a SubagentStop of the last agent during it already finds the hold; heldAt is then
     // the time the call returned, so its network time does not eat HELD_SLACK_MS.
     saveGoal(id, (current) => ({ ...heldFields(current, now), agentParents: mergeParents(current, parents) }), root, now);
     const patch = (current, doneAt) => ({ sig: JSON.stringify(steps), ...heldFields(current, doneAt), agentParents: mergeParents(current, parents) });
-    const sentAt = Date.now(); // the clock just before the report goes out: a close written at or after it can be older than the report
     const outcome = await sendCard(config, id, root, { tool: 'report_progress', body, patch }, now, options);
     return reCloseIfClosedMeanwhile(config, id, root, outcome, sentAt, options);
   }
@@ -110,18 +111,28 @@ async function stopCard(input, env, goal, root, now, options) {
 // then keep this older in_progress report over the close. The goal file says whether that happened, so the close is
 // sent once more, after the report (Slice 45, Slice 29 follow-up #2).
 // `closedAt` is the clock time of the close's write to the goal file (closeFields), so only a close written at or after
-// `sentAt`, the clock just before the held report went out, counts: a close from before the report never re-closes.
+// `sentAt`, the clock before the hold was written (so before any close that can see the hold), counts: a close from before the report never re-closes.
 async function reCloseIfClosedMeanwhile(config, id, root, outcome, sentAt, options) {
   const after = readGoal(id, root, Date.now());
-  if (!outcome.ok || !after || !after.closed || after.closedBy !== CLOSED_BY.stop || after.closedAt < sentAt) return outcome;
+  if (!outcome.ok || !after || !closeLaterThan(after, sentAt)) return outcome;
   process.stderr.write('report-progress hook: stop report landed after the close, closing again\n');
   const body = { key: after.key, source: HOOK_SOURCE, note: NOTE.stopped };
   return sendCard(config, id, root, { tool: 'mark_done', body, patch: closeFields }, Date.now(), options);
 }
 
+// The one rule for "a later close wins": a close is later than a report sent at `sentAt` when it was written at or after
+// it (`closedAt`), or is still in flight (`closing`, written before the close call and cleared when the call ends, on every outcome
+// (closeCard's finally), so it is set only by a close that has not returned). A close in flight may land
+// after the report, and the file cannot show it closed yet.
+function closeLaterThan(goal, sentAt) {
+  const written = goal.closed && goal.closedBy === CLOSED_BY.stop && goal.closedAt >= sentAt;
+  const inFlight = goal.closing > 0 && Date.now() - goal.closing <= CLOSING_WINDOW_MS;
+  return written || inFlight;
+}
+
 // The goal fields of a close, written when the close call returned: `closedAt` is the real clock then, never the hook's start time.
 function closeFields() {
-  return { closed: true, closedBy: CLOSED_BY.stop, closedAt: Date.now(), held: false, heldAt: 0 };
+  return { closed: true, closedBy: CLOSED_BY.stop, closedAt: Date.now(), closing: 0, held: false, heldAt: 0 };
 }
 
 // The hold goes on only a card the file does not already show closed (another hook may have closed it meanwhile).
@@ -141,7 +152,14 @@ async function closeCard(config, goal, id, root, now, options) {
     return { skipped: 'question open' };
   }
   const body = { key: goal.key, source: HOOK_SOURCE, note: NOTE.stopped };
-  return sendCard(config, id, root, { tool: 'mark_done', body, patch: closeFields }, now, options);
+  saveGoal(id, { closing: Date.now() }, root, now); // before the call, so a Stop report sent meanwhile sees the close coming
+  try {
+    return await sendCard(config, id, root, { tool: 'mark_done', body, patch: closeFields }, now, options);
+  } finally {
+    try {
+      saveGoal(id, { closing: 0 }, root, now); // the close is no longer in flight, whether it succeeded, failed or threw
+    } catch { /* a locked goal file must not replace the close outcome */ }
+  }
 }
 
 // True when the main transcript was written after Stop held the card: a finished agent woke the main thread (or the
@@ -245,7 +263,7 @@ async function resumeCard(input, env, goal, root, now, options) {
 // The goal file after a resume. The question it cleared is cleared in the file only when the file still holds it: a
 // question the session asked during the call stays. `sig` goes, so the next agent list is sent whatever the last was.
 function resumedPatch(goal) {
-  return (current) => ({ closed: false, closedBy: '', closedAt: 0, held: false, heldAt: 0, sig: '', needsYou: current.needsYou === goal.needsYou ? '' : current.needsYou });
+  return (current) => ({ closed: false, closedBy: '', closedAt: 0, closing: 0, held: false, heldAt: 0, sig: '', needsYou: current.needsYou === goal.needsYou ? '' : current.needsYou });
 }
 
 // A session marked an orchestrator after it reported a card: that card is closed once, at the next hook, and the

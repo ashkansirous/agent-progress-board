@@ -145,4 +145,12 @@ Each item's full text, file and reason is in its source slice file; that file wi
 
 #### Not yet verified
 
-- None on a device: the browser e2e covers the page and there is no phone app here.
+- No phone app here; the browser e2e covers the page with a faked `/api/board`. Three fixers asked for live re-runs
+  (wave entries 329, 341, 353), so these stay open on the live board (live since the 07:10:15Z deployment) and in
+  `docs/plan/unverified.md` (added by the night 2026-11-19-0554 feedback loop):
+- Switching Board, Active work and Usage on the live page reloads the board each time, with no stale data shown.
+- Opening `#/needs-you` scrolls to the first waiting card once per arrival, and a drawer at `#/open/<key>` opens on fresh
+  data.
+- A fold click on a project block leaves the address as it was.
+- After the plugin updates and a session restarts, the plugin hook changes (`pruneAgents` in `session-done.mjs`,
+  `hook-input.mjs`, `report-progress.mjs`) keep the session card and its agent rows right through a subagent run.

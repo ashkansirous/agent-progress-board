@@ -3,6 +3,13 @@
 Every open "Not yet verified" check, one block per slice. A check that passes, or that the
 owner confirms, is removed here and its slice marked `verified`.
 
+### Slice 47: Open review follow-ups of Slices 33 to 36, 39 to 41 and 46 ([slice](slices/47-open-follow-ups.md))
+
+- Switching Board, Active work and Usage on the live page reloads the board each time, with no stale data shown.
+- Opening `#/needs-you` scrolls to the first waiting card once per arrival, and a drawer at `#/open/<key>` opens on fresh data.
+- A fold click on a project block leaves the address as it was.
+- After the plugin updates and a session restarts, the plugin hook changes (`pruneAgents`, `hook-input.mjs`, `report-progress.mjs`) keep the session card and its agent rows right through a subagent run.
+
 ### Slice 46: Follow-ups left open by Slice 45 ([slice](slices/46-slice-45-follow-ups.md))
 
 - After the plugin updates and a session restarts, a Stop that follows a SubagentStop leaves the session card closed (item 1).

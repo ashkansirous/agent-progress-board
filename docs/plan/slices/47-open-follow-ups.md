@@ -1,6 +1,7 @@
 ### Slice 47 — Open review follow-ups of Slices 33 to 36, 39 to 41 and 46
 
-**Status:** parked: feedback loop, waits for the user.
+**Status:** planned. Settled 2026-11-19 by the starter session under the owner's standing rule ("build all", no review
+round): build every item, correctness and privacy findings first.
 
 *Planned 2026-11-19 by the feedback loop of night 2026-11-19-0441 ([note](../notes/2026-11-19-0441-feedback-loop.md),
 finding 6). The night stopped with "no planned slices left" while these follow-ups sat only in built slices' files and

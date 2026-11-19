@@ -30,18 +30,23 @@ function isTokenKeyError(error: unknown): boolean {
  * at once without calling jose, so no request refetches. Errors jwtVerify raises after the key was found never
  * come through here.
  */
-function guardedKeys(remote: RemoteJWKSet, clock: Clock): JWTVerifyGetKey {
-  let failure: { at: number; error: KeyFetchFailure } | null = null;
+export function guardedKeys(remote: RemoteJWKSet, clock: Clock): JWTVerifyGetKey {
+  let failure: { at: number; startedCalls: number; error: KeyFetchFailure } | null = null;
+  let calls = 0;
   return async (header, token) => {
     const now = clock.now().getTime();
-    if (failure && now - failure.at < KEY_RETRY_SECONDS * MS_PER_SECOND) throw failure.error;
+    // A clock that moved back (now < failure.at) ends the cool-down: it would otherwise last until the clock caught up.
+    if (failure && now >= failure.at && now - failure.at < KEY_RETRY_SECONDS * MS_PER_SECOND) throw failure.error;
+    const call = ++calls;
     try {
       const key = await remote(header, token);
-      failure = null;
+      // A late success of a call that started before the failure was recorded does not end that failure's cool-down.
+      if (failure && failure.startedCalls < call) failure = null;
       return key;
     } catch (error) {
       if (isTokenKeyError(error)) throw error;
-      failure = { at: now, error: new KeyFetchFailure(error) };
+      // The cool-down runs from the failure, not from the start of a slow fetch.
+      failure = { at: clock.now().getTime(), startedCalls: calls, error: new KeyFetchFailure(error) };
       throw failure.error;
     }
   };
@@ -106,8 +111,8 @@ function pruneLogged(now: number): void {
   }
 }
 
-function logOncePerWindow(key: string, line: string): void {
-  const now = Date.now();
+function logOncePerWindow(key: string, line: string, clock: Clock): void {
+  const now = clock.now().getTime();
   const last = lastLogged.get(key);
   if (last !== undefined && now - last < LOG_WINDOW_MS) return;
   if (lastLogged.size >= MAX_LOG_KEYS) pruneLogged(now);
@@ -117,11 +122,11 @@ function logOncePerWindow(key: string, line: string): void {
 }
 
 /** Only the kind of failure is logged, never the token or the request; repeats (and the cool-down's) fall in the throttle. */
-function logUnavailable(failure: KeyFetchFailure): void {
+function logUnavailable(failure: KeyFetchFailure, clock: Clock): void {
   const cause = failure.cause;
   const kind = cause instanceof Error ? cause.name : typeof cause;
   const message = cause instanceof Error ? cause.message : "";
-  logOncePerWindow(kind, `Access check unavailable (${kind}): ${message}`);
+  logOncePerWindow(kind, `Access check unavailable (${kind}): ${message}`, clock);
 }
 
 /** The names (never the values) of the Access settings that are unset. */
@@ -133,10 +138,10 @@ function missingSettings(env: AccessEnv): string[] {
 }
 
 /** Decides one request: a valid Cloudflare Access JWT for this application is the only way in. */
-export async function checkAccess(request: Request, env: AccessEnv, keys: AccessKeys): Promise<AccessDecision> {
+export async function checkAccess(request: Request, env: AccessEnv, keys: AccessKeys, clock: Clock = systemClock): Promise<AccessDecision> {
   const missing = missingSettings(env);
   if (missing.length > 0) {
-    logOncePerWindow(`${SETTINGS_LOG_KEY}:${missing.join(",")}`, `Access check unavailable: ${missing.join(", ")} not set`);
+    logOncePerWindow(`${SETTINGS_LOG_KEY}:${missing.join(",")}`, `Access check unavailable: ${missing.join(", ")} not set`, clock);
     return AccessDecision.Unavailable;
   }
   const token = request.headers.get(ACCESS_JWT_HEADER);
@@ -147,7 +152,7 @@ export async function checkAccess(request: Request, env: AccessEnv, keys: Access
     getKey = keys(issuer);
   } catch (error) {
     // A team domain that is no URL is a setting problem, not something the request can cause.
-    logUnavailable(new KeyFetchFailure(error));
+    logUnavailable(new KeyFetchFailure(error), clock);
     return AccessDecision.Unavailable;
   }
   try {
@@ -155,7 +160,7 @@ export async function checkAccess(request: Request, env: AccessEnv, keys: Access
     return AccessDecision.Granted;
   } catch (error) {
     if (!(error instanceof KeyFetchFailure)) return AccessDecision.Denied;
-    logUnavailable(error);
+    logUnavailable(error, clock);
     return AccessDecision.Unavailable;
   }
 }

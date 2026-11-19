@@ -685,7 +685,11 @@ A "not yet tried on a device" line is a check, never a card. A made-up snapshot 
 - A `bug` or `problem` may name the slice planned for it in `parent_key`; the board returns that slice
   as `parent_slice` (null when the key names no slice on the board).
 - `GET /api/board` also returns `groups`, one per project, which the page draws without regrouping:
-  `needs_you`, `working_now`, `planned`, `loose_checks`, `problems`, `other`, `done` and `summary`.
+  `needs_you`, `working_now`, `planned`, `built`, `loose_checks`, `problems`, `other`, `done` and `summary`.
+  `built` lists the done slices that still have at least one check not tried, by slice number (each as a planned
+  slice does, with its checks); such a slice is in no other list, and `summary.built` counts them. The summary's
+  keys are `needs_you`, `working`, `planned`, `built`, `problems` and `checks_not_tried`; `checks_not_tried` counts
+  the checks of planned and built slices and the loose ones.
 
 ## Keys
 

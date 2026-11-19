@@ -31,8 +31,8 @@ Slice 32 findings are medium correctness faults. This slice gathers them so none
    Verify: a huge item keeps its title and status in the cut reply.
 4. Slice 32, the other five check-pass-3 findings: see "Follow-up from check pass 3" in
    [Slice 32](32-questions-and-rules.md).
-5. Slice 37: the five lows under "Follow-up list (low, not built)" in [Slice 37](37-access-and-grants.md).
-6. Slice 42: `docs/clients.md` does not describe the `built` grouping ([Slice 42](42-built-not-in-progress.md)).
+5. [x] Slice 37: the five lows under "Follow-up list (low, not built)" in [Slice 37](37-access-and-grants.md).
+6. [x] Slice 42: `docs/clients.md` does not describe the `built` grouping ([Slice 42](42-built-not-in-progress.md)).
 7. Slice 43: the phone card shows the project name, not "Your step" (check pass 2 #6; the Decision says "Your step"),
    plus the other check-pass-2 lows and skipped #9 in [Slice 43](43-owner-cards-read-right.md).
 8. Slice 43: the live "NaN:00" on the Environment tab was never reproduced; only `bucketLabel` was hardened. Verify on the

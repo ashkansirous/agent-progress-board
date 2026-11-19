@@ -7,6 +7,7 @@ import {
   type AccessKeys,
   checkAccess,
   createRemoteAccessKeys,
+  guardedKeys,
   KEY_RETRY_SECONDS,
   KeyFetchFailure,
   resetAccessLogThrottle,
@@ -140,6 +141,74 @@ describe("the remote key set", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  describe("Slice 45 (Slice 37 lows): the key cool-down", () => {
+    const header = { alg: "RS256", kid: KEY_ID };
+    const fakeKey = {} as CryptoKey;
+    const sec = (n: number) => n * 1000;
+
+    it("runs the cool-down from the failure, not from the start of a slow fetch", async () => {
+      const clock = { at: 1_000_000 };
+      let release: (() => void) | undefined;
+      const remote = vi
+        .fn()
+        .mockImplementationOnce(() => new Promise<CryptoKey>((_resolve, reject) => { release = () => reject(new errors.JWKSTimeout()); }))
+        .mockRejectedValue(new errors.JWKSTimeout());
+      const getKey = guardedKeys(remote as never, { now: () => new Date(clock.at) });
+      const slow = getKey(header, {} as never).catch((error: unknown) => error);
+      clock.at += sec(8);
+      release?.();
+      expect(await slow).toBeInstanceOf(KeyFetchFailure);
+      clock.at += sec(9);
+      await expect(getKey(header, {} as never)).rejects.toBeInstanceOf(KeyFetchFailure);
+      expect(remote).toHaveBeenCalledTimes(1);
+      clock.at += sec(2);
+      await expect(getKey(header, {} as never)).rejects.toBeInstanceOf(KeyFetchFailure);
+      expect(remote).toHaveBeenCalledTimes(2);
+    });
+
+    it("a late success of a call that began before the failure does not end the cool-down", async () => {
+      const clock = { at: 1_000_000 };
+      const settle: { ok?: () => void; fail?: () => void } = {};
+      const remote = vi
+        .fn()
+        .mockImplementationOnce(() => new Promise<CryptoKey>((resolve) => { settle.ok = () => resolve(fakeKey); }))
+        .mockImplementationOnce(() => new Promise<CryptoKey>((_resolve, reject) => { settle.fail = () => reject(new errors.JWKSTimeout()); }))
+        .mockResolvedValue(fakeKey);
+      const getKey = guardedKeys(remote as never, { now: () => new Date(clock.at) });
+      const early = getKey(header, {} as never);
+      const failing = getKey(header, {} as never).catch((error: unknown) => error);
+      settle.fail?.();
+      expect(await failing).toBeInstanceOf(KeyFetchFailure);
+      settle.ok?.();
+      expect(await early).toBe(fakeKey);
+      await expect(getKey(header, {} as never)).rejects.toBeInstanceOf(KeyFetchFailure);
+      expect(remote).toHaveBeenCalledTimes(2);
+    });
+
+    it("a clock that moves back does not hold the cool-down until it catches up", async () => {
+      const clock = { at: 1_000_000 };
+      const remote = vi.fn().mockRejectedValueOnce(new errors.JWKSTimeout()).mockResolvedValue(fakeKey);
+      const getKey = guardedKeys(remote as never, { now: () => new Date(clock.at) });
+      await expect(getKey(header, {} as never)).rejects.toBeInstanceOf(KeyFetchFailure);
+      clock.at -= sec(3600);
+      expect(await getKey(header, {} as never)).toBe(fakeKey);
+    });
+
+    it("the log throttle reads the injected clock, not Date.now()", async () => {
+      const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+      const clock = { at: 5_000_000 };
+      const asClock = { now: () => new Date(clock.at) };
+      const request = await requestWithToken();
+      const failing = failingKeys(new KeyFetchFailure(new errors.JWKSTimeout()));
+      await checkAccess(request, accessEnv, failing, asClock);
+      await checkAccess(request, accessEnv, failing, asClock);
+      expect(log).toHaveBeenCalledTimes(1);
+      clock.at += 61_000;
+      await checkAccess(request, accessEnv, failing, asClock);
+      expect(log).toHaveBeenCalledTimes(2);
+    });
   });
 
   it("denies an expired token, not 503", async () => {

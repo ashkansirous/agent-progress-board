@@ -94,7 +94,7 @@ function partsByParent(rows: BoardRow[], config: BoardConfig, now: Date): Map<st
 /** The types that name a slice in `parent_key`: a part or check belongs to it, a bug or problem is planned into it (Slice 14). */
 const SLICE_CHILD_TYPES: readonly ItemType[] = [ItemType.Part, ItemType.Check, ItemType.Bug, ItemType.Problem];
 
-/** The slice a part, bug or problem names, as data (key, number, title); the page words it. Null when it names no slice on the board. */
+/** The slice a part, check, bug or problem names, as data (key, number, title); the page words it. Null when it names no slice on the board. */
 function parentSliceOf(row: BoardRow, ctx: PartsContext): ParentSliceDto | null {
   const slice =
     SLICE_CHILD_TYPES.includes(row.type) && row.parent_key ? (ctx.sliceByKey.get(row.parent_key) ?? row.parentSlice ?? undefined) : undefined;

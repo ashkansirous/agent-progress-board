@@ -268,6 +268,15 @@ describe("mark_done, ask_human, get_item", () => {
     expect(((await callTool("get_item", { key: SLICE.key })).data as Record<string, unknown>)).toMatchObject({ needs_you: "Fifth?", after_answer: null });
   });
 
+  it("Slice 45 #8: a blank needs_you with no why on an item of another type is refused (by the schema) and changes nothing", async () => {
+    await callTool("report_progress", { ...SLICE, status: "in_progress" });
+    await callTool("ask_human", { key: SLICE.key, project: "demo-app", title: "Q", why: "Which phone?" });
+    const blank = await callTool("ask_human", { key: SLICE.key, project: "demo-app", title: "Q", needs_you: "   " });
+    expect(blank.isError).toBe(true);
+    expect(blank.text).toContain("needs_you");
+    expect(((await callTool("get_item", { key: SLICE.key })).data as Record<string, unknown>).needs_you).toBe("Which phone?");
+  });
+
   it("ask_human on a done item of another type is an error result naming that it is done", async () => {
     await callTool("report_progress", SLICE);
     await callTool("mark_done", { key: SLICE.key });

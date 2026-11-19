@@ -4,11 +4,21 @@
 Settled the same day by the starter session under the owner's standing rule (no review or approval round; "build all"
 for Slice 45): build every item, the two correctness faults first; item 8 keeps the decision the loop recorded.*
 
+*In progress (wave 2026-11-19), draft PR.*
+
 **Touches:** `plugin/scripts/hooks/session-done.mjs`, `plugin/scripts/sync-docs.mjs`, `plugin/scripts/usage-tick.mjs`,
 `src/mcp/schemas.ts`, `plugin/scripts/report-progress.mjs`, `plugin/scripts/hooks/hook-input.mjs`,
 `plugin/scripts/hooks/waiting-card.mjs`, `plugin/scripts/sync-docs.test.mjs`, `plugin/scripts/hooks/hooks.test.mjs`,
 `plugin/scripts/hooks/waiting-card.test.mjs`, `plugin/scripts/usage-tick.test.mjs`, `plugin/scripts/report-progress.test.mjs`,
-`test/mcp.test.ts`
+`test/mcp.test.ts`, `plugin/scripts/hooks/goal-reminder.mjs`, `web/src/cards.ts`, `test/sessionWeb.test.ts`,
+`src/mcp/tools.ts`, `docs/clients.md`
+
+*Premise check (wave 2026-11-19, on origin/main 693b5d0): all nine items still open; current places: item 1
+`session-done.mjs:99` (`reCloseIfClosedMeanwhile` after `sendCard`), item 2 `spanEnd` `sync-docs.mjs:537` and
+`actionBar` :549, item 5 `logSender` `report-progress.mjs:197`, item 7 `SHORT_FLAG` `waiting-card.mjs:33`, item 8 notice
+already at `sync-docs.mjs:822` (only `docs/clients.md` lacks it), item 9: `MARKDOWN_ADDRESS` `web/src/cards.ts:83`,
+emptied action `ownerTitleFields` `sync-docs.mjs:577`, PEM replace `waiting-card.mjs:354`, `addStoppedAgent`
+`hook-input.mjs:229`, link-drop `clipStrings` `src/mcp/tools.ts:59`/:119. No migration.*
 
 #### Why
 

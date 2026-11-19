@@ -4,8 +4,8 @@
 // Files live in the state folder (report-progress.mjs stateRoot): `<id>` (waiting marker), `<id>.goal.json`
 // (the session's own card), `<id>.prompt.json` (the reminder's prompt counter) and `<id>.seen` (last activity).
 import { createHash } from 'node:crypto';
-import { existsSync,mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, rmdirSync, statSync, writeFileSync } from 'node:fs';
+import { basename, dirname, join } from 'node:path';
 import { projectSlug, resolveConfig, stateRoot } from '../report-progress.mjs';
 
 export const HOOK_TIMEOUT_MS = 2000;
@@ -75,6 +75,22 @@ function renameWithRetry(temp, file, rename) {
   rename(temp, file);
 }
 
+// A temp file left by a process that was killed between its write and its rename is removed by the next write of the
+// same file once it is this old.
+const STALE_TEMP_MS = 10 * 60 * 1000;
+
+function removeStaleTemps(file) {
+  try {
+    const prefix = `${basename(file)}.`;
+    const dir = dirname(file);
+    for (const name of readdirSync(dir)) {
+      if (!name.startsWith(prefix) || !name.endsWith('.tmp')) continue;
+      const path = join(dir, name);
+      if (Date.now() - statSync(path).mtimeMs > STALE_TEMP_MS) removeFile(path);
+    }
+  } catch { /* the next write retries */ }
+}
+
 export function writeJson(file, value, rename = renameSync) {
   if (!file) return;
   const temp = `${file}.${process.pid}-${Math.random().toString(36).slice(2)}.tmp`;
@@ -82,6 +98,7 @@ export function writeJson(file, value, rename = renameSync) {
     mkdirSync(dirname(file), { recursive: true });
     writeFileSync(temp, JSON.stringify(value));
     renameWithRetry(temp, file, rename);
+    removeStaleTemps(file);
   } catch {
     removeFile(temp); /* fail open: the session is then judged by the board's own rules */
   }
@@ -105,11 +122,12 @@ function removeFile(file) {
 
 // The JSON of a state file, or null. A file older than SESSION_FILE_MAX_AGE_MS belongs to a session
 // that ended: it is ignored and removed, so a reused id starts clean.
-function readFreshJson(file, now) {
+function readFreshJson(file, now, onStale = () => {}) {
   if (!file) return null;
   try {
     if (now - statSync(file).mtimeMs > SESSION_FILE_MAX_AGE_MS) {
       removeFile(file);
+      onStale();
       return null;
     }
     return readJson(file);
@@ -202,6 +220,9 @@ export function readStoppedAt(id, root) {
 // A resumed agent: only its own file goes. A file already gone is fine.
 export function removeStoppedAgent(id, agentId, root) {
   removeFile(stoppedFile(id, agentId, root));
+  try {
+    rmdirSync(stoppedDir(id, root)); // only an empty folder goes; one with other agents' files stays
+  } catch { /* not empty, or already gone */ }
 }
 
 // Records the stop time of an agent (a resumed agent that stops again gets a new time) and deletes the files older
@@ -290,7 +311,7 @@ function goalSteps(value) {
 // The goal file's content, or null. A goal whose own goalAt is older than SESSION_FILE_MAX_AGE_MS no longer
 // counts, however often the file was rewritten.
 export function readGoal(id, root, now = Date.now()) {
-  const value = readFreshJson(sessionFile(id, GOAL_SUFFIX, root), now);
+  const value = readFreshJson(sessionFile(id, GOAL_SUFFIX, root), now, () => removeStoppedFolder(id, root)); // the goal file aged out: its stop files go with it
   if (!value || !Number.isFinite(value.at)) return null;
   const goalAt = Number.isFinite(value.goalAt) ? value.goalAt : value.at;
   if (now - goalAt > SESSION_FILE_MAX_AGE_MS) {
@@ -351,6 +372,23 @@ function parentsOf(value) {
 export function removeGoal(id, root) {
   removeFile(sessionFile(id, GOAL_SUFFIX, root));
   removeStoppedFolder(id, root);
+}
+
+// Who sent a report for a session card (Slice 29, "find the title overwrite"): one line `time hook session key` appended
+// to `senders.log` in the state folder (`hook` names the hook and tool, the last column the field names of the report, so a
+// `title` or `why` sent by a hook shows), the file cut to its last SENDER_LOG_LINES lines once it grows past twice that.
+// Never throws, never holds any text of the card.
+const SENDER_LOG = 'senders.log';
+export const SENDER_LOG_LINES = 200;
+export function logSender(root, hook, id, key, fields = [], now = Date.now()) {
+  try {
+    if (!root) return;
+    mkdirSync(root, { recursive: true });
+    const file = join(root, SENDER_LOG);
+    appendFileSync(file, `${new Date(now).toISOString()} ${hook} ${safeId(id)} ${key} ${fields.join(',')}\n`);
+    const lines = readFileSync(file, 'utf8').split('\n').filter(Boolean);
+    if (lines.length > SENDER_LOG_LINES * 2) writeFileSync(file, `${lines.slice(-SENDER_LOG_LINES).join('\n')}\n`);
+  } catch { /* fails open */ }
 }
 
 // `{ at, tools, reminded }` of the session's current prompt, kept by the reminder hook.

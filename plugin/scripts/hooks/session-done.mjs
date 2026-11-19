@@ -19,7 +19,7 @@ import { callTool, isOrchestrator, resolveConfig } from '../report-progress.mjs'
 import { AGENT_FRESH_MS, AGENT_PREFIX, AGENT_STATE, CARD_NOTE, RESUME_SLACK_MS, agentRowId, hasActiveAgent, hasAgentMeta, isForegroundAgent, mergeSteps, placeAgents, readBackgroundAgents, subagentsDir } from './background-agents.mjs';
 import {
   CLOSED_BY, HOOK_SOURCE, ORCH_CLOSE, HOOK_TIMEOUT_MS, addStoppedAgent, hasMarker, listMarkers, parseInput, readGoal, readMarkerKey, readSeen, readStdinText,
-  readStoppedAt, removeMarker, removeStoppedAgent, sessionContext, sessionIdOf, stateRoot, touchSeen, updateGoal,
+  logSender, readStoppedAt, removeMarker, removeStoppedAgent, sessionContext, sessionIdOf, stateRoot, touchSeen, updateGoal,
 } from './hook-input.mjs';
 
 export const DEAD_SESSION_MS = 30 * 60 * 1000; // a waiting card whose session sent nothing for this long is closed
@@ -54,6 +54,7 @@ function mergeParents(current, parents) {
 
 async function sendCard(config, id, root, args, now, options) {
   const started = Date.now();
+  logSender(root, `session-done:${args.tool}`, id, args.body.key, Object.keys(args.body).filter((field) => field !== 'key'));
   const outcome = await callTool(config, args.tool, args.body, callOptions(options));
   const gone = !outcome.ok && NO_ITEM.test(outcome.error || '');
   if (outcome.ok || gone) saveGoal(id, args.patch, root, now, now + (Date.now() - started));
@@ -81,7 +82,7 @@ function currentAgents(input, id, root, now) {
   const stopped = readStoppedAt(id, root);
   const agents = readBackgroundAgents(input, now, stopped);
   for (const agent of agents) {
-    if (agent.state === AGENT_STATE.active && agent.id in stopped) removeStoppedAgent(id, agent.id, root);
+    if (agent.state === AGENT_STATE.active && Object.hasOwn(stopped, agent.id)) removeStoppedAgent(id, agent.id, root);
   }
   return agents;
 }

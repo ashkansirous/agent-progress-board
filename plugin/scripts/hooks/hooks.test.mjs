@@ -9,7 +9,7 @@ import { setTimeout } from 'node:timers';
 import { fileURLToPath } from 'node:url';
 import { AGENT_FRESH_MS, mergeSteps, placeAgents, readBackgroundAgents, subagentsDir } from './background-agents.mjs';
 import { closeAnsweredWaiting, handle as remind, REMINDER_TEXT } from './goal-reminder.mjs';
-import { addStoppedAgent, hasMarker, listMarkers, readGoal, readStdinText, readStoppedAt, removeGoal, touchSeen, updateGoal, writeGoal, writeJson, writeMarker, writePrompt } from './hook-input.mjs';
+import { SENDER_LOG_LINES, addStoppedAgent, hasMarker, listMarkers, logSender, readGoal, readStdinText, readStoppedAt, removeGoal, removeStoppedAgent, touchSeen, updateGoal, writeGoal, writeJson, writeMarker, writePrompt } from './hook-input.mjs';
 import { DEAD_SESSION_MS, run as runDone, startContext } from './session-done.mjs';
 import { execFileSync } from 'node:child_process';
 import { branchOf, run as runWaiting, titleOf, usableCwd } from './session-waiting.mjs';
@@ -1243,6 +1243,57 @@ describe('Slice 29: background-agent state', () => {
     assert.deepEqual(stoppedIds(root).sort(), ['a b', 'a.b']);
     removeGoal('sess-1', root);
     assert.equal(existsSync(join(root, 'sess-1.stopped')), false);
+  });
+
+  test('Slice 45 (Slice 29 follow-ups): the stop folder goes with an aged-out goal file and with its last resumed agent', () => {
+    const root = folder();
+    writeGoal('sess-7', { key: 'demo-app/session-sess-7', project: 'demo-app', title: 't' }, root, NOW);
+    addStoppedAgent('sess-7', 'a1', root, NOW);
+    const old = new Date(Date.now() - 25 * 60 * 60 * 1000);
+    utimesSync(join(root, 'sess-7.goal.json'), old, old);
+    assert.equal(readGoal('sess-7', root, Date.now()), null);
+    assert.equal(existsSync(join(root, 'sess-7.stopped')), false);
+    addStoppedAgent('sess-8', 'a1', root, NOW);
+    addStoppedAgent('sess-8', 'a2', root, NOW);
+    removeStoppedAgent('sess-8', 'a1', root);
+    assert.deepEqual(Object.keys(readStoppedAt('sess-8', root)), ['a2']);
+    removeStoppedAgent('sess-8', 'a2', root);
+    assert.equal(existsSync(join(root, 'sess-8.stopped')), false);
+  });
+
+  test('Slice 45: a temp file a killed hook left behind is removed by the next write of the same file, a fresh one is kept', () => {
+    const root = folder();
+    const file = join(root, 'x.goal.json');
+    writeJson(file, { a: 1 });
+    const stale = `${file}.1-dead.tmp`;
+    const fresh = `${file}.2-live.tmp`;
+    writeFileSync(stale, '{');
+    writeFileSync(fresh, '{');
+    const old = new Date(Date.now() - 60 * 60 * 1000);
+    utimesSync(stale, old, old);
+    writeJson(file, { a: 2 });
+    assert.equal(existsSync(stale), false);
+    assert.equal(existsSync(fresh), true);
+  });
+
+  test('Slice 45: the sender log names the hook, session and the fields a card report sent, and stays short', () => {
+    const root = folder();
+    logSender(root, 'session-done:report_progress', 'sess-1', 'demo-app/session-sess-1', ['status', 'title']);
+    assert.match(readFileSync(join(root, 'senders.log'), 'utf8'), /session-done:report_progress sess-1 demo-app\/session-sess-1 status,title\n$/);
+    for (let n = 0; n < SENDER_LOG_LINES * 2 + 5; n += 1) logSender(root, 'h', 'sess-1', 'k', []);
+    assert.ok(readFileSync(join(root, 'senders.log'), 'utf8').split('\n').filter(Boolean).length <= SENDER_LOG_LINES * 2);
+  });
+
+  test('Slice 45: a Stop that sends a card report is logged with its hook and fields, and a goal-bearing report never names title or why', async () => {
+    const board = await startFakeBoard(replyOk);
+    const root = folder();
+    const env = envFor(board.url, root);
+    writeGoal('sess-1', { key: 'demo-app/session-sess-1', project: 'demo-app', title: 'Goal' }, root, NOW);
+    await runDone({ session_id: 'sess-1', hook_event_name: 'Stop', cwd: process.cwd() }, env, {}, NOW);
+    board.server.close();
+    const log = readFileSync(join(root, 'senders.log'), 'utf8');
+    assert.match(log, /session-done:\w+ sess-1 demo-app\/session-sess-1/);
+    assert.doesNotMatch(log, /\btitle\b|\bwhy\b/);
   });
 
   test('a session step with the agent\'s label stays as it is and the agent is its own row', () => {

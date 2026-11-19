@@ -1,6 +1,6 @@
 ### Slice 45 — Review follow-ups left open by the night 2026-11-18-1602
 
-*Planned 2026-11-19 by the feedback loop ([note](../notes/2026-11-18-1602-feedback-loop.md)). Nothing here is built.*
+*In progress (wave 2026-11-19), draft PR.* *Planned 2026-11-19 by the feedback loop ([note](../notes/2026-11-18-1602-feedback-loop.md)).*
 
 *Settled 2026-11-19 by the starter session, under the owner's standing rule (no review or approval round; 2026-11-18:
 "you should not fucking wait for my fucking review"): build every item below, item 12 (privacy) first, then 1-3. An
@@ -8,8 +8,9 @@ item whose fix needs a choice the slice files leave open takes the option that k
 the slice's own Decision and records it under* Found while building. *Item 8's live check is Claude's (Chrome), not
 the owner's.*
 
-**Touches:** `src/mcp/tools.ts`, `src/application/board.ts`, `src/domain/upsert.ts`, `plugin/scripts/sync-docs.mjs`,
-`web/src/cards.ts`, `web/src/SessionCards.tsx`, `web/src/usage*`, `docs/clients.md`, the tests beside each
+**Touches:** `src/mcp/tools.ts`, `src/application/board.ts`, `src/domain/upsert.ts`, `src/domain/docSync.ts`, `src/api/board.ts`, `src/api/access.ts`, `src/infrastructure/d1Repository.ts`, `plugin/scripts/sync-docs.mjs`, `plugin/scripts/cap-reading.mjs`, `plugin/scripts/usage-tick.mjs`, `plugin/scripts/hooks/waiting-card.mjs`, `plugin/scripts/hooks/session-waiting.mjs`, `plugin/scripts/hooks/background-agents.mjs`, `plugin/scripts/hooks/hook-input.mjs`, `plugin/scripts/hooks/session-done.mjs`, `plugin/scripts/hooks/goal-reminder.mjs`, `web/src/cards.ts`, `web/src/SessionCards.tsx`, `web/src/SessionDrawer.tsx`, `web/src/Detail.tsx`, `web/src/chartGeometry.ts`, `web/src/usage*`, `docs/clients.md`, `docs/plan/unverified.md`, `docs/plan/slices/38-steady-browser-tests.md`, `docs/plan/slices/41-tasks-with-outcome.md`, `e2e/active.spec.ts`, `e2e/usage.spec.ts`, `e2e/usageFixture.ts`, `e2e/loadingClock.ts`, `test/mcp.test.ts`, `test/board.test.ts`, `test/upsert.test.ts`, `test/access.test.ts`, `test/capCost.test.ts`, `test/seed.test.ts`, `test/oauth.test.ts`, `test/sessionWeb.test.ts`, `test/loadingDelay.test.ts`, `test/syncSnapshot.test.ts`, `test/docSync.test.ts`, `plugin/scripts/sync-docs.test.mjs`, `plugin/scripts/cap-reading.test.mjs`, `plugin/scripts/usage-tick.test.mjs`, `plugin/scripts/hooks/hooks.test.mjs`, `plugin/scripts/hooks/waiting-card.test.mjs`
+
+*Touches widened at the claim (wave 2026-11-19) from a ground-in-code check at origin/main c765de1: all 18 items still open; item 2's code moved to `src/application/board.ts:182`; item 11's message prints only for a header-only table (`sync-docs.mjs:790`); item 17: only `details_md` is COALESCEd (`d1Repository.ts:244`), the title already refreshes.*
 
 **Migrations:** none
 

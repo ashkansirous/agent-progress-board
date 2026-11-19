@@ -1,6 +1,7 @@
 ### Slice 49 — Follow-ups left open by Slice 48
 
-**Status:** *parked: feedback loop, waits for the user.* Planned 2026-11-19 by the feedback loop of night
+**Status:** planned (starter session 2026-11-19, the owner's standing "build all", no review round; the possible
+data-loss item first). Planned 2026-11-19 by the feedback loop of night
 2026-11-19-0734 ([note](../notes/2026-11-19-0734-feedback-loop.md), pass 1). Slice 48's last check pass returned four
 nits that its *From review* calls "follow-ups", but no slice or *Outstanding work* line held them once Slice 48 was
 built. The loop plans; it does not build.

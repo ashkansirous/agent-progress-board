@@ -251,6 +251,21 @@ describe("history in plain words", () => {
     expect(linkBoardAddress("nothing", origin)).toBe("nothing");
   });
 
+  it("Slice 45 #1: an address inside a code span or an existing link is not wrapped in a second link", () => {
+    const origin = "https://b.test";
+    expect(linkBoardAddress("open `<board address>/#/usage` now", origin)).toBe(`open \`${origin}/#/usage\` now`);
+    expect(linkBoardAddress("[usage page](<board address>/#/usage)", origin)).toBe(`[usage page](${origin}/#/usage)`);
+    expect(linkBoardAddress("[<board address>/#/usage](https://x.test)", origin)).toBe(`[${origin}/#/usage](https://x.test)`);
+  });
+
+  it("Slice 45 #6: an address mid-label or mid-target of an existing link, or in a code span, never nests a link", () => {
+    const origin = "https://b.test";
+    expect(linkBoardAddress("[see <board address>/#/usage now](https://x.test)", origin)).toBe(`[see ${origin}/#/usage now](https://x.test)`);
+    expect(linkBoardAddress("[see the page](<board address>/#/usage#top)", origin)).toBe(`[see the page](${origin}/#/usage#top)`);
+    expect(linkBoardAddress("[<board address>](<board address>/#/x) and <board address>/#/y", origin)).toBe(`[${origin}](${origin}/#/x) and [${origin}/#/y](${origin}/#/y)`);
+    expect(linkBoardAddress("`a <board address>/#/x b`", origin)).toBe(`\`a ${origin}/#/x b\``);
+  });
+
   it("Slice 45: one reading of what a card asks serves the card and the drawer heading", () => {
     const step = item({ type: ItemType.WaitingForMe, key: "p/slice-4/check-0a1b2c3d4e5f", title: "Open the page", needs_you: null });
     expect(cardQuestion(step)).toBe("Open the page");

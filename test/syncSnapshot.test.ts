@@ -371,6 +371,16 @@ describe("sync_snapshot rules (Slice 33)", () => {
     expect((await read())?.details_md).toBe("go to the page, then test");
   });
 
+  it("Slice 45 #3: a document line edited down to no steps clears the card's steps text", async () => {
+    const key = "demo-app/slice-4/check-0a1b2c3d4e5f";
+    const step = (details_md?: string | null) => ({ key, project: PROJECT, title: "Slice 4: do X", type: "waiting_for_me", status: "open", ...(details_md === undefined ? {} : { details_md }) });
+    const read = () => env.DB.prepare("SELECT details_md FROM items WHERE key = ?1").bind(key).first<{ details_md: string | null }>();
+    await sync([step("open page, copy key")] as never);
+    at(2);
+    await sync([step(null)] as never);
+    expect((await read())?.details_md).toBeNull();
+  });
+
   it("checks a check against a sibling slice that is itself skipped", async () => {
     const badSlice = { ...item(1), checks: [{ key: "demo-app/other/check-1", title: "x" }] };
     const check = { key: "demo-app/slice-1/check-9", project: PROJECT, type: "check", title: "c", status: "open", parent_key: "demo-app/slice-1" };

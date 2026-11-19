@@ -25,7 +25,7 @@ export interface SnapshotItem {
   priority?: Priority;
   parent?: string | null;
   why?: string | null;
-  /** The rest of a clipped title, so it reaches the card; set when the item is first stored, or later while the stored `details_md` is still null; a set one is never overwritten. */
+  /** The rest of a clipped title, so it reaches the card; set when the item is first stored, or later while the stored `details_md` is still null; a set one is kept, except an owner step (a doc-synced waiting item), whose details follow the document line (`detailsOf`). */
   details_md?: string | null;
   links?: ItemLink[];
   /** The slice's lettered parts as the documents list them (Slice 11). */
@@ -195,7 +195,7 @@ function docFieldsDiffer(stored: SyncRow, next: SyncRow): boolean {
  * the stored text when there is one (a reporter's notes are never overwritten), else the snapshot's.
  */
 function detailsOf(stored: SyncRow, snap: SnapshotItem): string | null {
-  if (snap.details_md != null && stored.type === ItemType.WaitingForMe) return snap.details_md;
+  if (snap.details_md !== undefined && stored.type === ItemType.WaitingForMe && stored.in_doc_sync) return snap.details_md;
   return stored.details_md ?? snap.details_md ?? null;
 }
 

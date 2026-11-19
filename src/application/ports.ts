@@ -77,6 +77,8 @@ export interface ItemWithStepsText {
 
 export interface ItemRepository {
   find(key: string): Promise<Item | null>;
+  /** `find` plus whether the last doc sync lists the item, read in the same statement (Slice 45). */
+  findWithDocSync(key: string): Promise<{ item: Item | null; inDocSync: boolean }>;
   /** `find` plus the raw stored steps text, read in the same statement. */
   findWithStepsText(key: string): Promise<ItemWithStepsText>;
   /**

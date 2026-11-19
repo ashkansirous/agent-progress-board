@@ -134,6 +134,16 @@ describe('report-progress CLI', () => {
     assert.equal(board.requests[0].body.params.arguments.outcome, 'A plan with slices');
   });
 
+  test('Slice 45 #4: a CLI report is logged with its sender, session and field names, never its text', async () => {
+    const board = await startFakeBoard(replyOk);
+    const state = stateFolder();
+    await runNode(SCRIPT, ['--key', 'demo-app/task-a1', '--type', 'unplanned', '--title', 'Secret goal', '--session', 'cli-sess'], envFor(board.url, state));
+    board.server.close();
+    const log = readFileSync(join(state, 'senders.log'), 'utf8');
+    assert.match(log, / cli:report_progress cli-sess demo-app\/task-a1 .*title/);
+    assert.doesNotMatch(log, /Secret goal/);
+  });
+
   test('--orchestrator marks the session and sends nothing; the mark is read by isOrchestrator (Slice 41)', async () => {
     const board = await startFakeBoard(replyOk);
     const state = stateFolder();

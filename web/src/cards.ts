@@ -79,11 +79,20 @@ export function fillBoardAddress(text: string, origin: string): string {
   return text.replaceAll(BOARD_ADDRESS, origin);
 }
 
-/** Markdown text with each `<board address>/#/page` as a link to that page of the board and a bare `<board address>` as the origin (Slice 45). */
+/** A code span, or a whole inline link `[label](target)`, or a `<board address>` with an optional page. */
+const MARKDOWN_ADDRESS = new RegExp(`(\`[^\`\\n]*\`)|(\\[[^\\]\\n]*\\]\\([^)\\n]*\\))|(${BOARD_ADDRESS_LINK.source})`, "g");
+
+/**
+ * Markdown text with each `<board address>/#/page` as a link to that page of the board and a bare `<board address>` as
+ * the origin (Slice 45). One inside a code span or already inside a link (its text or its target) gets the origin but no
+ * second link around it, so the Markdown never nests.
+ */
 export function linkBoardAddress(text: string, origin: string): string {
-  return text.replace(BOARD_ADDRESS_LINK, (match) => {
-    const address = origin + match.slice(BOARD_ADDRESS.length);
-    return match === BOARD_ADDRESS ? address : `[${address}](${address})`;
+  return text.replace(MARKDOWN_ADDRESS, (_match, code: string | undefined, link: string | undefined, address: string) => {
+    if (code !== undefined) return fillBoardAddress(code, origin);
+    if (link !== undefined) return fillBoardAddress(link, origin);
+    const resolved = origin + address.slice(BOARD_ADDRESS.length);
+    return address === BOARD_ADDRESS ? resolved : `[${resolved}](${resolved})`;
   });
 }
 

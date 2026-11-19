@@ -530,20 +530,29 @@ function ownerStepFull(entry) {
 
 // The index of the first " | " (a bar with a space before it or first on the line, and a space after it or last on the line)
 // outside a code span, a link's label or address, and bold text, or -1.
+const INLINE_LINK = /^\[[^\]]*\]\([^)]*\)/;
+
+// The end of the code span, bold run or link that starts at `index`, or -1 when none starts there. An opener with no
+// closer later in the line is a plain character, so a stray `[`, `**` or backtick never hides the bar after it.
+function spanEnd(raw, index) {
+  const char = raw[index];
+  if (char === '`') { const close = raw.indexOf('`', index + 1); return close < 0 ? -1 : close + 1; }
+  if (char === '*' && raw[index + 1] === '*') { const close = raw.indexOf('**', index + 2); return close < 0 ? -1 : close + 2; }
+  if (char === '[') { const link = INLINE_LINK.exec(raw.slice(index)); return link ? index + link[0].length : -1; }
+  return -1;
+}
+
+function isBarAt(raw, index) {
+  return raw[index] === '|' && (index + 1 === raw.length || raw[index + 1] === ' ') && (index === 0 || raw[index - 1] === ' ');
+}
+
 function actionBar(raw) {
-  let inCode = false;
-  let inBold = false;
-  let labelDepth = 0;
-  let inAddress = false;
-  for (let index = 0; index < raw.length; index += 1) {
-    const char = raw[index];
-    if (char === '`') inCode = !inCode;
-    else if (inCode) continue;
-    else if (char === '*' && raw[index + 1] === '*') { inBold = !inBold; index += 1; }
-    else if (char === '[') labelDepth += 1;
-    else if (char === ']' && labelDepth > 0) { labelDepth -= 1; if (labelDepth === 0 && raw[index + 1] === '(') { inAddress = true; index += 1; } }
-    else if (char === ')' && inAddress) inAddress = false;
-    else if (!inBold && labelDepth === 0 && !inAddress && char === '|' && (index + 1 === raw.length || raw[index + 1] === ' ') && (index === 0 || raw[index - 1] === ' ')) return index;
+  let index = 0;
+  while (index < raw.length) {
+    const end = spanEnd(raw, index);
+    if (end > 0) index = end;
+    else if (isBarAt(raw, index)) return index;
+    else index += 1;
   }
   return -1;
 }
@@ -578,7 +587,8 @@ function ownerTitleFields(number, raw) {
   const cut = heading.length > OWNER_TITLE_LIMIT ? codePointBoundary(heading, OWNER_TITLE_LIMIT - 1) : heading.length;
   const title = cut < heading.length ? `${heading.slice(0, cut).trimEnd()}…` : heading;
   const description = [cut < heading.length ? `…${heading.slice(cut).trim()}` : '', steps].filter(Boolean).join(' ');
-  return description ? { title, details_md: description.slice(0, codePointBoundary(description, DETAILS_LIMIT)) } : { title };
+  // No steps sends an explicit null, so a line edited down to its action clears the steps text the card kept (Slice 45 #3).
+  return { title, details_md: description ? description.slice(0, codePointBoundary(description, DETAILS_LIMIT)) : null };
 }
 
 function ownerItem(project, block, row, entry, repoUrl) {
@@ -590,7 +600,7 @@ function ownerItem(project, block, row, entry, repoUrl) {
   return {
     key: `${project}/slice-${block.number}/check-${checkHash(entry.line)}`, project,
     type: 'waiting_for_me', status: 'open',
-    ...((clip(full, TITLE_LIMIT) && ownerTitleFields(block.number, ownerStepRaw(entry))) || { title: entryTitle(entry) }),
+    ...((clip(full, TITLE_LIMIT) && ownerTitleFields(block.number, ownerStepRaw(entry))) || { title: entryTitle(entry), details_md: null }),
     why: clip(unblocks ? `${sliceName} — ${unblocks[0]}` : `Not yet verified for ${sliceName}`, WHY_LIMIT),
     parent: `Slice ${block.number} · Not yet verified`,
     ...(links.length ? { links } : {}),

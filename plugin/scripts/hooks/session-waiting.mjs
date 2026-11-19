@@ -9,9 +9,9 @@
 import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs'; // statSync: the stdin cwd check
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { callTool, resolveEnvironment } from '../report-progress.mjs';
+import { resolveEnvironment } from '../report-progress.mjs';
 import {
-  HOOK_SOURCE, HOOK_TIMEOUT_MS, clip, parseInput, readGoal, readMarkerKind, readStdinText, sessionContext, stateRoot, touchSeen, writeMarker,
+  HOOK_SOURCE, HOOK_TIMEOUT_MS, clip, parseInput, readGoal, readMarkerKind, readStdinText, sendCardReport, sessionContext, stateRoot, touchSeen, writeMarker,
 } from './hook-input.mjs';
 import { markWaitingDone } from './session-done.mjs';
 import { NOTIFICATION, cardText, lastAssistant, maskSecrets } from './waiting-card.mjs';
@@ -102,7 +102,7 @@ export async function run(input, env = process.env, options = {}) {
     source: HOOK_SOURCE,
     ...(environment ? { environment } : {}),
   };
-  const outcome = await callTool(context.config, 'report_progress', args, { timeoutMs: HOOK_TIMEOUT_MS, ...options });
+  const outcome = await sendCardReport(root, 'session-waiting', context.id, context.config, 'report_progress', args, { timeoutMs: HOOK_TIMEOUT_MS, ...options });
   if (outcome.ok) writeMarker(input, context.key, root, input.notification_type || '');
   else process.stderr.write(`report-progress hook: skipped (${outcome.error})\n`);
   return outcome;

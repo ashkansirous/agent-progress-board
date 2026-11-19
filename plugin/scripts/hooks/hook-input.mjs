@@ -4,9 +4,12 @@
 // Files live in the state folder (report-progress.mjs stateRoot): `<id>` (waiting marker), `<id>.goal.json`
 // (the session's own card), `<id>.prompt.json` (the reminder's prompt counter) and `<id>.seen` (last activity).
 import { createHash } from 'node:crypto';
-import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, rmdirSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, rmdirSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
-import { projectSlug, resolveConfig, stateRoot } from '../report-progress.mjs';
+import { SENDER_LOG_LINES, logSender, projectSlug, resolveConfig, safeId, sendCardReport, stateRoot } from '../report-progress.mjs';
+
+// The sender log and the one call that logs a card report live in report-progress.mjs (the CLI uses them too).
+export { SENDER_LOG_LINES, logSender, safeId, sendCardReport };
 
 export const HOOK_TIMEOUT_MS = 2000;
 export const HOOK_SOURCE = 'hook';
@@ -36,10 +39,6 @@ export function readStdinText(reader = () => readFileSync(0, 'utf8')) {
     process.stderr.write(`report-progress hook: stdin unreadable (${error && error.code ? error.code : 'error'})\n`);
     return '';
   }
-}
-
-export function safeId(id) {
-  return String(id || '').trim().replace(/[^A-Za-z0-9_-]/g, '_');
 }
 
 export function sessionIdOf(input) {
@@ -227,10 +226,12 @@ export function removeStoppedAgent(id, agentId, root) {
 
 // Records the stop time of an agent (a resumed agent that stops again gets a new time) and deletes the files older
 // than STOPPED_KEEP_MS, one by one, so the folder stays small.
-export function addStoppedAgent(id, agentId, root, now = Date.now()) {
+export function addStoppedAgent(id, agentId, root, now = Date.now(), write = writeJson) {
   const file = stoppedFile(id, agentId, root);
   if (!file) return;
-  writeJson(file, { id: agentId, at: now });
+  write(file, { id: agentId, at: now });
+  // A concurrent removeStoppedAgent may have removed the empty folder between mkdir and the temp file's write: once more.
+  if (!existsSync(file)) write(file, { id: agentId, at: now });
   for (const entry of stoppedEntries(id, root)) {
     if (now - entry.value.at > STOPPED_KEEP_MS) removeFile(entry.file);
   }
@@ -329,6 +330,7 @@ export function readGoal(id, root, now = Date.now()) {
     steps: goalSteps(value.steps),
     closed: value.closed === true,
     closedBy: value.closedBy === CLOSED_BY.stop || value.closedBy === CLOSED_BY.session ? value.closedBy : '',
+    closedAt: Number.isFinite(value.closedAt) ? value.closedAt : 0,
     needsYou: text(value.needsYou),
     sig: text(value.sig),
     kind: cardKindOf(value), // 'task' or 'slice': a slice card's status is doc sync's, so session-done never closes it
@@ -372,23 +374,6 @@ function parentsOf(value) {
 export function removeGoal(id, root) {
   removeFile(sessionFile(id, GOAL_SUFFIX, root));
   removeStoppedFolder(id, root);
-}
-
-// Who sent a report for a session card (Slice 29, "find the title overwrite"): one line `time hook session key` appended
-// to `senders.log` in the state folder (`hook` names the hook and tool, the last column the field names of the report, so a
-// `title` or `why` sent by a hook shows), the file cut to its last SENDER_LOG_LINES lines once it grows past twice that.
-// Never throws, never holds any text of the card.
-const SENDER_LOG = 'senders.log';
-export const SENDER_LOG_LINES = 200;
-export function logSender(root, hook, id, key, fields = [], now = Date.now()) {
-  try {
-    if (!root) return;
-    mkdirSync(root, { recursive: true });
-    const file = join(root, SENDER_LOG);
-    appendFileSync(file, `${new Date(now).toISOString()} ${hook} ${safeId(id)} ${key} ${fields.join(',')}\n`);
-    const lines = readFileSync(file, 'utf8').split('\n').filter(Boolean);
-    if (lines.length > SENDER_LOG_LINES * 2) writeFileSync(file, `${lines.slice(-SENDER_LOG_LINES).join('\n')}\n`);
-  } catch { /* fails open */ }
 }
 
 // `{ at, tools, reminded }` of the session's current prompt, kept by the reminder hook.

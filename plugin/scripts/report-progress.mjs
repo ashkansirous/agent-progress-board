@@ -40,7 +40,7 @@
 // AGENT_BOARD_URL / AGENT_BOARD_TOKEN. State lives under CLAUDE_PLUGIN_DATA (see stateRoot).
 
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readFileSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -182,6 +182,34 @@ function toolResult(body) {
   } catch {
     return { ok: true, data: text };
   }
+}
+
+export function safeId(id) {
+  return String(id || '').trim().replace(/[^A-Za-z0-9_-]/g, '_');
+}
+
+// Who sent a report for a session card (Slice 29, "find the title overwrite"): one line `time sender session key fields`
+// appended to `senders.log` in the state folder (`sender` names the script and tool, the last column the field names of
+// the report, so a `title` or `why` sent by a writer shows), the file cut to its last SENDER_LOG_LINES lines once it grows
+// past twice that. Never throws, never holds any text of the card.
+const SENDER_LOG = 'senders.log';
+export const SENDER_LOG_LINES = 200;
+export function logSender(root, sender, id, key, fields = [], now = Date.now()) {
+  try {
+    if (!root) return;
+    mkdirSync(root, { recursive: true });
+    const file = join(root, SENDER_LOG);
+    appendFileSync(file, `${new Date(now).toISOString()} ${sender} ${safeId(id)} ${key ?? '-'} ${fields.join(',')}\n`);
+    const lines = readFileSync(file, 'utf8').split('\n').filter(Boolean);
+    if (lines.length > SENDER_LOG_LINES * 2) writeFileSync(file, `${lines.slice(-SENDER_LOG_LINES).join('\n')}\n`);
+  } catch { /* fails open */ }
+}
+
+// The one way a script sends a card report (report_progress or mark_done on a card's key): the sender is logged first,
+// then the call is made. Every hook, the usage heartbeat and the CLI go through it, so an overwrite names its writer.
+export async function sendCardReport(root, sender, id, config, name, args, options = {}) {
+  logSender(root, `${sender}:${name}`, id, args.key, Object.keys(args).filter((field) => field !== 'key'));
+  return callTool(config, name, args, options);
 }
 
 // One tools/call. Never throws: returns { ok, data } or { ok: false, error }.
@@ -625,7 +653,7 @@ export async function main(argv, env = process.env) {
   // the caller's own reports write or remove the task file.
   // A subtree report (--under-step) is a helper's list of children, not the session's own steps: no task file for it.
   if (!parsed['parent-key'] && !args.under_step) trackTask(parsed.session || env[SESSION_VARIABLE], tool, args, context.steps, env);
-  const outcome = await callTool(config, tool, toolArguments(tool, args));
+  const outcome = await sendCardReport(stateRoot(env), 'cli', parsed.session || env[SESSION_VARIABLE], config, tool, toolArguments(tool, args));
   if (!outcome.ok) process.stderr.write(`report-progress: ${tool} skipped (${outcome.error})\n`);
 }
 

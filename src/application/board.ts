@@ -145,14 +145,17 @@ export async function markDone(
   return saveReport(repo, { ...input, status: ItemStatus.Done }, existing, clock);
 }
 
+/** The stale window, or a getter read only when an ask on another type's item needs it, so a config error cannot fail a create (Slice 45). */
+type StaleAfter = number | (() => number);
+
 export async function askHuman(
   repo: ItemRepository,
   input: AskHumanInput,
   clock: Clock,
-  staleAfterMinutes: number = DEFAULT_STALE_AFTER_MINUTES,
+  staleAfterMinutes: StaleAfter = DEFAULT_STALE_AFTER_MINUTES,
 ): Promise<Item> {
-  const existing = await repo.find(input.key);
-  if (existing && existing.type !== ItemType.WaitingForMe) return askOnItem(repo, existing, input, clock, staleAfterMinutes);
+  const { item: existing, inDocSync } = await repo.findWithDocSync(input.key);
+  if (existing && existing.type !== ItemType.WaitingForMe) return askOnItem(repo, existing, inDocSync, input, clock, staleAfterMinutes);
   const report: ReportInput = { ...input, type: ItemType.WaitingForMe, status: ItemStatus.Open };
   return saveReport(repo, report, existing, clock);
 }
@@ -167,27 +170,23 @@ export async function askHuman(
 async function askOnItem(
   repo: ItemRepository,
   existing: Item,
+  inDocSync: boolean,
   input: AskHumanInput,
   clock: Clock,
-  staleAfterMinutes: number,
+  staleAfter: StaleAfter,
 ): Promise<Item> {
   if (existing.status === ItemStatus.Done) {
     throw new DomainError("key", `field key: item ${input.key} is done, so ask_human cannot ask on it`);
   }
-  if (existing.type === ItemType.Part || (await isDocSynced(repo, existing))) {
+  if (existing.type === ItemType.Part || inDocSync) {
     throw new DomainError("key", `field key: item ${input.key} is a part or comes from the plan documents, so ask_human cannot ask on it`);
   }
   const { key, title, why, needs_you, after_answer } = input;
   if (needs_you === null) return saveReport(repo, { key, why, needs_you: null }, existing, clock);
   if (needs_you?.trim()) return saveReport(repo, { key, why, needs_you, after_answer }, existing, clock);
-  const kept = hasOpenQuestion(existing, staleAfterMinutes, clock.now()) ? existing.needs_you : null;
+  const kept = hasOpenQuestion(existing, typeof staleAfter === "function" ? staleAfter() : staleAfter, clock.now()) ? existing.needs_you : null;
   const question = why?.trim() ? why : (kept ?? title);
   return saveReport(repo, { key, needs_you: question, after_answer }, existing, clock);
-}
-
-async function isDocSynced(repo: ItemRepository, item: Item): Promise<boolean> {
-  const rows = await repo.loadForSync(item.project, [item.key]);
-  return rows.some((row) => row.key === item.key && row.in_doc_sync);
 }
 
 export interface SyncSnapshotInput {

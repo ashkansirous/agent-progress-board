@@ -500,6 +500,11 @@ export class D1ItemRepository implements ItemRepository, UsageRepository {
     return row ? toItem(row) : null;
   }
 
+  async findWithDocSync(key: string): Promise<{ item: Item | null; inDocSync: boolean }> {
+    const row = await this.db.prepare("SELECT * FROM items WHERE key = ?1").bind(key).first<SyncItemRow>();
+    return { item: row ? toItem(row) : null, inDocSync: row?.in_doc_sync === 1 };
+  }
+
   async findWithStepsText(key: string): Promise<ItemWithStepsText> {
     const row = await this.db.prepare("SELECT * FROM items WHERE key = ?1").bind(key).first<ItemRow>();
     return { item: row ? toItem(row) : null, stepsText: row?.steps ?? null };

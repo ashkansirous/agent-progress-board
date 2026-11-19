@@ -1000,16 +1000,24 @@ describe('Slice 31: plan sync reads the documents right', () => {
   test('Slice 44: an empty action takes the steps as the action, with the prefix and never the raw bar', () => {
     const owner = ownerOf('### Slice 5: x\n\n- **You:** | go to https://claude.ai/code\n');
     assert.equal(owner.title, 'Slice 5: go to https://claude.ai/code');
-    assert.equal(owner.details_md, undefined);
+    assert.equal(owner.details_md, null);
     const long = ownerOf(`### Slice 5: x\n\n- **You:** | ${'word '.repeat(30)}end\n`);
     assert.ok(long.title.startsWith('Slice 5: word') && long.title.length <= 80 && long.title.endsWith('…'));
     assert.ok(long.details_md.startsWith('…') && long.details_md.endsWith('word end'));
   });
 
+  test('Slice 45 #1: a stray [, ** or backtick with no closer never hides the bar', () => {
+    for (const opener of ['[draft', '**draft', '`draft']) {
+      const owner = ownerOf(`### Slice 5: x\n\n- **You:** check the ${opener} | open the page, copy the key\n`);
+      assert.equal(owner.title, `Slice 5: check the ${opener}`, opener);
+      assert.equal(owner.details_md, 'open the page, copy the key', opener);
+    }
+  });
+
   test('Slice 44: a trailing bar, with or without a space after it, is dropped from the title', () => {
     const plainEnd = ownerOf('### Slice 5: x\n\n- **You:** Set variables |\n');
     assert.equal(plainEnd.title, 'Slice 5: Set variables');
-    assert.equal(plainEnd.details_md, undefined);
+    assert.equal(plainEnd.details_md, null);
     const spaced = ownerOf('### Slice 5: x\n\n- **You:** Set variables | \n');
     assert.equal(spaced.title, 'Slice 5: Set variables');
   });
@@ -1017,7 +1025,7 @@ describe('Slice 31: plan sync reads the documents right', () => {
   test('Slice 44: a bar inside a code span, or with no space on a side, does not split', () => {
     const inCode = ownerOf('### Slice 5: x\n\n- **You:** run `cat log | grep ERROR` and check the count\n');
     assert.equal(inCode.title, 'Slice 5: run cat log | grep ERROR and check the count');
-    assert.equal(inCode.details_md, undefined);
+    assert.equal(inCode.details_md, null);
     const tight = ownerOf('### Slice 5: x\n\n- **You:** pick a|b or c\n');
     assert.equal(tight.title, 'Slice 5: pick a|b or c');
     const after = ownerOf('### Slice 5: x\n\n- **You:** run `a | b` | then open https://x.test\n');

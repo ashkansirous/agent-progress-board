@@ -837,6 +837,14 @@ describe('the task heartbeat (Slice 13)', () => {
     assert.deepEqual(beats()[0].args, { key: 'demo-app/slice-13', project: 'demo-app' });
   });
 
+  test('Slice 45 #3: the sender log names the session id of the heartbeat, not the key tail', async () => {
+    writeSession('s1', recordLine(OPUS, { output_tokens: 6 }, AT));
+    writeTask('s1', { key: 'demo-app/slice-13', step: 'x', status: 'in_progress' });
+    await tick();
+    const log = readFileSync(join(taskRoot, 'senders.log'), 'utf8');
+    assert.match(log, / usage-tick:report_progress s1 demo-app\/slice-13 /);
+  });
+
   test('a sent heartbeat refreshes the task file age; the next tick still sends (review #5)', async () => {
     writeSession('s1', recordLine(OPUS, { output_tokens: 6 }, AT));
     const nearLimit = NOW - TASK_MAX_AGE_MS + 60000;

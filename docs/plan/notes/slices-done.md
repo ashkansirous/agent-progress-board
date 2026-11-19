@@ -45,3 +45,4 @@ Rows moved out of `plan.md`'s status table once built.
 | 33 | Doc sync never retypes live work, and checks and parts count right | built | #147 | | [33](../slices/33-sync-and-checks-rules.md) |
 | 34 | Storage: queries, events and indexes | built | #150 | | [34](../slices/34-storage-queries.md) |
 | 41 | Only a task with an outcome gets a card | built | #151 | | [41](../slices/41-tasks-with-outcome.md) |
+| 43 | Owner steps on the board read right: real links, intact names, no needless questions | built | #156 | | [43](../slices/43-owner-cards-read-right.md) |

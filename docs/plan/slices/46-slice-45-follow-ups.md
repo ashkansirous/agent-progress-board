@@ -1,7 +1,8 @@
 ### Slice 46 — Follow-ups left open by Slice 45
 
-*Parked 2026-11-19 by the feedback loop of night 2026-11-19-0243 ([note](../notes/2026-11-19-0243-feedback-loop.md)):
-`parked: feedback loop, waits for the user`. A night does not build it until the owner moves it to planned.*
+*Planned 2026-11-19 by the feedback loop of night 2026-11-19-0243 ([note](../notes/2026-11-19-0243-feedback-loop.md)).
+Settled the same day by the starter session under the owner's standing rule (no review or approval round; "build all"
+for Slice 45): build every item, the two correctness faults first; item 8 keeps the decision the loop recorded.*
 
 **Touches:** `plugin/scripts/hooks/session-done.mjs`, `plugin/scripts/sync-docs.mjs`, `plugin/scripts/usage-tick.mjs`,
 `src/mcp/schemas.ts`, `plugin/scripts/report-progress.mjs`, `plugin/scripts/hooks/hook-input.mjs`,

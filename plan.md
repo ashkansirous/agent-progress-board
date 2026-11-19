@@ -23,6 +23,7 @@ owner's config repo. Decisions in [Slice 20](docs/plan/slices/20-plugin-connect.
 | Slice | Title | Status | PR | Issue | File |
 | --- | --- | --- | --- | --- | --- |
 | 49 | Follow-ups left open by Slice 48 | planned | | | [slice](docs/plan/slices/49-slice-48-follow-ups.md) |
+| 50 | Item tools one by one and in batches, archive instead of delete | planned | | | [slice](docs/plan/slices/50-batch-and-archive.md) |
 
 Notes:
 

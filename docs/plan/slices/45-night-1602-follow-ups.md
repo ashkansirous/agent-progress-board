@@ -56,7 +56,7 @@ Slice 32 findings are medium correctness faults. This slice gathers them so none
 14. Slice 29: the nine follow-ups in [Slice 29](29-agent-state-fixes.md) *Follow-ups*, and its open Work item "Find the title
     overwrite first" (cause never confirmed): log the sender (hook name, session id) of session-card reports, then close
     the bug card.
-15. Slice 38: follow-ups #3 and #5-#8 in [Slice 38](38-steady-browser-tests.md); #5 still says the two-suites run was
+15. [x] Slice 38: follow-ups #3 and #5-#8 in [Slice 38](38-steady-browser-tests.md); #5 still says the two-suites run was
     before the output-folder fix, which the Result contradicts.
 16. Flaky unit tests under load: `test/capCost.test.ts`'s time budget, the seed MCP test and a `/mcp tools/list` 401 test
     failed 2-3 times per full run while e2e ran (wave 1); waiting-card tests assert wall-clock `< 200 ms`. Make them count-

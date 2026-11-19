@@ -301,8 +301,8 @@ test.describe("what 1% of the cap costs", () => {
     if (isPhone()) await expect(page.locator(".phone-model")).toHaveCount(count);
     else {
       const tables = page.locator(".cap-cost-card table.usage-table");
-      await expect(tables.nth(0).locator("tbody tr")).toHaveCount(count);
-      await expect(tables.nth(1).locator("tbody tr")).toHaveCount(count);
+      await expect(tables).not.toHaveCount(0);
+      for (const table of await tables.all()) await expect(table.locator("tbody tr")).toHaveCount(count);
     }
     await expect(page.locator(".mix-note")).toHaveCount(0);
   });

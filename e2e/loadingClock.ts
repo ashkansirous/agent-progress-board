@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { SERVER_TIME } from "./fixture";
 
 /**
@@ -14,14 +14,14 @@ const DELAY_TIMER_COUNT = "__loadDelayTimers";
 
 /**
  * Installs the page clock before the page loads and stops it, so the page's 500 ms timer is created under the fake
- * clock and fires only when the test runs the clock. The page clock is paused 1 s after SERVER_TIME: pauseAt needs a
- * time later than the installed one, and the page's `Date.now()` then reads 1 s ahead of the fixtures (an age
- * assertion added later must allow for it). An init script counts the page's 500 ms timers so a test can prove the
+ * clock and fires only when the test runs the clock. The clock is installed 1 s before SERVER_TIME (pauseAt needs a
+ * time later than the installed one) and paused at SERVER_TIME, so the page's `Date.now()` equals the fixtures' time.
+ * An init script counts the page's 500 ms timers so a test can prove the
  * timer exists before it checks that the card is still absent.
  */
 export async function pausedClock(page: Page) {
-  await page.clock.install({ time: new Date(SERVER_TIME) });
-  await page.clock.pauseAt(new Date(Date.parse(SERVER_TIME) + 1000));
+  await page.clock.install({ time: new Date(Date.parse(SERVER_TIME) - 1000) });
+  await page.clock.pauseAt(new Date(SERVER_TIME));
   await page.addInitScript(`(() => {
     window.${DELAY_TIMER_COUNT} = 0;
     const original = window.setTimeout.bind(window);
@@ -80,8 +80,10 @@ export async function expectLoadingAfterDelay(
   present: () => Promise<void>,
   timersBefore = 0,
 ) {
-  const timers = await delayTimerCount(page);
-  if (!(timers > timersBefore)) throw new Error("the action under test did not create a 500 ms loading timer");
+  // Polled, not read once: the timer is created by an effect that may run just after the request is held.
+  await expect
+    .poll(() => delayTimerCount(page), { message: "the action under test did not create a 500 ms loading timer" })
+    .toBeGreaterThan(timersBefore);
   await page.clock.runFor(LOADING_DELAY_MS - 1);
   await absent();
   await page.clock.runFor(1);

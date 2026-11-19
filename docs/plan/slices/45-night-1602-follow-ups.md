@@ -31,6 +31,8 @@ Slice 32 findings are medium correctness faults. This slice gathers them so none
    plus the other check-pass-2 lows and skipped #9 in [Slice 43](43-owner-cards-read-right.md).
 8. Slice 43: the live "NaN:00" on the Environment tab was never reproduced; only `bucketLabel` was hardened. Verify on the
    live board after the release (line in `docs/plan/unverified.md`).
+   Also: Slice 43's new Environment e2e (the faked `2026-11-11#2` key) was never run against the old code, so it is not
+   shown to catch the regression; run it on the commit before PR #156 and record the failure.
 9. Slice 44: the three check-pass lows in [Slice 44](44-english-only-owner-steps.md) (*From review*).
 10. Slice 41: `lowerFirst` lowercases brand names ("Cloudflare" becomes "cloudflare"); skipped three times as "cannot tell
     without a list" ([Slice 41](41-tasks-with-outcome.md) *From review*).
@@ -53,3 +55,8 @@ Slice 32 findings are medium correctness faults. This slice gathers them so none
 16. Flaky unit tests under load: `test/capCost.test.ts`'s time budget, the seed MCP test and a `/mcp tools/list` 401 test
     failed 2-3 times per full run while e2e ran (wave 1); waiting-card tests assert wall-clock `< 200 ms`. Make them count-
     or CPU-based. Verify: three full runs beside an e2e run, all green.
+17. Slice 44, fix pass 1 #2 (skipped): cards that already exist keep their old `details_md` and long cut title, because the
+    upsert COALESCEs them, so the owner's 300-character run-on card title stays until its doc line changes. Verify: re-sync
+    the docs and read an old owner-step card's title and details.
+18. Slice 41: the detail dialog now reads "Card details" instead of "Item details" for a part (`e2e/active.spec.ts`), a
+    change no *Changed while building* line in [Slice 41](41-tasks-with-outcome.md) names; record it there or restore it.

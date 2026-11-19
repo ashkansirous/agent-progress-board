@@ -7,7 +7,7 @@ import { partsBoard, SLICE_FIVE, SLICE_STALE } from "./partsFixture";
 import { planningBoard } from "./sessionFixture";
 
 const BOARD_ROUTE = "**/api/board";
-const SUMMARY = "1 needs you · 3 working · 3 planned · 2 problems · 30 checks not tried";
+const SUMMARY = "1 needs you · 2 working · 3 planned · 2 problems · 30 checks not tried";
 const LOOSE_COUNT = 22;
 const DONE_COUNT = 12;
 const NEWEST_DONE = 5;
@@ -232,7 +232,7 @@ test.describe("a built slice with checks not tried (Slice 42)", () => {
     await page.route(BOARD_ROUTE, (route) => route.fulfill({ json: boardWithBuilt() }));
     await page.goto("/");
     const project = example(page);
-    await expect(project.locator(".project-summary")).toHaveText("1 needs you · 3 working · 3 planned · 1 built · 2 problems · 32 checks not tried");
+    await expect(project.locator(".project-summary")).toHaveText("1 needs you · 2 working · 3 planned · 1 built · 2 problems · 32 checks not tried");
     await expect(project.getByRole("heading", { level: 3, name: "Planned · 3" })).toBeVisible();
     const toggle = project.getByRole("button", { name: "Built · 1" });
     await expect(toggle).toHaveAttribute("aria-expanded", "false");

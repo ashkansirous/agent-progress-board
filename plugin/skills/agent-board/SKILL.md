@@ -1,6 +1,6 @@
 ---
 name: agent-board
-description: Report your own work to the agent progress board (the "agent-board" MCP server) - open a session card at the start, keep its steps current, send heartbeats, mark it done, and ask the person a question through needs_you. Use at the start of every session, whenever the plan or a step changes, when a background agent is working, and when the goal is done.
+description: Report your own work to the agent progress board (the "agent-board" MCP server) - open a task card when a task that delivers something starts (not for a plain chat), keep its steps current, send heartbeats, mark it done, and ask the person a question through needs_you. Use when such a task starts, whenever the plan or a step changes, when a background agent is working, and when the goal is done.
 ---
 
 # Reporting to the agent progress board
@@ -19,7 +19,7 @@ the plugin's repository keeps the two equal; do not edit it here, edit `src/mcp/
 <!-- BEGIN RULES -->
 This server is a progress board. Report your own work on it.
 
-If your brief names a parent card key, you are a helper agent: report your steps on that card and open no session card. Otherwise, at the start of every session or chat, before your first answer, call report_progress once with key "<project>/session-<id>" (<project> is the project you work in, or "chats" if none; <id> is a short random id you make up, the same <project> and <id> for the whole session), project = <project>, type "unplanned", agent "session", your environment, status "in_progress", title = your goal in one line, why = what it is for, steps = your plan as a list of {label, state}, state one of "done", "active", "pending". Limits: 200 steps in all, 4 levels, label 80 characters, note 120; a report over a limit is refused and creates no card.
+If your brief names a parent card key, you are a helper agent: report your steps on that card and open no session card. Otherwise a card is a task with an outcome; a plain chat, a question answered in the chat and an orchestrator (a wave runner; its slices have their own cards) get none. When you start a task that delivers something (a slice: code merged; refining ideas: a plan), call report_progress once, before the work. For a planned slice's work: key "<project>/slice-<N>", with no type and no agent (the slice's card already exists from the plan sync; the outcome and steps go on it; if the report is refused because no such card exists, report a task card instead). For any other task: key "<project>/task-<id>" (<id> is a short random id, the same for the whole task), type "unplanned", agent "session". Both: project = <project> (the project you work in, or "chats" if none), your environment, status "in_progress", title = the task in one line, outcome = what it delivers (up to 200 characters, e.g. "Code merged to main"), why = what it is for, steps = your plan as a list of {label, state}, state one of "done", "active", "pending". Limits: 200 steps in all, 4 levels, label 80 characters, note 120; a report over a limit is refused and creates no card.
 
 Keep the card current:
 - Steps form a tree: a step may have children, and several steps may be "active" at once. An optional id keeps a step stable across reports.
@@ -48,8 +48,13 @@ The plugin installs hooks (list in the plugin repository's `docs/clients.md`). Y
 - **Waiting:** when Claude Code asks the person for input, the hook raises a "needs you" item; it closes it when the
   session goes on or stops. A session that died leaves such an item, and the next hook on the machine closes it after
   30 minutes of silence.
-- **Reminder:** the hook sees your `report_progress` call with agent "session" and remembers its key, so use that one
-  key for the whole session. If you have sent no goal by your second tool call of a prompt, it reminds you once.
+- **Reminder:** the hook sees your own-card `report_progress` call (agent "session", or a `<project>/slice-<N>` key with
+  no agent) and remembers its key and kind; a later own-card report moves it to the new card. A slice card is never
+  closed, marked done or staled by a hook (doc sync owns its status); the hooks still add helper-agent steps to it. If you have sent no goal by your second tool call of a prompt, it reminds you once per
+  prompt to report the task if the prompt started one with an outcome.
+- **Orchestrators:** a session that only runs other work (a wave runner) has no card of its own: run
+  `node <plugin>/scripts/report-progress.mjs --orchestrator` once. It sends nothing; it marks the session, and the hooks
+  then open no card and send no reminder for it. The slices it builds have their own cards.
 
 - **Usage (option `report_usage`, on by default):** a hook sends token counts. The plan's cap percentage is a separate
   option, `read_plan_cap`, off by default: when the person turns it on, the same run reads Claude Code's own sign-in

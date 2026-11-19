@@ -9,9 +9,23 @@ board. for example, for a slice, the task is implementing slice, the outcome is 
 
 Runs after Slices 39 and 40. The owner's config repo has a matching slice for its wave tooling.
 
-**Touches:** `src/mcp/instructions.ts`, `src/mcp/schemas.ts`, `src/domain/upsert.ts`, `src/api/board.ts`,
+*Built 2026-11-18 (wave night 2026-11-18-1602), PR #151, not merged. Migration 0009 (`items.outcome TEXT`, plain ADD COLUMN). Checked before the merge of main: lint, typecheck, 675 vitest, 381 plugin tests and 320 e2e (4 skipped) green; no device surface beyond the browser e2e. Not yet verified live: see the end of this file.*
+
+*Changed while building:*
+
+- Working card rule: a card is a working card when it is an in_progress (or stale) item with an outcome, or has agent "session" (`isSessionItem` in `web/src/cards.ts`).
+- Slice work reports on `<project>/slice-<N>` with an outcome, no type and no agent "session", and falls back to a task card when the board refuses the new key. Other tasks report on `<project>/task-<id>`, type unplanned, agent "session".
+- The goal file holds the card key and `kind` (task or slice). The first own-card report binds; a new key moves the card only after the bound card is closed (`mayBindCard` in `plugin/scripts/hooks/goal-reminder.mjs`). Hooks heartbeat a slice card but never close it, mark it done or set its status.
+- `--orchestrator` marks the session (refreshed on each hook); the hooks then send no reminder and close a card reported before the mark once (`orchClose` in `plugin/scripts/hooks/session-done.mjs`). The reminder fires once per prompt.
+- Active work header is two lines plus the waiting-questions link to `#/needs-you`, which scrolls the board to the first Needs you section. Card labels read "task · <env>" and "slice card · <env>". Goal-less card, `hasNoGoal`, `activeSubtitle`, `activeRunning` and `activeRunningOne` are removed. The Slice 13 note is in place.
+- Touches widened during the build: `test/sessionWeb.test.ts`, `test/seed.test.ts`, `e2e/planning.spec.ts`, `src/api/boardDto.ts`, `web/src/route.ts`, `web/src/BoardPage.tsx`, `web/src/PhoneNeeds.tsx`, `web/src/ProjectGroup.tsx`, `plugin/scripts/hooks/hook-input.mjs`.
+
+**Touches:** `src/mcp/instructions.ts`, `src/mcp/schemas.ts`, `src/domain/upsert.ts`, `src/domain/item.ts`, `src/api/board.ts`,
+`src/application/board.ts`, `src/application/ports.ts`, `web/src/session.css`, `plugin/scripts/report-progress.test.mjs`,
+`test/mcp.test.ts`, `e2e/sessionFixture.ts`, `e2e/activeFixture.ts`,
 `src/infrastructure/d1Repository.ts`, `migrations/0009_outcome.sql` (new), `plugin/skills/agent-board/SKILL.md`,
-`plugin/scripts/hooks/goal-reminder.mjs`, `plugin/scripts/hooks/session-done.mjs`,
+`plugin/scripts/hooks/goal-reminder.mjs`, `plugin/scripts/hooks/session-done.mjs`, `plugin/scripts/hooks/hook-input.mjs`,
+`web/src/route.ts`, `web/src/BoardPage.tsx`, `web/src/ProjectGroup.tsx`, `web/src/PhoneNeeds.tsx`, `web/src/cards.ts`,
 `plugin/scripts/hooks/hooks.test.mjs`, `plugin/scripts/report-progress.mjs`, `docs/clients.md`,
 `web/src/ActiveCard.tsx`, `web/src/ActivePage.tsx`, `web/src/SessionCards.tsx`, `web/src/SessionDrawer.tsx`,
 `web/src/cards.ts`, `web/src/model.ts`, `web/src/active.css`, `web/src/board.css`, `web/src/strings.ts`,
@@ -118,20 +132,20 @@ are waiting on the board", "1 question is waiting on the board". Removed: the "n
 
 #### Work
 
-- [ ] Add `outcome` to items: migration 0009, schema, upsert, the board read (`src/api/board.ts`), and the outcome
+- [x] Add `outcome` to items: migration 0009, schema, upsert, the board read (`src/api/board.ts`), and the outcome
   line of the Design subsection on the Active work card, the board working card and the drawer purpose
   (`web/src/ActiveCard.tsx`, `web/src/SessionCards.tsx`, `web/src/SessionDrawer.tsx`, strings EN and DE).
-- [ ] Active work header (`web/src/ActivePage.tsx`, `web/src/strings.ts`): the two lines and the waiting-questions link
+- [x] Active work header (`web/src/ActivePage.tsx`, `web/src/strings.ts`): the two lines and the waiting-questions link
   of the Design subsection, replacing `activeSubtitle`, `activeRunning` and `activeRunningOne`.
-- [ ] Remove the goal-less card (`hasNoGoal` in `web/src/cards.ts`, the dashed card in `SessionCards.tsx`, its CSS and
+- [x] Remove the goal-less card (`hasNoGoal` in `web/src/cards.ts`, the dashed card in `SessionCards.tsx`, its CSS and
   strings, the seed's no-goal item) per the owner's decision above. Add a one-line dated note to Slice 13.
-- [ ] Rewrite the opening rule in `SERVER_INSTRUCTIONS` (`src/mcp/instructions.ts`): a card opens when a task with an
+- [x] Rewrite the opening rule in `SERVER_INSTRUCTIONS` (`src/mcp/instructions.ts`): a card opens when a task with an
   outcome starts, with `outcome` set; plain chats and orchestrators open none; a slice's work reports on the slice
   card. Mirror it in `SKILL.md`, and update `docs/clients.md`.
-- [ ] Add the `--orchestrator` mark (`plugin/scripts/report-progress.mjs`), read by `goal-reminder.mjs` and
+- [x] Add the `--orchestrator` mark (`plugin/scripts/report-progress.mjs`), read by `goal-reminder.mjs` and
   `session-done.mjs`.
-- [ ] Change the reminder text and send it once per prompt (`goal-reminder.mjs`).
-- [ ] Slice 13 check pass 3, carried from Slice 38 (`reviews/pr-132-check-medium.md` follow-up #5; list in
+- [x] Change the reminder text and send it once per prompt (`goal-reminder.mjs`).
+- [x] Slice 13 check pass 3, carried from Slice 38 (`reviews/pr-132-check-medium.md` follow-up #5; list in
   [Slice 38](38-steady-browser-tests.md)): fix each of the five older seed lows in `scripts/seed-data.ts` or write why
   not: seed test counts, empty fields sent as undefined, `ask_human` on an existing item, session cards going stale
   15 min after seeding, hard-coded history markers.
@@ -146,3 +160,34 @@ are waiting on the board", "1 question is waiting on the board". Removed: the "n
   `ActiveV3` and `BoardV2` in light, dark and at 390px.
 - After the release and the config repo's matching slice: during one wave night, the board shows the slice cards
   with their trees and no wave card. A plain question in a chat makes no card.
+
+#### From review
+
+*From review:* four findings files read to the last finding (high 11, medium 10, check-medium 9, check-2 3). Applied: high 1-8 and 11; medium 1-4; check-medium 1, 2, 3, 4 and 9. The rest follow, one per line.
+
+- Skipped #5 (`reviews/pr-151-medium.md`): "The label of an outcome card is only "task · environment" or "slice card · environment", with no session id or slice number" - the mock's label is "task · laptop" with no id or number.
+- Skipped #6 (`reviews/pr-151-medium.md`): "`lowerFirst` lowercases proper nouns and brands" - a brand name cannot be told from a word without a list.
+- Skipped #8 (`reviews/pr-151-medium.md`): "`closeOrchestratorCard` closes the card at the next hook of any event" - the Decision: an orchestrator has no card, so a card reported before the mark is closed.
+- Skipped #9 (`reviews/pr-151-medium.md`): "re-seeding a board that already holds a hand-set outcome or details on a seeded key wipes them" - the seed rewrites every demo item in full on each run; null is the intended reset.
+- Skipped #10 (`reviews/pr-151-medium.md`): "Number 0009 skips 0008, which Slice 34 reserves" - the merge order put 0008 first.
+- Follow-up (`reviews/pr-151-check-2-medium.md` #1, low): "mayBindCard keeps the first card until closed, so a session's second task card without mark_done is never bound" - follows the settled first-report-binds rule; not changed.
+- Follow-up (`reviews/pr-151-check-2-medium.md` #2, low): "the CLI cannot clear an outcome that the MCP tool clears with null" - left open.
+- Follow-up (`reviews/pr-151-check-2-medium.md` #3, low, unconfirmed): "Scenario: marked orchestrator holds needsYou at its first close attempt" - left open; the check pass converged after the second round.
+
+#### For CLAUDE.md
+
+- The own-card binding rule lives only in `mayBindCard` (`plugin/scripts/hooks/goal-reminder.mjs`): the first own-card report binds, a new key moves the card only after the bound card is closed. Hooks heartbeat a slice card but never close it, mark it done or set its status (Slice 41: docs/plan/slices/41-tasks-with-outcome.md).
+- A working card is an in_progress (or stale) item with an outcome, or agent "session": one rule, `isSessionItem` in `web/src/cards.ts`; never a second copy (Slice 41: docs/plan/slices/41-tasks-with-outcome.md).
+
+#### Not yet verified
+
+- After the release and the config repo's matching slice, one wave night shows slice cards with their trees and no wave card.
+- A plain chat question makes no card.
+- The PostToolUse reminder fires once per prompt in a live Claude Code session.
+- Skipped #9 (`reviews/pr-151-high.md`): "`callFor` now sends `why` and `details_md` as null instead of undefined ... a re-seed of an existing board clears `why`, `details_md` and `outcome`" - the seed rewrites every demo item in full on each run, so null fields are the intended reset.
+- Skipped #10 (`reviews/pr-151-high.md`): "If Slice 34 merges after this slice and takes 0008, D1 applies 0008 after 0009 on production" - the merge order puts the other slice's 0008 first; rechecked at merge.
+- Skipped #5 (`reviews/pr-151-check-medium.md`): "isSessionItem treats any in_progress/stale item with an outcome as a working card, with no item-type check" - the design: a working card is an in-progress item; a done or blocked slice belongs in its slice list.
+- Skipped #6 (`reviews/pr-151-check-medium.md`): "keepQuestion drops status from every hook report for a slice card, so hooks never restore in_progress" - doc sync owns slice status; hooks never send a slice status, by the design of the slice-card rule.
+- Skipped #7 (`reviews/pr-151-check-medium.md`): "lowerFirst lowercases the first letter of any word whose second letter is lower-case" - same rule as the own-card fix: a brand name cannot be told from a word without a list.
+- Skipped #8 (`reviews/pr-151-check-medium.md`): "`--orchestrator` writes a bare `{ at }` marker; a missing session id only logs to stderr and exits 0" - reporters fail open: a missing session id logs and exits 0 by the repo rule.
+- Follow-up (`reviews/pr-151-medium.md` #7): "The scroll to the first "Needs you" section runs only when `loaded` changes" - from Active work the click misses a folded project or an already-loaded board; the fix is to depend on the hash and unfold the project. Not done in this slice.

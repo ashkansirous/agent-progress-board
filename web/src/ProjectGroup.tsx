@@ -9,6 +9,7 @@ import { BuiltSection, PlannedSection } from "./PlannedSection";
 import { summaryText } from "./planningText";
 import { useProjectOpen } from "./projectFold";
 import { ProblemsSection } from "./ProblemsSection";
+import { NEEDS_YOU_ATTRIBUTE } from "./route";
 import { QuestionCard, SessionList } from "./SessionCards";
 import { Tile } from "./Tile";
 import { useView } from "./view";
@@ -51,7 +52,7 @@ function NeedsGroup({ needs, onOpen }: { needs: BoardItemDto[]; onOpen: (key: st
   if (phone) return <p className="question-note">{t("questionAtTop")}</p>;
   const heading = t("needsYouN", { n: needs.length });
   return (
-    <section className="questions" aria-label={heading}>
+    <section className="questions" aria-label={heading} {...{ [NEEDS_YOU_ATTRIBUTE]: "" }}>
       <h3>{heading}</h3>
       {needs.map((item) => <QuestionCard key={item.key} item={item} onOpen={onOpen} />)}
     </section>

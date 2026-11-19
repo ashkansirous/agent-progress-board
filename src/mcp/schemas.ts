@@ -3,7 +3,7 @@ import { MAX_CHECKS, MAX_KEY_LENGTH, PART_SUFFIX_LENGTH } from "../domain/checks
 import { MAX_EXPANDED_ITEMS, MAX_SNAPSHOT_ITEMS } from "../domain/docSync";
 import { ItemStatus, ItemType, Priority } from "../domain/item";
 import { MAX_PARTS } from "../domain/parts";
-import { MAX_AFTER_ANSWER, MAX_NEEDS_YOU } from "../domain/upsert";
+import { MAX_AFTER_ANSWER, MAX_NEEDS_YOU, MAX_OUTCOME } from "../domain/upsert";
 import { MAX_STEP_DEPTH, MAX_STEP_ID, MAX_STEP_LABEL, MAX_STEP_NOTE, MAX_STEPS } from "../domain/steps";
 import { type StepInput, StepState } from "../domain/stepTypes";
 
@@ -111,6 +111,12 @@ export const reportProgressShape = {
       "The agent's own question for the owner; the item shows under Needs you until it is cleared. null clears it, and so does a report that sets in_progress or done without one",
     ),
   after_answer: z.string().max(MAX_AFTER_ANSWER).nullable().optional().describe("What the agent does after the answer; null clears it"),
+  outcome: z
+    .string()
+    .max(MAX_OUTCOME)
+    .nullable()
+    .optional()
+    .describe("What the task delivers, one line (for example \"Code merged to main\"); the card shows it under the title. null clears it"),
   ...detailShape,
 };
 

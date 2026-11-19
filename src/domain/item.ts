@@ -73,6 +73,8 @@ export interface Item {
   needs_you?: string | null;
   after_answer?: string | null;
   needs_you_at?: string | null;
+  /** What the task delivers, one line (Slice 41); optional like environment, null for older reports. */
+  outcome?: string | null;
   heartbeat_at: string;
   created_at: string;
   updated_at: string;

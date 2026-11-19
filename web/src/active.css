@@ -138,6 +138,56 @@
   letter-spacing: 0;
 }
 
+/* Slice 41: the outcome line under a task's title (ActiveV3 line 50; BoardV2 line 96 at 13px). */
+
+.outcome-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--doneFg);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.outcome-line-compact {
+  font-size: 13px;
+}
+
+/* The header's two lines are 13px on both layouts, 4px apart (ActiveV3 and ActiveV3Phone lines 29 to 33). */
+
+.active-page .header-text {
+  gap: 4px;
+}
+
+.phone .active-page .subtitle {
+  font-size: 13px;
+}
+
+/* The waiting-questions link under the header (ActiveV3 line 36). */
+
+.waiting-link {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--needBd);
+  border-radius: 10px;
+  background: var(--needBg);
+  color: var(--needFg);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.active-page .waiting-link {
+  margin: 0 0 16px;
+}
+
+.phone .active-page .waiting-link {
+  margin: 0 16px 10px;
+}
+
 .chips {
   display: flex;
   flex-wrap: wrap;

@@ -47,15 +47,50 @@ test.describe("active work page", () => {
     await expect(page.getByText("Slice 10 · Seed inventory")).toHaveCount(0);
   });
 
-  test("the header says how many tasks run and when it was updated, as drawn for the size", async ({ page }) => {
+  test("the header gives two lines, the same on both layouts (ActiveV3)", async ({ page }) => {
     await openActive(page);
-    if (isPhone()) {
-      await expect(page.getByText("3 tasks running · updated 13:48")).toBeVisible();
-    } else {
-      await expect(
-        page.getByText("Tasks an agent is working on now, across projects · updated 13:48 · a task that stops reporting turns stale and leaves this page"),
-      ).toBeVisible();
-    }
+    const lines = page.locator(".header-text .subtitle");
+    await expect(lines).toHaveText([
+      "Tasks with an outcome that an agent is working on now · updated 13:48",
+      "Plain chats and wave runners get no card here; each slice a wave builds has its own.",
+    ]);
+    expect(await css(lines.first(), "font-size")).toBe("13px");
+    await expect(page.getByText("tasks running")).toHaveCount(0);
+  });
+
+  test("each card shows its outcome under the title, in the done colour with a 15px target", async ({ page }) => {
+    await openActive(page);
+    const part = card(page, "Part C · Notification channel");
+    const outcome = part.locator(".outcome-line");
+    await expect(outcome).toHaveText("Outcome: Code merged to main");
+    expect(await css(outcome, "font-size")).toBe("14px");
+    expect(await css(outcome, "font-weight")).toBe("600");
+    expect(await css(outcome, "color")).toBe(rgbOf(palette().doneFg));
+    await expect(outcome.locator("svg")).toHaveAttribute("width", "15");
+    const order = await part.locator(".active-head").locator("h2, .outcome-line").evaluateAll((nodes) => nodes.map((node) => node.tagName));
+    expect(order).toEqual(["H2", "SPAN"]);
+  });
+
+  test("the waiting-questions link is absent when no question is open", async ({ page }) => {
+    await openActive(page);
+    await expect(page.locator("a.waiting-link")).toHaveCount(0);
+  });
+
+  test("the waiting-questions link shows one question in the singular", async ({ page }) => {
+    const one = activeTasks().map((task, i) => (i === 0 ? { ...task, needs_you: "Which one?", needs_you_at: SERVER_TIME } : task));
+    await openActive(page, activeBoard(one));
+    await expect(page.locator("a.waiting-link")).toHaveText("1 question is waiting on the board");
+  });
+
+  test("the waiting-questions link shows the real count and goes to the board", async ({ page }) => {
+    const asking = activeTasks().map((task, i) => (i < 2 ? { ...task, needs_you: "Which one?", needs_you_at: SERVER_TIME } : task));
+    await openActive(page, activeBoard(asking));
+    const link = page.locator("a.waiting-link");
+    await expect(link).toHaveText("2 questions are waiting on the board");
+    await expect(link).toHaveAttribute("href", "#/needs-you");
+    expect(await css(link, "min-height")).toBe("44px");
+    expect(await css(link, "background-color")).toBe(rgbOf(palette().needBg));
+    expect(await css(link, "color")).toBe(rgbOf(palette().needFg));
   });
 
   test("the view bar sits above the title on both layouts, as on the Board page (Slice 36)", async ({ page }) => {
@@ -162,7 +197,7 @@ test.describe("active work page", () => {
     const link = part.getByRole("link", { name: "Back to Slice 9 · Frost alerts on the board" });
     await expect(link).toHaveAttribute("href", `#/open/${encodeURIComponent(PART_C)}`);
     await link.click();
-    const dialog = page.getByRole("dialog", { name: "Item details" });
+    const dialog = page.getByRole("dialog", { name: "Card details" }); // a card with an outcome opens the card drawer (Slice 41)
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole("heading", { level: 2 })).toHaveText("Part C · Notification channel");
   });
@@ -171,7 +206,7 @@ test.describe("active work page", () => {
     await openActive(page);
     const part = card(page, "Part C · Notification channel");
     await part.getByRole("link", { name: "Back to Slice 9 · Frost alerts on the board" }).click();
-    const dialog = page.getByRole("dialog", { name: "Item details" });
+    const dialog = page.getByRole("dialog", { name: "Card details" });
     await expect(dialog).toBeVisible();
     await dialog.getByRole("button", { name: "Close" }).click();
     await expect(dialog).toHaveCount(0);
@@ -186,7 +221,7 @@ test.describe("active work page", () => {
     await page.clock.setFixedTime(new Date(SERVER_TIME));
     await page.route(BOARD_ROUTE, (route) => route.fulfill({ json: activeBoard() }));
     await page.goto(`/#/open/${encodeURIComponent(PART_C)}`);
-    const dialog = page.getByRole("dialog", { name: "Item details" });
+    const dialog = page.getByRole("dialog", { name: "Card details" });
     await expect(dialog).toBeVisible();
     await dialog.getByRole("button", { name: "Close" }).click();
     await expect(dialog).toHaveCount(0);

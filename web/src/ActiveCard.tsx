@@ -17,6 +17,29 @@ interface CardProps {
   initiallyOpen?: boolean;
 }
 
+/** The target mark of the outcome line: three concentric circles, drawn inline (ActiveV3 line 50). */
+function TargetMark({ size }: { size: number }) {
+  return (
+    <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="5" />
+      <circle cx="12" cy="12" r="1" />
+    </svg>
+  );
+}
+
+/** "Outcome: {outcome}" with the target mark; nothing for an item with no outcome (an older report). `compact` is the board card's 13px size. */
+export function OutcomeLine({ outcome, compact = false }: { outcome: string | null | undefined; compact?: boolean }) {
+  const { t } = useView();
+  if (!outcome) return null;
+  return (
+    <span className={compact ? "outcome-line outcome-line-compact" : "outcome-line"}>
+      <TargetMark size={compact ? 14 : 15} />
+      {t("outcomeLine", { outcome })}
+    </span>
+  );
+}
+
 function Chips({ item }: { item: BoardItemDto }) {
   const chips = [
     item.agent && <span key="agent" className="chip">{item.agent}</span>,
@@ -80,6 +103,7 @@ export function ActiveCard({ item, initiallyOpen = false }: CardProps) {
       <div className="active-main">
         <div className="active-head">
           <h2>{cardTitle(item, t)}</h2>
+          <OutcomeLine outcome={item.outcome} />
           <Chips item={item} />
         </div>
         {item.progress && (

@@ -3,23 +3,26 @@
 // UserPromptSubmit and PostToolUse hook. Two jobs, both on local files only (no network, no git):
 // - It keeps the session's own card key: a main-thread call of the board's report_progress tool (agent "session")
 //   is written to `<id>.goal.json`, so session-done.mjs knows which card to close, reopen or add agent steps to.
-// - A session whose card has no goal since the current prompt is reminded once, at its second tool call, to
-//   report goal, purpose and steps (`<id>.prompt.json`, `<id>.goal.json`).
+// - A session whose card has no goal since the current prompt is reminded once per prompt, at its second tool call
+//   (never after every tool call), to report the task if the prompt started one with an outcome
+//   (`<id>.prompt.json`, `<id>.goal.json`). An orchestrator session (`report-progress --orchestrator`) gets none.
 // Never blocks: a missing or broken state file means no reminder, and the exit code is always 0.
 // - After a main-thread tool call it closes the session's waiting item, if a marker exists (a prompt was answered).
 // Input (stdin JSON): session_id, hook_event_name, tool_name, tool_input, agent_id.
 // Output: PostToolUse additionalContext, or nothing.
 import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { STEPS_MAX, STEP_ID_MAX, STEP_LABEL_MAX, STEP_NOTE_MAX, activeTaskCard } from '../report-progress.mjs';
+import { STEPS_MAX, STEP_ID_MAX, STEP_LABEL_MAX, STEP_NOTE_MAX, activeTaskCard, isOrchestrator, touchOrchestrator } from '../report-progress.mjs';
 import { STEP_DEPTH_MAX } from './background-agents.mjs';
 import { markWaitingDone } from './session-done.mjs';
-import { CLOSED_BY, parseInput, readGoal, readPrompt, readStdinText, sessionIdOf, stateRoot, touchSeen, updateGoal, writePrompt } from './hook-input.mjs';
+import { CARD_KIND, CLOSED_BY, parseInput, readGoal, readPrompt, readStdinText, sessionIdOf, stateRoot, touchSeen, updateGoal, writePrompt } from './hook-input.mjs';
 
 export const REMIND_AT_TOOL = 2;
-export const REMINDER_TEXT = 'This session has no board card with a goal for the current prompt. The agent-board skill says to call the board\'s report_progress tool with the goal, what it is for and the steps, unless the turn is a one-line answer.';
+export const REMINDER_TEXT = 'If this prompt started a task with an outcome, report it on the board (the agent-board skill: report_progress with the goal, the outcome, what it is for and the steps).';
 const EVENT = { prompt: 'UserPromptSubmit', tool: 'PostToolUse' };
 const SESSION_AGENT = 'session'; // the agent kind the board's reporting rules give the session's own card
+const SLICE_KEY = /\/slice-\d+$/;
+const TASK_KEY = /\/task-[^/]+$/;
 const BOARD_TOOL = /^mcp__(?:plugin_agent-board_)?agent-board__(report_progress|mark_done)$/;
 const STEP_STATES = new Set(['done', 'active', 'pending']);
 
@@ -58,6 +61,24 @@ function openQuestion(call, base, closed) {
   return text(call.needs_you) || base.needsYou || '';
 }
 
+// A report that opens the session's own card: a task card (agent "session"), a slice card (`<project>/slice-<N>`, no
+// agent), or an older session card. A key under a slice (`/slice-N/part-B`, `/waiting`) is another card.
+function isSliceKey(key) {
+  return SLICE_KEY.test(key);
+}
+
+function isOwnCardReport(call, key) {
+  if (call.agent === SESSION_AGENT) return true;
+  return !call.agent && (isSliceKey(key) || TASK_KEY.test(key)); // another agent kind (a helper's report) is not the session's own card
+}
+
+// The one rule for which card a session owns: the first own-card report binds the goal's card key; a report for
+// another key moves the card only after the bound card was closed (mark_done on it, or a hook closed it).
+export function mayBindCard(call, key, goal) {
+  if (!isOwnCardReport(call, key)) return false;
+  return !goal || !goal.key || goal.closed;
+}
+
 // The tool call's report on the session's own card, as a goal-file update; null when it is for another card.
 // The first report with agent "session" names the card; later calls count while they use that key.
 export function cardUpdate(input, goal) {
@@ -67,7 +88,8 @@ export function cardUpdate(input, goal) {
   if (!match || !key) return null;
   // A report with under_step is a helper's list of children of one step: it changes none of the session's own fields
   // (steps, title, why, closed, question), whatever status or title it carries.
-  if (call.under_step) return null;  if (!(goal && goal.key === key) && !(match[1] === 'report_progress' && call.agent === SESSION_AGENT)) return null;
+  if (call.under_step) return null;
+  if (!(goal && goal.key === key) && !(match[1] === 'report_progress' && mayBindCard(call, key, goal))) return null;
   const steps = stepsOf(call.steps);
   const base = goal && goal.key === key ? goal : { goalAt: undefined, title: '', why: '', steps: [] };
   const closed = match[1] === 'mark_done' || call.status === 'done';
@@ -79,6 +101,7 @@ export function cardUpdate(input, goal) {
     why: text(call.why) || base.why,
     steps: steps || base.steps,
     sig: steps ? '' : base.sig || '', // a list the session just sent is not what the hooks last sent
+    kind: isSliceKey(key) ? CARD_KIND.slice : CARD_KIND.task, // set by the report that binds the card key
     closed,
     closedBy: closed ? CLOSED_BY.session : '',
     needsYou: openQuestion(call, base, closed),
@@ -102,6 +125,13 @@ export function handle(input, env = process.env, now = Date.now(), options = {})
   if (!id) return '';
   const root = stateRoot(env);
   touchSeen(id, root, now);
+  // An orchestrator (report-progress --orchestrator) has no card and gets no reminder; its slices have their own cards.
+  if (isOrchestrator(id, { root, now })) {
+    touchOrchestrator(id, { root, now }); // a long-running wave session keeps its mark beyond 24 hours
+    // Its own card reports and mark_done are still recorded, so the goal file knows when its card was closed.
+    if (input.hook_event_name === EVENT.tool && !(typeof input.agent_id === 'string' && input.agent_id)) recordCard(input, id, root, now);
+    return '';
+  }
   if (input.hook_event_name === EVENT.prompt) {
     writePrompt(id, { at: now, tools: 0, reminded: false }, root);
     return '';

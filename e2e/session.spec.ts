@@ -38,9 +38,9 @@ test.describe("session cards", () => {
   test("a working card shows its session, goal, purpose and steps with the current step filled", async ({ page }) => {
     await openBoard(page);
     const example = project(page, "example-app");
-    await expect(example.getByRole("heading", { name: "Working now · 3" })).toBeVisible();
+    await expect(example.getByRole("heading", { name: "Working now · 2" })).toBeVisible();
     const card = workingCard(page, "Read the crash log on the iPhone 8");
-    await expect(card).toContainText("session 9c1e · Laptop");
+    await expect(card).toContainText("task · Laptop");
     await expect(card).toContainText("last activity 2 min ago");
     await expect(card).toContainText("For Slice 12: app crashes on start");
     const chips = card.getByRole("list", { name: "Steps" }).getByRole("listitem");
@@ -52,13 +52,22 @@ test.describe("session cards", () => {
     expect(await css(card, "background-color")).toBe(rgbOf(palette().card));
   });
 
-  test("a card with no goal is dashed and says how long ago it started", async ({ page }) => {
+  test("a working card shows its outcome between the goal and the purpose, and there is no goal-less card", async ({ page }) => {
     await openBoard(page);
-    const card = page.locator("button.session-card-nogoal");
-    await expect(card).toHaveCount(1);
-    await expect(card).toContainText("Started 2 min ago, no goal reported yet");
-    expect(await css(card, "border-top-style")).toBe("dashed");
-    expect(await css(card.locator(".session-nogoal"), "font-style")).toBe("italic");
+    const card = workingCard(page, "Implement Slice 9: export to PDF");
+    const outcome = card.locator(".outcome-line");
+    await expect(outcome).toHaveText("Outcome: Code merged to main");
+    expect(await css(outcome, "font-size")).toBe("13px");
+    expect(await css(outcome, "font-weight")).toBe("600");
+    expect(await css(outcome, "color")).toBe(rgbOf(palette().doneFg));
+    await expect(outcome.locator("svg")).toHaveAttribute("width", "14");
+    await expect(card.locator("span.session-goal, span.outcome-line, span.session-why")).toHaveText([
+      "Implement Slice 9: export to PDF",
+      "Outcome: Code merged to main",
+      "Slice 9 of example-app, built in tonight's wave",
+    ]);
+    await expect(card).toContainText("task · Cloud VM"); // the seed's card is a session-agent card; the "slice card" label is covered in test/sessionWeb.test.ts
+    await expect(page.locator("button.session-card").filter({ hasText: "no goal reported yet" })).toHaveCount(0);
   });
 
   test("a stopped session leaves Working now and shows in Done as a dashed row", async ({ page }) => {
@@ -108,7 +117,7 @@ test.describe("question cards", () => {
   test("questions sit under the project name on desktop and above the projects on the phone", async ({ page }) => {
     await openBoard(page);
     if (isPhone()) {
-      await expect(page.getByRole("heading", { level: 2, name: "Needs you · 2" })).toBeVisible();
+      await expect(page.getByRole("heading", { level: 2, name: "Needs you · 2", exact: true })).toBeVisible();
       await expect(project(page, "example-app").getByText("Its question is at the top of the page.")).toBeVisible();
       await expect(project(page, "example-app").locator(".question-card")).toHaveCount(0);
     } else {
@@ -146,7 +155,8 @@ test.describe("card drawer", () => {
     const panel = drawer(page);
     await expect(panel.locator(".kicker")).toHaveText("Working now");
     await expect(panel.getByRole("heading", { level: 2 })).toHaveText("Read the crash log on the iPhone 8");
-    await expect(panel).toContainText("session 9c1e · Laptop · last activity 2 min ago");
+    await expect(panel).toContainText("task · Laptop · last activity 2 min ago");
+    await expect(panel.locator(".drawer-purpose")).toHaveText("Outcome: the cause written into Slice 12 · for Slice 12: app crashes on start");
     await expect(panel.locator(".drawer-bullets li")).toHaveText([
       "Connected the iPhone 8 over USB",
       "Found 3 crash logs from release 2.3.1, all at start-up",
@@ -179,7 +189,7 @@ test.describe("card drawer", () => {
   test("closes with the 44px Close button, the scrim and Escape", async ({ page }) => {
     await openBoard(page);
     const open = async () => {
-      await workingCard(page, "Build Slices 9 and 10 overnight").click();
+      await workingCard(page, "Implement Slice 9: export to PDF").click();
       await expect(drawer(page)).toBeVisible();
     };
     await open();

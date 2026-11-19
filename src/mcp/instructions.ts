@@ -1,6 +1,7 @@
 import { ItemStatus, ItemType } from "../domain/item";
 import { SESSION_AGENT, SESSION_STALE_AFTER_MINUTES } from "../domain/stale";
 import { StepState } from "../domain/stepTypes";
+import { MAX_OUTCOME } from "../domain/upsert";
 import { MAX_STEPS, MAX_STEP_DEPTH, MAX_STEP_ID, MAX_STEP_LABEL, MAX_STEP_NOTE } from "../domain/steps";
 
 /** How often a session reports while working. Must stay below `SESSION_STALE_AFTER_MINUTES` (test/mcpInstructions.test.ts). */
@@ -13,7 +14,7 @@ export const HEARTBEAT_MINUTES = 5;
  */
 export const SERVER_INSTRUCTIONS = `This server is a progress board. Report your own work on it.
 
-If your brief names a parent card key, you are a helper agent: report your steps on that card and open no session card. Otherwise, at the start of every session or chat, before your first answer, call report_progress once with key "<project>/session-<id>" (<project> is the project you work in, or "chats" if none; <id> is a short random id you make up, the same <project> and <id> for the whole session), project = <project>, type "${ItemType.Unplanned}", agent "${SESSION_AGENT}", your environment, status "in_progress", title = your goal in one line, why = what it is for, steps = your plan as a list of {label, state}, state one of "${StepState.Done}", "${StepState.Active}", "${StepState.Pending}". Limits: ${MAX_STEPS} steps in all, ${MAX_STEP_DEPTH} levels, label ${MAX_STEP_LABEL} characters, note ${MAX_STEP_NOTE}; a report over a limit is refused and creates no card.
+If your brief names a parent card key, you are a helper agent: report your steps on that card and open no session card. Otherwise a card is a task with an outcome; a plain chat, a question answered in the chat and an orchestrator (a wave runner; its slices have their own cards) get none. When you start a task that delivers something (a slice: code merged; refining ideas: a plan), call report_progress once, before the work. For a planned slice's work: key "<project>/slice-<N>", with no type and no agent (the slice's card already exists from the plan sync; the outcome and steps go on it; if the report is refused because no such card exists, report a task card instead). For any other task: key "<project>/task-<id>" (<id> is a short random id, the same for the whole task), type "${ItemType.Unplanned}", agent "${SESSION_AGENT}". Both: project = <project> (the project you work in, or "chats" if none), your environment, status "in_progress", title = the task in one line, outcome = what it delivers (up to ${MAX_OUTCOME} characters, e.g. "Code merged to main"), why = what it is for, steps = your plan as a list of {label, state}, state one of "${StepState.Done}", "${StepState.Active}", "${StepState.Pending}". Limits: ${MAX_STEPS} steps in all, ${MAX_STEP_DEPTH} levels, label ${MAX_STEP_LABEL} characters, note ${MAX_STEP_NOTE}; a report over a limit is refused and creates no card.
 
 Keep the card current:
 - Steps form a tree: a step may have children, and several steps may be "${StepState.Active}" at once. An optional id keeps a step stable across reports.

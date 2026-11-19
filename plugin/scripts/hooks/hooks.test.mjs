@@ -2,7 +2,7 @@
 // Tests for the board hooks and background-agent reading. A local fake HTTP server stands in for the board.
 // Run: node --test "plugin/**/*.test.mjs"
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, utimesSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, test } from 'node:test';
 import { setTimeout } from 'node:timers';
@@ -14,6 +14,7 @@ import { DEAD_SESSION_MS, run as runDone, startContext } from './session-done.mj
 import { execFileSync } from 'node:child_process';
 import { branchOf, run as runWaiting, titleOf, usableCwd } from './session-waiting.mjs';
 import { cleanUpAfterTests, envFor, callsOf, replyOk, runNode, startFakeBoard, trackedTemp } from '../test-helpers.mjs';
+import { markOrchestrator, orchestratorFilePath } from '../report-progress.mjs';
 
 const HOOKS = fileURLToPath(new URL('.', import.meta.url));
 const WAITING_HOOK = join(HOOKS, 'session-waiting.mjs');
@@ -222,6 +223,66 @@ describe('Stop, SubagentStop and UserPromptSubmit (session-done)', () => {
     board.server.close();
     assert.deepEqual(callsOf(board), [{ tool: 'mark_done', args: { key: CARD, source: 'hook', note: 'Session stopped' } }]);
     assert.equal(readGoal('sess-1', root, NOW).closed, true);
+  });
+
+  test('an orchestrator session closes a card it reported before the mark once, then sends nothing (Slice 41)', async () => {
+    const { board, root, env, input } = await setup([]);
+    markOrchestrator('sess-1', root);
+    await runDone(input('Stop'), env, {}, NOW);
+    assert.deepEqual(callsOf(board).map((call) => call.tool), ['mark_done']);
+    await runDone(input('UserPromptSubmit'), env, {}, NOW);
+    await runDone(input('Stop'), env, {}, NOW);
+    board.server.close();
+    assert.equal(board.requests.length, 1);
+  });
+
+  test('a failed orchestrator close is tried once per card: later hooks send nothing (Slice 41)', async () => {
+    const board = await startFakeBoard((record, res) => { res.writeHead(500); res.end('down'); });
+    const root = folder();
+    const env = envFor(board.url, root);
+    withCard(root);
+    markOrchestrator('sess-1', root);
+    const input = (event) => ({ session_id: 'sess-1', cwd: process.cwd(), hook_event_name: event, transcript_path: sessionWithAgents([]) });
+    await runDone(input('Stop'), env, {}, NOW);
+    await runDone(input('Stop'), env, {}, NOW);
+    await runDone(input('UserPromptSubmit'), env, {}, NOW);
+    board.server.close();
+    assert.equal(board.requests.length, 1);
+    assert.deepEqual(readGoal('sess-1', root, NOW).orchClose, { key: CARD, outcome: 'failed' });
+  });
+
+  test('a goal file with only the old slice flag still reads as a slice, and a write stores no slice flag (Slice 41)', () => {
+    const root = folder();
+    writeJson(join(root, 'sess-1.goal.json'), { at: NOW, goalAt: NOW, key: 'proj/slice-9', slice: true });
+    const goal = readGoal('sess-1', root, NOW);
+    assert.equal(goal.kind, 'slice');
+    assert.equal(goal.slice, true);
+    writeGoal('sess-1', goal, root, NOW);
+    const stored = JSON.parse(readFileSync(join(root, 'sess-1.goal.json'), 'utf8'));
+    assert.equal('slice' in stored, false);
+    assert.equal(stored.kind, 'slice');
+  });
+
+  test('a slice card is never closed or reopened by the hooks (Slice 41)', async () => {
+    const { board, root, env, input } = await setup([]);
+    withCard(root, { key: 'proj/slice-9', kind: 'slice' });
+    await runDone(input('Stop'), env, {}, NOW);
+    await runDone(input('UserPromptSubmit'), env, {}, NOW);
+    board.server.close();
+    assert.equal(board.requests.length, 0);
+  });
+
+  test('a slice card gets helper-agent steps with no status, and is still never closed (Slice 41)', async () => {
+    const { board, root, env, input } = await setup([]);
+    withCard(root, { key: 'proj/slice-9', kind: 'slice', steps: [{ id: 's1', label: 'Write text', state: 'active' }] });
+    await runDone(input('SubagentStart', { agent_id: 'a9' }), env, {}, NOW);
+    board.server.close();
+    const [call] = callsOf(board);
+    assert.equal(call.tool, 'report_progress');
+    assert.equal(call.args.key, 'proj/slice-9');
+    assert.equal('status' in call.args, false);
+    assert.deepEqual(call.args.steps[0].children.map((step) => step.id), ['agent-a9']);
+    assert.equal(readGoal('sess-1', root, NOW).kind, 'slice');
   });
 
   test('Stop with a fresh background agent keeps the card in_progress with the note and the agent as a step', async () => {
@@ -673,6 +734,77 @@ describe('goal reminder and card key (goal-reminder)', () => {
     assert.equal(out.hookSpecificOutput.hookEventName, 'PostToolUse');
     assert.equal(out.hookSpecificOutput.additionalContext, REMINDER_TEXT);
     assert.equal(remind(toolInput(), env, NOW), '');
+  });
+
+  test('the reminder asks whether the prompt started a task with an outcome, and comes once per prompt, again at the next prompt (Slice 41)', () => {
+    const env = { AGENT_BOARD_SESSION_ROOT: folder() };
+    assert.match(REMINDER_TEXT, /If this prompt started a task with an outcome, report it on the board/);
+    remind(promptInput, env, NOW);
+    remind(toolInput(), env, NOW);
+    assert.ok(remind(toolInput(), env, NOW));
+    for (let index = 0; index < 5; index += 1) assert.equal(remind(toolInput(), env, NOW), '');
+    remind(promptInput, env, NOW + MINUTE);
+    remind(toolInput(), env, NOW + MINUTE);
+    assert.ok(remind(toolInput(), env, NOW + MINUTE));
+  });
+
+  test('an orchestrator session (marked with report-progress --orchestrator) gets no reminder but its card reports are recorded (Slice 41)', () => {
+    const root = folder();
+    const env = { AGENT_BOARD_SESSION_ROOT: root };
+    assert.equal(markOrchestrator('sess-1', root), true);
+    remind(promptInput, env, NOW);
+    for (let index = 0; index < 4; index += 1) assert.equal(remind(toolInput(), env, NOW), '');
+    remind(toolInput({ tool_name: BOARD_TOOL, tool_input: { key: CARD, agent: 'session', title: 'T' } }), env, NOW);
+    assert.equal(readGoal('sess-1', root, NOW).key, CARD);
+    remind(toolInput({ tool_name: BOARD_TOOL.replace('report_progress', 'mark_done'), tool_input: { key: CARD } }), env, NOW);
+    assert.equal(readGoal('sess-1', root, NOW).closed, true);
+  });
+
+  test('a report on a slice card with no agent counts as the session\'s card: no reminder, flagged as a slice (Slice 41)', () => {
+    const root = folder();
+    const env = { AGENT_BOARD_SESSION_ROOT: root };
+    remind(promptInput, env, NOW);
+    remind(toolInput({ tool_name: BOARD_TOOL, tool_input: { key: 'proj/slice-9', outcome: 'Code merged', title: 'Build slice 9' } }), env, NOW);
+    assert.equal(remind(toolInput(), env, NOW), '');
+    const goal = readGoal('sess-1', root, NOW);
+    assert.equal(goal.key, 'proj/slice-9');
+    assert.equal(goal.slice, true);
+  });
+
+  test('a later own-card report for another key does not move the bound card while it is open (Slice 41)', () => {
+    const root = folder();
+    const env = { AGENT_BOARD_SESSION_ROOT: root };
+    remind(promptInput, env, NOW);
+    remind(toolInput({ tool_name: BOARD_TOOL, tool_input: { key: 'proj/task-ab', agent: 'session', outcome: 'A plan', title: 'Refine' } }), env, NOW);
+    remind(toolInput({ tool_name: BOARD_TOOL, tool_input: { key: 'proj/slice-7', outcome: 'Note', title: 'Dependency' } }), env, NOW);
+    const goal = readGoal('sess-1', root, NOW);
+    assert.equal(goal.key, 'proj/task-ab');
+    assert.equal(goal.kind, 'task');
+  });
+
+  test('once the bound card is closed, the next own-card report moves the goal to the new card and kind (Slice 41)', () => {
+    const root = folder();
+    const env = { AGENT_BOARD_SESSION_ROOT: root };
+    remind(promptInput, env, NOW);
+    remind(toolInput({ tool_name: BOARD_TOOL, tool_input: { key: 'proj/slice-9', outcome: 'Code merged', title: 'Build slice 9' } }), env, NOW);
+    remind(toolInput({ tool_name: BOARD_TOOL.replace('report_progress', 'mark_done'), tool_input: { key: 'proj/slice-9' } }), env, NOW);
+    remind(toolInput({ tool_name: BOARD_TOOL, tool_input: { key: 'proj/task-ab', agent: 'session', outcome: 'A plan', title: 'Refine' } }), env, NOW);
+    const goal = readGoal('sess-1', root, NOW);
+    assert.equal(goal.key, 'proj/task-ab');
+    assert.equal(goal.kind, 'task');
+    assert.equal(goal.slice, false);
+    assert.equal(goal.closed, false);
+  });
+
+  test('a marked orchestrator keeps its mark fresh on every hook call (Slice 41)', () => {
+    const root = folder();
+    const env = { AGENT_BOARD_SESSION_ROOT: root };
+    markOrchestrator('sess-1', root);
+    const file = orchestratorFilePath('sess-1', root);
+    const old = new Date(NOW - 23 * 60 * MINUTE);
+    utimesSync(file, old, old);
+    remind(promptInput, env, NOW);
+    assert.ok(Math.abs(statSync(file).mtimeMs - NOW) < 1000);
   });
 
   test('a goal sent before this prompt, even 90 minutes ago, does not count: the session is still reminded', () => {

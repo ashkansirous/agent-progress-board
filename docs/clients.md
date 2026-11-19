@@ -31,7 +31,7 @@ An AI that should report its own work needs only the connector:
 - **claude.ai:** add the custom connector and sign in with OAuth (see *Adding the board to claude.ai*).
 
 The server sends its own instructions in the `initialize` result (`src/mcp/instructions.ts`). They
-carry the reporting rules: open a session card before the first answer, keep its steps current,
+carry the reporting rules: open a card when a task with an outcome starts (never for a plain chat or an orchestrator), with `outcome` set, keep its steps current,
 report at least every 5 minutes while working (a client with no clock: at every step change and before and after a long wait, never on every tool call), keep a step active while a background agent works, `mark_done` only
 when the goal is done, questions in `needs_you`. Where the client shows server instructions to the
 model, no pasted text is needed. The pasted chat instruction under *Making every chat report* is
@@ -50,7 +50,7 @@ environment (`AGENT_BOARD_URL`, `AGENT_BOARD_TOKEN`); there is no built-in addre
 
 | Hook event | What it does |
 | --- | --- |
-| `PostToolUse` | Local files only. Remembers the key of the session's own card: a main-thread `report_progress` call with agent `session` (later calls on the same key, and `mark_done`, update it). At the second tool call of a prompt with no goal reported, it reminds the session once to report goal, purpose and steps. |
+| `PostToolUse` | Local files only. Remembers the key of the session's own card: a main-thread `report_progress` call with agent `session` (later calls on the same key, and `mark_done`, update it). At the second tool call of a prompt with no goal reported, it reminds the session once per prompt: "If this prompt started a task with an outcome, report it on the board". A session marked with `report-progress --orchestrator` (a wave runner; its slices have their own cards) gets no reminder and no card update from the hooks (Slice 41). |
 | `UserPromptSubmit` | Reopens a card the Stop hook closed ("Session resumed"), marks this session's waiting item done, and closes dead waiting items (below). Starts the reminder's prompt counter. |
 | `Stop` | Marks the session's card done ("Session stopped"). If a background agent's record (`<session>/subagents/*.jsonl`) changed in the last 10 minutes, the card stays `in_progress` with the note "background agents running" instead. While the session has an open `needs_you` question the card is not closed, and every hook report repeats the question text (a done or stale-to-in-progress report would clear it). Also marks the session's waiting item done. |
 | `SubagentStop` | Sends the card's steps again with the stopped agent done, when the list changed. Also marks the session's waiting item done. |
@@ -352,12 +352,15 @@ To clear a `waiting_for_me` item, call `mark_done` with the same key.
 
 ### A session card: goal, purpose, steps and a question (Slice 13)
 
-A session writes its own card with `report_progress`, one item per session, `agent: "session"`:
+A session writes a card when it takes on a task with an outcome (Slice 41), not at its start: a plain chat and an
+orchestrator have none. Work on a planned slice reports on the slice's own card (`<project>/slice-<N>`); any other task
+is `<project>/task-<id>`, `agent: "session"`. An orchestrator runs `report-progress --orchestrator` once.
 
 - `title`: one line saying what it is doing now ("Read the crash log on the iPhone 8").
+- `outcome` (up to 200 characters): what the task delivers ("Code merged to main"); the card shows it under the title.
 - `why`: what the work is for ("For Slice 12: app crashes on start"). A card with no `why`, no
-  `steps` and a fallback title (`<branch> · <project>`) shows as "no goal reported yet"; any other
-  title is a goal and shows.
+  `steps` and no `outcome` has no special card any more (the "no goal reported yet" card is gone); it shows with its
+  title like any other.
 - `steps`: the planned steps, the whole list each time, one `active`.
 - `details_md`: what is done so far, one line per bullet.
 - `parent`: the session's own name ("session 9c1e") or the wave's ("wave 3"); the page shows it

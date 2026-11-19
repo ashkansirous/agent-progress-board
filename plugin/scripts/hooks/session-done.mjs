@@ -15,10 +15,10 @@
 import { realpathSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { callTool, resolveConfig } from '../report-progress.mjs';
+import { callTool, isOrchestrator, resolveConfig } from '../report-progress.mjs';
 import { AGENT_FRESH_MS, AGENT_PREFIX, AGENT_STATE, CARD_NOTE, RESUME_SLACK_MS, agentRowId, hasActiveAgent, hasAgentMeta, isForegroundAgent, mergeSteps, placeAgents, readBackgroundAgents, subagentsDir } from './background-agents.mjs';
 import {
-  CLOSED_BY, HOOK_SOURCE, HOOK_TIMEOUT_MS, addStoppedAgent, hasMarker, listMarkers, parseInput, readGoal, readMarkerKey, readSeen, readStdinText,
+  CLOSED_BY, HOOK_SOURCE, ORCH_CLOSE, HOOK_TIMEOUT_MS, addStoppedAgent, hasMarker, listMarkers, parseInput, readGoal, readMarkerKey, readSeen, readStdinText,
   readStoppedAt, removeMarker, removeStoppedAgent, sessionContext, sessionIdOf, stateRoot, touchSeen, updateGoal,
 } from './hook-input.mjs';
 
@@ -63,8 +63,16 @@ async function sendCard(config, id, root, args, now, options) {
 
 // Every in_progress report of the hooks repeats the session's open question: the board clears one that a
 // report moving the card to in_progress leaves out (answersQuestion in src/domain/upsert.ts).
+// A slice card's status is doc sync's: its hook reports carry none, so they never move it.
 function keepQuestion(goal, body) {
-  return goal.needsYou ? { ...body, needs_you: goal.needsYou } : body;
+  const sent = goal.slice ? withoutStatus(body) : body;
+  return goal.needsYou ? { ...sent, needs_you: goal.needsYou } : sent;
+}
+
+function withoutStatus(body) {
+  const rest = { ...body };
+  delete rest.status;
+  return rest;
 }
 
 // The session's background agents. An agent that is working again after its stop was resumed: its stop file is deleted
@@ -99,6 +107,10 @@ async function stopCard(input, env, goal, root, now, options) {
 // Marks the card done "Session stopped". A done report would clear the open question, and the person still has to
 // answer it: with one open the card is left as it is.
 async function closeCard(config, goal, id, root, now, options) {
+  if (goal.slice) {
+    saveGoal(id, { held: false, heldAt: 0 }, root, now); // a slice card is never closed by a hook
+    return { skipped: 'slice card' };
+  }
   if (goal.needsYou) {
     saveGoal(id, { held: false, heldAt: 0 }, root, now); // the card is not closed, so no hold is waiting on it
     return { skipped: 'question open' };
@@ -197,7 +209,8 @@ async function resumeCard(input, env, goal, root, now, options) {
   if (goal.closed && !reopen) return { skipped: 'card not closed by Stop' };
   if (!reopen && !goal.needsYou) return { skipped: 'nothing to resume' };
   const body = {
-    key: goal.key, status: 'in_progress', source: HOOK_SOURCE,
+    key: goal.key, source: HOOK_SOURCE,
+    ...(goal.slice ? {} : { status: 'in_progress' }),
     ...(reopen ? { note: NOTE.resumed } : {}),
     ...(goal.needsYou ? { needs_you: null } : {}),
   };
@@ -210,11 +223,23 @@ function resumedPatch(goal) {
   return (current) => ({ closed: false, closedBy: '', held: false, heldAt: 0, sig: '', needsYou: current.needsYou === goal.needsYou ? '' : current.needsYou });
 }
 
+// A session marked an orchestrator after it reported a card: that card is closed once, at the next hook, and the
+// goal file keeps it closed (the heartbeat has stopped, so it would only turn stale).
+async function closeOrchestratorCard(goal, id, env, root, now, options) {
+  if (goal.closed || goal.slice) return { skipped: 'orchestrator' };
+  // One attempt per card, sent or failed: a board that is down never makes every later hook wait on the call again.
+  if (goal.orchClose && goal.orchClose.key === goal.key) return { skipped: `orchestrator close already ${goal.orchClose.outcome}` };
+  const outcome = await closeCard(resolveConfig(env), goal, id, root, now, options);
+  saveGoal(id, { orchClose: { key: goal.key, outcome: outcome.ok ? ORCH_CLOSE.sent : ORCH_CLOSE.failed } }, root, now);
+  return outcome;
+}
+
 // The session's own card, by event. Nothing without a card key and a board address (no network then).
 export async function updateCard(input, env, root, now, options) {
   const id = sessionIdOf(input);
   const goal = id ? readGoal(id, root, now) : null;
   if (!goal || !goal.key || !resolveConfig(env)) return { skipped: 'no card' };
+  if (isOrchestrator(id, { root, now })) return closeOrchestratorCard(goal, id, env, root, now, options);
   const event = input.hook_event_name;
   if (event === EVENT.stop && !goal.closed) return stopCard(input, env, goal, root, now, options);
   if (event === EVENT.subagentStart && !goal.closed) return startCard(input, env, goal, root, now, options);

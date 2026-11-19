@@ -47,6 +47,10 @@ interface TaskSpec {
   tree?: Step[];
   status?: ItemStatus;
   working?: boolean;
+  /** What the task delivers (Slice 41); left out for an older report. */
+  outcome?: string;
+  /** An open question for the owner; the page then counts it under "questions are waiting". */
+  needsYou?: string;
 }
 
 function taskOf(spec: TaskSpec): BoardItemDto {
@@ -74,9 +78,10 @@ function taskOf(spec: TaskSpec): BoardItemDto {
     environment_label: spec.environment_label,
     agent: spec.agent,
     model: spec.model,
-    needs_you: null,
+    outcome: spec.outcome ?? null,
+    needs_you: spec.needsYou ?? null,
     after_answer: null,
-    needs_you_at: null,
+    needs_you_at: spec.needsYou ? minutesAgo(5) : null,
     steps,
     progress: stepProgress(steps, status),
     working: spec.working ?? status === ItemStatus.InProgress,
@@ -97,12 +102,12 @@ export function activeTasks(): BoardItemDto[] {
   return [
     taskOf({
       key: CRASH, project: "garden-planner", type: ItemType.Bug, title: "Crash opening an empty bed", parent: "Release 1.4.1",
-      agent: "Fixer", model: "model-small", environment: "laptop", environment_label: "Laptop", beat: 4,
+      agent: "Fixer", model: "model-small", environment: "laptop", environment_label: "Laptop", beat: 4, outcome: "Build passes on main",
       steps: stepsFrom("done:Reproduce", "active:Fix", "pending:Phone test|No tablet test: no tablet code changed", "pending:Merging"),
     }),
     taskOf({
       key: PART_C, project: "garden-planner", type: ItemType.Slice, title: "Part C · Notification channel", parent: "Slice 9 · Frost alerts",
-      agent: "Implementer", model: "model-mid", environment: "cloud-vm", environment_label: "Cloud VM", beat: 1,
+      agent: "Implementer", model: "model-mid", environment: "cloud-vm", environment_label: "Cloud VM", beat: 1, outcome: "Code merged to main",
       steps: stepsFrom(
         "done:Implementation", "done:Review 1", "done:Fixing", "active:Review 2|Two helper agents count under this step",
         "pending:Phone test", "pending:Tablet test", "pending:Merging",
@@ -110,7 +115,7 @@ export function activeTasks(): BoardItemDto[] {
     }),
     taskOf({
       key: PART_B, project: "recipe-box", type: ItemType.Slice, title: "Part B · Search box", parent: "Slice 4 · Tag search",
-      agent: "Reviewer", model: "model-large", environment: "laptop", environment_label: "Laptop", beat: 2,
+      agent: "Reviewer", model: "model-large", environment: "laptop", environment_label: "Laptop", beat: 2, outcome: "A plan with slices",
       steps: stepsFrom("done:Implementation", "active:Review 1", "pending:Fixing", "pending:Review 2", "pending:Merging"),
     }),
     taskOf({

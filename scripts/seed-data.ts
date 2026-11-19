@@ -47,6 +47,8 @@ export interface SeedItem {
   /** A session card's open question, what happens after the answer, and the minutes since it began (Slice 13). */
   needsYou?: string;
   afterAnswer?: string;
+  /** What the task delivers, one line (Slice 41); a card with no outcome is an older report. */
+  outcome?: string;
   /** Minutes since the last report, for a session card (the E2E fixture only). */
   heartbeatMinutesAgo?: number;
   /** Minutes since the card was created, for "Started N min ago" (the E2E fixture only). */
@@ -197,21 +199,30 @@ export const SEED_ITEMS: SeedItem[] = [
 ];
 
 const SESSION = "session";
-const ASKED = "needs_you: ";
-const ANSWERED = "answered";
+// Plain strings, not imports of NEEDS_YOU_NOTE_PREFIX / ANSWERED_NOTE: node runs this file with no TypeScript
+// transform (scripts/seed.ts), so it cannot import src/domain/item.ts. test/seed.test.ts holds them equal.
+export const ASKED = "needs_you: ";
+export const ANSWERED = "answered";
 export const CRASH_QUESTION = "Which iPhone should I read the crash log from: the iPhone 8 or the iPad?";
 export const BACKUP_QUESTION = "Should I delete the 40 old backups in the backups folder, or move them to the archive drive?";
 
 /**
  * Made-up session cards (Slice 13, the BoardV2 mock's data): `example-app` with two working cards
- * (one with a goal and five steps, one a wave on a cloud VM), one with no goal yet, one with a
- * question and one stale without a question; `tools` with only a question; `notes-site` with a
- * plain planned slice and no session card. A separate set, so the 15-item demo board keeps its counts.
+ * (a task with a goal, an outcome and five steps, and a slice card built on a cloud VM; Slice 41: a card is a
+ * task with an outcome, so there is no wave card and no goal-less card), one with a question and one stale
+ * without a question; `tools` with only a question; `notes-site` with a plain planned slice and no session
+ * card. A separate set, so the 15-item demo board keeps its counts.
+ *
+ * Known limits, kept on purpose (Slice 13 check pass 3, lows 4 and 5): the seed never asks a question on an
+ * existing item (`ask_human` on a stored key), which test/mcp.test.ts covers; and the real seed writes every
+ * heartbeat as now, so these cards turn stale 15 minutes after seeding (`heartbeatMinutesAgo` and
+ * `createdMinutesAgo` apply only to the E2E fixture) - a demo board is read right after seeding.
  */
 export const SESSION_SEED_ITEMS: SeedItem[] = [
   {
     key: "example-app/session-9c1e", project: "example-app", type: "unplanned", priority: "P2", status: "in_progress",
-    title: "Read the crash log on the iPhone 8", why: "For Slice 12: app crashes on start", parent: "session 9c1e",
+    title: "Read the crash log on the iPhone 8", why: "For Slice 12: app crashes on start", parent: "task",
+    outcome: "The cause written into Slice 12",
     details: ["Connected the iPhone 8 over USB\nFound 3 crash logs from release 2.3.1, all at start-up"],
     links: [link("Pull request #88", "example-app/pull/88"), link("Slice file", "example-app/slice-12")],
     events: [
@@ -229,21 +240,16 @@ export const SESSION_SEED_ITEMS: SeedItem[] = [
     ],
   },
   {
-    key: "example-app/wave-3", project: "example-app", type: "unplanned", priority: "P2", status: "in_progress",
-    title: "Build Slices 9 and 10 overnight", why: "For the night run, wave 3", parent: "wave 3",
-    details: ["Built and reviewed Slice 9"], links: [link("Wave log", "example-app/wave-3")],
-    events: [{ at: "13:44", status: "in_progress", note: "Building Slice 10" }, { at: "03:10", status: "in_progress", note: null }],
+    key: "example-app/session-3e8c", project: "example-app", type: "unplanned", priority: "P2", status: "in_progress",
+    title: "Implement Slice 9: export to PDF", why: "Slice 9 of example-app, built in tonight's wave", parent: "slice card",
+    outcome: "Code merged to main",
+    details: ["Built and reviewed Slice 9"], links: [link("Slice file", "example-app/slice-9")],
+    events: [{ at: "13:44", status: "in_progress", note: "Reviewing the build" }, { at: "03:10", status: "in_progress", note: null }],
     agent: SESSION, environment: "cloud-vm", heartbeatMinutesAgo: 4, createdMinutesAgo: 640,
     steps: [
-      { label: "Build Slice 9", state: "done" }, { label: "Review Slice 9", state: "done" }, { label: "Build Slice 10", state: "active" },
-      { label: "Review Slice 10", state: "pending" }, { label: "Merge", state: "pending" },
+      { label: "Build", state: "done" }, { label: "Review 1", state: "active" }, { label: "Fix", state: "pending" },
+      { label: "Review 2", state: "pending" }, { label: "Merge", state: "pending" },
     ],
-  },
-  {
-    key: "example-app/session-a71b", project: "example-app", type: "unplanned", priority: "P2", status: "in_progress",
-    title: "main · example-app", why: "", parent: "session a71b",
-    details: [], links: [], events: [{ at: "13:46", status: "in_progress", note: null }],
-    agent: SESSION, environment: "cloud-vm", heartbeatMinutesAgo: 1, createdMinutesAgo: 2,
   },
   {
     key: "example-app/session-4f2a", project: "example-app", type: "unplanned", priority: "P2", status: "in_progress",
@@ -420,18 +426,19 @@ export function callFor(item: SeedItem): ToolCall {
     key: item.key,
     project: item.project,
     title: item.title,
-    why: item.why || undefined,
+    // An empty field is sent as null, so a re-seed clears a value stored earlier instead of leaving it.
+    why: item.why || null,
     parent: item.parent,
     parent_key: item.parentKey,
     priority: item.priority,
-    details_md: item.details.join("\n\n") || undefined,
+    details_md: item.details.join("\n\n") || null,
     links: item.links,
     source: "seed",
     note: agentNote(item),
   };
   if (item.type === WAITING_TYPE) return { name: "ask_human", arguments: shared };
   const work = { agent: item.agent, model: item.model, environment: item.environment, steps: item.steps };
-  const question = { needs_you: item.needsYou, after_answer: item.afterAnswer };
+  const question = { needs_you: item.needsYou, after_answer: item.afterAnswer, outcome: item.outcome ?? null };
   return { name: "report_progress", arguments: { ...shared, type: item.type, status: item.status, ...work, ...question } };
 }
 

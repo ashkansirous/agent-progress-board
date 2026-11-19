@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ItemStatus, ItemType, Priority } from "../src/domain/item";
 import { StepState } from "../src/domain/stepTypes";
-import { DomainError, newItem } from "../src/domain/upsert";
+import { checkReport, DomainError, MAX_OUTCOME, newItem } from "../src/domain/upsert";
 
 const T1 = "2026-11-15T10:00:00.000Z";
 
@@ -32,6 +32,14 @@ describe("newItem", () => {
     const twice = [{ label: "A", state: StepState.Active }, { label: "B", state: StepState.Active }];
     expect(newItem({ ...base, steps: twice }, T1).steps).toHaveLength(2);
     expect(() => newItem({ ...base, steps: [{ label: "", state: StepState.Active }] }, T1)).toThrow(DomainError);
+  });
+
+  it("stores a trimmed outcome (blank is null) and refuses one over 200 characters", () => {
+    expect(newItem({ ...base, outcome: "Code merged to main" }, T1).outcome).toBe("Code merged to main");
+    expect(newItem({ ...base, outcome: "  " }, T1).outcome).toBeNull();
+    expect(newItem(base, T1).outcome).toBeNull();
+    expect(() => checkReport({ ...base, outcome: "x".repeat(MAX_OUTCOME + 1) })).toThrow(expect.objectContaining({ field: "outcome" }) as DomainError);
+    expect(checkReport({ ...base, outcome: " Plan " }).outcome).toBe("Plan");
   });
 
   it("sets done_at when created done", () => {

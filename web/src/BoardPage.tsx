@@ -11,7 +11,7 @@ import { itemsByKey, needsYouItems } from "./model";
 import { PhoneNeeds } from "./PhoneNeeds";
 import { ProjectGroup } from "./ProjectGroup";
 import { pruneIdsOf, pruneStoredFolds } from "./projectFold";
-import { Route } from "./route";
+import { NEEDS_YOU_ATTRIBUTE, NEEDS_YOU_HASH, Route } from "./route";
 import { SessionDrawer } from "./SessionDrawer";
 import { EmptyCard, ErrorCard, LoadingCard } from "./StatePanels";
 import type { Translate } from "./strings";
@@ -129,6 +129,12 @@ export function BoardPage(props: PageProps) {
   useEffect(() => {
     if (named && gone) close();
   }, [gone, named, close]);
+  useEffect(() => {
+    // The Active work page's waiting-questions link: scroll to the first "Needs you" section once the board has loaded.
+    if (loaded && window.location.hash === NEEDS_YOU_HASH) {
+      document.querySelector(`[${NEEDS_YOU_ATTRIBUTE}]`)?.scrollIntoView?.({ block: "start" });
+    }
+  }, [loaded]);
   const groupIds = state.data?.groups.map((g) => g.id).join("\n");
   useEffect(() => {
     // Only a loaded board with projects prunes: an empty or failed board (no data) keeps every stored choice.

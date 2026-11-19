@@ -1,7 +1,8 @@
 import type { MouseEvent } from "react";
 import type { BoardItemDto } from "../../src/api/boardDto";
 import { StepState } from "../../src/domain/stepTypes";
-import { hasNoGoal, sessionLabel, waitingText } from "./cards";
+import { OutcomeLine } from "./ActiveCard";
+import { sessionLabel, waitingText } from "./cards";
 import { projectLabel } from "./model";
 import { isSafeHttpUrl } from "./safeUrl";
 import { ageText } from "./time";
@@ -20,7 +21,7 @@ interface CardProps {
 export function QuestionCard({ item, onOpen }: CardProps) {
   const { t, phone, nowMs, projects } = useView();
   const waiting = waitingText(item, nowMs, t);
-  const session = sessionLabel(item);
+  const session = sessionLabel(item, t);
   const asked = t("askedBy", { session });
   const question = item.needs_you ?? (item.why ? item.title : null);
   const work = item.title !== question ? item.title : null;
@@ -106,22 +107,16 @@ function StepChips({ item }: { item: BoardItemDto }) {
 /** One working session: which session, how long since it did anything, its goal, purpose and steps. */
 export function SessionCard({ item, onOpen }: CardProps) {
   const { t, nowMs } = useView();
-  const noGoal = hasNoGoal(item);
   return (
-    <button type="button" className={noGoal ? "session-card session-card-nogoal" : "session-card"} onClick={() => onOpen(item.key)}>
+    <button type="button" className="session-card" onClick={() => onOpen(item.key)}>
       <span className="session-top">
-        <span>{sessionLabel(item)}</span>
+        <span>{sessionLabel(item, t)}</span>
         <span className="session-last">{t("lastActivityAge", { age: ageText(item.heartbeat_at, nowMs, t) })}</span>
       </span>
-      {noGoal ? (
-        <span className="session-nogoal">{t("startedNoGoal", { age: ageText(item.created_at, nowMs, t) })}</span>
-      ) : (
-        <>
-          <span className="session-goal">{item.title}</span>
-          {item.why && <span className="session-why">{item.why}</span>}
-          <StepChips item={item} />
-        </>
-      )}
+      <span className="session-goal">{item.title}</span>
+      <OutcomeLine outcome={item.outcome} compact />
+      {item.why && <span className="session-why">{item.why}</span>}
+      <StepChips item={item} />
     </button>
   );
 }

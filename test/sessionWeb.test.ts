@@ -3,18 +3,16 @@ import type { BoardItemDto } from "../src/api/boardDto";
 import { ANSWERED_NOTE, HEARTBEAT_NOTE, ItemStatus, ItemType, NEEDS_YOU_NOTE_PREFIX, NOTE_SEPARATOR, Priority } from "../src/domain/item";
 import {
   doneSoFar,
-  hasNoGoal,
   historyWords,
   isQuestion,
   isStaleSession,
   isWorkingCard,
   opensCardDrawer,
+  purposeText,
   questionStart,
   sessionLabel,
   waitingText,
 } from "../web/src/cards";
-import { StepState } from "../src/domain/stepTypes";
-import { storedStep } from "./stepFixtures";
 import { groupBoard } from "../src/domain/boardGroups";
 import { translator } from "../web/src/strings";
 
@@ -95,11 +93,31 @@ describe("grouping session cards", () => {
 
 describe("card words", () => {
   it("labels a session '<parent> · <environment label>', the raw value with no label, the key with neither", () => {
-    expect(sessionLabel(item({ parent: "session 9c1e", environment: "laptop", environment_label: "Laptop" }))).toBe("session 9c1e · Laptop");
-    expect(sessionLabel(item({ parent: "wave 3", environment: "edge", environment_label: null }))).toBe("wave 3 · edge");
-    expect(sessionLabel(item({ key: "p/k" }))).toBe("p/k");
-    expect(sessionLabel(item({ key: "demo-app/waiting-sess-9" }))).toBe("session sess");
-    expect(sessionLabel(item({ key: "demo-app/waiting-sess-9", environment: "laptop", environment_label: "Laptop" }))).toBe("session sess · Laptop");
+    expect(sessionLabel(item({ parent: "session 9c1e", environment: "laptop", environment_label: "Laptop" }), t)).toBe("session 9c1e · Laptop");
+    expect(sessionLabel(item({ parent: "wave 3", environment: "edge", environment_label: null }), t)).toBe("wave 3 · edge");
+    expect(sessionLabel(item({ key: "p/k" }), t)).toBe("p/k");
+    expect(sessionLabel(item({ key: "demo-app/waiting-sess-9" }), t)).toBe("session sess");
+    expect(sessionLabel(item({ key: "demo-app/waiting-sess-9", environment: "laptop", environment_label: "Laptop" }), t)).toBe("session sess · Laptop");
+  });
+
+  it("labels a card with an outcome by what it is: 'task' or 'slice card', then the environment", () => {
+    const task = item({ key: "p/task-1", outcome: "A plan", environment: "laptop", environment_label: "Laptop" });
+    expect(sessionLabel(task, t)).toBe("task · Laptop");
+    expect(sessionLabel(item({ key: "p/slice-9", type: ItemType.Slice, agent: null, outcome: "Code merged", environment: "vm", environment_label: "Cloud VM" }), t)).toBe("slice card · Cloud VM");
+    expect(sessionLabel(item({ key: "p/slice-9", agent: null, outcome: "Code merged" }), t)).toBe("slice card");
+  });
+
+  it("treats an item with an outcome and no agent as a working card", () => {
+    expect(isWorkingCard(item({ key: "p/slice-9", type: ItemType.Slice, agent: null, outcome: "Code merged" }))).toBe(true);
+    expect(isWorkingCard(item({ key: "p/slice-9", type: ItemType.Slice, agent: null, outcome: null }))).toBe(false);
+  });
+
+  it("lowers the first letter of an outcome word, except 'I' and a word whose second letter is not lower case", () => {
+    const line = (outcome: string) => purposeText(item({ outcome, why: null }), t);
+    expect(line("Xcode build passes")).toBe("Outcome: xcode build passes");
+    expect(line("I fixed it")).toBe("Outcome: I fixed it");
+    expect(line("CI passes")).toBe("Outcome: CI passes");
+    expect(line("A plan")).toBe("Outcome: a plan");
   });
 
   it("says how long a question has waited, in minutes then hours, and nothing without a first-asked time", () => {
@@ -110,11 +128,12 @@ describe("card words", () => {
     expect(waitingText(item({ needs_you_at: null }), NOW, t)).toBeNull();
   });
 
-  it("reads no goal as no purpose, no steps and a fallback title, and a real title, purpose or steps as a goal", () => {
-    expect(hasNoGoal(item({ title: "main · p", why: null, steps: null }))).toBe(true);
-    expect(hasNoGoal(item({ title: "Read the crash log", why: null, steps: null }))).toBe(false);
-    expect(hasNoGoal(item({ why: "For Slice 12" }))).toBe(false);
-    expect(hasNoGoal(item({ steps: [storedStep("A", StepState.Active)] }))).toBe(false);
+  it("words the drawer's purpose line: outcome then why, each lower case after its label, and only the why with no outcome", () => {
+    const both = item({ outcome: "The cause written into Slice 12", why: "For Slice 12: app crashes on start" });
+    expect(purposeText(both, t)).toBe("Outcome: the cause written into Slice 12 · for Slice 12: app crashes on start");
+    expect(purposeText(item({ outcome: "API docs published", why: null }), t)).toBe("Outcome: API docs published");
+    expect(purposeText(item({ outcome: null, why: "For Slice 12" }), t)).toBe("For Slice 12");
+    expect(purposeText(item({ outcome: null, why: null }), t)).toBeNull();
   });
 
   it("turns details_md lines into plain bullets", () => {

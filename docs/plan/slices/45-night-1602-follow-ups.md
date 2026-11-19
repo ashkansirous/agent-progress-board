@@ -61,8 +61,8 @@ Slice 32 findings are medium correctness faults. This slice gathers them so none
 16. Flaky unit tests under load: `test/capCost.test.ts`'s time budget, the seed MCP test and a `/mcp tools/list` 401 test
     failed 2-3 times per full run while e2e ran (wave 1); waiting-card tests assert wall-clock `< 200 ms`. Make them count-
     or CPU-based. Verify: three full runs beside an e2e run, all green.
-17. Slice 44, fix pass 1 #2 (skipped): cards that already exist keep their old `details_md` and long cut title, because the
+17. [x] Slice 44, fix pass 1 #2 (skipped): cards that already exist keep their old `details_md` and long cut title, because the
     upsert COALESCEs them, so the owner's 300-character run-on card title stays until its doc line changes. Verify: re-sync
     the docs and read an old owner-step card's title and details.
-18. Slice 41: the detail dialog now reads "Card details" instead of "Item details" for a part (`e2e/active.spec.ts`), a
+18. [x] Slice 41: the detail dialog now reads "Card details" instead of "Item details" for a part (`e2e/active.spec.ts`), a
     change no *Changed while building* line in [Slice 41](41-tasks-with-outcome.md) names; record it there or restore it.

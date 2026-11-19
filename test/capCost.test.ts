@@ -63,6 +63,24 @@ function same(weight: number): TokenTotals {
   return totals(weight, weight, weight, weight);
 }
 
+/** How long the fixed loop below takes on an idle machine, in ms (measured on the dev machine; a bit above it). */
+const IDLE_LOOP_MS = 8;
+
+/**
+ * A time limit scaled by how busy this machine is right now: the same fixed loop is timed, best of three, and the limit
+ * grows by that loop's slowdown against `IDLE_LOOP_MS`. A suite running beside an e2e run stretches the limit; code that
+ * really got slower still fails, because the loop does not slow with it (Slice 45).
+ */
+function scaledBudget(baseMs: number): number {
+  const once = (): number => {
+    const started = performance.now();
+    let sum = 0;
+    for (let i = 0; i < 3_000_000; i++) sum += Math.sqrt(i) * 1.0000001;
+    return sum < 0 ? 0 : performance.now() - started;
+  };
+  return baseMs * Math.max(1, Math.min(once(), once(), once()) / IDLE_LOOP_MS);
+}
+
 describe("stretches of time", () => {
   function readingAt(minute: number, percent: number, plan = "plan-a", resetAt: string | null = RESET_1): CapReading {
     return { takenAt: T(minute), plan, windowKind: WEEKLY_WINDOW, percent, resetAt, source: null };
@@ -351,7 +369,7 @@ describe("the whole derive path on a realistic month", () => {
     console.log(`derive path: ${rows.length} samples, ${caps.length} readings, ${stretches.length} stretches: ${Math.round(elapsed)} ms`);
     expect(stretches.length).toBeGreaterThan(50);
     expect(fit.models.length).toBe(3);
-    expect(elapsed).toBeLessThan(3000);
+    expect(elapsed).toBeLessThan(scaledBudget(3000));
   });
 });
 
@@ -378,7 +396,7 @@ describe("the fit stays bounded", () => {
     const elapsed = performance.now() - started;
     expect(fit.models.every((m) => m.mode === FitMode.PerKind)).toBe(true);
     // Measured about 170 ms here (slice file); the bound leaves room for a slow CI machine.
-    expect(elapsed).toBeLessThan(1500);
+    expect(elapsed).toBeLessThan(scaledBudget(1500));
     for (const model of fit.models) for (const value of Object.values(model.perToken)) expect(value).toBeGreaterThanOrEqual(0);
   });
 
@@ -502,7 +520,7 @@ describe("growth placed inside reported chat windows (Slice 16)", () => {
     const placed = placeInWindows(fitWith(2, 400), windows, T(-1));
     const elapsed = performance.now() - started;
     expect(placed.byEnvironment.get(CHAT)).toBeGreaterThan(0);
-    expect(elapsed).toBeLessThan(1500);
+    expect(elapsed).toBeLessThan(scaledBudget(1500));
   });
 
   it("stays fast and bounded with far more windows than the cap, keeping the newest", () => {
@@ -514,7 +532,7 @@ describe("growth placed inside reported chat windows (Slice 16)", () => {
     expect(placed.byEnvironment.get(CHAT)).toBeGreaterThan(0);
     expect(placed.fit.residuals[0]).toBe(2);
     expect(placed.fit.residuals[count - 1]).toBeLessThan(2);
-    expect(elapsed).toBeLessThan(1500);
+    expect(elapsed).toBeLessThan(scaledBudget(1500));
   });
 
   it("recomputes the unexplained share from the residuals left after placing", () => {

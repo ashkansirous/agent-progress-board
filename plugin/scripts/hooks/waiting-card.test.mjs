@@ -1,7 +1,6 @@
 // Slice 27: what a waiting card says, and when the Notification hook opens none.
 import assert from 'node:assert/strict';
 import process from 'node:process';
-import { performance } from 'node:perf_hooks';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, describe, test } from 'node:test';
@@ -34,6 +33,15 @@ async function notify(extra, entries) {
   const outcome = await runWaiting(input, env);
   board.server.close();
   return { outcome, calls: callsOf(board), root };
+}
+
+// CPU time of the work, not wall time: another process busy beside the suite stretches the wall clock, not the CPU the
+// work itself uses (Slice 45).
+function cpuMsOf(work) {
+  const before = process.cpuUsage();
+  work();
+  const used = process.cpuUsage(before);
+  return (used.user + used.system) / 1000;
 }
 
 describe('question reading', () => {
@@ -98,19 +106,19 @@ describe('question reading', () => {
 
   test('check 3 #4: a 1.5M-character "a-" line is cut to its bounded tail and finishes well under 200 ms', () => {
     const huge = 'a-'.repeat(1500000);
-    const started = performance.now();
-    cardText('idle_prompt', '', { text: `${huge}\nShould I go on?`, tool: null });
-    toolText({ name: 'Bash', input: { command: huge } });
-    cardText('permission_prompt', huge, { text: '', tool: null });
-    assert.ok(performance.now() - started < 200, `took ${performance.now() - started} ms`);
+    const used = cpuMsOf(() => {
+      cardText('idle_prompt', '', { text: `${huge}\nShould I go on?`, tool: null });
+      toolText({ name: 'Bash', input: { command: huge } });
+      cardText('permission_prompt', huge, { text: '', tool: null });
+    });
+    assert.ok(used < 200, `used ${used} ms of CPU`);
     assert.equal(maskSecrets(huge).length, huge.length);
   });
 
   test('masking a long word, dot or hyphen run is linear (well under the hook timeout)', () => {
     for (const run of ['a.'.repeat(50000), 'a-'.repeat(50000), 'a-1'.repeat(40000), 'a.key'.repeat(20000)]) {
-      const started = Date.now();
-      maskSecrets(run);
-      assert.ok(Date.now() - started < 1500, `masking ${run.slice(0, 6)}... took ${Date.now() - started} ms`);
+      const used = cpuMsOf(() => maskSecrets(run));
+      assert.ok(used < 1500, `masking ${run.slice(0, 6)}... used ${used} ms of CPU`);
     }
   });
 });
@@ -283,9 +291,10 @@ describe('Slice 31: the secret mask, sentences and the transcript window', () =>
 
   test('check 2 #3: an 80,000-word single line is masked in well under 200 ms', () => {
     const line = 'word '.repeat(80000);
-    const started = performance.now();
-    assert.equal(maskSecrets(line), line);
-    assert.ok(performance.now() - started < 200, `took ${performance.now() - started} ms`);
+    let masked;
+    const used = cpuMsOf(() => { masked = maskSecrets(line); });
+    assert.equal(masked, line);
+    assert.ok(used < 200, `used ${used} ms of CPU`);
     const secret = `${line}token=abc`;
     assert.equal(maskSecrets(secret), `${line}token=***`);
   });

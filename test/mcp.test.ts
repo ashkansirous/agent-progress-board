@@ -32,7 +32,7 @@ describe("auth", () => {
     const body = { jsonrpc: "2.0", id: 1, method: "tools/list" };
     expect((await postMcp(body)).status).toBe(401);
     expect((await postMcp(body, "nope")).status).toBe(401);
-  });
+  }, 30_000); // the first call of the file starts the Worker: slow beside another suite (Slice 45)
 
   it("lets the read token read and refuses a write without writing", async () => {
     const refused = await callTool("report_progress", SLICE, READ_TOKEN);

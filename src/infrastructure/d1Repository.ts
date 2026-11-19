@@ -230,7 +230,8 @@ const UPSERT_ITEM = `INSERT INTO items (key, project, parent, type, priority, st
  * owns are set on an existing key; type, priority, details, heartbeat and created_at stay.
  * ?20 and ?21 are the updated_at and live_status_at the sync read (null for a new key): the
  * update applies only while the row still has them, so it never acts on a stale read.
- * ?22 is details_md: on an existing key it is written only while the stored one is null, so a set one is never overwritten.
+ * ?22 is details_md as the domain decided it (`detailsOf` in docSync.ts: a reporter's notes are kept, the documents' own
+ * text is refreshed); the compare-and-swap above means it was decided from the row as it still is.
  */
 const SYNC_UPSERT = `INSERT INTO items (key, project, parent, type, priority, status, title, why, links,
   source, heartbeat_at, created_at, updated_at, done_at, in_doc_sync, doc_status, doc_status_at, live_status_at,
@@ -241,7 +242,7 @@ const SYNC_UPSERT = `INSERT INTO items (key, project, parent, type, priority, st
   title = excluded.title, why = excluded.why, links = excluded.links, source = excluded.source,
   updated_at = excluded.updated_at, done_at = excluded.done_at, in_doc_sync = excluded.in_doc_sync,
   doc_status = excluded.doc_status, doc_status_at = excluded.doc_status_at,
-  details_md = COALESCE(items.details_md, excluded.details_md)
+  details_md = excluded.details_md
   WHERE items.updated_at IS ?20 AND items.live_status_at IS ?21`;
 
 /**

@@ -161,6 +161,11 @@ are waiting on the board", "1 question is waiting on the board". Removed: the "n
 - After the release and the config repo's matching slice: during one wave night, the board shows the slice cards
   with their trees and no wave card. A plain question in a chat makes no card.
 
+#### Changed while building
+
+- The dialog of a card with an outcome (a part, a slice card, a session) is labelled "Card details", from the card
+  drawer; the item detail keeps "Item details" (`e2e/active.spec.ts` asserts both). Recorded by Slice 45.
+
 #### From review
 
 *From review:* four findings files read to the last finding (high 11, medium 10, check-medium 9, check-2 3). Applied: high 1-8 and 11; medium 1-4; check-medium 1, 2, 3, 4 and 9. The rest follow, one per line.

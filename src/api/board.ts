@@ -96,7 +96,8 @@ const SLICE_CHILD_TYPES: readonly ItemType[] = [ItemType.Part, ItemType.Check, I
 
 /** The slice a part, bug or problem names, as data (key, number, title); the page words it. Null when it names no slice on the board. */
 function parentSliceOf(row: BoardRow, ctx: PartsContext): ParentSliceDto | null {
-  const slice = SLICE_CHILD_TYPES.includes(row.type) && row.parent_key ? ctx.sliceByKey.get(row.parent_key) : undefined;
+  const slice =
+    SLICE_CHILD_TYPES.includes(row.type) && row.parent_key ? (ctx.sliceByKey.get(row.parent_key) ?? row.parentSlice ?? undefined) : undefined;
   if (!slice) return null;
   return { key: slice.key, number: splitSliceTitle(slice.key, slice.title).number, title: slice.title };
 }

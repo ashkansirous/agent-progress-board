@@ -484,4 +484,63 @@ describe("the read query", () => {
     expect(history.filter((line) => line.startsWith("SCAN usage_samples"))).toEqual([]);
     expect(thin.join("\n")).toContain("idx_usage_samples_time");
   });
+
+  it("plans: no temp sort over the union; the repository sorts once, by series then time (an id breaks no tie: the identity index is unique)", async () => {
+    const { results } = await env.DB.prepare(`EXPLAIN QUERY PLAN ${SAMPLES_FROM}`).bind("2026-11-10T00:00:00.000Z").all<{ detail: string }>();
+    expect(results.map((r) => r.detail).filter((line) => line.includes("ORDER BY"))).toEqual([]);
+    await env.DB.batch([
+      env.DB.prepare("INSERT INTO usage_samples (id, agent_key, model, environment, record_at, reported_at, input_tokens, cache_write_tokens, cache_read_tokens, output_tokens) VALUES (9, 'b', 'm', NULL, '2026-11-15T08:00:00.000Z', 'x', 5, 0, 0, 0)"),
+      env.DB.prepare("INSERT INTO usage_samples (id, agent_key, model, environment, record_at, reported_at, input_tokens, cache_write_tokens, cache_read_tokens, output_tokens) VALUES (3, 'b', 'm', NULL, '2026-11-15T08:30:00.000Z', 'x', 7, 0, 0, 0)"),
+      env.DB.prepare("INSERT INTO usage_samples (id, agent_key, model, environment, record_at, reported_at, input_tokens, cache_write_tokens, cache_read_tokens, output_tokens) VALUES (4, 'a', 'm', NULL, '2026-11-15T09:00:00.000Z', 'x', 1, 0, 0, 0)"),
+    ]);
+    const samples = await new D1ItemRepository(env.DB).usageSamplesFrom("2026-11-10T00:00:00.000Z");
+    expect(samples.map((s) => [s.agentKey, s.totals.input])).toEqual([["a", 1], ["b", 5], ["b", 7]]);
+  });
+});
+
+describe("task titles and session windows (Slice 34)", () => {
+  const repo = () => new D1ItemRepository(env.DB);
+
+  it("names a part by its slice and letter, so two slices' parts called Docs differ", async () => {
+    for (const n of [1, 2]) {
+      await callTool("report_progress", { key: `demo-app/slice-${n}`, project: "demo-app", type: "slice", title: `Slice ${n} · Search` });
+      await callTool("report_progress", { key: `demo-app/slice-${n}/part-B`, project: "demo-app", type: "part", title: "Docs", parent_key: `demo-app/slice-${n}` });
+    }
+    const infos = await repo().taskInfo(["demo-app/slice-1", "demo-app/slice-1/part-B", "demo-app/slice-2/part-B", "demo-app/missing"]);
+    const titles = Object.fromEntries(infos.map((info) => [info.key, info.title]));
+    expect(titles).toEqual({
+      "demo-app/slice-1": "Slice 1 · Search",
+      "demo-app/slice-1/part-B": "Slice 1 · Search · Part B · Docs",
+      "demo-app/slice-2/part-B": "Slice 2 · Search · Part B · Docs",
+    });
+  });
+
+  async function session(key: string, environment: string, lastAt: string): Promise<void> {
+    await env.DB.prepare(
+      `INSERT INTO items (key, project, type, priority, status, title, links, heartbeat_at, created_at, updated_at, agent, environment)
+       VALUES (?1, 'chats', 'unplanned', 'P2', 'open', 'Chat', '[]', ?2, ?2, ?2, 'session', ?3)`,
+    ).bind(key, lastAt, environment).run();
+    await env.DB.prepare("INSERT INTO events (item_key, at, status, note) VALUES (?1, ?2, 'open', NULL)").bind(key, lastAt).run();
+  }
+
+  it("limits per environment, so a busy one does not crowd out an older window of another", async () => {
+    await session("chats/a1", "Chat", "2026-11-15T10:00:00.000Z");
+    await session("chats/a2", " chat ", "2026-11-15T11:00:00.000Z");
+    await session("chats/a3", "CHAT", "2026-11-15T12:00:00.000Z");
+    await session("chats/d1", "Design", "2026-11-14T09:00:00.000Z");
+    const windows = await repo().sessionWindowsFrom("2026-11-01T00:00:00.000Z", 2);
+    expect(windows.map((w) => [w.environment, w.end])).toEqual([
+      ["CHAT", "2026-11-15T12:00:00.000Z"],
+      [" chat ", "2026-11-15T11:00:00.000Z"],
+      ["Design", "2026-11-14T09:00:00.000Z"],
+    ]);
+  });
+
+  it("leaves out an environment that has a usage series, whatever its case or surrounding spaces", async () => {
+    await session("chats/a1", "Laptop ", "2026-11-15T10:00:00.000Z");
+    await session("chats/a2", "Chat", "2026-11-15T10:00:00.000Z");
+    await env.DB.prepare("INSERT INTO usage_series (kind, value, first_seen) VALUES ('environment', ' LAPTOP', '2026-11-01T00:00:00.000Z')").run();
+    const windows = await repo().sessionWindowsFrom("2026-11-01T00:00:00.000Z", 10);
+    expect(windows.map((w) => w.environment)).toEqual(["Chat"]);
+  });
 });

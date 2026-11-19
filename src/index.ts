@@ -19,9 +19,9 @@ function isBelowMcpPath(pathname: string): boolean {
 /** The cron job: turns live items whose heartbeat expired stale. A failed run changes nothing; the next one retries. */
 async function runStaleCheck(env: Env): Promise<number> {
   const { staleAfterMinutes } = parseConfig(env.BOARD_CONFIG);
-  const turned = await markStaleItems(new D1ItemRepository(env.DB), staleAfterMinutes, clock);
-  console.log(`stale check: ${turned} item(s) turned stale (expiry ${staleAfterMinutes} min)`);
-  return turned;
+  const { stale, waitingClosed } = await markStaleItems(new D1ItemRepository(env.DB), staleAfterMinutes, clock);
+  console.log(`stale check: ${stale} item(s) turned stale (expiry ${staleAfterMinutes} min), ${waitingClosed} waiting card(s) closed`);
+  return stale;
 }
 
 /** The cron's second job: thins old usage samples. A failure is logged (it never stops the stale check, nor the other way round). */

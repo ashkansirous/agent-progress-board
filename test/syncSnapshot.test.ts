@@ -2,8 +2,8 @@ import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { syncSnapshot } from "../src/application/board";
 import type { ItemRepository } from "../src/application/ports";
-import type { SnapshotItem } from "../src/domain/docSync";
-import { D1ItemRepository } from "../src/infrastructure/d1Repository";
+import { closeTargets, type SnapshotItem, type SyncRow } from "../src/domain/docSync";
+import { closeChunks, D1ItemRepository } from "../src/infrastructure/d1Repository";
 import { callTool, countRows, READ_TOKEN, resetBoard } from "./helpers";
 
 interface Stored {
@@ -172,7 +172,8 @@ describe("sync_snapshot", () => {
     at(7);
     const snapshot = { project: PROJECT, items: [item(1, { status: "blocked" })] as SnapshotItem[] };
     const summary = await syncSnapshot(racing, snapshot, { now: () => new Date() });
-    expect(summary).toMatchObject({ updated: 1, closed: 1 });
+    // Both writes were skipped by the stale-read guard, so the summary counts neither (Slice 34).
+    expect(summary).toMatchObject({ created: 0, updated: 0, closed: 0, unchanged: 0, raced: 1 });
     expect(await get(1)).toMatchObject({ status: "in_progress", source: "agent" });
     expect((await get(1)).events.map((e) => e.note)).not.toContain("Docs changed the status");
     expect(await get(2)).toMatchObject({ status: "in_progress" });
@@ -181,6 +182,26 @@ describe("sync_snapshot", () => {
     at(10);
     await sync([item(1, { status: "blocked" })]);
     expect(await get(1)).toMatchObject({ status: "blocked" });
+  });
+
+  it("adds no history row for a sync write that lost its race, even when the row looks like the write's result", async () => {
+    await sync([item(1)]);
+    at(5);
+    const repo = new D1ItemRepository(env.DB);
+    const racing: ItemRepository = Object.create(repo, {
+      loadForSync: {
+        value: async (project: string, keys: string[]) => {
+          const rows = await repo.loadForSync(project, keys);
+          // Same time, status and source as the sync's own write: only changes() can tell it lost (Slice 34).
+          await callTool("report_progress", { key: "demo-app/slice-1", status: "blocked", source: "doc-sync" });
+          return rows;
+        },
+      },
+    });
+    const before = await countRows("events");
+    const summary = await syncSnapshot(racing, { project: PROJECT, items: [item(1, { status: "blocked" })] as SnapshotItem[] }, { now: () => new Date() });
+    expect(summary).toMatchObject({ updated: 0, raced: 1 });
+    expect(await countRows("events")).toBe(before + 1);
   });
 
   it("keeps an item open when a same-status live report lands between the read and the close", async () => {
@@ -348,5 +369,57 @@ describe("sync_snapshot rules (Slice 33)", () => {
     const reply = await sync([check, selfParent]);
     expect(reply.data).toMatchObject({ created: 0, skipped: [{ key: check.key }, { key: selfParent.key }] });
     expect(await countRows("items")).toBe(0);
+  });
+});
+
+describe("the close rule, in the domain and in SQL (Slice 34)", () => {
+  it("closes exactly the rows closeTargets names", async () => {
+    await sync([item(1), item(2), item(3)]);
+    await sync([{ ...item(1), project: "other-app", key: "other-app/slice-1" }], "other-app");
+    await callTool("report_progress", { key: "demo-app/live", project: PROJECT, type: "bug", title: "Live" });
+    const repo = new D1ItemRepository(env.DB);
+    const listed = new Set(["demo-app/slice-1"]);
+    const stored = await repo.loadForSync(PROJECT, ["demo-app/live", "other-app/slice-1"]);
+    const expected = closeTargets(stored, PROJECT, listed).map((row) => row.key).sort();
+    expect(expected).toEqual(["demo-app/slice-2", "demo-app/slice-3"]);
+    await sync([item(1)]);
+    const closed = await env.DB.prepare("SELECT item_key FROM events WHERE note = 'Left the plan' ORDER BY item_key").all<{ item_key: string }>();
+    expect(closed.results.map((row) => row.item_key)).toEqual(expected);
+    const stillSynced = await env.DB.prepare("SELECT key FROM items WHERE in_doc_sync = 1 ORDER BY key").all<{ key: string }>();
+    expect(stillSynced.results.map((row) => row.key)).toEqual(["demo-app/slice-1", "other-app/slice-1"]);
+  });
+});
+
+describe("a very large close (Slice 34)", () => {
+  const BIG_CLOSE = 5000;
+
+  it("sizes the chunks by bytes, so long non-ASCII keys stay under D1's 100 KB statement limit", () => {
+    const rows = Array.from({ length: 300 }, (_, i) => ({
+      key: `demo-app/${"界".repeat(200)}-${i}`,
+      updated_at: "2026-11-01T00:00:00.000Z",
+      live_status_at: null,
+    })) as unknown as SyncRow[];
+    const chunks = closeChunks(rows);
+    expect(chunks.length).toBeGreaterThan(1);
+    for (const chunk of chunks) expect(new TextEncoder().encode(chunk).length).toBeLessThan(100_000 / 1.5);
+    expect(chunks.flatMap((chunk) => JSON.parse(chunk) as unknown[])).toHaveLength(300);
+  });
+
+  const LONG_TEST_MS = 60_000;
+
+  it("closes 5,000 rows that left the plan, in chunks of one batch, and counts them", { timeout: LONG_TEST_MS }, async () => {
+    await env.DB.prepare(
+      `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ?1)
+       INSERT INTO items (key, project, type, priority, status, title, links, source, heartbeat_at, created_at, updated_at, in_doc_sync)
+       SELECT 'demo-app/old-' || i || '-' || hex(randomblob(60)), 'demo-app', 'unplanned', 'P2', 'open', 'Old ' || i, '[]', 'doc-sync',
+         '2026-11-01T00:00:00.000Z', '2026-11-01T00:00:00.000Z', '2026-11-01T00:00:00.000Z', 1 FROM n`,
+    ).bind(BIG_CLOSE).run();
+    const reply = await sync([item(1)]);
+    expect(reply.isError).toBe(false);
+    expect(reply.data).toMatchObject({ created: 1, closed: BIG_CLOSE });
+    const open = await env.DB.prepare("SELECT COUNT(*) AS n FROM items WHERE in_doc_sync = 1 AND status != 'done'").first<{ n: number }>();
+    expect(open?.n).toBe(1);
+    const events = await env.DB.prepare("SELECT COUNT(*) AS n FROM events WHERE note = 'Left the plan'").first<{ n: number }>();
+    expect(events?.n).toBe(BIG_CLOSE);
   });
 });

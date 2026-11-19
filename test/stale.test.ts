@@ -7,9 +7,18 @@ import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 import { markStaleItems } from "../src/application/board";
 import worker from "../src/index";
-import { ItemStatus } from "../src/domain/item";
-import { type ExpiryRow, isExpired, SESSION_AGENT, staleCutoff } from "../src/domain/stale";
-import { D1ItemRepository } from "../src/infrastructure/d1Repository";
+import { ItemStatus, ItemType } from "../src/domain/item";
+import {
+  EXPIRING_STATUSES,
+  type ExpiryRow,
+  isExpired,
+  isWaitingClosable,
+  movesLiveStatus,
+  SESSION_AGENT,
+  staleCutoff,
+  WAITING_CLOSED_NOTE,
+} from "../src/domain/stale";
+import { D1ItemRepository, EXPIRED_ROWS, WAITING_ROWS } from "../src/infrastructure/d1Repository";
 import { callTool, countRows, resetBoard } from "./helpers";
 
 const NOW = new Date();
@@ -112,7 +121,7 @@ describe("markStale (SQL) agrees with isExpired", () => {
     ];
     for (const row of cases) await insertRow(row);
     const repo = new D1ItemRepository(env.DB);
-    const turned = await markStaleItems(repo, MINUTES, { now: () => NOW });
+    const { stale: turned } = await markStaleItems(repo, MINUTES, { now: () => NOW });
     const expected = cases.filter((row) => isExpired(row, MINUTES, NOW)).map((row) => row.key);
     expect(expected).toEqual(["a", "b", "h"]);
     expect(turned).toBe(3);
@@ -246,5 +255,158 @@ describe("recovery after stale", () => {
     expect(await statusOf(ITEM.key)).toBe("done");
     await runCron();
     expect(await statusOf(ITEM.key)).toBe("done");
+  });
+});
+
+describe("the expiry query's index (Slice 34)", () => {
+  const plan = async (sql: string, binds: string[]): Promise<string[]> => {
+    const { results } = await env.DB.prepare(`EXPLAIN QUERY PLAN ${sql}`).bind(...binds).all<{ detail: string }>();
+    return results.map((row) => row.detail);
+  };
+
+  it("plans: EXPIRED_ROWS seeks idx_items_status_heartbeat by status and heartbeat and never scans items", async () => {
+    const lines = await plan(`SELECT key FROM items WHERE ${EXPIRED_ROWS}`, [ago(120), NOW.toISOString(), "note", ago(15)]);
+    expect(lines.join("\n")).toMatch(/idx_items_status_heartbeat \(status=\? AND heartbeat_at<\?\)/);
+    expect(lines.filter((line) => line.startsWith("SCAN items"))).toEqual([]);
+  });
+
+  it("plans: WAITING_ROWS seeks the partial index of open waiting cards and never scans items", async () => {
+    const lines = await plan(`SELECT key FROM items WHERE ${WAITING_ROWS}`, [ago(1440)]);
+    expect(lines.join("\n")).toMatch(/idx_items_waiting_open/);
+    expect(lines.filter((line) => line.startsWith("SCAN items"))).toEqual([]);
+  });
+
+  it("lists in EXPIRED_ROWS the statuses of EXPIRING_STATUSES", () => {
+    for (const status of EXPIRING_STATUSES) expect(EXPIRED_ROWS).toContain(`'${status}'`);
+  });
+
+  it("still turns the same rows stale with the extra bound in the query", async () => {
+    await insertRow({ key: "far", status: ItemStatus.InProgress, heartbeat_at: ago(10_000), doc_status_at: null, live_status_at: ago(10_001) });
+    await insertRow({ key: "near", status: ItemStatus.Blocked, heartbeat_at: ago(121), doc_status_at: null, live_status_at: ago(300) });
+    await insertRow({ key: "fresh", status: ItemStatus.InProgress, heartbeat_at: ago(5), doc_status_at: null, live_status_at: ago(300) });
+    expect(await markStaleItems(new D1ItemRepository(env.DB), MINUTES, { now: () => NOW })).toEqual({ stale: 2, waitingClosed: 0 });
+  });
+});
+
+describe("movesLiveStatus (SQL) agrees with the domain rule (Slice 34)", () => {
+  const cases = [
+    { name: "a status from an agent", input: { status: "blocked", source: "agent" }, statusGiven: true, source: "agent", stored: "in_progress" },
+    { name: "a status with no source", input: { status: "blocked" }, statusGiven: true, source: undefined, stored: "in_progress" },
+    { name: "a status from doc sync", input: { status: "blocked", source: "doc-sync" }, statusGiven: true, source: "doc-sync", stored: "in_progress" },
+    { name: "no status on a live item", input: { why: "x" }, statusGiven: false, source: undefined, stored: "in_progress" },
+    { name: "no status on a stale item (revival)", input: { why: "x" }, statusGiven: false, source: undefined, stored: "stale" },
+  ];
+
+  it("a status-less report older than the heartbeat revives nothing and moves nothing", async () => {
+    const first = "2020-01-01T00:00:00.000Z";
+    const future = "2099-01-01T00:00:00.000Z";
+    await insertRow({ key: ITEM.key, status: ItemStatus.InProgress, heartbeat_at: future, doc_status_at: null, live_status_at: first });
+    await env.DB.prepare("UPDATE items SET status = 'stale' WHERE key = ?1").bind(ITEM.key).run();
+    await callTool("report_progress", { key: ITEM.key, why: "x" });
+    const row = await env.DB.prepare("SELECT status, live_status_at FROM items WHERE key = ?1").bind(ITEM.key).first<{ status: string; live_status_at: string }>();
+    expect(row).toEqual({ status: "stale", live_status_at: first });
+    expect(movesLiveStatus({ statusGiven: false }, ItemStatus.Stale, false)).toBe(false);
+  });
+
+  for (const c of cases) {
+    it(`${c.name}`, async () => {
+      const first = "2020-01-01T00:00:00.000Z";
+      await insertRow({ key: ITEM.key, status: ItemStatus.InProgress, heartbeat_at: first, doc_status_at: null, live_status_at: first });
+      await env.DB.prepare("UPDATE items SET status = ?2 WHERE key = ?1").bind(ITEM.key, c.stored).run();
+      await callTool("report_progress", { key: ITEM.key, ...c.input });
+      const row = await env.DB.prepare("SELECT live_status_at FROM items WHERE key = ?1").bind(ITEM.key).first<{ live_status_at: string }>();
+      const expected = movesLiveStatus({ statusGiven: c.statusGiven, source: c.source }, c.stored as ItemStatus);
+      expect(row?.live_status_at !== first).toBe(expected);
+    });
+  }
+});
+
+describe("waiting cards with no slice behind them (Slice 34)", () => {
+  const WAITING = { key: "chats/session-1", project: "chats", type: "waiting_for_me", title: "Which colour?" };
+  const SLICE_KEY = "demo-app/slice-7";
+  const waiting = (over: Record<string, unknown> = {}) => callTool("report_progress", { ...WAITING, status: "open", ...over });
+  const hoursAgo = (hours: number): string => new Date(NOW.getTime() - hours * 3_600_000).toISOString();
+
+  it("closes a chat's waiting card at 24 hours and leaves it open at 23, with one history row", async () => {
+    await waiting();
+    await setHeartbeat(WAITING.key, hoursAgo(23));
+    await runCron();
+    expect(await statusOf(WAITING.key)).toBe("open");
+    await setHeartbeat(WAITING.key, hoursAgo(24.02));
+    await runCron();
+    expect(await statusOf(WAITING.key)).toBe("done");
+    const events = await env.DB.prepare("SELECT status, note FROM events WHERE item_key = ?1 ORDER BY id DESC").bind(WAITING.key).all();
+    expect(events.results[0]).toEqual({ status: "done", note: WAITING_CLOSED_NOTE });
+    await runCron();
+    expect(await countRows("events")).toBe(events.results.length);
+  });
+
+  it("counts the closed waiting cards apart from the stale ones", async () => {
+    await waiting();
+    await setHeartbeat(WAITING.key, hoursAgo(25));
+    const result = await markStaleItems(new D1ItemRepository(env.DB), MINUTES, { now: () => NOW });
+    expect(result).toEqual({ stale: 0, waitingClosed: 1 });
+  });
+
+  it("keeps a waiting card whose parent_key is a slice or a part, however old", async () => {
+    await callTool("report_progress", { key: SLICE_KEY, project: "demo-app", type: "slice", title: "Slice 7" });
+    await callTool("report_progress", { key: `${SLICE_KEY}/part-A`, project: "demo-app", type: "part", title: "Part", parent_key: SLICE_KEY });
+    await callTool("report_progress", { key: "demo-app/bug-1", project: "demo-app", type: "bug", title: "A bug" });
+    await waiting({ key: "demo-app/wait-slice", project: "demo-app", parent_key: SLICE_KEY });
+    await waiting({ key: "demo-app/wait-part", project: "demo-app", parent_key: `${SLICE_KEY}/part-A` });
+    await waiting({ key: "demo-app/wait-bug", project: "demo-app", parent_key: "demo-app/bug-1" });
+    for (const key of ["demo-app/wait-slice", "demo-app/wait-part", "demo-app/wait-bug"]) await setHeartbeat(key, hoursAgo(30));
+    await runCron();
+    expect(await statusOf("demo-app/wait-slice")).toBe("open");
+    expect(await statusOf("demo-app/wait-part")).toBe("open");
+    expect(await statusOf("demo-app/wait-bug")).toBe("done");
+  });
+
+  it("keeps a waiting card the doc sync made", async () => {
+    await waiting();
+    await env.DB.prepare("UPDATE items SET in_doc_sync = 1 WHERE key = ?1").bind(WAITING.key).run();
+    await setHeartbeat(WAITING.key, hoursAgo(30));
+    await runCron();
+    expect(await statusOf(WAITING.key)).toBe("open");
+  });
+
+  it("restarts the 24 hours with a report on the card", async () => {
+    await waiting();
+    await setHeartbeat(WAITING.key, hoursAgo(30));
+    await waiting({ why: "Still waiting" });
+    await runCron();
+    expect(await statusOf(WAITING.key)).toBe("open");
+  });
+
+  it("agrees with isWaitingClosable", async () => {
+    const rows = [
+      { type: ItemType.WaitingForMe, status: ItemStatus.Open, heartbeat_at: hoursAgo(25), in_doc_sync: false, parent_type: null },
+      { type: ItemType.WaitingForMe, status: ItemStatus.Open, heartbeat_at: hoursAgo(25), in_doc_sync: false, parent_type: ItemType.Slice },
+      { type: ItemType.WaitingForMe, status: ItemStatus.Open, heartbeat_at: hoursAgo(25), in_doc_sync: false, parent_type: ItemType.Part },
+      { type: ItemType.WaitingForMe, status: ItemStatus.Open, heartbeat_at: hoursAgo(25), in_doc_sync: false, parent_type: ItemType.Bug },
+      { type: ItemType.WaitingForMe, status: ItemStatus.Open, heartbeat_at: hoursAgo(25), in_doc_sync: true, parent_type: null },
+      { type: ItemType.WaitingForMe, status: ItemStatus.Open, heartbeat_at: hoursAgo(23), in_doc_sync: false, parent_type: null },
+      { type: ItemType.WaitingForMe, status: ItemStatus.Done, heartbeat_at: hoursAgo(25), in_doc_sync: false, parent_type: null },
+      { type: ItemType.Bug, status: ItemStatus.Open, heartbeat_at: hoursAgo(25), in_doc_sync: false, parent_type: null },
+    ];
+    const expected = rows.map((row) => isWaitingClosable(row, NOW));
+    expect(expected).toEqual([true, false, false, true, false, false, false, false]);
+    for (const [index, row] of rows.entries()) {
+      const key = `rule-${index}`;
+      if (row.parent_type) {
+        await env.DB.prepare(
+          `INSERT INTO items (key, project, type, priority, status, title, links, heartbeat_at, created_at, updated_at)
+           VALUES (?1, 'p', ?2, 'P2', 'open', 'T', '[]', ?3, ?3, ?3)`,
+        ).bind(`parent-${index}`, row.parent_type, row.heartbeat_at).run();
+      }
+      await env.DB.prepare(
+        `INSERT INTO items (key, project, type, priority, status, title, links, heartbeat_at, created_at, updated_at, in_doc_sync, parent_key)
+         VALUES (?1, 'p', ?2, 'P2', ?3, 'T', '[]', ?4, ?4, ?4, ?5, ?6)`,
+      ).bind(key, row.type, row.status, row.heartbeat_at, row.in_doc_sync ? 1 : 0, row.parent_type ? `parent-${index}` : null).run();
+    }
+    const closable = await env.DB.prepare(`SELECT key FROM items WHERE key LIKE 'rule-%' AND ${WAITING_ROWS} ORDER BY key`)
+      .bind(hoursAgo(24))
+      .all<{ key: string }>();
+    expect(closable.results.map((r) => r.key)).toEqual(rows.flatMap((_, i) => (expected[i] ? [`rule-${i}`] : [])));
   });
 });

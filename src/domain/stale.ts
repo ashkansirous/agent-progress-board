@@ -1,5 +1,5 @@
 import { showsLiveStatus } from "./docSync";
-import { ItemStatus } from "./item";
+import { DOC_SYNC_SOURCE, ItemStatus, ItemType } from "./item";
 
 export const DEFAULT_STALE_AFTER_MINUTES = 120;
 /** At least an hour, so the tile's "No heartbeat for N h" label never reads 0 h. */
@@ -33,6 +33,58 @@ export function expiryMinutesFor(agent: string | null | undefined, staleAfterMin
 
 /** The statuses of a live item that can go stale. */
 export const EXPIRING_STATUSES: readonly ItemStatus[] = [ItemStatus.InProgress, ItemStatus.Blocked];
+
+/**
+ * Whether a report moves `live_status_at` (the clock the expiry rule reads): one that gave a status and did
+ * not say it came from doc sync, or one that gave no status and so brings a stale item back to a live one
+ * (revival, only when the report is no older than the stored heartbeat: `reviveAllowed`). The `LIVE_STATUS_REPORT` SQL in
+ * the repository applies the same; `test/stale.test.ts` holds them equal.
+ */
+export function movesLiveStatus(
+  report: { statusGiven: boolean; source?: string | null },
+  storedStatus: ItemStatus,
+  reviveAllowed = true,
+): boolean {
+  if (!report.statusGiven) return storedStatus === ItemStatus.Stale && reviveAllowed;
+  return (report.source ?? "") !== DOC_SYNC_SOURCE;
+}
+
+/** A waiting card with no slice behind it is closed this long after its last report (the owner's answer of 2026-11-18, Slice 34). */
+export const WAITING_CLOSE_AFTER_HOURS = 24;
+/** The note on the history row of that close. */
+export const WAITING_CLOSED_NOTE = "no answer needed after 24 h";
+/** The types of the item a waiting card's `parent_key` can name that keep it open: the slice's own work closes it. */
+export const WAITING_KEPT_PARENT_TYPES: readonly ItemType[] = [ItemType.Slice, ItemType.Part];
+
+const MS_PER_HOUR = 3_600_000;
+
+/** A waiting card whose last report is older than this ISO time has no one waiting for it. */
+export function waitingCutoff(now: Date): string {
+  return new Date(now.getTime() - WAITING_CLOSE_AFTER_HOURS * MS_PER_HOUR).toISOString();
+}
+
+/** The columns of a stored row the waiting-card close reads; `parent_type` is the type of the item `parent_key` names, null when it names none. */
+export interface WaitingRow {
+  type: ItemType;
+  status: ItemStatus;
+  heartbeat_at: string;
+  in_doc_sync: boolean;
+  parent_type: ItemType | null;
+}
+
+/**
+ * Whether the cron closes this waiting card: not done, not made by doc sync, no slice or part behind it, and its
+ * last report 24 hours old. The `WAITING_ROWS` SQL in the repository applies the same.
+ */
+export function isWaitingClosable(row: WaitingRow, now: Date): boolean {
+  return (
+    row.type === ItemType.WaitingForMe &&
+    row.status !== ItemStatus.Done &&
+    !row.in_doc_sync &&
+    !(row.parent_type !== null && WAITING_KEPT_PARENT_TYPES.includes(row.parent_type)) &&
+    row.heartbeat_at < waitingCutoff(now)
+  );
+}
 
 export function isValidStaleAfter(value: unknown): value is number {
   return (

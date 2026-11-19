@@ -4,7 +4,9 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ACCESS_JWT_HEADER, type AccessKeys, KeyFetchFailure, remoteAccessKeys } from "../src/api/access";
 import type { BoardResponse } from "../src/api/boardDto";
 import { route, type RouterDeps, type RouterEnv } from "../src/api/router";
-import { D1ItemRepository } from "../src/infrastructure/d1Repository";
+import type { BoardFilter } from "../src/application/ports";
+import { ItemType } from "../src/domain/item";
+import { BOARD_WHERE, BOARD_WHERE_OWN, D1ItemRepository } from "../src/infrastructure/d1Repository";
 import { callTool, resetBoard } from "./helpers";
 
 const TEAM = "https://team.cloudflareaccess.com";
@@ -226,11 +228,80 @@ describe("GET /api/board", () => {
     expect(data.working_count).toBe(0);
   });
 
+  it("keeps the slice chip of a bug whose slice is done outside the window (Slice 34)", async () => {
+    await callTool("report_progress", { key: "a/slice-4", project: "a", type: "slice", title: "Slice 4 · Old", status: "done" });
+    await env.DB.prepare("UPDATE items SET done_at = ? WHERE key = ?").bind("2020-01-01T00:00:00.000Z", "a/slice-4").run();
+    await callTool("report_progress", { key: "a/bug1", project: "a", type: "bug", title: "Bug", parent_key: "a/slice-4" });
+    const data = await board();
+    expect(data.items.map((item) => item.key)).toEqual(["a/bug1"]);
+    expect(data.items[0]!.parent_slice).toEqual({ key: "a/slice-4", number: 4, title: "Slice 4 · Old" });
+  });
+
   it("drops items finished before the window", async () => {
     await callTool("report_progress", { key: "a/open", project: "a", type: "bug", title: "Open one" });
     await callTool("report_progress", { key: "a/old", project: "a", type: "bug", title: "Old", status: "done" });
     await env.DB.prepare("UPDATE items SET done_at = ? WHERE key = ?").bind("2020-01-01T00:00:00.000Z", "a/old").run();
     const keys = (await board()).items.map((item) => item.key);
     expect(keys).toEqual(["a/open"]);
+  });
+});
+
+describe("the rows of a listed slice (Slice 34)", () => {
+  const SLICE = "a/slice-1";
+  const CUTOFF = "2026-11-10T00:00:00.000Z";
+  const OLD = "2020-01-01T00:00:00.000Z";
+  const filter = (over: Partial<BoardFilter>): BoardFilter => ({ cutoff: CUTOFF, eventLimit: 5, withRiders: true, ...over });
+  const keysOf = async (over: Partial<BoardFilter>): Promise<string[]> =>
+    (await new D1ItemRepository(env.DB).listBoard(filter(over))).map((row) => row.key).sort();
+
+  async function seed(): Promise<void> {
+    await callTool("report_progress", { key: SLICE, project: "a", type: "slice", title: "Slice 1" });
+    await callTool("report_progress", { key: `${SLICE}/part-A`, project: "a", type: "part", title: "Part A", parent_key: SLICE, status: "done" });
+    await callTool("report_progress", { key: `${SLICE}/part-B`, project: "a", type: "part", title: "Part B", parent_key: SLICE });
+    await callTool("report_progress", { key: `${SLICE}/check-1`, project: "a", type: "check", title: "Check 1", parent_key: SLICE });
+    await callTool("report_progress", { key: `${SLICE}/check-2`, project: "a", type: "check", title: "Check 2", parent_key: SLICE, status: "done" });
+    await env.DB.prepare("UPDATE items SET done_at = ?1 WHERE status = 'done'").bind(OLD).run();
+  }
+
+  it("leaves the parts and checks out of list_open (withRiders false) but loads them for the board whatever the type filter", async () => {
+    await seed();
+    expect(await keysOf({ type: ItemType.Slice, withRiders: false })).toEqual([SLICE]);
+    expect(await keysOf({ type: ItemType.Slice })).toEqual([SLICE, `${SLICE}/check-1`, `${SLICE}/part-A`, `${SLICE}/part-B`]);
+    expect(await keysOf({})).toEqual([SLICE, `${SLICE}/check-1`, `${SLICE}/part-A`, `${SLICE}/part-B`]);
+  });
+
+  it("returns the parts, or the open checks, of a listed slice for a part or check type filter (never an empty list)", async () => {
+    await seed();
+    expect(await keysOf({ type: ItemType.Part })).toEqual([`${SLICE}/part-A`, `${SLICE}/part-B`]);
+    expect(await keysOf({ type: ItemType.Check })).toEqual([`${SLICE}/check-1`]);
+  });
+
+  it("applies the project filter to the riders too, and loads no done check", async () => {
+    await seed();
+    expect(await keysOf({ project: "other" })).toEqual([]);
+    expect(await keysOf({ project: "a" })).not.toContain(`${SLICE}/check-2`);
+  });
+
+  it("loads the parts of a done slice that still has a check not tried, and nothing of one that has none", async () => {
+    await seed();
+    await env.DB.prepare("UPDATE items SET status = 'done', done_at = ?1 WHERE key = ?2").bind(OLD, SLICE).run();
+    expect(await keysOf({})).toEqual([SLICE, `${SLICE}/check-1`, `${SLICE}/part-A`, `${SLICE}/part-B`]);
+    await env.DB.prepare("UPDATE items SET status = 'done', done_at = ?1 WHERE key = ?2").bind(OLD, `${SLICE}/check-1`).run();
+    expect(await keysOf({})).toEqual([`${SLICE}/part-B`]);
+  });
+
+  it("plans: no correlated probe per row; the slices are one list and a part is found by idx_items_parent_key", async () => {
+    const plan = async (where: string): Promise<string[]> => {
+      const { results } = await env.DB.prepare(`EXPLAIN QUERY PLAN SELECT * FROM items WHERE ${where} ORDER BY created_at DESC, key`)
+        .bind(CUTOFF, null, null)
+        .all<{ detail: string }>();
+      return results.map((row) => row.detail);
+    };
+    const lines = await plan(BOARD_WHERE);
+    expect(lines.some((line) => line.includes("LIST SUBQUERY"))).toBe(true);
+    expect(lines.filter((line) => /^(SCAN|SEARCH) .*items (AS )?c\b(?!.*idx_items_parent_key)/.test(line))).toEqual([]);
+    expect(lines.filter((line) => line.startsWith("CORRELATED"))).toHaveLength(2);
+    expect(lines.some((line) => line.includes("idx_items_parent_key"))).toBe(true);
+    expect((await plan(BOARD_WHERE_OWN)).filter((line) => line.startsWith("SCAN items"))).toHaveLength(1);
   });
 });

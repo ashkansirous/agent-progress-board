@@ -23,12 +23,21 @@ const SOLVE_STEP_LIMIT = 1e-9;
 const MIN_MIX_SPREAD = 0.05;
 /** Unexplained growth below this many points counts as none. */
 const NO_POINTS = 0.05;
-/** Placement works on at most this many work windows (the newest, after merging overlaps per environment), so its cost per read is bounded. */
+/** Placement works on at most this many work windows per environment (the newest, after merging overlaps), so its cost per read is bounded by this times the number of environments. */
 export const MAX_PLACE_WINDOWS = 500;
 
-/** The one way environment names are compared: without case or surrounding spaces. Used by merging, placement and the repository filter. */
+/** The characters trimmed from both ends of an environment name; the repository's SQL `trim(x, ?)` is bound to this same set. */
+export const IDENTITY_TRIM_CHARS = " \t\n\r";
+const IDENTITY_TRIM = /^[ \t\n\r]+|[ \t\n\r]+$/g;
+const ASCII_UPPER = /[A-Z]/g;
+
+/**
+ * The one way environment names are compared: without case or surrounding spaces, ASCII only (SQLite's `lower`
+ * folds A-Z and nothing else, so a wider rule here would disagree with the repository filter). Used by merging,
+ * placement and the repository filter (Slice 34); `test/capCost.test.ts` holds the SQL and this equal.
+ */
 export function environmentIdentity(name: string): string {
-  return name.trim().toLowerCase();
+  return name.replace(IDENTITY_TRIM, "").replace(ASCII_UPPER, (letter) => letter.toLowerCase());
 }
 
 export enum FitMode {
@@ -602,7 +611,7 @@ export function placeInWindows(fit: CapCostFit, allWindows: WorkWindow[], since:
   return { fit: { ...fit, residuals, leftoverShare: shareOfGrowth(fit.stretches, residuals) }, byEnvironment };
 }
 
-/** Overlapping windows of one environment merged once (times compared as parsed numbers), then the newest MAX_PLACE_WINDOWS kept. Empty and unreadable windows are dropped. */
+/** Overlapping windows of one environment merged once (times compared as parsed numbers), then the newest MAX_PLACE_WINDOWS of each environment kept. Empty and unreadable windows are dropped. */
 function boundedWindows(windows: WorkWindow[]): TimedWindow[] {
   const timed = windows
     .map((w): TimedWindow => ({ environment: w.environment, from: Date.parse(w.start), to: Date.parse(w.end) }))
@@ -623,5 +632,20 @@ function boundedWindows(windows: WorkWindow[]): TimedWindow[] {
     open.set(identity, copy);
     merged.push(copy);
   }
-  return merged.sort((a, b) => a.to - b.to).slice(-MAX_PLACE_WINDOWS);
+  return newestPerEnvironment(merged);
+}
+
+/** The newest MAX_PLACE_WINDOWS windows of each environment identity, in order of end; one busy environment never crowds out another's. */
+function newestPerEnvironment(merged: TimedWindow[]): TimedWindow[] {
+  const sorted = merged.sort((a, b) => a.to - b.to);
+  const kept = new Map<string, number>();
+  const newest: TimedWindow[] = [];
+  for (const window of [...sorted].reverse()) {
+    const identity = environmentIdentity(window.environment);
+    const count = kept.get(identity) ?? 0;
+    if (count >= MAX_PLACE_WINDOWS) continue;
+    kept.set(identity, count + 1);
+    newest.push(window);
+  }
+  return newest.reverse();
 }

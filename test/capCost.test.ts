@@ -1,8 +1,12 @@
+import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { type CapReading, type CapWindow, evaluateAll, WEEKLY_WINDOW } from "../src/domain/cap";
 import {
   buildStretches,
   chooseMixWindow,
+  environmentIdentity,
+  IDENTITY_TRIM_CHARS,
+  MAX_PLACE_WINDOWS,
   MixSource,
   YOUNG_WINDOW_HOURS,
   costByKey,
@@ -443,6 +447,12 @@ describe("growth placed inside reported chat windows (Slice 16)", () => {
     expect(placed.byEnvironment.get(CHAT)).toBeCloseTo(6, 9);
   });
 
+  it("caps the windows per environment, so a busy environment does not push out an older one's", () => {
+    const busy = Array.from({ length: MAX_PLACE_WINDOWS + 100 }, (_, i) => window(DESIGN, 1000 + i * 2, 1001 + i * 2));
+    const placed = placeInWindows(fitWith(6), [window(CHAT, 0, 30), ...busy], T(-1));
+    expect(placed.byEnvironment.get(CHAT)).toBeCloseTo(3, 9);
+  });
+
   it("leaves growth outside every window unexplained", () => {
     const placed = placeInWindows(fitWith(6), [window(CHAT, 90, 120)], T(-1));
     expect(placed.byEnvironment.size).toBe(0);
@@ -590,5 +600,21 @@ describe("which window's mix weights all kinds (Slice 26)", () => {
     expect(chooseMixWindow([weekly(FIRST, "plan-b"), weekly(SECOND)], "plan-a", hoursAfter(SECOND, 1)).source).toBe(MixSource.Current);
     const short = { ...weekly(FIRST), windowKind: "short" };
     expect(chooseMixWindow([short, weekly(SECOND)], "plan-a", hoursAfter(SECOND, 1)).source).toBe(MixSource.Current);
+  });
+});
+
+describe("environmentIdentity and the repository filter (Slice 34)", () => {
+  const NAMES = ["Laptop", " laptop ", "LAPTOP", "\tDesk\r\n", "Ünï", "ÜNÏ", "İstanbul", "x ", " x", "Ǆ", "ǆ", "", "  "];
+
+  it("is the same function as the SQL the repository compares with, for ASCII and for the names that differ", async () => {
+    for (const name of NAMES) {
+      const row = await env.DB.prepare("SELECT lower(trim(?1, ?2)) AS identity").bind(name, IDENTITY_TRIM_CHARS).first<{ identity: string }>();
+      expect(row?.identity, JSON.stringify(name)).toBe(environmentIdentity(name));
+    }
+  });
+
+  it("treats the ASCII spellings of one name as one and a non-ASCII case difference as two", () => {
+    expect(environmentIdentity(" Laptop\t")).toBe(environmentIdentity("LAPTOP"));
+    expect(environmentIdentity("Ünï")).not.toBe(environmentIdentity("ÜNÏ"));
   });
 });

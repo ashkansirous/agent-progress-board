@@ -4,7 +4,7 @@
 Settled the same day by the starter session under the owner's standing rule (no review or approval round; "build all"
 for Slice 45): build every item, the two correctness faults first; item 8 keeps the decision the loop recorded.*
 
-*Built 2026-11-19 (wave), draft PR #172, not merged. No device involved.*
+*Built 2026-11-19 (wave); merged as PR #172 (e0ab581) on 2026-11-19. No device involved.*
 
 **Touches:** `plugin/scripts/hooks/session-done.mjs`, `plugin/scripts/sync-docs.mjs`, `plugin/scripts/usage-tick.mjs`,
 `src/mcp/schemas.ts`, `plugin/scripts/report-progress.mjs`, `plugin/scripts/hooks/hook-input.mjs`,
@@ -93,7 +93,7 @@ Third check pass (pr-172-check-3-medium), seven nits, none blocking, left open a
 - Follow-up #6: `closing` stays set if the hook is killed at its timeout, so a Stop report inside the window triggers one spurious extra `mark_done` after a resume; note it or tie the window to a landed close.
 - Follow-up #7: the module-level `sweptFiles` set in `hook-input.mjs` assumes short-lived processes; in a long-lived process, temps from a later failed rename are never swept.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-19)
 
 - The "later close wins" rule lives only in `closeLaterThan` in `plugin/scripts/hooks/session-done.mjs`; `closing` in the goal file is set only for the duration of a close call, and the Stop report's time is taken before its hold write (Slice 46: docs/plan/slices/46-slice-45-follow-ups.md).
 

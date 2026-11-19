@@ -25,7 +25,7 @@ export interface SnapshotItem {
   priority?: Priority;
   parent?: string | null;
   why?: string | null;
-  /** The rest of a clipped title, so it reaches the card; set when the item is first stored, or later while the stored `details_md` is still null; a set one is never overwritten. */
+  /** The rest of a clipped title, so it reaches the card; set when the item is first stored, or later while the stored `details_md` is still null; a set one is kept, except an owner step (a doc-synced waiting item), whose details follow the document line (`detailsOf`). */
   details_md?: string | null;
   links?: ItemLink[];
   /** The slice's lettered parts as the documents list them (Slice 11). */
@@ -190,6 +190,16 @@ function docFieldsDiffer(stored: SyncRow, next: SyncRow): boolean {
 }
 
 /**
+ * The details the row keeps: for an owner step (a waiting item, whose details are the document line's own steps and the
+ * text cut off its title) the snapshot's, so a line that changed or an old long title is refreshed; for any other item
+ * the stored text when there is one (a reporter's notes are never overwritten), else the snapshot's.
+ */
+function detailsOf(stored: SyncRow, snap: SnapshotItem): string | null {
+  if (snap.details_md !== undefined && stored.type === ItemType.WaitingForMe && stored.in_doc_sync) return snap.details_md;
+  return stored.details_md ?? snap.details_md ?? null;
+}
+
+/**
  * Merges one snapshot item into the stored row (or none). Title takes the snapshot's value; why, parent,
  * parent_key and links do too when the snapshot sends them (null clears one), and a field the snapshot leaves
  * out keeps its stored value on every sync, so a live value is never lost; the status shown is the live one
@@ -213,7 +223,7 @@ export function planItem(stored: SyncRow | undefined, snap: SnapshotItem, projec
     parent: snap.parent === undefined ? stored.parent : snap.parent,
     parent_key: snap.parent_key === undefined ? (stored.parent_key ?? null) : snap.parent_key,
     links: snap.links ?? stored.links,
-    details_md: stored.details_md ?? snap.details_md ?? null,
+    details_md: detailsOf(stored, snap),
     status,
     in_doc_sync: true,
     doc_status: snap.status,

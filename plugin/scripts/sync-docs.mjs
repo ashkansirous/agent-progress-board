@@ -101,8 +101,9 @@ export function titleFields(text) {
 }
 
 const EMPHASIS_MARKS = /[*_`]+/g;
-// A code span: its text is group 1. An unmatched backtick is no span and stays as written.
-const CODE_SPAN = /`([^`\n]+)`/g;
+// A code span, single or double backticks: its text is group 1 (double) or group 2 (single). An unmatched backtick is no
+// span and stays as written.
+const CODE_SPAN = /``([^\n]+?)``|`([^`\n]+)`/g;
 // Real emphasis (CommonMark): the mark touches text on its inner side and is not inside a word, so `AGENT_BOARD_URL`
 // and `my_page` keep their underscores; `**` and `__` go first, then `*` and `_`.
 // The text between the marks is capped at SPAN_CAP characters, so an unmatched opener scans a bounded window and a
@@ -130,11 +131,12 @@ function stripEmphasis(text) {
 // Markdown to plain text: links keep their label and real emphasis marks go; the text inside a code span stays as
 // written (`AGENT_BOARD_URL` keeps its underscores), and so do intraword `_` and `*` and an unmatched backtick.
 export function plain(text) {
-  const linked = String(text || '').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1');
+  // A literal span mark in the line is dropped first, so the restore below cannot read it as a code span's place.
+  const linked = String(text || '').replaceAll(SPAN_MARK, '').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1');
   // Each code span becomes one placeholder character while emphasis goes, so bold around a span still matches.
   const spans = [];
-  const masked = linked.replace(CODE_SPAN, (_whole, inner) => {
-    spans.push(inner);
+  const masked = linked.replace(CODE_SPAN, (_whole, double, single) => {
+    spans.push(double ?? single);
     return SPAN_MARK;
   });
   let next = 0;
@@ -527,12 +529,30 @@ function ownerStepFull(entry) {
 }
 
 // The index of the first " | " (a bar with a space before it or first on the line, and a space after it or last on the line)
-// outside a code span, or -1.
+// outside a code span, a link's label or address, and bold text, or -1.
+const INLINE_LINK = /^\[[^\]]*\]\([^)]*\)/;
+
+// The end of the code span, bold run or link that starts at `index`, or -1 when none starts there. An opener with no
+// closer later in the line is a plain character, so a stray `[`, `**` or backtick never hides the bar after it.
+function spanEnd(raw, index) {
+  const char = raw[index];
+  if (char === '`') { const close = raw.indexOf('`', index + 1); return close < 0 ? -1 : close + 1; }
+  if (char === '*' && raw[index + 1] === '*') { const close = raw.indexOf('**', index + 2); return close < 0 ? -1 : close + 2; }
+  if (char === '[') { const link = INLINE_LINK.exec(raw.slice(index)); return link ? index + link[0].length : -1; }
+  return -1;
+}
+
+function isBarAt(raw, index) {
+  return raw[index] === '|' && (index + 1 === raw.length || raw[index + 1] === ' ') && (index === 0 || raw[index - 1] === ' ');
+}
+
 function actionBar(raw) {
-  let inCode = false;
-  for (let index = 0; index < raw.length; index += 1) {
-    if (raw[index] === '`') inCode = !inCode;
-    else if (!inCode && raw[index] === '|' && (index + 1 === raw.length || raw[index + 1] === ' ') && (index === 0 || raw[index - 1] === ' ')) return index;
+  let index = 0;
+  while (index < raw.length) {
+    const end = spanEnd(raw, index);
+    if (end > 0) index = end;
+    else if (isBarAt(raw, index)) return index;
+    else index += 1;
   }
   return -1;
 }
@@ -559,14 +579,16 @@ function ownerTitleFields(number, raw) {
   const bar = actionBar(raw);
   const before = flatten(plain(bar < 0 ? raw : raw.slice(0, bar)));
   const after = bar < 0 ? '' : flatten(plain(raw.slice(bar + 1)));
-  const action = before || after;
+  // A line that already starts "Slice N:" with this slice's number keeps it once.
+  const action = (before || after).replace(new RegExp(`^Slice\\s+${number}\\s*:\\s*`, 'i'), '');
   const steps = before ? after : '';
   if (!action) return null;
   const heading = `Slice ${number}: ${action}`;
   const cut = heading.length > OWNER_TITLE_LIMIT ? codePointBoundary(heading, OWNER_TITLE_LIMIT - 1) : heading.length;
   const title = cut < heading.length ? `${heading.slice(0, cut).trimEnd()}…` : heading;
   const description = [cut < heading.length ? `…${heading.slice(cut).trim()}` : '', steps].filter(Boolean).join(' ');
-  return description ? { title, details_md: description.slice(0, codePointBoundary(description, DETAILS_LIMIT)) } : { title };
+  // No steps sends an explicit null, so a line edited down to its action clears the steps text the card kept (Slice 45 #3).
+  return { title, details_md: description ? description.slice(0, codePointBoundary(description, DETAILS_LIMIT)) : null };
 }
 
 function ownerItem(project, block, row, entry, repoUrl) {
@@ -578,7 +600,7 @@ function ownerItem(project, block, row, entry, repoUrl) {
   return {
     key: `${project}/slice-${block.number}/check-${checkHash(entry.line)}`, project,
     type: 'waiting_for_me', status: 'open',
-    ...((clip(full, TITLE_LIMIT) && ownerTitleFields(block.number, ownerStepRaw(entry))) || { title: entryTitle(entry) }),
+    ...((clip(full, TITLE_LIMIT) && ownerTitleFields(block.number, ownerStepRaw(entry))) || { title: entryTitle(entry), details_md: null }),
     why: clip(unblocks ? `${sliceName} — ${unblocks[0]}` : `Not yet verified for ${sliceName}`, WHY_LIMIT),
     parent: `Slice ${block.number} · Not yet verified`,
     ...(links.length ? { links } : {}),
@@ -797,7 +819,7 @@ export function collect(parsed, env = process.env) {
     repoUrl: parsed['repo-url'] || (parsed.root ? '' : remoteUrl(repo)),
   });
   const notices = [...slices.notices, ...snapshot.notices, ...unparkedNotices(readParked(parsed.parked), rows)];
-  if (!rows.length) notices.push('sync-docs: status table empty, closing all items of the project\n');
+  if (!rows.length) notices.push('sync-docs: status table empty, sending an empty snapshot: the board closes the project\'s doc-synced items it holds (closed= counts them, 0 when it holds none)\n');
   return { project, ...snapshot, notices };
 }
 

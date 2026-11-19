@@ -162,7 +162,9 @@ function saveCapState(path, state) {
   try {
     const temp = `${path}.${process.pid}.tmp`;
     mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(temp, JSON.stringify(state));
+    const kept = { ...state };
+    delete kept.plan; // replaced by `planSeen`; an old state file drops it on its next write
+    writeFileSync(temp, JSON.stringify(kept));
     renameSync(temp, path);
   } catch { /* the next reading tries again */ }
 }
@@ -175,12 +177,12 @@ function inGap(until, now, gapMs) {
 
 // The reading from the address, or null (no usable token, in the retry gap, refused, no weekly figure).
 // The token expiry is checked at the time just before the call; taken_at is when the answer arrived.
-export async function readFromAddress({ credentials, clock, statePath, touch, options }) {
+export async function readFromAddress({ credentials, clock, statePath, touch, options, state: known }) {
   const oauth = credentials && credentials[OAUTH_KEY];
   const token = oauth && oauth.accessToken;
   const startedAt = clock();
   if (!token || isExpired(credentials, startedAt)) return null;
-  const state = readCapState(statePath);
+  const state = known ?? readCapState(statePath);
   if (inGap(state.retryAfter, startedAt, RETRY_GAP_MS)) return null;
   touch();
   const body = await askAddress(token, options);
@@ -198,27 +200,32 @@ export async function readFromAddress({ credentials, clock, statePath, touch, op
 // starts now. A status line file written before `since` holds the previous plan's percentages.
 export function planSince(saved, plan, now) {
   const same = saved && typeof saved === 'object' && saved.plan === plan && typeof saved.since === 'number';
-  return same ? { plan: saved.plan, since: saved.since } : { plan, since: now };
+  // A saved `since` ahead of now (a clock set back) is pulled to now, so the guard cannot hold files back for long.
+  return same ? { plan: saved.plan, since: Math.min(saved.since, now) } : { plan, since: now };
 }
 
 // Remembers the plan seen on every run, before any read, whatever the board answers.
+// Returns the state as it stands after, so the rest of the firing reads the file once.
 function recordPlanSeen(statePath, plan, now) {
   const state = readCapState(statePath);
   const planSeen = planSince(state.planSeen, plan, now);
   if (!state.planSeen || state.planSeen.plan !== planSeen.plan || state.planSeen.since !== planSeen.since) {
-    saveCapState(statePath, { ...state, planSeen });
+    const next = { ...state, planSeen };
+    saveCapState(statePath, next);
+    return next;
   }
+  return state;
 }
 
 // The status line file's windows with the file's own time; an old file is still sent, never as "now".
 // Not sent when it was written before the plan was first seen as current, when it is older than the last
 // address reading the board accepted, or when no weekly window of it is still running.
-export function readFromStatusLine({ claudeDir, statePath, clock }) {
+export function readFromStatusLine({ claudeDir, statePath, clock, state: known }) {
   const saved = readJson(join(claudeDir, LATEST_FILE));
   const takenAt = saved && toIso(saved.at);
   const windows = windowsFromStatusLine(saved && saved.rate_limits, clock());
   if (!takenAt || !windows.some((window) => window.kind === KIND_WEEKLY)) return null;
-  const state = readCapState(statePath);
+  const state = known ?? readCapState(statePath);
   if (state.lastFileAt === takenAt) return null; // already sent this one
   const since = state.planSeen && state.planSeen.since;
   if (typeof since !== 'number' || Date.parse(takenAt) < since) return null; // written under another plan, or before the first run
@@ -231,10 +238,10 @@ export async function readCap({ claudeDir, stateDir = claudeDir, clock = Date.no
   const plan = planOf(credentials);
   if (!plan) return null; // 1% of one plan is not 1% of another: no plan, no reading
   const statePath = join(stateDir, CAP_STATE_FILE);
-  recordPlanSeen(statePath, plan, clock());
-  if (inGap(readCapState(statePath).okUntil, clock(), OK_GAP_MS)) return null; // read a moment ago
-  const reading = (await readFromAddress({ credentials, clock, statePath, touch, options }))
-    || readFromStatusLine({ claudeDir, statePath, clock });
+  const state = recordPlanSeen(statePath, plan, clock());
+  if (inGap(state.okUntil, clock(), OK_GAP_MS)) return null; // read a moment ago
+  const reading = (await readFromAddress({ credentials, clock, statePath, touch, options, state }))
+    || readFromStatusLine({ claudeDir, statePath, clock, state });
   return reading ? { ...reading, plan } : null;
 }
 

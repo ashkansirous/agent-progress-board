@@ -112,20 +112,24 @@ describe("axes", () => {
 describe("geometry", () => {
   it("keeps the Reset word inside the plot, clear of the y-axis labels, at the left edge and the right (Slice 43)", () => {
     const left = resetLabelPlace(FRAME.x0, FRAME, 36, 6);
-    expect(left).toEqual({ x: FRAME.x0 + 6, anchor: "start" });
+    expect(left).toEqual({ x: FRAME.x0 + 6, anchor: "start", fits: true });
     expect(resetLabelPlace(FRAME.x0 - 20, FRAME, 36, 6).x).toBe(FRAME.x0 + 6);
-    expect(resetLabelPlace(500, FRAME, 36, 6)).toEqual({ x: 506, anchor: "start" });
+    expect(resetLabelPlace(500, FRAME, 36, 6)).toEqual({ x: 506, anchor: "start", fits: true });
     const right = resetLabelPlace(FRAME.x1 - 10, FRAME, 36, 6);
     expect(right.anchor).toBe("end");
     expect(right.x).toBe(FRAME.x1 - 16);
   });
 
   it("never draws the Reset word across its line: with no room on either side it stays right of the line (Slice 43)", () => {
-    const narrow = { ...FRAME, x0: 100, x1: 130 };
-    const place = resetLabelPlace(115, narrow, 36, 6);
-    expect(place).toEqual({ x: 121, anchor: "start" });
+    const middling = { ...FRAME, x0: 100, x1: 140 };
+    expect(resetLabelPlace(125, middling, 36, 6)).toEqual({ x: 131, anchor: "start", fits: true });
     const tight = { ...FRAME, x0: 100, x1: 150 };
-    expect(resetLabelPlace(145, tight, 36, 6)).toEqual({ x: 139, anchor: "end" });
+    expect(resetLabelPlace(145, tight, 36, 6)).toEqual({ x: 139, anchor: "end", fits: true });
+  });
+
+  it("does not draw the Reset word when the plot is narrower than the word, so it never runs past an edge (Slice 45)", () => {
+    const narrow = { ...FRAME, x0: 100, x1: 130 };
+    expect(resetLabelPlace(115, narrow, 36, 6).fits).toBe(false);
   });
 
   it("places a time on the day axis, clamped to the plot", () => {

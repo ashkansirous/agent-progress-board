@@ -10,6 +10,9 @@ import { callTool, countRows, resetBoard } from "./helpers";
 
 beforeEach(resetBoard);
 
+/** A test with many calls or a cold start gets this long, so a busy machine does not fail it by the clock alone. */
+const LOADED_TIMEOUT_MS = 30_000;
+
 describe("seed data", () => {
   it("has 15 made-up items in three projects covering every type and status", () => {
     expect(SEED_ITEMS).toHaveLength(15);
@@ -34,6 +37,7 @@ describe("seed data", () => {
     expect(callFor(waiting).arguments).not.toHaveProperty("type");
   });
 
+  // About 40 tool calls: far over the default 5 s when another suite (e2e) runs beside this one (Slice 45).
   it("is accepted by the real MCP tools: every call writes its item", async () => {
     for (const call of seedCalls()) {
       const reply = await callTool(call.name, call.arguments);
@@ -42,7 +46,7 @@ describe("seed data", () => {
     expect(await countRows("items")).toBe(SEED_ITEMS.length + SESSION_SEED_ITEMS.length + PLANNING_SEED_ITEMS.length);
     const stale = await env.DB.prepare("SELECT status FROM items WHERE key = ?").bind("garden-planner/slice-10").first();
     expect(stale?.status).toBe(ItemStatus.Stale);
-  });
+  }, LOADED_TIMEOUT_MS);
 
   it("sends no note that repeats the question marker the server writes itself", () => {
     const notes = seedCalls(SESSION_SEED_ITEMS).map((call) => call.arguments.note);

@@ -2,7 +2,7 @@ import type { MouseEvent } from "react";
 import type { BoardItemDto } from "../../src/api/boardDto";
 import { StepState } from "../../src/domain/stepTypes";
 import { OutcomeLine } from "./ActiveCard";
-import { cardLabel, fillBoardAddress, ownerStepDetails, ownerStepFallback, resolveBoardAddress, sessionLabel, stepUrls, waitingText } from "./cards";
+import { cardLabel, cardQuestion, fillBoardAddress, isOwnerStep, ownerStepDetails, resolveBoardAddress, sessionLabel, stepUrls, waitingText, withoutBoardPages } from "./cards";
 import { projectLabel } from "./model";
 import { isSafeHttpUrl } from "./safeUrl";
 import { ageText } from "./time";
@@ -78,11 +78,11 @@ export function QuestionCard({ item, onOpen }: CardProps) {
   const session = sessionLabel(item, t);
   const asked = t("askedBy", { session });
   // An owner step's own text is its title, with or without a why (the drawer heading reads it the same way).
-  const question = item.needs_you ?? ownerStepFallback(item);
+  const question = cardQuestion(item);
   const work = item.title !== question ? item.title : null;
   const why = item.why && item.why !== question ? item.why : null;
   const steps = ownerStepDetails(item);
-  const stepLinks: CardLink[] = stepUrls(steps ? fillBoardAddress(steps, window.location.origin) : "").filter(isSafeHttpUrl).map((url) => ({ label: url, url }));
+  const stepLinks: CardLink[] = stepUrls(steps ? fillBoardAddress(withoutBoardPages(steps), window.location.origin) : "").filter(isSafeHttpUrl).map((url) => ({ label: url, url }));
   const links: CardLink[] = dedupeLinks([...addressLinks([work, question, why, item.after_answer, steps]), ...stepLinks, ...item.links.filter((link) => isSafeHttpUrl(link.url))]);
   // The whole card opens the drawer (a tap on its padding too); the button keeps the keyboard and the screen reader
   // path, and a link inside the card follows its own address.
@@ -98,7 +98,7 @@ export function QuestionCard({ item, onOpen }: CardProps) {
       <button type="button" className="question-body" onClick={() => onOpen(item.key)}>
         <span className="question-top">
           {phone ? (
-            <span className="question-project">{projectLabel(item.project, projects)}</span>
+            <span className="question-project">{isOwnerStep(item) ? `${cardLabel(item, t)} · ${projectLabel(item.project, projects)}` : projectLabel(item.project, projects)}</span>
           ) : (
             <span className="question-label">{cardLabel(item, t)}</span>
           )}
@@ -113,8 +113,8 @@ export function QuestionCard({ item, onOpen }: CardProps) {
       </button>
       {links.length > 0 && (
         <span className="question-links">
-          {links.map((link) => (
-            <a key={`${link.label}|${link.url}`} href={link.url} {...(link.sameTab ? {} : { target: "_blank", rel: "noreferrer noopener" })}>
+          {links.map((link, index) => (
+            <a key={`${link.label}|${link.url}|${index}`} href={link.url} {...(link.sameTab ? {} : { target: "_blank", rel: "noreferrer noopener" })}>
               {link.label}
             </a>
           ))}

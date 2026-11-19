@@ -128,8 +128,10 @@ export function withQuestion(input: ReportInput, existing: QuestionState, now: s
 
 /** A question given: kept as first asked when the text is unchanged, else stamped now with a history note. */
 function withAsked(input: ReportInput, existing: QuestionState, now: string): ReportInput {
-  const firstAsked = existing?.needs_you === input.needs_you ? existing?.needs_you_at : null;
+  const sameQuestion = existing?.needs_you === input.needs_you;
+  const firstAsked = sameQuestion ? existing?.needs_you_at : null;
   if (firstAsked) return { ...input, needs_you_at: firstAsked };
+  if (!sameQuestion && existing?.needs_you && input.after_answer === undefined) input = { ...input, after_answer: null };
   const firstLine = input.needs_you!.split("\n")[0]!.slice(0, MAX_NEEDS_YOU_NOTE);
   return { ...input, needs_you_at: now, note: withMarker(`${NEEDS_YOU_NOTE_PREFIX}${firstLine}`, input.note) };
 }

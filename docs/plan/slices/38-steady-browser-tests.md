@@ -112,7 +112,7 @@ Each of these tests waits on wall-clock windows: a route held for 1500 ms, `wait
 - Follow-up #5 (`reviews/pr-132-check-medium.md`): "docs/plan/slices/38-steady-browser-tests.md:61, other: deferred seed
   fixes name no slice; Verification (two suites x3) is unmet." The seed fixes in `scripts/seed-data.ts` go to Slice 41,
   "Only a task with an outcome gets a card" (planned; its Touches holds `scripts/seed-data.ts`). The two-suites x3
-  Verification is met by the runs above, except that they ran before the `outputDir` fix.
+  Verification is met by the runs after the `outputDir` fix (see the Result), not by the first rounds, which ran before it.
 - Follow-up #7 (`reviews/pr-132-check-medium.md`): "e2e/active.spec.ts:201, correctness: pageSettled then toHaveURL
   weakly guards against a later hash rewrite."
 - Follow-up #8 (`reviews/pr-132-check-medium.md`): "e2e/loadingClock.ts:46, other: release() runs only after assertions;

@@ -41,8 +41,8 @@ class Truncated {
   ) {}
 }
 
-/** Identity and time fields a clip never touches: cutting one makes a key that names no item or a time that is no time. */
-const UNCLIPPED_FIELDS = new Set(["key", "parent_key", "project", "type", "status", "at"]);
+/** Identity, link and time fields a clip never touches: cutting one makes a key that names no item, a URL that goes nowhere or a time that is no time. */
+const UNCLIPPED_FIELDS = new Set(["key", "parent_key", "project", "type", "status", "at", "url"]);
 
 function isUnclipped(name: string): boolean {
   return UNCLIPPED_FIELDS.has(name) || name.endsWith("_at");
@@ -52,13 +52,19 @@ function clipText(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max)}...` : text;
 }
 
-/** Free text cut to `max` characters; key, parent_key, project, type, status and every time field stay whole. */
-function clipStrings(value: unknown, max: number): unknown {
+/**
+ * Free text cut to `max` characters; key, parent_key, project, type, status, every time field and every link url stay
+ * whole. With `dropLinks` (the last resort) every `links` list is emptied instead: a cut url goes nowhere.
+ */
+function clipStrings(value: unknown, max: number, dropLinks = false): unknown {
   if (typeof value === "string") return clipText(value, max);
-  if (Array.isArray(value)) return value.map((entry) => clipStrings(entry, max));
+  if (Array.isArray(value)) return value.map((entry) => clipStrings(entry, max, dropLinks));
   if (value !== null && typeof value === "object") {
     return Object.fromEntries(
-      Object.entries(value).map(([name, field]) => [name, isUnclipped(name) ? field : clipStrings(field, max)]),
+      Object.entries(value).map(([name, field]) => [
+        name,
+        dropLinks && name === "links" && Array.isArray(field) ? [] : isUnclipped(name) ? field : clipStrings(field, max, dropLinks),
+      ]),
     );
   }
   return value;
@@ -72,7 +78,7 @@ interface CutPlan {
   fixed: number;
   /** The fewest entries shown before long strings are cut instead. */
   minShown: number;
-  build: (shown: number, clip: number | null) => Truncated;
+  build: (shown: number, clip: number | null, dropLongLinks?: boolean) => Truncated;
   fallback: Truncated;
 }
 
@@ -108,15 +114,20 @@ function cutReply(plan: CutPlan): Truncated {
     const reply = plan.build(plan.minShown, clip);
     if (replyLength(reply) <= MAX_RESULT_CHARS) return reply;
   }
+  // Still over: urls are never cut, so the kept entries lose every link (the note says so); the item stays listed.
+  for (const clip of STRING_CLIPS) {
+    const reply = plan.build(plan.minShown, clip, true);
+    if (replyLength(reply) <= MAX_RESULT_CHARS) return reply;
+  }
   return plan.fallback;
 }
 
 /** The note: how many were shown and dropped, the first dropped key when the entries have one (ask for it with get_item), and whether text was cut. */
-function cutNote(shown: number, total: number, clip: number | null, what: string, advice: string, firstDroppedKey: string | null = null): string {
+function cutNote(shown: number, total: number, clip: number | null, what: string, advice: string, firstDroppedKey: string | null = null, droppedLinks = false): string {
   const dropped = total - shown;
   const first = firstDroppedKey === null ? "" : `, first dropped key ${firstDroppedKey}; ask for it with get_item`;
   const droppedText = dropped > 0 ? ` (${dropped} dropped${first})` : "";
-  return `truncated: ${shown} of ${total} ${what} shown${droppedText}${advice}${clip === null ? "" : "; long text is cut"}`;
+  return `truncated: ${shown} of ${total} ${what} shown${droppedText}${advice}${clip === null ? "" : "; long text is cut"}${droppedLinks ? "; links were dropped" : ""}`;
 }
 
 function keyOf(entry: unknown): string | null {
@@ -134,13 +145,22 @@ export function fitList<T>(entries: T[]): unknown {
     sizes,
     fixed: 2,
     minShown: 1,
-    build: (shown, clip) => {
+    build: (shown, clip, dropLongLinks = false) => {
       const kept = entries.slice(0, shown);
-      const data = clip === null ? kept : kept.map((entry) => clipStrings(entry, clip));
-      return new Truncated(data, cutNote(shown, entries.length, clip, "items", advice, keyOf(entries[shown])));
+      const data = clip === null ? kept : kept.map((entry) => clipStrings(entry, clip, dropLongLinks));
+      return new Truncated(data, cutNote(shown, entries.length, clip, "items", advice, keyOf(entries[shown]), dropLongLinks));
     },
     fallback: new Truncated([], cutNote(0, entries.length, null, "items", `; the first item alone is over the size limit${advice}`, keyOf(entries[0]))),
   });
+}
+
+/** What the last-resort reply of an item keeps: its key, and its title, project, type and status cut short. */
+function identityOf(item: { key: string }): Record<string, unknown> {
+  const fields = item as unknown as Record<string, unknown>;
+  const kept: Record<string, unknown> = { key: item.key };
+  for (const name of ["project", "type", "status"]) if (typeof fields[name] === "string") kept[name] = fields[name];
+  if (typeof fields.title === "string") kept.title = clipText(fields.title, STRING_CLIPS[0]!);
+  return kept;
 }
 
 /** The item as it is when it fits the limit, else a `Truncated` (newest events kept) whose measured reply fits it. */
@@ -154,12 +174,15 @@ export function fitItem<T extends { key: string; events: unknown[] }>(item: T): 
     sizes,
     fixed: bareLength,
     minShown: 0,
-    build: (shown, clip) => {
+    build: (shown, clip, dropLongLinks = false) => {
       const kept = item.events.slice(0, shown);
       const data = { ...item, events: kept };
-      return new Truncated(clip === null ? data : clipStrings(data, clip), cutNote(shown, item.events.length, clip, "events", advice));
+      return new Truncated(clip === null ? data : clipStrings(data, clip, dropLongLinks), cutNote(shown, item.events.length, clip, "events", advice, null, dropLongLinks));
     },
-    fallback: new Truncated({ key: item.key }, `truncated: 0 of ${item.events.length} events shown; the item alone is over the size limit${advice}`),
+    fallback: new Truncated(
+      identityOf(item),
+      `truncated: 0 of ${item.events.length} events shown; the item alone is over the size limit, so only its key, title and status are shown; ask for the rest with list_open${advice}`,
+    ),
   });
 }
 
@@ -257,7 +280,7 @@ function registerAskHuman(server: McpServer, ctx: ToolContext): void {
         "Create or update a waiting_for_me item: a step only the human can do. Set needs_you to put the question under Needs you on a waiting_for_me item (links say where to act). On a key of another type it sets needs_you (from needs_you, else why, else the title) on that item instead; a part or plan-document item is refused.",
       inputSchema: askHumanShape,
     },
-    (args) => run(ctx, Need.Write, () => askHuman(ctx.repo, args, ctx.clock, parseConfig(ctx.rawConfig).staleAfterMinutes)),
+    (args) => run(ctx, Need.Write, () => askHuman(ctx.repo, args, ctx.clock, () => parseConfig(ctx.rawConfig).staleAfterMinutes)),
   );
 }
 

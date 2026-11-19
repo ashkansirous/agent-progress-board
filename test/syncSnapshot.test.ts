@@ -346,7 +346,7 @@ describe("sync_snapshot rules (Slice 33)", () => {
     expect((await stored2())?.details_md).toBe("now the rest");
     at(3);
     await sync([item(2, { details_md: "changed again" })]);
-    expect((await stored2())?.details_md).toBe("now the rest");
+    expect((await stored2())?.details_md).toBe("now the rest"); // a slice's stored text is never overwritten
     await sync([item(1, { details_md: "the rest of the title" })]);
     const stored = () => env.DB.prepare("SELECT details_md FROM items WHERE key = ?1").bind("demo-app/slice-1").first<{ details_md: string | null }>();
     expect((await stored())?.details_md).toBe("the rest of the title");
@@ -354,6 +354,31 @@ describe("sync_snapshot rules (Slice 33)", () => {
     at(5);
     await sync([item(1, { title: "Slice 1 retitled", details_md: "changed" })]);
     expect((await stored())?.details_md).toBe("live notes");
+  });
+
+  it("Slice 45: an owner step's details and cut title follow its document line on a re-sync", async () => {
+    const step = (title: string, details_md?: string) => ({
+      key: "demo-app/slice-4/check-0a1b2c3d4e5f", project: PROJECT, title, type: "waiting_for_me", status: "open", ...(details_md ? { details_md } : {}),
+    });
+    const read = () => env.DB.prepare("SELECT title, details_md FROM items WHERE key = ?1").bind("demo-app/slice-4/check-0a1b2c3d4e5f").first<{ title: string; details_md: string | null }>();
+    await sync([step("Slice 4: a long run-on title that was cut", "old steps")] as never);
+    expect(await read()).toEqual({ title: "Slice 4: a long run-on title that was cut", details_md: "old steps" });
+    at(2);
+    await sync([step("Slice 4: set it up", "go to the page, then test")] as never);
+    expect(await read()).toEqual({ title: "Slice 4: set it up", details_md: "go to the page, then test" });
+    at(3);
+    await sync([step("Slice 4: set it up")] as never);
+    expect((await read())?.details_md).toBe("go to the page, then test");
+  });
+
+  it("Slice 45 #3: a document line edited down to no steps clears the card's steps text", async () => {
+    const key = "demo-app/slice-4/check-0a1b2c3d4e5f";
+    const step = (details_md?: string | null) => ({ key, project: PROJECT, title: "Slice 4: do X", type: "waiting_for_me", status: "open", ...(details_md === undefined ? {} : { details_md }) });
+    const read = () => env.DB.prepare("SELECT details_md FROM items WHERE key = ?1").bind(key).first<{ details_md: string | null }>();
+    await sync([step("open page, copy key")] as never);
+    at(2);
+    await sync([step(null)] as never);
+    expect((await read())?.details_md).toBeNull();
   });
 
   it("checks a check against a sibling slice that is itself skipped", async () => {

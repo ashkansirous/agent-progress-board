@@ -9,8 +9,8 @@ import { setTimeout } from 'node:timers';
 import { fileURLToPath } from 'node:url';
 import { AGENT_FRESH_MS, mergeSteps, placeAgents, readBackgroundAgents, subagentsDir } from './background-agents.mjs';
 import { closeAnsweredWaiting, handle as remind, REMINDER_TEXT } from './goal-reminder.mjs';
-import { addStoppedAgent, hasMarker, listMarkers, readGoal, readStdinText, readStoppedAt, removeGoal, touchSeen, updateGoal, writeGoal, writeJson, writeMarker, writePrompt } from './hook-input.mjs';
-import { DEAD_SESSION_MS, run as runDone, startContext } from './session-done.mjs';
+import { SENDER_LOG_LINES, addStoppedAgent, hasMarker, listMarkers, logSender, readGoal, readStdinText, readStoppedAt, removeGoal, removeStoppedAgent, touchSeen, updateGoal, writeGoal, writeJson, writeMarker, writePrompt } from './hook-input.mjs';
+import { DEAD_SESSION_MS, closeDeadWaiting, markWaitingDone, run as runDone, startContext } from './session-done.mjs';
 import { execFileSync } from 'node:child_process';
 import { branchOf, run as runWaiting, titleOf, usableCwd } from './session-waiting.mjs';
 import { cleanUpAfterTests, envFor, callsOf, replyOk, runNode, startFakeBoard, trackedTemp } from '../test-helpers.mjs';
@@ -714,6 +714,18 @@ describe('waiting card title and folder (session-waiting)', () => {
     assert.equal(callsOf(board)[0].args.title, 'Rotate token: ***');
   });
 
+  test('Slice 45 #12: a title is masked before the 200-character cut, so a cut never leaves half a secret', () => {
+    const goal = { title: `${'x'.repeat(190)} token=abcdefghijklmnop`, closed: false };
+    const title = titleOf({}, { project: 'demo-app' }, goal);
+    assert.ok(!title.includes('abcd') && !title.includes('token=a'), title);
+    assert.ok(title.length <= 200, String(title.length));
+  });
+
+  test('Slice 45 #12: with no usable cwd there is no branch, never the hook folder\'s ancestor repo', () => {
+    assert.equal(titleOf({ cwd: undefined }, { project: 'demo-app' }, null), 'demo-app');
+    assert.equal(titleOf({}, { project: 'demo-app' }, null), 'demo-app');
+  });
+
   test('titleOf never sends a closed goal\'s title; an open goal\'s title still wins', () => {
     const repo = folder('board-repo-');
     startRepo(repo, 'topic-y');
@@ -1069,6 +1081,77 @@ describe('Slice 29: background-agent state', () => {
     assert.deepEqual([goal.closed, goal.held], [true, false]);
   });
 
+  test('a close that landed during Stop\'s held report is sent again after it (Slice 45, Slice 29 follow-up #2)', async () => {
+    const root = folder();
+    let during = () => {};
+    const board = await startFakeBoard((record, res) => { during(); replyOk(record, res); });
+    const env = envFor(board.url, root);
+    withCard(root);
+    const running = sessionWithAgents([{ id: 'a1', description: 'Translate texts', ageMs: MINUTE }]);
+    during = () => {
+      during = () => {};
+      writeGoal('sess-1', { ...readGoal('sess-1', root, NOW), closed: true, closedBy: 'stop', closedAt: Date.now() + 1, held: false, heldAt: 0 }, root, NOW);
+    };
+    await runDone(stopInput(running, 'Stop'), env, {}, NOW);
+    board.server.close();
+    assert.deepEqual(callsOf(board).map((call) => call.tool), ['report_progress', 'mark_done']);
+    assert.equal(readGoal('sess-1', root, NOW).closed, true);
+  });
+
+  test('Slice 45 #9: a close made before the Stop hook began is not sent again', async () => {
+    const root = folder();
+    let during = () => {};
+    const board = await startFakeBoard((record, res) => { during(); replyOk(record, res); });
+    const env = envFor(board.url, root);
+    withCard(root);
+    const running = sessionWithAgents([{ id: 'a1', description: 'Translate texts', ageMs: MINUTE }]);
+    during = () => {
+      during = () => {};
+      writeGoal('sess-1', { ...readGoal('sess-1', root, NOW), closed: true, closedBy: 'stop', closedAt: NOW - 1, held: false, heldAt: 0 }, root, NOW);
+    };
+    await runDone(stopInput(running, 'Stop'), env, {}, NOW);
+    board.server.close();
+    assert.deepEqual(callsOf(board).map((call) => call.tool), ['report_progress']);
+    assert.equal(readGoal('sess-1', root, NOW).held, false, 'a card the file shows closed is never marked held');
+  });
+
+  test('Slice 45 #1/#2: a close written before the held report went out is not sent again, and is never held', async () => {
+    const root = folder();
+    let during = () => {};
+    const board = await startFakeBoard((record, res) => { during(); replyOk(record, res); });
+    const env = envFor(board.url, root);
+    withCard(root);
+    const running = sessionWithAgents([{ id: 'a1', description: 'Translate texts', ageMs: MINUTE }]);
+    during = () => {
+      during = () => {};
+      writeGoal('sess-1', { ...readGoal('sess-1', root, NOW), closed: true, closedBy: 'stop', closedAt: Date.now() - 60_000, held: false, heldAt: 0 }, root, NOW);
+    };
+    await runDone(stopInput(running, 'Stop'), env, {}, NOW - 120_000);
+    board.server.close();
+    assert.deepEqual(callsOf(board).map((call) => call.tool), ['report_progress']);
+    assert.equal(readGoal('sess-1', root, NOW).held, false);
+  });
+
+  test('Slice 45 #1: a close that started before Stop but was written during its report is sent again, with the real clock as closedAt', async () => {
+    const root = folder();
+    let during = () => {};
+    const board = await startFakeBoard((record, res) => { during(); replyOk(record, res); });
+    const env = envFor(board.url, root);
+    withCard(root);
+    const running = sessionWithAgents([{ id: 'a1', description: 'Translate texts', ageMs: MINUTE }]);
+    during = () => {
+      during = () => {};
+      writeGoal('sess-1', { ...readGoal('sess-1', root, NOW), closed: true, closedBy: 'stop', closedAt: Date.now(), held: false, heldAt: 0 }, root, NOW);
+    };
+    const before = Date.now();
+    await runDone(stopInput(running, 'Stop'), env, {}, NOW - 120_000);
+    board.server.close();
+    assert.deepEqual(callsOf(board).map((call) => call.tool), ['report_progress', 'mark_done']);
+    const goal = readGoal('sess-1', root, NOW);
+    assert.ok(goal.closedAt >= before, 'closedAt is the real clock time of the close write');
+    assert.deepEqual([goal.closed, goal.held], [true, false]);
+  });
+
   test('a SubagentStop while another agent still runs does not close the card', async () => {
     const board = await startFakeBoard(replyOk);
     const root = folder();
@@ -1231,6 +1314,81 @@ describe('Slice 29: background-agent state', () => {
     assert.deepEqual(stoppedIds(root).sort(), ['a b', 'a.b']);
     removeGoal('sess-1', root);
     assert.equal(existsSync(join(root, 'sess-1.stopped')), false);
+  });
+
+  test('Slice 45 (Slice 29 follow-ups): the stop folder goes with an aged-out goal file and with its last resumed agent', () => {
+    const root = folder();
+    writeGoal('sess-7', { key: 'demo-app/session-sess-7', project: 'demo-app', title: 't' }, root, NOW);
+    addStoppedAgent('sess-7', 'a1', root, NOW);
+    const old = new Date(Date.now() - 25 * 60 * 60 * 1000);
+    utimesSync(join(root, 'sess-7.goal.json'), old, old);
+    assert.equal(readGoal('sess-7', root, Date.now()), null);
+    assert.equal(existsSync(join(root, 'sess-7.stopped')), false);
+    addStoppedAgent('sess-8', 'a1', root, NOW);
+    addStoppedAgent('sess-8', 'a2', root, NOW);
+    removeStoppedAgent('sess-8', 'a1', root);
+    assert.deepEqual(Object.keys(readStoppedAt('sess-8', root)), ['a2']);
+    removeStoppedAgent('sess-8', 'a2', root);
+    assert.equal(existsSync(join(root, 'sess-8.stopped')), false);
+  });
+
+  test('Slice 45: a temp file a killed hook left behind is removed by the next write of the same file, a fresh one is kept', () => {
+    const root = folder();
+    const file = join(root, 'x.goal.json');
+    writeJson(file, { a: 1 });
+    const stale = `${file}.1-dead.tmp`;
+    const fresh = `${file}.2-live.tmp`;
+    writeFileSync(stale, '{');
+    writeFileSync(fresh, '{');
+    const old = new Date(Date.now() - 60 * 60 * 1000);
+    utimesSync(stale, old, old);
+    writeJson(file, { a: 2 });
+    assert.equal(existsSync(stale), false);
+    assert.equal(existsSync(fresh), true);
+  });
+
+  test('Slice 45: the sender log names the hook, session and the fields a card report sent, and stays short', () => {
+    const root = folder();
+    logSender(root, 'session-done:report_progress', 'sess-1', 'demo-app/session-sess-1', ['status', 'title']);
+    assert.match(readFileSync(join(root, 'senders.log'), 'utf8'), /session-done:report_progress sess-1 demo-app\/session-sess-1 status,title\n$/);
+    for (let n = 0; n < SENDER_LOG_LINES * 2 + 5; n += 1) logSender(root, 'h', 'sess-1', 'k', []);
+    assert.ok(readFileSync(join(root, 'senders.log'), 'utf8').split('\n').filter(Boolean).length <= SENDER_LOG_LINES * 2);
+  });
+
+  test('Slice 45 #4: the waiting card, its close and the dead-session sweep are logged with their sender', async () => {
+    const board = await startFakeBoard(replyOk);
+    const root = folder();
+    const env = envFor(board.url, root);
+    await runWaiting({ session_id: 'sess-w', cwd: process.cwd(), message: 'Claude needs your permission' }, env);
+    await markWaitingDone({ session_id: 'sess-w', cwd: process.cwd() }, env, root, {});
+    writeMarker({ session_id: 'sess-dead' }, 'demo-app/session-sess-dead', root);
+    await closeDeadWaiting(env, root, 'other', Date.now() + DEAD_SESSION_MS * 3, {});
+    board.server.close();
+    const log = readFileSync(join(root, 'senders.log'), 'utf8');
+    assert.match(log, /session-waiting:report_progress sess-w /);
+    assert.match(log, /session-done:mark_done sess-w /);
+    assert.match(log, /session-done:sweep:mark_done sess-dead demo-app\/session-sess-dead /);
+  });
+
+  test('Slice 45 #5: a stop record whose folder was removed mid-write is written again', () => {
+    const root = folder();
+    let calls = 0;
+    const flaky = (file, value) => { calls += 1; if (calls > 1) writeJson(file, value); };
+    addStoppedAgent('sess-r', 'a1', root, NOW, flaky);
+    assert.equal(calls, 2);
+    assert.deepEqual(Object.keys(readStoppedAt('sess-r', root)), ['a1']);
+  });
+
+  test('Slice 45: a Stop that sends a card report is logged with its hook and fields, and a goal-bearing report never names title or why', async () => {
+    const board = await startFakeBoard(replyOk);
+    const root = folder();
+    const env = envFor(board.url, root);
+    writeGoal('sess-1', { key: 'demo-app/session-sess-1', project: 'demo-app', title: 'Goal' }, root, NOW);
+    await runDone({ session_id: 'sess-1', hook_event_name: 'Stop', cwd: process.cwd() }, env, {}, NOW);
+    board.server.close();
+    const log = readFileSync(join(root, 'senders.log'), 'utf8');
+    assert.match(log, /session-done:\w+ sess-1 demo-app\/session-sess-1/);
+    assert.doesNotMatch(log, /\btitle\b|\bwhy\b/);
   });
 
   test('a session step with the agent\'s label stays as it is and the agent is its own row', () => {

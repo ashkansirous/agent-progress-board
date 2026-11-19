@@ -76,6 +76,8 @@ export function xForReset(iso: string, buckets: Bucket[], frame: Frame): number 
 export interface ResetLabelPlace {
   x: number;
   anchor: "start" | "end";
+  /** False when the word is wider than the whole plot: it would run past an edge wherever it sits, so it is not drawn (Slice 45). */
+  fits: boolean;
 }
 
 /**
@@ -85,11 +87,12 @@ export interface ResetLabelPlace {
  */
 export function resetLabelPlace(lineX: number, frame: Frame, labelWidth: number, gap: number): ResetLabelPlace {
   const start = Math.max(lineX, frame.x0) + gap;
-  if (start + labelWidth <= frame.x1) return { x: start, anchor: "start" };
+  if (labelWidth > frame.x1 - frame.x0) return { x: start, anchor: "start", fits: false };
+  if (start + labelWidth <= frame.x1) return { x: start, anchor: "start", fits: true };
   // Left of the line only when the whole word fits there; else it stays right of the line, never across it.
   const end = lineX - gap;
-  if (end - labelWidth >= frame.x0) return { x: end, anchor: "end" };
-  return { x: start, anchor: "start" };
+  if (end - labelWidth >= frame.x0) return { x: end, anchor: "end", fits: true };
+  return { x: start, anchor: "start", fits: true };
 }
 
 /** The x of the centre of bucket `index`. */

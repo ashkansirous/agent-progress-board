@@ -15,11 +15,11 @@
 import { realpathSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { callTool, isOrchestrator, resolveConfig } from '../report-progress.mjs';
+import { isOrchestrator, resolveConfig } from '../report-progress.mjs';
 import { AGENT_FRESH_MS, AGENT_PREFIX, AGENT_STATE, CARD_NOTE, RESUME_SLACK_MS, agentRowId, hasActiveAgent, hasAgentMeta, isForegroundAgent, mergeSteps, placeAgents, readBackgroundAgents, subagentsDir } from './background-agents.mjs';
 import {
   CLOSED_BY, HOOK_SOURCE, ORCH_CLOSE, HOOK_TIMEOUT_MS, addStoppedAgent, hasMarker, listMarkers, parseInput, readGoal, readMarkerKey, readSeen, readStdinText,
-  readStoppedAt, removeMarker, removeStoppedAgent, sessionContext, sessionIdOf, stateRoot, touchSeen, updateGoal,
+  readStoppedAt, removeMarker, removeStoppedAgent, sendCardReport, sessionContext, sessionIdOf, stateRoot, touchSeen, updateGoal,
 } from './hook-input.mjs';
 
 export const DEAD_SESSION_MS = 30 * 60 * 1000; // a waiting card whose session sent nothing for this long is closed
@@ -54,7 +54,7 @@ function mergeParents(current, parents) {
 
 async function sendCard(config, id, root, args, now, options) {
   const started = Date.now();
-  const outcome = await callTool(config, args.tool, args.body, callOptions(options));
+  const outcome = await sendCardReport(root, 'session-done', id, config, args.tool, args.body, callOptions(options));
   const gone = !outcome.ok && NO_ITEM.test(outcome.error || '');
   if (outcome.ok || gone) saveGoal(id, args.patch, root, now, now + (Date.now() - started));
   else process.stderr.write(`report-progress hook: card skipped (${outcome.error})\n`); // state unchanged: the next hook retries
@@ -81,7 +81,7 @@ function currentAgents(input, id, root, now) {
   const stopped = readStoppedAt(id, root);
   const agents = readBackgroundAgents(input, now, stopped);
   for (const agent of agents) {
-    if (agent.state === AGENT_STATE.active && agent.id in stopped) removeStoppedAgent(id, agent.id, root);
+    if (agent.state === AGENT_STATE.active && Object.hasOwn(stopped, agent.id)) removeStoppedAgent(id, agent.id, root);
   }
   return agents;
 }
@@ -97,11 +97,36 @@ async function stopCard(input, env, goal, root, now, options) {
     const body = keepQuestion(goal, { key: goal.key, status: 'in_progress', source: HOOK_SOURCE, note: CARD_NOTE, steps });
     // Held before the call, so a SubagentStop of the last agent during it already finds the hold; heldAt is then
     // the time the call returned, so its network time does not eat HELD_SLACK_MS.
-    saveGoal(id, (current) => ({ held: true, heldAt: now, agentParents: mergeParents(current, parents) }), root, now);
-    const patch = (current, doneAt) => ({ sig: JSON.stringify(steps), held: true, heldAt: doneAt, agentParents: mergeParents(current, parents) });
-    return sendCard(config, id, root, { tool: 'report_progress', body, patch }, now, options);
+    saveGoal(id, (current) => ({ ...heldFields(current, now), agentParents: mergeParents(current, parents) }), root, now);
+    const patch = (current, doneAt) => ({ sig: JSON.stringify(steps), ...heldFields(current, doneAt), agentParents: mergeParents(current, parents) });
+    const sentAt = Date.now(); // the clock just before the report goes out: a close written at or after it can be older than the report
+    const outcome = await sendCard(config, id, root, { tool: 'report_progress', body, patch }, now, options);
+    return reCloseIfClosedMeanwhile(config, id, root, outcome, sentAt, options);
   }
   return closeCard(config, goal, id, root, now, options);
+}
+
+// The held report above takes up to 2 s: the last SubagentStop may have closed the card during it, and the board would
+// then keep this older in_progress report over the close. The goal file says whether that happened, so the close is
+// sent once more, after the report (Slice 45, Slice 29 follow-up #2).
+// `closedAt` is the clock time of the close's write to the goal file (closeFields), so only a close written at or after
+// `sentAt`, the clock just before the held report went out, counts: a close from before the report never re-closes.
+async function reCloseIfClosedMeanwhile(config, id, root, outcome, sentAt, options) {
+  const after = readGoal(id, root, Date.now());
+  if (!outcome.ok || !after || !after.closed || after.closedBy !== CLOSED_BY.stop || after.closedAt < sentAt) return outcome;
+  process.stderr.write('report-progress hook: stop report landed after the close, closing again\n');
+  const body = { key: after.key, source: HOOK_SOURCE, note: NOTE.stopped };
+  return sendCard(config, id, root, { tool: 'mark_done', body, patch: closeFields }, Date.now(), options);
+}
+
+// The goal fields of a close, written when the close call returned: `closedAt` is the real clock then, never the hook's start time.
+function closeFields() {
+  return { closed: true, closedBy: CLOSED_BY.stop, closedAt: Date.now(), held: false, heldAt: 0 };
+}
+
+// The hold goes on only a card the file does not already show closed (another hook may have closed it meanwhile).
+function heldFields(current, at) {
+  return current.closed ? {} : { held: true, heldAt: at };
 }
 
 // Marks the card done "Session stopped". A done report would clear the open question, and the person still has to
@@ -116,7 +141,7 @@ async function closeCard(config, goal, id, root, now, options) {
     return { skipped: 'question open' };
   }
   const body = { key: goal.key, source: HOOK_SOURCE, note: NOTE.stopped };
-  return sendCard(config, id, root, { tool: 'mark_done', body, patch: { closed: true, closedBy: CLOSED_BY.stop, held: false, heldAt: 0 } }, now, options);
+  return sendCard(config, id, root, { tool: 'mark_done', body, patch: closeFields }, now, options);
 }
 
 // True when the main transcript was written after Stop held the card: a finished agent woke the main thread (or the
@@ -220,7 +245,7 @@ async function resumeCard(input, env, goal, root, now, options) {
 // The goal file after a resume. The question it cleared is cleared in the file only when the file still holds it: a
 // question the session asked during the call stays. `sig` goes, so the next agent list is sent whatever the last was.
 function resumedPatch(goal) {
-  return (current) => ({ closed: false, closedBy: '', held: false, heldAt: 0, sig: '', needsYou: current.needsYou === goal.needsYou ? '' : current.needsYou });
+  return (current) => ({ closed: false, closedBy: '', closedAt: 0, held: false, heldAt: 0, sig: '', needsYou: current.needsYou === goal.needsYou ? '' : current.needsYou });
 }
 
 // A session marked an orchestrator after it reported a card: that card is closed once, at the next hook, and the
@@ -255,7 +280,7 @@ export async function markWaitingDone(input, env, root, options) {
   const context = sessionContext(input, env);
   if (!context) return { skipped: 'no session or token' };
   const args = { key: readMarkerKey(input, root) || context.key, source: HOOK_SOURCE, note: NOTE.stopped };
-  const outcome = await callTool(context.config, 'mark_done', args, callOptions(options));
+  const outcome = await sendCardReport(root, 'session-done', sessionIdOf(input), context.config, 'mark_done', args, callOptions(options));
   if (outcome.ok || NO_ITEM.test(outcome.error || '')) removeMarker(input, root);
   else process.stderr.write(`report-progress hook: skipped (${outcome.error})\n`);
   return outcome;
@@ -270,7 +295,7 @@ export async function closeDeadWaiting(env, root, currentId, now, options) {
     .filter((marker) => marker.id !== currentId && now - marker.atMs > DEAD_SESSION_MS && now - readSeen(marker.id, root) > DEAD_SESSION_MS)
     .slice(0, SWEEP_LIMIT);
   return Promise.all(dead.map(async (marker) => {
-    const outcome = await callTool(config, 'mark_done', { key: marker.key, source: HOOK_SOURCE, note: NOTE.ended }, callOptions(options));
+    const outcome = await sendCardReport(root, 'session-done:sweep', marker.id, config, 'mark_done', { key: marker.key, source: HOOK_SOURCE, note: NOTE.ended }, callOptions(options));
     if (outcome.ok || NO_ITEM.test(outcome.error || '')) removeMarker({ session_id: marker.id }, root);
     else process.stderr.write(`report-progress hook: dead session card skipped (${outcome.error})\n`);
     return outcome;

@@ -4,9 +4,12 @@
 // Files live in the state folder (report-progress.mjs stateRoot): `<id>` (waiting marker), `<id>.goal.json`
 // (the session's own card), `<id>.prompt.json` (the reminder's prompt counter) and `<id>.seen` (last activity).
 import { createHash } from 'node:crypto';
-import { existsSync,mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { projectSlug, resolveConfig, stateRoot } from '../report-progress.mjs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, rmdirSync, statSync, writeFileSync } from 'node:fs';
+import { basename, dirname, join } from 'node:path';
+import { SENDER_LOG_LINES, logSender, projectSlug, resolveConfig, safeId, sendCardReport, stateRoot } from '../report-progress.mjs';
+
+// The sender log and the one call that logs a card report live in report-progress.mjs (the CLI uses them too).
+export { SENDER_LOG_LINES, logSender, safeId, sendCardReport };
 
 export const HOOK_TIMEOUT_MS = 2000;
 export const HOOK_SOURCE = 'hook';
@@ -36,10 +39,6 @@ export function readStdinText(reader = () => readFileSync(0, 'utf8')) {
     process.stderr.write(`report-progress hook: stdin unreadable (${error && error.code ? error.code : 'error'})\n`);
     return '';
   }
-}
-
-export function safeId(id) {
-  return String(id || '').trim().replace(/[^A-Za-z0-9_-]/g, '_');
 }
 
 export function sessionIdOf(input) {
@@ -75,6 +74,22 @@ function renameWithRetry(temp, file, rename) {
   rename(temp, file);
 }
 
+// A temp file left by a process that was killed between its write and its rename is removed by the next write of the
+// same file once it is this old.
+const STALE_TEMP_MS = 10 * 60 * 1000;
+
+function removeStaleTemps(file) {
+  try {
+    const prefix = `${basename(file)}.`;
+    const dir = dirname(file);
+    for (const name of readdirSync(dir)) {
+      if (!name.startsWith(prefix) || !name.endsWith('.tmp')) continue;
+      const path = join(dir, name);
+      if (Date.now() - statSync(path).mtimeMs > STALE_TEMP_MS) removeFile(path);
+    }
+  } catch { /* the next write retries */ }
+}
+
 export function writeJson(file, value, rename = renameSync) {
   if (!file) return;
   const temp = `${file}.${process.pid}-${Math.random().toString(36).slice(2)}.tmp`;
@@ -82,6 +97,7 @@ export function writeJson(file, value, rename = renameSync) {
     mkdirSync(dirname(file), { recursive: true });
     writeFileSync(temp, JSON.stringify(value));
     renameWithRetry(temp, file, rename);
+    removeStaleTemps(file);
   } catch {
     removeFile(temp); /* fail open: the session is then judged by the board's own rules */
   }
@@ -105,11 +121,12 @@ function removeFile(file) {
 
 // The JSON of a state file, or null. A file older than SESSION_FILE_MAX_AGE_MS belongs to a session
 // that ended: it is ignored and removed, so a reused id starts clean.
-function readFreshJson(file, now) {
+function readFreshJson(file, now, onStale = () => {}) {
   if (!file) return null;
   try {
     if (now - statSync(file).mtimeMs > SESSION_FILE_MAX_AGE_MS) {
       removeFile(file);
+      onStale();
       return null;
     }
     return readJson(file);
@@ -202,14 +219,19 @@ export function readStoppedAt(id, root) {
 // A resumed agent: only its own file goes. A file already gone is fine.
 export function removeStoppedAgent(id, agentId, root) {
   removeFile(stoppedFile(id, agentId, root));
+  try {
+    rmdirSync(stoppedDir(id, root)); // only an empty folder goes; one with other agents' files stays
+  } catch { /* not empty, or already gone */ }
 }
 
 // Records the stop time of an agent (a resumed agent that stops again gets a new time) and deletes the files older
 // than STOPPED_KEEP_MS, one by one, so the folder stays small.
-export function addStoppedAgent(id, agentId, root, now = Date.now()) {
+export function addStoppedAgent(id, agentId, root, now = Date.now(), write = writeJson) {
   const file = stoppedFile(id, agentId, root);
   if (!file) return;
-  writeJson(file, { id: agentId, at: now });
+  write(file, { id: agentId, at: now });
+  // A concurrent removeStoppedAgent may have removed the empty folder between mkdir and the temp file's write: once more.
+  if (!existsSync(file)) write(file, { id: agentId, at: now });
   for (const entry of stoppedEntries(id, root)) {
     if (now - entry.value.at > STOPPED_KEEP_MS) removeFile(entry.file);
   }
@@ -290,7 +312,7 @@ function goalSteps(value) {
 // The goal file's content, or null. A goal whose own goalAt is older than SESSION_FILE_MAX_AGE_MS no longer
 // counts, however often the file was rewritten.
 export function readGoal(id, root, now = Date.now()) {
-  const value = readFreshJson(sessionFile(id, GOAL_SUFFIX, root), now);
+  const value = readFreshJson(sessionFile(id, GOAL_SUFFIX, root), now, () => removeStoppedFolder(id, root)); // the goal file aged out: its stop files go with it
   if (!value || !Number.isFinite(value.at)) return null;
   const goalAt = Number.isFinite(value.goalAt) ? value.goalAt : value.at;
   if (now - goalAt > SESSION_FILE_MAX_AGE_MS) {
@@ -308,6 +330,7 @@ export function readGoal(id, root, now = Date.now()) {
     steps: goalSteps(value.steps),
     closed: value.closed === true,
     closedBy: value.closedBy === CLOSED_BY.stop || value.closedBy === CLOSED_BY.session ? value.closedBy : '',
+    closedAt: Number.isFinite(value.closedAt) ? value.closedAt : 0,
     needsYou: text(value.needsYou),
     sig: text(value.sig),
     kind: cardKindOf(value), // 'task' or 'slice': a slice card's status is doc sync's, so session-done never closes it

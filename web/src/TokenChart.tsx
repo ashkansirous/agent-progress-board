@@ -156,6 +156,7 @@ function Axes({ props }: { props: BarsProps }) {
 
 function ResetText({ x, layout, text }: { x: number; layout: ChartLayout; text: string }) {
   const place = resetLabelPlace(x, layout.frame, text.length * layout.font * RESET_CHAR_WIDTH, RESET_LABEL_GAP);
+  if (!place.fits) return null;
   return (
     <text className="reset-text" x={place.x} y={layout.frame.yTop + RESET_LABEL_DROP} textAnchor={place.anchor} fontSize={layout.font}>
       {text}

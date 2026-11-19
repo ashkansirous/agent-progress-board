@@ -12,12 +12,15 @@ import {
   isWorkingCard,
   opensCardDrawer,
   ownerStepDetails,
+  cardQuestion,
+  linkBoardAddress,
   ownerStepFallback,
   purposeText,
   questionStart,
   resolveBoardAddress,
   sessionLabel,
   stepUrls,
+  withoutBoardPages,
   waitingText,
 } from "../web/src/cards";
 import { groupBoard } from "../src/domain/boardGroups";
@@ -121,10 +124,18 @@ describe("card words", () => {
 
   it("lowers the first letter of an outcome word, except 'I' and a word whose second letter is not lower case", () => {
     const line = (outcome: string) => purposeText(item({ outcome, why: null }), t);
-    expect(line("Xcode build passes")).toBe("Outcome: xcode build passes");
+    expect(line("Fix build passes")).toBe("Outcome: fix build passes");
     expect(line("I fixed it")).toBe("Outcome: I fixed it");
     expect(line("CI passes")).toBe("Outcome: CI passes");
     expect(line("A plan")).toBe("Outcome: a plan");
+  });
+
+  it("Slice 45: a brand name keeps its capital after the label, an ordinary word does not", () => {
+    const line = (outcome: string) => purposeText(item({ outcome, why: null }), t);
+    expect(line("Cloudflare Worker deployed")).toBe("Outcome: Cloudflare Worker deployed");
+    expect(line("GitHub PR merged")).toBe("Outcome: GitHub PR merged");
+    expect(line("Cloudflare's cache cleared")).toBe("Outcome: Cloudflare's cache cleared");
+    expect(line("Deploy the Worker")).toBe("Outcome: deploy the Worker");
   });
 
   it("says how long a question has waited, in minutes then hours, and nothing without a first-asked time", () => {
@@ -232,5 +243,38 @@ describe("history in plain words", () => {
 
   it("fills every <board address> for text that holds no link (Slice 43)", () => {
     expect(fillBoardAddress("a <board address>/#/x and <board address>", "https://b.test")).toBe("a https://b.test/#/x and https://b.test");
+  });
+
+  it("Slice 45: the details text links a board page and writes a bare address as the origin", () => {
+    const origin = "https://b.test";
+    expect(linkBoardAddress("see <board address>/#/setup and <board address>.", origin)).toBe(`see [${origin}/#/setup](${origin}/#/setup) and ${origin}.`);
+    expect(linkBoardAddress("nothing", origin)).toBe("nothing");
+  });
+
+  it("Slice 45 #1: an address inside a code span or an existing link is not wrapped in a second link", () => {
+    const origin = "https://b.test";
+    expect(linkBoardAddress("open `<board address>/#/usage` now", origin)).toBe(`open \`${origin}/#/usage\` now`);
+    expect(linkBoardAddress("[usage page](<board address>/#/usage)", origin)).toBe(`[usage page](${origin}/#/usage)`);
+    expect(linkBoardAddress("[<board address>/#/usage](https://x.test)", origin)).toBe(`[${origin}/#/usage](https://x.test)`);
+  });
+
+  it("Slice 45 #6: an address mid-label or mid-target of an existing link, or in a code span, never nests a link", () => {
+    const origin = "https://b.test";
+    expect(linkBoardAddress("[see <board address>/#/usage now](https://x.test)", origin)).toBe(`[see ${origin}/#/usage now](https://x.test)`);
+    expect(linkBoardAddress("[see the page](<board address>/#/usage#top)", origin)).toBe(`[see the page](${origin}/#/usage#top)`);
+    expect(linkBoardAddress("[<board address>](<board address>/#/x) and <board address>/#/y", origin)).toBe(`[${origin}](${origin}/#/x) and [${origin}/#/y](${origin}/#/y)`);
+    expect(linkBoardAddress("`a <board address>/#/x b`", origin)).toBe(`\`a ${origin}/#/x b\``);
+  });
+
+  it("Slice 45: one reading of what a card asks serves the card and the drawer heading", () => {
+    const step = item({ type: ItemType.WaitingForMe, key: "p/slice-4/check-0a1b2c3d4e5f", title: "Open the page", needs_you: null });
+    expect(cardQuestion(step)).toBe("Open the page");
+    expect(cardQuestion(item({ needs_you: "Which phone?" }))).toBe("Which phone?");
+    expect(cardQuestion(item({ needs_you: null, why: null }))).toBeNull();
+  });
+
+  it("Slice 45: a step's own link scan skips the board pages the link row already builds", () => {
+    const text = "open <board address>/#/setup then https://claude.ai/code and <board address>.";
+    expect(stepUrls(fillBoardAddress(withoutBoardPages(text), "https://b.test"))).toEqual(["https://claude.ai/code", "https://b.test"]);
   });
 });

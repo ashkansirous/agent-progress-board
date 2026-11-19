@@ -1,7 +1,6 @@
 // Slice 27: what a waiting card says, and when the Notification hook opens none.
 import assert from 'node:assert/strict';
 import process from 'node:process';
-import { performance } from 'node:perf_hooks';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, describe, test } from 'node:test';
@@ -34,6 +33,15 @@ async function notify(extra, entries) {
   const outcome = await runWaiting(input, env);
   board.server.close();
   return { outcome, calls: callsOf(board), root };
+}
+
+// CPU time of the work, not wall time: another process busy beside the suite stretches the wall clock, not the CPU the
+// work itself uses (Slice 45).
+function cpuMsOf(work) {
+  const before = process.cpuUsage();
+  work();
+  const used = process.cpuUsage(before);
+  return (used.user + used.system) / 1000;
 }
 
 describe('question reading', () => {
@@ -98,19 +106,19 @@ describe('question reading', () => {
 
   test('check 3 #4: a 1.5M-character "a-" line is cut to its bounded tail and finishes well under 200 ms', () => {
     const huge = 'a-'.repeat(1500000);
-    const started = performance.now();
-    cardText('idle_prompt', '', { text: `${huge}\nShould I go on?`, tool: null });
-    toolText({ name: 'Bash', input: { command: huge } });
-    cardText('permission_prompt', huge, { text: '', tool: null });
-    assert.ok(performance.now() - started < 200, `took ${performance.now() - started} ms`);
+    const used = cpuMsOf(() => {
+      cardText('idle_prompt', '', { text: `${huge}\nShould I go on?`, tool: null });
+      toolText({ name: 'Bash', input: { command: huge } });
+      cardText('permission_prompt', huge, { text: '', tool: null });
+    });
+    assert.ok(used < 200, `used ${used} ms of CPU`);
     assert.equal(maskSecrets(huge).length, huge.length);
   });
 
   test('masking a long word, dot or hyphen run is linear (well under the hook timeout)', () => {
     for (const run of ['a.'.repeat(50000), 'a-'.repeat(50000), 'a-1'.repeat(40000), 'a.key'.repeat(20000)]) {
-      const started = Date.now();
-      maskSecrets(run);
-      assert.ok(Date.now() - started < 1500, `masking ${run.slice(0, 6)}... took ${Date.now() - started} ms`);
+      const used = cpuMsOf(() => maskSecrets(run));
+      assert.ok(used < 1500, `masking ${run.slice(0, 6)}... used ${used} ms of CPU`);
     }
   });
 });
@@ -260,17 +268,33 @@ describe('Slice 31: the secret mask, sentences and the transcript window', () =>
     ['a quoted JSON value', `{"password":"hunter2"}`, '{"password":***'],
     ['a sentence stop is masked with the rest of the line', 'set token=abc.', 'set token=***'],
     ['a plain command is left alone', 'git log -1 --format=%H', 'git log -1 --format=%H'],
+    ['Slice 45 #12: double-escaped JSON', String.raw`echo "{\\"password\\":\\"hunter2\\"}" x`, String.raw`echo "{\\"password\\":***`],
+    ['Slice 45 #12: a short flag leading a continuation line', 'docker login -u me \\\n-p hunter2', 'docker login -u me \\\n-p ***'],
+    ['Slice 45 #12: psql -W with a value', 'psql -W hunter2 db', 'psql -W ***'],
+    ['Slice 45 #12: "The password is" with the value on the next line', 'The password is\nhunter2\nnext', 'The password is\n***\nnext'],
+    ['Slice 45 #12: "the token was" at the line end', 'the token was\n\nabc123', 'the token was\n\n***'],
   ];
 
   test('the mask table: what is masked and what is left alone', () => {
     for (const [name, input, expected] of MASK_SHAPES) assert.equal(maskSecrets(input), expected, name);
   });
 
+  test('Slice 45 #12: a PEM block whose header lies before the 4096-character window is masked', () => {
+    const pem = ['-----BEGIN ' + 'PRIVATE KEY-----', 'MIIEvQIBADANBgkqhkiG9w0BAQEFAASC', ...Array.from({ length: 200 }, (_, row) => `bodyline${row}abcdefghijklmnopqrstuvwxyz`), '-----END ' + 'PRIVATE KEY-----'].join('\n');
+    const card = cardText('idle_prompt', '', { text: `${pem}\nShould I go on?`, tool: null });
+    assert.deepEqual(card, { needsYou: 'Should I go on?', afterAnswer: '' });
+    const elicit = cardText('elicitation_dialog', '', { text: `${pem}\nWhat now?`, tool: null });
+    assert.ok(!JSON.stringify(elicit).includes('bodyline'), JSON.stringify(elicit));
+    const open = cardText('idle_prompt', '', { text: `Is this the key?\n${pem.slice(0, -26)}\n${'x'.repeat(5000)}?`, tool: null });
+    assert.ok(!JSON.stringify(open).includes('bodyline'), JSON.stringify(open));
+  });
+
   test('check 2 #3: an 80,000-word single line is masked in well under 200 ms', () => {
     const line = 'word '.repeat(80000);
-    const started = performance.now();
-    assert.equal(maskSecrets(line), line);
-    assert.ok(performance.now() - started < 200, `took ${performance.now() - started} ms`);
+    let masked;
+    const used = cpuMsOf(() => { masked = maskSecrets(line); });
+    assert.equal(masked, line);
+    assert.ok(used < 200, `used ${used} ms of CPU`);
     const secret = `${line}token=abc`;
     assert.equal(maskSecrets(secret), `${line}token=***`);
   });

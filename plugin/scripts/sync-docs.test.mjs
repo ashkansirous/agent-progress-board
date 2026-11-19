@@ -548,7 +548,8 @@ describe('sync-docs CLI', () => {
     const snapshot = collect({ root: planRoot(`### Product\n\n${HEADER}`), project: PROJECT });
     assert.deepEqual(snapshot.items, []);
     assert.equal(snapshot.notices.length, 1);
-    assert.match(snapshot.notices[0], /status table empty/);
+    assert.match(snapshot.notices[0], /status table empty, sending an empty snapshot/);
+    assert.match(snapshot.notices[0], /closed= counts them, 0 when it holds none/);
   });
 
   test('FL-1402: a conflict-marked plan.md sends no empty snapshot', () => {
@@ -999,16 +1000,24 @@ describe('Slice 31: plan sync reads the documents right', () => {
   test('Slice 44: an empty action takes the steps as the action, with the prefix and never the raw bar', () => {
     const owner = ownerOf('### Slice 5: x\n\n- **You:** | go to https://claude.ai/code\n');
     assert.equal(owner.title, 'Slice 5: go to https://claude.ai/code');
-    assert.equal(owner.details_md, undefined);
+    assert.equal(owner.details_md, null);
     const long = ownerOf(`### Slice 5: x\n\n- **You:** | ${'word '.repeat(30)}end\n`);
     assert.ok(long.title.startsWith('Slice 5: word') && long.title.length <= 80 && long.title.endsWith('…'));
     assert.ok(long.details_md.startsWith('…') && long.details_md.endsWith('word end'));
   });
 
+  test('Slice 45 #1: a stray [, ** or backtick with no closer never hides the bar', () => {
+    for (const opener of ['[draft', '**draft', '`draft']) {
+      const owner = ownerOf(`### Slice 5: x\n\n- **You:** check the ${opener} | open the page, copy the key\n`);
+      assert.equal(owner.title, `Slice 5: check the ${opener}`, opener);
+      assert.equal(owner.details_md, 'open the page, copy the key', opener);
+    }
+  });
+
   test('Slice 44: a trailing bar, with or without a space after it, is dropped from the title', () => {
     const plainEnd = ownerOf('### Slice 5: x\n\n- **You:** Set variables |\n');
     assert.equal(plainEnd.title, 'Slice 5: Set variables');
-    assert.equal(plainEnd.details_md, undefined);
+    assert.equal(plainEnd.details_md, null);
     const spaced = ownerOf('### Slice 5: x\n\n- **You:** Set variables | \n');
     assert.equal(spaced.title, 'Slice 5: Set variables');
   });
@@ -1016,12 +1025,24 @@ describe('Slice 31: plan sync reads the documents right', () => {
   test('Slice 44: a bar inside a code span, or with no space on a side, does not split', () => {
     const inCode = ownerOf('### Slice 5: x\n\n- **You:** run `cat log | grep ERROR` and check the count\n');
     assert.equal(inCode.title, 'Slice 5: run cat log | grep ERROR and check the count');
-    assert.equal(inCode.details_md, undefined);
+    assert.equal(inCode.details_md, null);
     const tight = ownerOf('### Slice 5: x\n\n- **You:** pick a|b or c\n');
     assert.equal(tight.title, 'Slice 5: pick a|b or c');
     const after = ownerOf('### Slice 5: x\n\n- **You:** run `a | b` | then open https://x.test\n');
     assert.equal(after.title, 'Slice 5: run a | b');
     assert.equal(after.details_md, 'then open https://x.test');
+  });
+
+  test('Slice 45: a bar inside bold text or a link does not split, and a line already starting "Slice N:" keeps it once', () => {
+    const bold = ownerOf('### Slice 5: x\n\n- **You:** do **a | b** first | then open https://x.test\n');
+    assert.equal(bold.title, 'Slice 5: do a | b first');
+    assert.equal(bold.details_md, 'then open https://x.test');
+    const link = ownerOf('### Slice 5: x\n\n- **You:** open [the a | b page](https://x.test/p) now | then stop\n');
+    assert.equal(link.title, 'Slice 5: open the a | b page now');
+    assert.equal(link.details_md, 'then stop');
+    const twice = ownerOf('### Slice 5: x\n\n- **You:** Slice 5: set it up | then test\n');
+    assert.equal(twice.title, 'Slice 5: set it up');
+    assert.equal(twice.details_md, 'then test');
   });
 
   test('Slice 44: steps written as nested bullets after the bar are the description', () => {
@@ -1038,6 +1059,13 @@ describe('Slice 31: plan sync reads the documents right', () => {
 
 describe('Slice 43: code spans keep their names', () => {
   const table = (row) => `## Status\n\n| # | Slice | Status | PR | Issue | File |\n| --- | --- | --- | --- | --- | --- |\n${row}\n`;
+
+  test('Slice 45: a double-backtick span keeps its text, a lone mark is dropped, an unmatched backtick stays', () => {
+    assert.equal(plain('run ``a`b_c`` now'), 'run a`b_c now');
+    assert.equal(plain('a `` b'), 'a `` b');
+    assert.equal(plain(`keep \uE000 and \`x_y\` here`), 'keep and x_y here');
+    assert.equal(plain('**bold** `a_b`'), 'bold a_b');
+  });
 
   test('plain keeps the text inside backticks, underscores and stars included, and drops the marks', () => {
     assert.equal(plain('set `AGENT_BOARD_URL` and `a*b` first'), 'set AGENT_BOARD_URL and a*b first');

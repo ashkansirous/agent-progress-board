@@ -38,12 +38,13 @@ import { spawn } from 'node:child_process';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { TASK_MAX_AGE_MS, TASK_STATUS, callTool, projectSlug, readPlanCapEnabled, reportUsageEnabled, resolveConfig, resolveEnvironment, slugify, stateRoot, taskFilePath } from './report-progress.mjs';
+import { TASK_MAX_AGE_MS, TASK_STATUS, callTool, sendCardReport, projectSlug, readPlanCapEnabled, reportUsageEnabled, resolveConfig, resolveEnvironment, slugify, stateRoot, taskFilePath } from './report-progress.mjs';
 
 // The hook call (this script run directly without --run) only reads the gate and, when due, starts the
 // background run: it never loads the modules that only the run needs (Slice 30). Anything else that
 // imports this file (the tests, the background run) gets them loaded before its first use.
 const RUN_FLAG = '--run';
+export const LOG_FILE = 'usage-tick.log'; // before the module loads below: a failed load writes it
 const HOOK_CALL = isInvokedDirectly() && !process.argv.includes(RUN_FLAG);
 let sendCapReading;
 let readGoal;
@@ -58,9 +59,8 @@ if (!HOOK_CALL) {
     ({ readGoal } = await import('./hooks/hook-input.mjs'));
     ({ agentKindOf, emptyFileState, listRecordFiles, metaKindOf, scanFile } = await import('./usage-report.mjs'));
   } catch (error) {
-    logSkipped(error); // fails open: a module that cannot load ends the run quietly
+    logSkipped(error); // fails open: a module that cannot load ends the run quietly, for an importer too
     if (isInvokedDirectly()) process.exit(0);
-    throw error;
   }
 }
 
@@ -486,7 +486,8 @@ export function heartbeatArgs(activeSessions, taskRoot, now) {
     if (!task || task.status !== TASK_STATUS.inProgress || task.ageMs < HEARTBEAT_MIN_AGE_MS) continue;
     // The project the report used; only a file written before it was stored falls back to the key prefix.
     const project = task.project || (task.key.includes('/') ? task.key.split('/')[0] : '');
-    if (project) byKey.set(task.key, { key: task.key, project });
+    // The session id rides along unsent (not enumerable) so the sender log names the session, not a key tail.
+    if (project) byKey.set(task.key, Object.defineProperty({ key: task.key, project }, 'sessionId', { value: sessionId }));
   }
   return [...byKey.values()];
 }
@@ -509,7 +510,7 @@ async function runHeartbeats({ config, activeSessions, taskRoot, now, options, t
   try {
     const beats = heartbeatArgs(activeSessions, taskRoot, now);
     touch();
-    const outcomes = await Promise.all(beats.map((args) => callTool(config, PROGRESS_TOOL, args, { timeoutMs: SEND_TIMEOUT_MS, ...options })));
+    const outcomes = await Promise.all(beats.map((args) => sendCardReport(taskRoot, 'usage-tick', args.sessionId, config, PROGRESS_TOOL, args, { timeoutMs: SEND_TIMEOUT_MS, ...options })));
     const sentKeys = new Set(beats.filter((_, i) => outcomes[i].ok).map((args) => args.key));
     refreshTaskFiles(activeSessions, taskRoot, sentKeys, now);
     const stored = sentKeys.size;
@@ -619,8 +620,16 @@ export async function runTick({ env = process.env, now = Date.now(), taskRoot = 
   }
 }
 
+// The reason a run was skipped: the error's name on stderr, and (the background run's stderr goes nowhere) the name and
+// the first line of its message in `usage-tick.log` in the state folder, the last one only. Never throws.
 function logSkipped(error) {
   process.stderr.write(`usage-tick: skipped (${error && error.name})\n`);
+  try {
+    const root = stateRoot();
+    mkdirSync(root, { recursive: true });
+    const message = String((error && error.message) || '').split('\n')[0].slice(0, 200);
+    writeFileSync(join(root, LOG_FILE), `${new Date().toISOString()} ${error && error.name}: ${message}\n`);
+  } catch { /* fails open */ }
 }
 
 // A script path that cannot be resolved counts as not invoked directly: the import must never throw.

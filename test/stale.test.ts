@@ -308,6 +308,33 @@ describe("movesLiveStatus (SQL) agrees with the domain rule (Slice 34)", () => {
     expect(movesLiveStatus({ statusGiven: false }, ItemStatus.Stale, false)).toBe(false);
   });
 
+  it("keeps the event note and updated_at on one change rule: Heartbeat exactly when nothing but the heartbeat moved (Slice 34 follow-up #3)", async () => {
+    const first = "2020-01-01T00:00:00.000Z";
+    await insertRow({ key: ITEM.key, status: ItemStatus.InProgress, heartbeat_at: first, doc_status_at: null, live_status_at: first });
+    const read = async () => ({
+      updated_at: (await env.DB.prepare("SELECT updated_at FROM items WHERE key = ?1").bind(ITEM.key).first<{ updated_at: string }>())?.updated_at,
+      note: (await env.DB.prepare("SELECT note FROM events WHERE item_key = ?1 ORDER BY id DESC LIMIT 1").bind(ITEM.key).first<{ note: string | null }>())?.note,
+    });
+    const before = await read();
+    await callTool("report_progress", { key: ITEM.key, status: "in_progress" });
+    expect(await read()).toEqual({ updated_at: before.updated_at, note: "Heartbeat" });
+    await callTool("report_progress", { key: ITEM.key, why: "a new reason" });
+    const changed = await read();
+    expect(changed.updated_at).not.toBe(before.updated_at);
+    expect(changed.note).not.toBe("Heartbeat");
+  });
+
+  it("notes a status report that was older than the stored status and so dropped (Slice 34 follow-up #9)", async () => {
+    const first = "2020-01-01T00:00:00.000Z";
+    const future = "2099-01-01T00:00:00.000Z";
+    await insertRow({ key: ITEM.key, status: ItemStatus.InProgress, heartbeat_at: first, doc_status_at: null, live_status_at: future });
+    await callTool("report_progress", { key: ITEM.key, status: "blocked" });
+    const row = await env.DB.prepare("SELECT status FROM items WHERE key = ?1").bind(ITEM.key).first<{ status: string }>();
+    expect(row?.status).toBe("in_progress");
+    const events = await env.DB.prepare("SELECT note FROM events WHERE item_key = ?1 ORDER BY id DESC LIMIT 1").bind(ITEM.key).first<{ note: string | null }>();
+    expect(events?.note).toBe("Older status report ignored");
+  });
+
   for (const c of cases) {
     it(`${c.name}`, async () => {
       const first = "2020-01-01T00:00:00.000Z";

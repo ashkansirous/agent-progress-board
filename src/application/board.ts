@@ -62,7 +62,8 @@ async function saveStepsReport(repo: ItemRepository, input: ReportInput, clock: 
   for (let attempt = 0; attempt < UNDER_STEP_TRIES; attempt += 1) {
     const { item, stepsText } = await repo.findWithStepsText(input.key);
     try {
-      return await saveReport(repo, input, item, clock, stepsText);
+      // The type, project and parent rules do not depend on the steps, so a retry does not repeat their reads (Slice 47 2e).
+      return await saveReport(repo, input, item, clock, stepsText, attempt > 0);
     } catch (error) {
       if (!(error instanceof StepsChangedError)) throw error;
     }
@@ -83,17 +84,20 @@ async function saveReport(
   existing: Item | null,
   clock: Clock,
   stepsText?: string | null,
+  alreadyFitted = false,
 ): Promise<Item> {
   const now = clock.now().toISOString();
   const checked = withQuestion(checkReport(input, existing, now), existing, now);
-  await assertItemFits(repo, checked, existing);
+  if (!alreadyFitted) await assertItemFits(repo, checked, existing);
   return repo.save({ insert: existing ?? newItem(checked, now), input: checked, now, ifStepsText: stepsText });
 }
 
 /**
  * The report's final state (the stored row with the report laid over it) must pass `itemProblem`, so a
  * retype or re-parent of an existing item is checked like a new one. A parent that does not exist yet is
- * allowed (a live report may arrive before the document snapshot lists the slice).
+ * allowed (a live report may arrive before the document snapshot lists the slice). A report that leaves the
+ * stored type, project and parent as they are returns at once: a legacy row stored before the rules existed keeps
+ * accepting reports, while a snapshot skips it (Slice 47 3k).
  */
 async function assertItemFits(repo: ItemRepository, input: ReportInput, existing: Item | null): Promise<void> {
   if (existing && !changesRelation(input, existing)) return;
@@ -315,17 +319,28 @@ function topLevelReasons(
   stored: Map<string, SyncRow>,
 ): Map<string, string> {
   const reasons = new Map<string, string>();
-  for (let pass = 0; pass <= groups.length; pass += 1) {
+  // One kept map for every pass: a skipped key leaves it when it is skipped, never a copy per pass (Slice 47 3f).
+  const kept = new Map(topLevel);
+  let pending = groups.map((group) => group.item);
+  for (let pass = 0; pass <= groups.length && pending.length > 0; pass += 1) {
     const before = reasons.size;
-    const kept = new Map([...topLevel].filter(([key]) => !reasons.has(key)));
-    for (const { item } of groups) {
-      if (reasons.has(item.key)) continue;
+    for (const item of pending) {
       const reason = topLevelProblem(project, item, { kept, stored, skipped: reasons });
-      if (reason) reasons.set(item.key, reason);
+      if (!reason) continue;
+      reasons.set(item.key, reason);
+      kept.delete(item.key);
     }
     if (reasons.size === before) break;
+    // Only an item that names a parent can change its answer once another item is skipped (Slice 47 3g).
+    pending = pending.filter((item) => !reasons.has(item.key) && effectiveParent(item, stored) !== null);
   }
   return reasons;
+}
+
+/** The parent_key a top-level item ends with: the snapshot's, or the stored one when it sends none. */
+function effectiveParent(item: SnapshotItem, stored: Map<string, SyncRow>): string | null {
+  const parentKey = item.parent_key === undefined ? stored.get(item.key)?.parent_key : item.parent_key;
+  return parentKey ?? null;
 }
 
 function omitChecks(item: SnapshotItem): SnapshotItem {

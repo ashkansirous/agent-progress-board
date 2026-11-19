@@ -40,7 +40,7 @@
 // AGENT_BOARD_URL / AGENT_BOARD_TOKEN. State lives under CLAUDE_PLUGIN_DATA (see stateRoot).
 
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -79,7 +79,7 @@ const PART_TYPE = 'part';
 const WRITE_TOOLS = new Set(['report_progress', 'mark_done', 'ask_human']);
 const FIELD_ARGS = ['project', 'type', 'status', 'title', 'why', 'parent', 'priority', 'note', 'source', 'agent', 'model', 'outcome'];
 const REPEATABLE = new Set(['link', 'step-skipped']);
-const SWITCHES = new Set(['waiting', 'orchestrator']);
+const SWITCHES = new Set(['waiting', 'orchestrator', 'clear-outcome']); // `--clear-outcome` sends `outcome: null` (Slice 47 6b)
 export const ORCHESTRATOR_SUFFIX = '.orchestrator.json';
 
 // Where the hooks and the CLI keep per-session files: the override variable, else the plugin's data folder
@@ -209,7 +209,25 @@ export function logSender(root, sender, id, key, fields = [], now = Date.now()) 
 // reader never sees a half-written log (a line appended during the cut can still be lost: it is a diagnostic log).
 const SENDER_LOG_LINE_BYTES = 100; // a real line is about 100 bytes (time 25, sender, 36-character session id, key, fields)
 const SENDER_LOG_TRIM_BYTES = SENDER_LOG_LINES * 2 * SENDER_LOG_LINE_BYTES * 2; // 2x margin: longer lines still hold over 2x lines at the threshold
+const SENDER_TEMP_STALE_MS = 10 * 60 * 1000; // a cut copy this old belongs to a process killed between its write and its rename
+
+// The cut copies (`senders.log.<pid>.tmp`) that a killed hook left behind, removed once they are old enough that no
+// running trim can own them (Slice 47 8h). Fails open: one that cannot be read or removed is left for the next trim.
+function sweepSenderTemps(file) {
+  try {
+    const prefix = `${basename(file)}.`;
+    for (const name of readdirSync(dirname(file))) {
+      if (!name.startsWith(prefix) || !name.endsWith('.tmp')) continue;
+      const path = join(dirname(file), name);
+      try {
+        if (Date.now() - statSync(path).mtimeMs > SENDER_TEMP_STALE_MS) rmSync(path, { force: true });
+      } catch { /* gone or held: the next trim retries */ }
+    }
+  } catch { /* the next trim retries */ }
+}
+
 function trimSenderLog(file) {
+  sweepSenderTemps(file);
   const lines = readFileSync(file, 'utf8').split('\n').filter(Boolean);
   if (lines.length <= SENDER_LOG_LINES * 2) return;
   const temp = `${file}.${process.pid}.tmp`;
@@ -326,6 +344,7 @@ export function buildArguments(parsed, project, detailsText, environment = '', s
   for (const field of FIELD_ARGS) {
     if (fields[field]) args[field] = fields[field];
   }
+  if (parsed['clear-outcome']) args.outcome = null;
   if (parsed['parent-key']) args.parent_key = parsed['parent-key'];
   if (part) Object.assign(args, { type: PART_TYPE, parent_key: sliceKey(project, parsed.slice) });
   const links = parseLinks(parsed.link);

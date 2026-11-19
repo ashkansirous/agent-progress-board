@@ -1,8 +1,8 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { BoardItemDto, BoardResponse } from "../../src/api/boardDto";
 import type { ProjectGroups } from "../../src/domain/boardGroups";
 import { ItemType } from "../../src/domain/item";
-import type { BoardState } from "./boardState";
+import { type BoardState, isFreshData, nextScroll } from "./boardState";
 import { Detail } from "./Detail";
 import { Header } from "./Header";
 import { opensCardDrawer } from "./cards";
@@ -16,7 +16,7 @@ import { SessionDrawer } from "./SessionDrawer";
 import { EmptyCard, ErrorCard, LoadingCard } from "./StatePanels";
 import type { Translate } from "./strings";
 import { looksFor, paletteVars, type SchemeName } from "./theme";
-import { useOpenItem } from "./useRoute";
+import { useAddressHash, useOpenItem } from "./useRoute";
 import { ViewProvider, type View } from "./view";
 import { ViewTabs } from "./ViewTabs";
 
@@ -122,20 +122,28 @@ export function BoardPage(props: PageProps) {
   // The detail shows when the address names a key and that item is in the data. The address is cleared only
   // when a successful load lacks the item. A failed load (first or refresh) keeps it: the board shows its
   // error card meanwhile, and Retry opens the item again.
-  // Only a settled load counts: cached data during a reload may be older than the item the owner just opened.
-  const loaded = state.data !== null && state.error === null && !state.loading;
+  // Only a load that settled after this page mounted counts (every arrival starts one): cached data from before it
+  // may be older than the item the owner just opened. A failed fresh load leaves no data, so it never closes (Slice 47 1a).
+  const [settlesAtMount] = useState(state.settles);
+  const fresh = isFreshData(state, settlesAtMount);
+  const hash = useAddressHash();
+  const scrolledFor = useRef<string | null>(null);
   const named = openKey !== null || looseProject !== null;
-  const gone = loaded && !open;
+  const gone = fresh && !open;
   useEffect(() => {
     if (named && gone) close();
   }, [gone, named, close]);
   useEffect(() => {
-    // The Active work page's waiting-questions link: scroll to the first "Needs you" section once the board has loaded.
-    if (loaded && window.location.hash === NEEDS_YOU_HASH) {
-      document.querySelector(`[${NEEDS_YOU_ATTRIBUTE}]`)?.scrollIntoView?.({ block: "start" });
-    }
-  }, [loaded]);
-  const groupIds = state.data?.groups.map((g) => g.id).join("\n");
+    // The Active work page's waiting-questions link: scroll to the first "Needs you" section once a fresh load settled
+    // with data. The projects with questions are drawn open while the address names them (`resolveOpen`), so the section
+    // exists in this render; the link works again on a later click (the address changes) (Slice 47 6d). The arrival is
+    // recorded only when the section was found, so a poll that adds a question still scrolls; a later poll does not.
+    const section = fresh ? document.querySelector(`[${NEEDS_YOU_ATTRIBUTE}]`) : null;
+    const next = nextScroll(fresh, hash, NEEDS_YOU_HASH, scrolledFor.current, section !== null);
+    scrolledFor.current = next.scrolledFor;
+    if (next.scroll) section?.scrollIntoView?.({ block: "start" });
+  }, [fresh, hash, state.data]);
+  const groupIds = state.data ? JSON.stringify(state.data.groups.map((g) => g.id)) : undefined;
   useEffect(() => {
     // Only a loaded board with projects prunes: an empty or failed board (no data) keeps every stored choice.
     const ids = pruneIdsOf(groupIds);

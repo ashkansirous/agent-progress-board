@@ -255,12 +255,20 @@ function isStoredStep(value: unknown): value is StoredStep {
   return typeof label === "string" && stateOk && (note === undefined || note === null || typeof note === "string") && idOk && timeOk(started_at) && timeOk(done_at) && childrenOk;
 }
 
+/** A stored list this much over the write limit is not read: a legacy row cannot make every board read build thousands of steps (Slice 47 2b). */
+export const STORED_STEPS_READ_MAX = MAX_STEPS * 5;
+
+function countStored(steps: readonly StoredStep[]): number {
+  return steps.reduce((sum, step) => sum + 1 + countStored(step.children ?? []), 0);
+}
+
 /** Reads the stored steps column; text that does not parse or is not a valid list reads as no steps. An old flat list reads as a tree of depth 1. */
 export function parseStoredSteps(raw: string | null): Step[] | null {
   if (!raw) return null;
   try {
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed) || parsed.length === 0 || !parsed.every(isStoredStep)) return null;
+    if (countStored(parsed) > STORED_STEPS_READ_MAX) return null;
     const stamp: BuildContext["stamp"] = (input) => {
       const stored = input as StoredStep;
       return { started_at: stored.started_at ?? null, done_at: stored.done_at ?? null };

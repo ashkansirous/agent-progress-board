@@ -2,7 +2,7 @@ import type { ColorSet, Palette, ProjectConfig, Schemes, StatusColors, TypeConfi
 import type { ProjectGroups } from "../domain/boardGroups";
 import type { CheckView } from "../domain/checks";
 import type { SliceName } from "../domain/docSync";
-import type { ItemLink, ItemStatus, ItemType, Priority } from "../domain/item";
+import type { EventMarker, ItemLink, ItemStatus, ItemType, Priority } from "../domain/item";
 import type { PartsProgress, PartState } from "../domain/parts";
 import type { Step, StepProgress } from "../domain/stepTypes";
 
@@ -11,6 +11,8 @@ export interface BoardEventDto {
   at: string;
   status: ItemStatus;
   note: string | null;
+  /** Set when the server wrote the row as a question or an answer; the page builds the words (Slice 47 1q). */
+  marker: EventMarker | null;
 }
 
 /** One lettered part of a slice, as the slice's tile and drawer list it (Slice 11). */

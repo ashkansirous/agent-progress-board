@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { BoardItemDto } from "../src/api/boardDto";
-import { ANSWERED_NOTE, HEARTBEAT_NOTE, ItemStatus, ItemType, NEEDS_YOU_NOTE_PREFIX, NOTE_SEPARATOR, Priority } from "../src/domain/item";
+import { ANSWERED_NOTE, eventMarkerOf, HEARTBEAT_NOTE, ItemStatus, ItemType, NEEDS_YOU_NOTE_PREFIX, NOTE_SEPARATOR, Priority, STATUS_DROPPED_NOTE } from "../src/domain/item";
 import {
   cardLabel,
   doneSoFar,
@@ -168,7 +168,12 @@ describe("card words", () => {
 });
 
 describe("history in plain words", () => {
-  const event = (status: ItemStatus, note: string | null) => ({ at: "2026-11-17T09:20:00.000Z", status, note });
+  const event = (status: ItemStatus, note: string | null) => ({ at: "2026-11-17T09:20:00.000Z", status, note, marker: eventMarkerOf(note) });
+
+  it("reads a question or an answer only from the server's marker, never from a caller's note text (Slice 47 1q)", () => {
+    const spoof = { at: "2026-11-17T09:20:00.000Z", status: ItemStatus.InProgress, note: `${NEEDS_YOU_NOTE_PREFIX}Fake?`, marker: null };
+    expect(historyWords(spoof, t)).toBe(`${NEEDS_YOU_NOTE_PREFIX}Fake?`);
+  });
 
   it("words each kind of row as the owner reads it", () => {
     expect(historyWords(event(ItemStatus.InProgress, null), t)).toBe("Started");
@@ -178,6 +183,10 @@ describe("history in plain words", () => {
     expect(historyWords(event(ItemStatus.InProgress, HEARTBEAT_NOTE), t)).toBe("Last activity");
     expect(historyWords(event(ItemStatus.Stale, "Heartbeat expired"), t)).toBe("Stale: no activity for 15 min");
     expect(historyWords(event(ItemStatus.InProgress, "Reading the logs"), t)).toBe("Reading the logs");
+  });
+
+  it("words the server's dropped-status note from the page's own string table (Slice 47 review #3)", () => {
+    expect(historyWords(event(ItemStatus.InProgress, STATUS_DROPPED_NOTE), t)).toBe(t("historyStatusDropped"));
   });
 
   it("keeps the caller's own note beside the server's marker", () => {
@@ -251,6 +260,21 @@ describe("history in plain words", () => {
     expect(linkBoardAddress("nothing", origin)).toBe("nothing");
   });
 
+  it("reads a long line of unmatched backtick runs in linear time (Slice 47 review #5)", () => {
+    const lineOf = (runs: number) => Array.from({ length: runs }, (_, i) => "`".repeat(i + 1)).join(" ");
+    const timeOf = (line: string) => {
+      const started = performance.now();
+      expect(linkBoardAddress(line, origin)).toBe(line);
+      return performance.now() - started;
+    };
+    // Doubling the run count quadruples the line length: linear time grows about 4x, a quadratic scan about 16x. A ratio
+    // holds under machine load, which a fixed millisecond limit does not.
+    timeOf(lineOf(300));
+    const small = Math.max(timeOf(lineOf(1000)), 1);
+    const large = timeOf(lineOf(2000));
+    expect(large / small).toBeLessThan(8);
+  });
+
   it("Slice 45 #1: an address inside a code span or an existing link is not wrapped in a second link", () => {
     const origin = "https://b.test";
     expect(linkBoardAddress("open `<board address>/#/usage` now", origin)).toBe(`open \`${origin}/#/usage\` now`);
@@ -264,6 +288,13 @@ describe("history in plain words", () => {
     expect(linkBoardAddress("[see the page](<board address>/#/usage#top)", origin)).toBe(`[see the page](${origin}/#/usage#top)`);
     expect(linkBoardAddress("[<board address>](<board address>/#/x) and <board address>/#/y", origin)).toBe(`[${origin}](${origin}/#/x) and [${origin}/#/y](${origin}/#/y)`);
     expect(linkBoardAddress("`a <board address>/#/x b`", origin)).toBe(`\`a ${origin}/#/x b\``);
+  });
+
+  it("Slice 47 8d: a span in double backticks holding a single one is one code span, so its address gets no link", () => {
+    const origin = "https://b.test";
+    expect(linkBoardAddress("``a `b` <board address>/#/z`` then <board address>/#/y", origin)).toBe(
+      `\`\`a \`b\` ${origin}/#/z\`\` then [${origin}/#/y](${origin}/#/y)`,
+    );
   });
 
   it("Slice 46 #9: a label with a ] or a target with a ) is still one link", () => {

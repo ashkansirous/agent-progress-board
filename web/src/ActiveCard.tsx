@@ -15,6 +15,8 @@ interface CardProps {
   item: BoardItemDto;
   /** The address asked for this card: it scrolls into view. */
   initiallyOpen?: boolean;
+  /** Called once the card has scrolled into view, so a remount of the list does not scroll to it again (Slice 47 1h). */
+  onScrolled?: () => void;
 }
 
 /** The target mark of the outcome line: three concentric circles, drawn inline (ActiveV3 line 50). */
@@ -81,22 +83,24 @@ function cardTitle(item: BoardItemDto, t: Translate): string {
 }
 
 /** A card the address asked for scrolls into view once it is open. */
-function useScrollIntoView(wanted: boolean) {
+function useScrollIntoView(wanted: boolean, onScrolled?: () => void) {
   const ref = useRef<HTMLLIElement | null>(null);
   useEffect(() => {
-    if (wanted) ref.current?.scrollIntoView?.({ block: "nearest" });
-  }, [wanted]);
+    if (!wanted) return;
+    ref.current?.scrollIntoView?.({ block: "nearest" });
+    onScrolled?.();
+  }, [wanted, onScrolled]);
   return ref;
 }
 
 /** One task an agent is working on: where it is, the step now, the bar and the whole step list, always open (ActiveV3). */
-export function ActiveCard({ item, initiallyOpen = false }: CardProps) {
+export function ActiveCard({ item, initiallyOpen = false, onScrolled }: CardProps) {
   const { t, looks, projects } = useView();
   const type = looks.type(item.type);
   const steps = item.steps ?? [];
   const finished = item.status === ItemStatus.Done;
   const border = cardBorder(item, type.border);
-  const ref = useScrollIntoView(initiallyOpen);
+  const ref = useScrollIntoView(initiallyOpen, onScrolled);
   return (
     <li className="active-card" style={border ? { borderColor: border } : undefined} ref={ref}>
       <MetaRow item={item} />

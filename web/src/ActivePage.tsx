@@ -54,21 +54,37 @@ function useAddressGenerations(openKey: string | null): ReadonlyMap<string, numb
   return seen.counts;
 }
 
-function Cards({ tasks }: { tasks: BoardItemDto[] }) {
-  const openKey = useActiveKey();
-  const generations = useAddressGenerations(openKey);
+/** What the address names and how much of it was already shown: the page keeps it, so a remount of the list changes nothing. */
+interface Naming {
+  openKey: string | null;
+  generations: ReadonlyMap<string, number>;
+  /** The `key|generation` id of the naming that already scrolled its card into view. */
+  scrolledId: string | null;
+  onScrolled: (id: string) => void;
+}
+
+function Cards({ tasks, naming }: { tasks: BoardItemDto[]; naming: Naming }) {
   if (tasks.length === 0) return <ActiveEmptyCard />;
   return (
     <ul className="active-list">
-      {tasks.map((item) => (
-        <ActiveCard key={`${item.key}|${generations.get(item.key) ?? 0}`} item={item} initiallyOpen={item.key === openKey} />
-      ))}
+      {tasks.map((item) => {
+        const id = `${item.key}|${naming.generations.get(item.key) ?? 0}`;
+        const wanted = item.key === naming.openKey && naming.scrolledId !== id;
+        return <ActiveCard key={id} item={item} initiallyOpen={wanted} onScrolled={() => naming.onScrolled(id)} />;
+      })}
     </ul>
   );
 }
 
-function Body({ state, tasks, onRefresh }: { state: BoardState; tasks: BoardItemDto[]; onRefresh: () => void }) {
-  if (state.data) return <Cards tasks={tasks} />;
+interface BodyProps {
+  state: BoardState;
+  tasks: BoardItemDto[];
+  naming: Naming;
+  onRefresh: () => void;
+}
+
+function Body({ state, tasks, naming, onRefresh }: BodyProps) {
+  if (state.data) return <Cards tasks={tasks} naming={naming} />;
   if (state.slow) return <ActiveLoadingCard />;
   if (state.error) return <ActiveErrorCard status={state.error.status} onRetry={onRefresh} />;
   return null;
@@ -78,6 +94,12 @@ function Body({ state, tasks, onRefresh }: { state: BoardState; tasks: BoardItem
 export function ActivePage({ env }: { env: Environment }) {
   const { state, refresh } = useBoard();
   const view = useViewValue({ state, env });
+  // Kept here, above the body: a failed refresh clears the data and remounts the cards, and the counts must survive that
+  // so a card the address named before is not "newly named" again (Slice 47 1h).
+  const openKey = useActiveKey();
+  const generations = useAddressGenerations(openKey);
+  const [scrolledId, setScrolledId] = useState<string | null>(null);
+  const naming: Naming = { openKey, generations, scrolledId, onScrolled: setScrolledId };
   const tasks = useMemo(() => (state.data ? activeTasks(state.data.items) : []), [state.data]);
   // The tab pill and the subtitle show the Worker's own count, the one the Board page's tab bar shows.
   const count = state.data?.working_count ?? 0;
@@ -95,7 +117,7 @@ export function ActivePage({ env }: { env: Environment }) {
           </header>
           <WaitingLink questions={state.data ? boardTotals(state.data.groups).needsYou : 0} />
           <div aria-busy={state.loading}>
-            <Body state={state} tasks={tasks} onRefresh={refresh} />
+            <Body state={state} tasks={tasks} naming={naming} onRefresh={refresh} />
           </div>
         </div>
       </div>

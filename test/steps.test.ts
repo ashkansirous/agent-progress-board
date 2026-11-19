@@ -11,6 +11,7 @@ import {
   parseStoredSteps,
   replaceChildren,
   stepProgress,
+  STORED_STEPS_READ_MAX,
   type WorkingRow,
 } from "../src/domain/steps";
 import { isExpired } from "../src/domain/stale";
@@ -279,5 +280,11 @@ describe("the step tree (Slice 39)", () => {
     expect(parseStoredSteps(JSON.stringify(tree))).toEqual(tree);
     expect(parseStoredSteps(JSON.stringify([{ label: "A", state: "bogus" }]))).toBeNull();
     expect(parseStoredSteps("[]")).toBeNull();
+  });
+
+  it("does not read a stored list far over the write limit, so a legacy row cannot make every board read build it (Slice 47 2b)", () => {
+    const rows = (n: number) => JSON.stringify(Array.from({ length: n }, (_, i) => ({ label: `S${i}`, state: "done", note: null })));
+    expect(parseStoredSteps(rows(STORED_STEPS_READ_MAX))).toHaveLength(STORED_STEPS_READ_MAX);
+    expect(parseStoredSteps(rows(STORED_STEPS_READ_MAX + 1))).toBeNull();
   });
 });

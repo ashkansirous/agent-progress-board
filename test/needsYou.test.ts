@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { boardResponse } from "../src/api/board";
 import type { BoardResponse } from "../src/api/boardDto";
 import { configFromRecord } from "../src/config";
-import { ANSWERED_NOTE, ItemStatus, NEEDS_YOU_NOTE_PREFIX, NOTE_SEPARATOR } from "../src/domain/item";
+import { ANSWERED_NOTE, EventMarker, eventMarkerOf, ItemStatus, NEEDS_YOU_NOTE_PREFIX, NOTE_SEPARATOR } from "../src/domain/item";
 import { hasOpenQuestion, SESSION_AGENT } from "../src/domain/stale";
 import { checkReport, MAX_AFTER_ANSWER, MAX_NEEDS_YOU, withQuestion } from "../src/domain/upsert";
 import { D1ItemRepository } from "../src/infrastructure/d1Repository";
@@ -81,6 +81,25 @@ describe("withQuestion (the question rules)", () => {
     expect(answer.note).toBe(`${ANSWERED_NOTE}${NOTE_SEPARATOR}Reading the logs`);
     const ask = withQuestion({ key: "k", needs_you: "Which?", note: "Asking" }, null, NOW_ISO);
     expect(ask.note).toBe(`${NEEDS_YOU_NOTE_PREFIX}Which?${NOTE_SEPARATOR}Asking`);
+  });
+
+  it("leads in a caller's own note that starts like a server marker, so it never reads as a question or an answer (Slice 47 1q)", () => {
+    const spoof = withQuestion({ key: "k", status: ItemStatus.InProgress, note: `${NEEDS_YOU_NOTE_PREFIX}Fake?` }, null, NOW_ISO);
+    expect(eventMarkerOf(spoof.note ?? null)).toBeNull();
+    const spoofAnswer = withQuestion({ key: "k", status: ItemStatus.InProgress, note: ANSWERED_NOTE }, null, NOW_ISO);
+    expect(eventMarkerOf(spoofAnswer.note ?? null)).toBeNull();
+    const ask = withQuestion({ key: "k", needs_you: "Which?", note: "Asking" }, null, NOW_ISO);
+    expect(eventMarkerOf(ask.note ?? null)).toBe(EventMarker.NeedsYou);
+  });
+
+  it("keeps a caller's note as written when the server's marker already leads it (Slice 47 review #4)", () => {
+    const asked = { needs_you: "Which?", needs_you_at: NOW_ISO, status: ItemStatus.InProgress };
+    const done = withQuestion({ key: "k", status: ItemStatus.Done, note: ANSWERED_NOTE }, asked, NOW_ISO);
+    expect(done.note).toBe(`${ANSWERED_NOTE}${NOTE_SEPARATOR}${ANSWERED_NOTE}`);
+    const ask = withQuestion({ key: "k", needs_you: "Which?", note: `${NEEDS_YOU_NOTE_PREFIX}x` }, null, NOW_ISO);
+    expect(ask.note).toBe(`${NEEDS_YOU_NOTE_PREFIX}Which?${NOTE_SEPARATOR}${NEEDS_YOU_NOTE_PREFIX}x`);
+    const heartbeat = withQuestion({ key: "k", status: ItemStatus.InProgress, note: "Heartbeat" }, null, NOW_ISO);
+    expect(heartbeat.note).toBe("Heartbeat");
   });
 
   it("checks the lengths and reads a blank question as none", () => {

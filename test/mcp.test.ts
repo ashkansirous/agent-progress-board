@@ -606,7 +606,15 @@ describe("a delayed request and the history (Slice 34)", () => {
       .bind(SLICE.key)
       .first<{ status: string }>();
     expect(newest?.status).toBe(ItemStatus.InProgress);
-    expect(await notes()).toEqual(["Heartbeat", null]);
+    // The dropped older status is named in its history row (Slice 34 follow-up #9), no longer a bare Heartbeat.
+    expect(await notes()).toEqual(["Older status report ignored", null]);
+  });
+
+  it("does not say the status report was ignored when the same report also changed the title (Slice 47 review #3)", async () => {
+    const repo = new D1ItemRepository(env.DB);
+    await repo.save({ insert: seed, input: create, now: LATER });
+    await repo.save({ insert: seed, input: { key: SLICE.key, status: ItemStatus.Blocked, title: "A new title" }, now: EARLIER });
+    expect(await notes()).toEqual([null, null]);
   });
 
   it("applies an earlier status report that a later no-status heartbeat overtook (compared with live_status_at)", async () => {

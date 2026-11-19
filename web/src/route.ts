@@ -58,7 +58,8 @@ export const NEEDS_YOU_ATTRIBUTE = "data-needs-you";
 
 /** True for an address that opens a drawer on the board (an item's, or a project's loose checks). */
 export function isDrawerHash(hash: string): boolean {
-  return hash.startsWith(OPEN_PREFIX) || hash.startsWith(LOOSE_PREFIX);
+  // The same reading as the drawer itself: `#/open/` with no key names nothing, so it is no drawer (Slice 47 1p).
+  return openKeyOf(hash) !== null || looseProjectOf(hash) !== null;
 }
 
 /** The hash part of a full URL ("" when it has none); `hashchange` events carry full URLs. */

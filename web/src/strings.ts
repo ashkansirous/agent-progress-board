@@ -310,6 +310,7 @@ const en = {
   historyAnswered: "Answered",
   historyFinished: "Finished turn",
   historyLastActivity: "Last activity",
+  historyStatusDropped: "Older status report ignored",
   historyStale: "Stale: no activity for {n} min",
   staleRowWhen: "Stale: no activity for {n} min · {time}",
   // Planning lists, problems, checks and the project summary (Slice 14).
@@ -341,6 +342,7 @@ const en = {
   drawerPartsHead: "Parts · {n} of {m} done",
   drawerSlicePartsHead: "Slice {number} parts · {n} of {m} done",
   drawerChecksHead: "Checks not tried on a device · {n}",
+  drawerLooseChecksHead: "Checks · {n}",
   drawerSliceChecksHead: "Slice {number} checks not tried on a device · {n}",
   drawerSlicePartsHeadPlain: "Slice parts · {n} of {m} done",
   drawerSliceChecksHeadPlain: "Slice checks not tried on a device · {n}",

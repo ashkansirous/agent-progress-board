@@ -33,8 +33,21 @@ export function createBoardStore(parts: BoardStoreParts): BoardStore {
 
   const publish = (action: BoardAction): void => {
     state = boardReducer(state, action);
-    [...listeners, ...passive].forEach((notify) => notify());
+    // One throwing listener must not stop the others, nor turn the publish of a success into a failure (Slice 47 1b).
+    [...listeners, ...passive].forEach((notify) => {
+      try {
+        notify();
+      } catch {
+        // A listener's own fault stays its own.
+      }
+    });
   };
+
+  /** True while a page or a reader (or the deferred stop of the last page) still holds the read. */
+  const isWatched = (): boolean => listeners.size > 0 || passive.size > 0 || stopTimer !== null;
+
+  /** True while a load runs that nobody has aborted. */
+  const isLoadingNow = (): boolean => running !== null && !running.signal.aborted && state.loading;
 
   let slowTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -57,19 +70,20 @@ export function createBoardStore(parts: BoardStoreParts): BoardStore {
     clearSlowTimer();
     publish({ type: "start" });
     slowTimer = setTimeout(() => publish({ type: "slow" }), parts.slowAfterMs);
+    let outcome: BoardAction & { type: "success" | "failure" };
     try {
-      const data = await parts.fetchBoard(controller.signal);
-      if (!controller.signal.aborted) settle({ type: "success", data, at: new Date() });
+      outcome = { type: "success", data: await parts.fetchBoard(controller.signal), at: new Date() };
     } catch (error) {
-      const status = error instanceof LoadError ? error.status : null;
-      if (!controller.signal.aborted) settle({ type: "failure", status });
+      outcome = { type: "failure", status: error instanceof LoadError ? error.status : null };
     }
+    // Settled outside the try: a fault while publishing is never read as a failed load (Slice 47 1b).
+    if (!controller.signal.aborted) settle(outcome);
   };
 
   /** Aborts the read nobody waits for; it settles as aborted, so the next reader sees no stale loading card. */
   const abortUnwatched = (): void => {
-    if (listeners.size > 0 || passive.size > 0 || stopTimer !== null) return; // a passive reader still waits for this load
-    if (running && !running.signal.aborted && state.loading) {
+    if (isWatched()) return; // a passive reader still waits for this load
+    if (running && isLoadingNow()) {
       running.abort();
       running = null;
       settle({ type: "aborted" });
@@ -89,8 +103,11 @@ export function createBoardStore(parts: BoardStoreParts): BoardStore {
       // A page switch: the next page arrived in the same tick, so the read and the polling carry on.
       clearTimeout(stopTimer);
       stopTimer = null;
+      // Every page arrival starts a load unless one runs now: the page may name an item the cached answer lacks (Slice 47 1a).
+      if (!isLoadingNow()) void refresh();
     } else if (listeners.size === 1) {
-      void refresh();
+      // A load a passive reader already started carries on: aborting it would only repeat the request (Slice 47 1d).
+      if (!isLoadingNow()) void refresh();
       stopPolling = parts.startPolling(() => void refresh());
     }
     return () => {

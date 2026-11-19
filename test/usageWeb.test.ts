@@ -50,6 +50,8 @@ describe("number and time text", () => {
   it("labels buckets", () => {
     expect(bucketLabel("en-US", "2026-11-10")).toBe("Tue 10");
     expect(bucketLabel("en-US", "2026-11-10T13")).toBe("13:00");
+    // A repeated day (`#2`) is still a day, never read as an hour (Slice 47 7b: the key shape, not its length, decides).
+    expect(bucketLabel("en-US", "2026-10-25#2")).toBe("Sun 25");
     expect(bucketLetter("en-US", "2026-11-10")).toBe("T");
   });
 

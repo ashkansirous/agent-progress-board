@@ -1,5 +1,5 @@
 import type { BoardEventDto, BoardItemDto } from "../../src/api/boardDto";
-import { ANSWERED_NOTE, HEARTBEAT_NOTE, ItemStatus, ItemType, NEEDS_YOU_NOTE_PREFIX, NOTE_SEPARATOR } from "../../src/domain/item";
+import { EventMarker, HEARTBEAT_NOTE, ItemStatus, ItemType, NEEDS_YOU_NOTE_PREFIX, NOTE_SEPARATOR, STATUS_DROPPED_NOTE } from "../../src/domain/item";
 import { SESSION_AGENT, SESSION_STALE_AFTER_MINUTES } from "../../src/domain/stale";
 import type { Translate } from "./strings";
 import { isTime, minutesSince } from "./time";
@@ -85,7 +85,12 @@ export function fillBoardAddress(text: string, origin: string): string {
  */
 const LINK_LABEL = "(?:[^\\[\\]\\n]|\\[[^\\]\\n]*\\])*";
 const LINK_TARGET = "(?:[^()\\n]|\\([^)\\n]*\\))*";
-const MARKDOWN_ADDRESS = new RegExp(`(\`[^\`\\n]*\`)|(\\[${LINK_LABEL}\\]\\(${LINK_TARGET}\\))|(${BOARD_ADDRESS_LINK.source})`, "g");
+// A code span opens with a run of backticks and closes at the next run of exactly as many (`` a ` b `` is one span), the
+// way `sync-docs.mjs` reads it (Slice 47 8d); group 2 is the opening run, matched again by the back-reference. The scan
+// for the closing run stops after CODE_SPAN_MAX characters, so a long line of unmatched runs costs linear time (Slice 47).
+const CODE_SPAN_MAX = 2000;
+const CODE_SPAN = `((?<!\`)(\`+)(?!\`)[^\\n]{0,${CODE_SPAN_MAX}}?(?<!\`)\\2(?!\`))`;
+const MARKDOWN_ADDRESS = new RegExp(`${CODE_SPAN}|(\\[${LINK_LABEL}\\]\\(${LINK_TARGET}\\))|(${BOARD_ADDRESS_LINK.source})`, "g");
 
 /**
  * Markdown text with each `<board address>/#/page` as a link to that page of the board and a bare `<board address>` as
@@ -93,7 +98,7 @@ const MARKDOWN_ADDRESS = new RegExp(`(\`[^\`\\n]*\`)|(\\[${LINK_LABEL}\\]\\(${LI
  * second link around it, so the Markdown never nests.
  */
 export function linkBoardAddress(text: string, origin: string): string {
-  return text.replace(MARKDOWN_ADDRESS, (_match, code: string | undefined, link: string | undefined, address: string) => {
+  return text.replace(MARKDOWN_ADDRESS, (_match, code: string | undefined, _run: string | undefined, link: string | undefined, address: string) => {
     if (code !== undefined) return fillBoardAddress(code, origin);
     if (link !== undefined) return fillBoardAddress(link, origin);
     const resolved = origin + address.slice(BOARD_ADDRESS.length);
@@ -202,16 +207,19 @@ export function waitingText(item: BoardItemDto, nowMs: number, t: Translate): st
 
 /**
  * A key for each history row from its own content, kept in the server's order; rows that read the same get a
- * counter, so a refresh that adds a row at the top keeps the other rows' keys.
+ * counter counted from the oldest row (the end of the list), so a refresh that adds a row at the top, even one
+ * that reads the same as an older row, keeps every older row's key (Slice 47 1g).
  */
 export function eventKeys(events: BoardEventDto[]): string[] {
   const seen = new Map<string, number>();
-  return events.map((event) => {
-    const base = `${event.at}|${event.status}|${event.note ?? ""}`;
-    const nth = (seen.get(base) ?? 0) + 1;
-    seen.set(base, nth);
-    return `${base}|${nth}`;
-  });
+  return events
+    .map((event) => `${event.at}|${event.status}|${event.note ?? ""}`)
+    .reduceRight<string[]>((keys, base) => {
+      const nth = (seen.get(base) ?? 0) + 1;
+      seen.set(base, nth);
+      keys.unshift(`${base}|${nth}`);
+      return keys;
+    }, []);
 }
 
 /** The lines of details_md as plain bullets ("Done so far"); a leading list marker is dropped. */
@@ -249,15 +257,16 @@ function splitMarker(text: string): [string, string] {
  */
 export function historyWords(event: BoardEventDto, t: Translate): string {
   const note = event.note;
-  if (note?.startsWith(NEEDS_YOU_NOTE_PREFIX)) {
+  if (note && event.marker === EventMarker.NeedsYou) {
     const [question, own] = splitMarker(note.slice(NEEDS_YOU_NOTE_PREFIX.length));
     return withOwnNote(t("historyNeedsYou", { question: questionStart(question) }), own);
   }
-  if (note === ANSWERED_NOTE || note?.startsWith(ANSWERED_NOTE + NOTE_SEPARATOR)) {
+  if (note && event.marker === EventMarker.Answered) {
     return withOwnNote(t("historyAnswered"), splitMarker(note)[1]);
   }
   if (event.status === ItemStatus.Stale) return t("historyStale", { n: SESSION_STALE_AFTER_MINUTES });
   if (event.status === ItemStatus.Done) return note ?? t("historyFinished");
   if (!note) return t("historyStarted");
+  if (note === STATUS_DROPPED_NOTE) return t("historyStatusDropped");
   return note === HEARTBEAT_NOTE ? t("historyLastActivity") : note;
 }

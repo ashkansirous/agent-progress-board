@@ -395,6 +395,15 @@ describe("sync_snapshot rules (Slice 33)", () => {
     expect(reply.data).toMatchObject({ created: 0, skipped: [{ key: check.key }, { key: selfParent.key }] });
     expect(await countRows("items")).toBe(0);
   });
+
+  it("skips everything that names a skipped sibling and keeps the unrelated items, however the snapshot is ordered (Slice 47 3f, 3g)", async () => {
+    const selfParent = { ...item(1), parent_key: "demo-app/slice-1" };
+    const check = { key: "demo-app/slice-1/check-9", project: PROJECT, type: "check", title: "c", status: "open", parent_key: "demo-app/slice-1" };
+    const bug = { key: "demo-app/bug-1", project: PROJECT, type: "bug", title: "b", status: "open", parent_key: "demo-app/slice-1" };
+    const reply = await sync([bug, check, item(2), selfParent, item(3)]);
+    expect(reply.data).toMatchObject({ created: 2, skipped: expect.arrayContaining([{ key: bug.key }, { key: check.key }, { key: selfParent.key }].map((s) => expect.objectContaining(s))) });
+    expect(await countRows("items")).toBe(2);
+  });
 });
 
 describe("the close rule, in the domain and in SQL (Slice 34)", () => {

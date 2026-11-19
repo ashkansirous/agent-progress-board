@@ -1,5 +1,6 @@
 import type { BoardItemDto, BoardPartDto } from "../../src/api/boardDto";
 import { type ProjectSummary, SliceState } from "../../src/domain/boardGroups";
+import { type CheckView, countedChecks } from "../../src/domain/checks";
 import { PartNowKind, PartState, partNow } from "../../src/domain/parts";
 import type { StringKey, Translate } from "./strings";
 
@@ -52,6 +53,24 @@ export function partsCountText(item: BoardItemDto | undefined, t: Translate): st
 export function checksLine(count: number, t: Translate): string {
   if (count === 0) return t("allChecksTried");
   return t(t.plural(count, "checksNotTriedOne", "checksNotTriedMany"), { n: count });
+}
+
+/**
+ * The number the loose-checks card says: the checks not tried, agreeing with the summary line; when only stale or
+ * blocked loose checks are left, the card names all of them rather than "0 checks" (Slice 47 3c).
+ */
+export function looseCardCount(notTried: number, total: number): number {
+  return notTried > 0 ? notTried : total;
+}
+
+/** The one number the loose-checks card, the drawer's heading and its list header all say (Slice 47 3c). */
+export function looseCountOf(checks: readonly CheckView[]): number {
+  return looseCardCount(countedChecks(checks), checks.length);
+}
+
+/** The loose-checks list header: "not tried" only when some are; with none left to try the count is of all of them, so the header does not claim it (review #2). */
+export function looseHeadKey(checks: readonly CheckView[]): StringKey {
+  return countedChecks(checks) > 0 ? "drawerChecksHead" : "drawerLooseChecksHead";
 }
 
 export function looseLine(count: number, t: Translate): string {

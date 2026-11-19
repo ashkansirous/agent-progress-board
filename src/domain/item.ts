@@ -32,6 +32,8 @@ export enum Priority {
 
 export const DEFAULT_PRIORITY = Priority.P2;
 export const HEARTBEAT_NOTE = "Heartbeat";
+/** The history note of a report whose status was older than the one stored, so the stored one stayed (Slice 34 follow-up #9). */
+export const STATUS_DROPPED_NOTE = "Older status report ignored";
 export const DOC_SYNC_SOURCE = "doc-sync";
 /**
  * Notes the server writes on the history row of a question (Slice 13), as data the page turns into
@@ -42,6 +44,25 @@ export const ANSWERED_NOTE = "answered";
 /** Between the server's marker and the caller's own note when both are on one history row. */
 export const NOTE_SEPARATOR = "\n";
 export const MAX_NEEDS_YOU_NOTE = 120;
+
+/** The marker a history row carries, as the data the page reads (Slice 47 1q); derived from the note at read, never stored. */
+export enum EventMarker {
+  NeedsYou = "needs_you",
+  Answered = "answered",
+}
+
+/** Which server marker a stored note starts with, or null for an ordinary note. */
+export function eventMarkerOf(note: string | null): EventMarker | null {
+  if (note === null) return null;
+  if (note.startsWith(NEEDS_YOU_NOTE_PREFIX)) return EventMarker.NeedsYou;
+  if (note === ANSWERED_NOTE || note.startsWith(ANSWERED_NOTE + NOTE_SEPARATOR)) return EventMarker.Answered;
+  return null;
+}
+
+/** What a caller's own note gets before it is stored: one that starts like a server marker is given a lead-in, so it never reads as a question or an answer. */
+export function neutralizeMarker(note: string | undefined): string | undefined {
+  return note !== undefined && eventMarkerOf(note) !== null ? `note: ${note}` : note;
+}
 
 export interface ItemLink {
   label: string;

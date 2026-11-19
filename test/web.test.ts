@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { BoardItemDto, BoardResponse } from "../src/api/boardDto";
 import { ItemStatus, ItemType, Priority } from "../src/domain/item";
-import { boardReducer, INITIAL_STATE } from "../web/src/boardState";
+import { boardReducer, INITIAL_STATE, isFreshData, isFreshLoad, nextScroll } from "../web/src/boardState";
 import type { StepState } from "../src/domain/stepTypes";
 import { storedStep } from "./stepFixtures";
 import { groupBoard } from "../src/domain/boardGroups";
@@ -89,6 +89,38 @@ describe("Slice 36: open address, origin and loose checks", () => {
     expect(isDrawerHash("#/active")).toBe(false);
   });
 
+  it("counts data as fresh only after a load that settled since the page mounted, never after a failed one (Slice 47 1a)", () => {
+    const cached = boardReducer(INITIAL_STATE, { type: "success", data: {} as BoardResponse, at: new Date() });
+    const reloading = boardReducer(cached, { type: "start" });
+    expect(isFreshData(cached, cached.settles)).toBe(false);
+    expect(isFreshData(reloading, cached.settles)).toBe(false);
+    const fresh = boardReducer(reloading, { type: "success", data: {} as BoardResponse, at: new Date() });
+    expect(isFreshData(fresh, cached.settles)).toBe(true);
+    const failed = boardReducer(fresh, { type: "failure", status: 500 });
+    expect(failed.settles).toBe(cached.settles + 2);
+    expect(isFreshLoad(failed, cached.settles)).toBe(true);
+    expect(isFreshData(failed, cached.settles)).toBe(false);
+    expect(boardReducer(failed, { type: "aborted" }).settles).toBe(failed.settles);
+  });
+
+  it("scrolls to the questions only on fresh data, once per arrival, and records it only when the section was found (Slice 47 review #3, #4)", () => {
+    const address = "#/needs-you";
+    expect(nextScroll(false, address, address, null, true).scroll).toBe(false);
+    const missing = nextScroll(true, address, address, null, false);
+    expect(missing).toEqual({ scroll: false, scrolledFor: null });
+    const first = nextScroll(true, address, address, missing.scrolledFor, true);
+    expect(first).toEqual({ scroll: true, scrolledFor: address });
+    expect(nextScroll(true, address, address, first.scrolledFor, true).scroll).toBe(false);
+    const left = nextScroll(true, "#/", address, first.scrolledFor, true);
+    expect(nextScroll(true, address, address, left.scrolledFor, true).scroll).toBe(true);
+  });
+
+  it("does not take an address with nothing to open for a drawer (Slice 47 1p)", () => {
+    expect(isDrawerHash("#/open/")).toBe(false);
+    expect(isDrawerHash("#/loose/")).toBe(false);
+    expect(isDrawerHash("#/open/demo%2Fslice-1")).toBe(true);
+  });
+
   it("keeps no flag of dropped data: a failed load clears the data and the address stays with the page", () => {
     const loaded = boardReducer(INITIAL_STATE, { type: "success", data: {} as BoardResponse, at: new Date() });
     const failed = boardReducer(loaded, { type: "failure", status: 503 });
@@ -125,11 +157,19 @@ describe("Slice 36: counts, plurals and times", () => {
   });
 
   it("gives each history row a key from its content, in the server's order, with a counter for equal rows", () => {
-    const row = (at: string, note: string | null) => ({ at, status: ItemStatus.InProgress, note });
+    const row = (at: string, note: string | null) => ({ at, status: ItemStatus.InProgress, note, marker: null });
     const events = [row("2026-11-15T13:00:00.000Z", "Heartbeat"), row("2026-11-15T12:00:00.000Z", "Heartbeat"), row("2026-11-15T12:00:00.000Z", "Heartbeat")];
     const keys = eventKeys(events);
     expect(new Set(keys).size).toBe(3);
     expect(eventKeys([row("2026-11-15T14:00:00.000Z", null), ...events]).slice(1)).toEqual(keys);
+  });
+
+  it("keeps every older row's key when a new row at the top reads the same as an older one (Slice 47 1g)", () => {
+    const row = (at: string, note: string | null) => ({ at, status: ItemStatus.InProgress, note, marker: null });
+    const events = [row("2026-11-15T12:00:00.000Z", "Heartbeat"), row("2026-11-15T12:00:00.000Z", "Heartbeat")];
+    const keys = eventKeys(events);
+    const longer = eventKeys([row("2026-11-15T12:00:00.000Z", "Heartbeat"), ...events]);
+    expect(longer.slice(1)).toEqual(keys);
   });
 });
 

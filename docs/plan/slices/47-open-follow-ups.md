@@ -1,8 +1,8 @@
 ### Slice 47 — Open review follow-ups of Slices 33 to 36, 39 to 41 and 46
 
-*Built 2026-11-19, PR #179, not merged. Checks: lint, typecheck, 769 vitest, 437 plugin node and 331 e2e green (E2E_PORT 4174). No device run (the browser e2e covers the page; there is no phone app).*
+*Built 2026-11-19, merged as PR #179 (964de52). Checks: lint, typecheck, 769 vitest, 437 plugin node and 331 e2e green (E2E_PORT 4174). No device run (the browser e2e covers the page; there is no phone app).*
 
-**Status:** planned. Settled 2026-11-19 by the starter session under the owner's standing rule ("build all", no review
+**Status:** built (PR #179). Settled 2026-11-19 by the starter session under the owner's standing rule ("build all", no review
 round): build every item, correctness and privacy findings first.
 
 *Planned 2026-11-19 by the feedback loop of night 2026-11-19-0441 ([note](../notes/2026-11-19-0441-feedback-loop.md),
@@ -138,7 +138,7 @@ Each item's full text, file and reason is in its source slice file; that file wi
 - Skipped #6 (`reviews/pr-179-check-2-medium.md`): "scrolledId is a single string" - converged after the second check pass; no crash, data-loss, security or privacy fault.
 - Skipped #1 (`reviews/pr-179-check-3-medium.md`): "the test uses `origin` without declaring it" - converged after the second check pass; no crash, data-loss, security or privacy fault.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-19)
 
 - Board freshness after a page arrival is `isFreshLoad` / `isFreshData` in `web/src/boardState.ts`, from the `settles`
   count; never a time-based reuse window (Slice 47: docs/plan/slices/47-open-follow-ups.md).

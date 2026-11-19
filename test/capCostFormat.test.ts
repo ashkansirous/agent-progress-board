@@ -6,7 +6,7 @@ import { TokenKind } from "../src/domain/usage";
 import { defaultBase, kindsSentence, ratioAmount, logLow, logTicks, logX, multipleOf, multipleText, ratioText, shareText, spanText, splitBold, tokensPhone, tokensTable, tokensWords } from "../web/src/capCostFormat";
 import { translator } from "../web/src/strings";
 
-const t = translator("en");
+const t = translator();
 
 function model(name: string, mix: number, input: number | null = mix): CapCostModelDto {
   const each = { input, cache_write: mix, cache_read: mix, output: mix };
@@ -148,16 +148,15 @@ describe("the kinds sentence", () => {
     expect(ratioAmount(1.005, "en-US", t).text).toBe("1.0 times");
     expect(ratioAmount(0.995, "en-US", t).text).toBe("1.00 times");
     expect(ratioAmount(1.96, "en-US", t).text).toBe("twice");
-    expect(ratioAmount(0.5, "de-DE", translator("de")).text).toBe("die Hälfte");
-    expect(ratioAmount(5.5, "de-DE", translator("de")).text).toBe("5,5-mal");
+    expect(ratioAmount(0.5, "en-US", t).text).toBe("half");
   });
 
   it("writes the second amount as a phrase, in numbers too", () => {
     const odd = { input: null, cache_write: 4, cache_read: 0.1, output: 5.5 } as Record<TokenKind, number | null>;
     expect(kindsSentence(odd, TokenKind.Input, "en-US", t)).toBe("A cache read costs a tenth of a fresh input token; output costs 5.5 times as much.");
     const half = { ...odd, output: 0.5 };
-    expect(kindsSentence(half, TokenKind.Input, "de-DE", translator("de"))).toBe(
-      "Cache lesen kostet ein Zehntel dessen, was ein Token neuer Eingabe kostet; Ausgabe kostet die Hälfte davon.",
+    expect(kindsSentence(half, TokenKind.Input, "en-US", t)).toBe(
+      "A cache read costs a tenth of a fresh input token; output costs half as much.",
     );
   });
 
@@ -166,8 +165,7 @@ describe("the kinds sentence", () => {
     expect(kindsSentence(other, TokenKind.CacheRead, "en-US", t)).toBe("A cache write costs four times as much as a cache read token; output costs half as much.");
   });
 
-  it("is written in German too and left out without ratios", () => {
-    expect(kindsSentence(ratios, TokenKind.Input, "de-DE", translator("de"))).toBe("Cache lesen kostet ein Zehntel dessen, was ein Token neuer Eingabe kostet; Ausgabe kostet fünfmal so viel.");
+  it("is left out without ratios", () => {
     expect(kindsSentence({ ...ratios, output: null }, TokenKind.Input, "en-US", t)).toBeNull();
   });
 });

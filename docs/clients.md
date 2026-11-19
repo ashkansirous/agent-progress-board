@@ -93,7 +93,7 @@ cap state live in `CLAUDE_PLUGIN_DATA/state`; nothing is written to the Claude f
 `docs/plan/unverified.md` from `origin/main` and sends them with one `sync_snapshot` call (fail open, idempotent;
 usage and the layout it expects: `docs/setup/plan-sync.md`). A `parked:` row becomes a `waiting_for_me` card unless
 its reason only waits on work (another slice, an interactive session, a deploy, a merge); an `unverified.md` line
-starting `**You:**` becomes a `waiting_for_me` card: its title is the step, `why` names the slice and what the step unblocks, and it links to the slice file (a `parked:` card's title is the slice file's "Open for the owner" lines). The plugin installs no hook for it; run it after a merge.
+starting `**You:**` becomes a `waiting_for_me` card: its title is `Slice <N>: <short action>` and its steps are the card's text (write the line `**You:** <short action> | <steps>`; a line with no bar is all action), `why` names the slice and what the step unblocks, and it links to the slice file (a `parked:` card's title is the slice file's "Open for the owner" lines). The plugin installs no hook for it; run it after a merge.
 
 ## Two ways to call
 

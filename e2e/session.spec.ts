@@ -254,6 +254,18 @@ test.describe("Needs you cards say what is needed (Slice 27)", () => {
     await expect(drawer.getByRole("heading", { level: 2 })).toContainText(`open ${origin}/#/setup`);
   });
 
+  test("an owner step card shows its steps under the title, with the board address filled and the links clickable (Slice 44)", async ({ page }) => {
+    const details_md = "Go to https://claude.ai/code and complete 2 steps, then open <board address>/#/setup.";
+    await openWith(page, { "recipe-box/ask-migration": { key: "recipe-box/slice-4/check-0a1b2c3d4e5f", title: "Slice 4: Set the environment variables", why: "", links: [], details_md } });
+    const card = page.locator(".question-card").filter({ hasText: "Set the environment variables" });
+    const origin = new URL(page.url()).origin;
+    await expect(card.locator(".question-text")).toHaveText("Slice 4: Set the environment variables");
+    await expect(card.locator(".question-steps")).toContainText(`Go to https://claude.ai/code and complete 2 steps, then open ${origin}/#/setup.`);
+    await expect(card).not.toContainText("<board address>");
+    await expect(card.getByRole("link", { name: "https://claude.ai/code" })).toHaveAttribute("href", "https://claude.ai/code");
+    await expect(card.getByRole("link", { name: "/#/setup" })).toHaveAttribute("href", `${origin}/#/setup`);
+  });
+
   test("an owner step with no why shows its step text, not \"No question recorded\" (Slice 43)", async ({ page }) => {
     await openWith(page, { "recipe-box/ask-migration": { key: "recipe-box/slice-4/check-0a1b2c3d4e5f", title: "Set AGENT_BOARD_URL in the cloud environment", why: "", links: [] } });
     const card = page.locator(".question-card").filter({ hasText: "AGENT_BOARD_URL" });

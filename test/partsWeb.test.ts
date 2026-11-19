@@ -4,11 +4,11 @@ import { PartState } from "../src/domain/parts";
 import { groupBoard } from "../src/domain/boardGroups";
 import { parentText, partNowText, partsLabel } from "../web/src/partsText";
 import { activeItemHash, activeKeyOf, Route, routeOf } from "../web/src/route";
-import { LOCALES, translator } from "../web/src/strings";
+import { translator } from "../web/src/strings";
 import { ItemStatus, ItemType, Priority } from "../src/domain/item";
 import type { BoardItemDto } from "../src/api/boardDto";
 
-const t = translator("en");
+const t = translator();
 
 function part(letter: string, state: PartState, over: Partial<BoardPartDto> = {}): BoardPartDto {
   return { key: `p/slice-1/part-${letter}`, letter, title: `Title ${letter}`, state, step: null, steps_done: null, steps_total: null, ...over };
@@ -45,11 +45,6 @@ describe("partsLabel", () => {
   it("reads the counts", () => {
     expect(partsLabel({ done: 1, total: 5, percent: 20 }, t)).toBe("1 of 5 parts · 20%");
   });
-
-  it("has every key in every locale", () => {
-    const en = Object.keys(LOCALES.en!);
-    for (const locale of Object.values(LOCALES)) expect(Object.keys(locale)).toEqual(en);
-  });
 });
 
 describe("the active address", () => {
@@ -75,17 +70,16 @@ describe("parentText", () => {
 
   it("builds 'Slice N · title' from the data in both locales", () => {
     const item = view({ parent_slice: slice(4, "Tag search") });
-    expect(parentText(item, translator("en"))).toBe("Slice 4 · Tag search");
-    expect(parentText(item, translator("de"))).toBe("Slice 4 · Tag search");
+    expect(parentText(item, translator())).toBe("Slice 4 · Tag search");
   });
 
   it("does not repeat the number when the title starts with it, and shows the bare title with no number", () => {
-    expect(parentText(view({ parent_slice: slice(4, "Slice 4 · Tag search") }), translator("en"))).toBe("Slice 4 · Tag search");
-    expect(parentText(view({ parent_slice: slice(null, "Tag search") }), translator("en"))).toBe("Tag search");
+    expect(parentText(view({ parent_slice: slice(4, "Slice 4 · Tag search") }), translator())).toBe("Slice 4 · Tag search");
+    expect(parentText(view({ parent_slice: slice(null, "Tag search") }), translator())).toBe("Tag search");
   });
 
   it("falls back to the stored text when there is no parent slice", () => {
-    expect(parentText(view({}), translator("en"))).toBe("Release 1.4");
+    expect(parentText(view({}), translator())).toBe("Release 1.4");
   });
 });
 

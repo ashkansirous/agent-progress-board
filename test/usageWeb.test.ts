@@ -175,7 +175,7 @@ describe("geometry", () => {
   });
 
   it("shows the two passes through a repeated hour with distinct labels", () => {
-    const view = { locale: "en-US", t: translator("en") } as const;
+    const view = { locale: "en-US", t: translator() } as const;
     const list = bucketsBetween(Date.parse("2026-10-24T23:10:00Z"), Date.parse("2026-10-25T03:10:00Z"), offsetForZone("Europe/Berlin", 0), BucketUnit.Hour);
     const data = {
       ...demoUsage(),
@@ -188,7 +188,7 @@ describe("geometry", () => {
   });
 
   it("uses exactly the Worker's bucket list, whatever the page's own clock rule says (review finding 1)", () => {
-    const view = { locale: "en-US", t: translator("en") } as const;
+    const view = { locale: "en-US", t: translator() } as const;
     const data = {
       ...demoUsage(),
       bucket_unit: BucketUnit.Hour,

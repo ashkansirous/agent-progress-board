@@ -4,19 +4,21 @@ import { BoardPage, type Environment } from "./BoardPage";
 import { DARK_QUERY, PHONE_QUERY, useBoard, useMediaQuery } from "./hooks";
 import { Route } from "./route";
 import { SetupPage } from "./SetupPage";
-import { pickLocale, translator } from "./strings";
+import { translator } from "./strings";
 import { UsagePage } from "./UsagePage";
 import { useRoute } from "./useRoute";
 
-/** The page's colour scheme, layout and language, read from the device. */
+/** The page is English only. */
+const PAGE_LOCALE = "en";
+
+/** The page's colour scheme and layout, read from the device. */
 function useEnvironment(): Environment {
   const phone = useMediaQuery(PHONE_QUERY);
   const dark = useMediaQuery(DARK_QUERY);
-  const locale = pickLocale(navigator.language);
   useEffect(() => {
-    document.documentElement.lang = locale;
-  }, [locale]);
-  return useMemo(() => ({ phone, scheme: dark ? "dark" : "light", locale, t: translator(locale) }), [phone, dark, locale]);
+    document.documentElement.lang = PAGE_LOCALE;
+  }, []);
+  return useMemo(() => ({ phone, scheme: dark ? "dark" : "light", locale: PAGE_LOCALE, t: translator() }), [phone, dark]);
 }
 
 function BoardRoute({ env }: { env: Environment }) {

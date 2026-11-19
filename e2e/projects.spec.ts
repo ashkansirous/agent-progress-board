@@ -145,16 +145,3 @@ test.describe("states", () => {
     await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
   });
 });
-
-test.describe("german", () => {
-  test.use({ locale: "de-DE" });
-
-  test("the title, the count row and the fold control are in German", async ({ page }) => {
-    await openBoard(page);
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Übersicht");
-    await expect(page.locator(".count-row .count-pill").first()).toHaveText("3 brauchen dich");
-    await expect(project(page, "Recipe Box").locator(".project-fold")).toHaveText("Einklappen");
-    await expect(project(page, "Home Lab").locator(".project-fold")).toHaveText("Öffnen");
-    await expect(page.locator(".board-header .subtitle")).toContainText("lädt alle 60 s neu");
-  });
-});

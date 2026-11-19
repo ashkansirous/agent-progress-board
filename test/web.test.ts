@@ -9,7 +9,7 @@ import { activeTasks, projectLabel } from "../web/src/model";
 import { eventKeys, waitingText } from "../web/src/cards";
 import { closeHashFor, hashOfUrl, isDrawerHash, looseChecksHash, looseProjectOf, nextOrigin, openItemHash, openKeyOf, Route, routeOf } from "../web/src/route";
 import { currentStepText, durationText, leafCounts, progressText, secondLine, shownState, stateText, stepWords, timesText } from "../web/src/stepsText";
-import { LOCALES, pickLocale, translator } from "../web/src/strings";
+import { translator } from "../web/src/strings";
 import { looksFor, paletteVars } from "../web/src/theme";
 import { ageText, clockTime, hoursSince, isTime, minutesSince, UNKNOWN_TIME } from "../web/src/time";
 
@@ -107,17 +107,14 @@ describe("Slice 36: counts, plurals and times", () => {
   });
 
   it("chooses singular and plural from the locale's own rule", () => {
-    const en = translator("en");
+    const en = translator();
     expect(en(en.plural(1, "projectOne", "projectMany"), { n: 1 })).toBe("1 project");
     expect(en(en.plural(0, "projectOne", "projectMany"), { n: 0 })).toBe("0 projects");
     expect(en(en.plural(2, "projectOne", "projectMany"), { n: 2 })).toBe("2 projects");
-    const de = translator("de");
-    expect(de(de.plural(1, "projectOne", "projectMany"), { n: 1 })).toBe("1 Projekt");
-    expect(de(de.plural(3, "projectOne", "projectMany"), { n: 3 })).toBe("3 Projekte");
   });
 
   it("never prints NaN for an unreadable time", () => {
-    const t = translator("en");
+    const t = translator();
     const asked = item({ needs_you: "Q", needs_you_at: "yesterday-ish" });
     expect(isTime("yesterday-ish")).toBe(false);
     expect(minutesSince("yesterday-ish", NOW)).toBeNaN();
@@ -137,7 +134,7 @@ describe("Slice 36: counts, plurals and times", () => {
 });
 
 describe("time text", () => {
-  const t = translator("en");
+  const t = translator();
 
   it("gives minutes, hours and days, never less than 1 min", () => {
     expect(ageText("2026-11-15T13:23:00.000Z", NOW, t)).toBe("25 min ago");
@@ -154,24 +151,9 @@ describe("time text", () => {
 });
 
 describe("strings", () => {
-  it("gives every locale every key", () => {
-    const english = Object.keys(LOCALES.en!).sort();
-    for (const [name, table] of Object.entries(LOCALES)) {
-      expect(Object.keys(table).sort(), name).toEqual(english);
-      for (const [key, value] of Object.entries(table)) {
-        const placeholders = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
-        expect(placeholders(value), `${name}.${key}`).toEqual(placeholders(LOCALES.en![key as keyof typeof LOCALES.en]!));
-      }
-    }
-  });
-
-  it("fills placeholders, picks the locale from the language tag and falls back to English", () => {
-    expect(translator("en")("askedAge", { age: "5 min ago", parent: "Plan" })).toBe("Asked 5 min ago · Plan");
-    expect(translator("de")("retry")).toBe("Erneut versuchen");
-    expect(translator("xx")("retry")).toBe("Retry");
-    expect(pickLocale("de-AT")).toBe("de");
-    expect(pickLocale("fr-FR")).toBe("en");
-    expect(pickLocale(undefined)).toBe("en");
+  it("fills placeholders and always answers in English", () => {
+    expect(translator()("askedAge", { age: "5 min ago", parent: "Plan" })).toBe("Asked 5 min ago · Plan");
+    expect(translator()("retry")).toBe("Retry");
   });
 });
 
@@ -249,7 +231,7 @@ describe("active work", () => {
   });
 
   it("reads Starting before anything is done, the label while one leaf runs, N running for several, and Done once finished", () => {
-    const t = translator("en");
+    const t = translator();
     const none = { done: 0, total: 4, percent: 0, running: 0, current: null };
     const progress = { done: 1, total: 4, percent: 25, running: 0, current: null };
     expect(currentStepText(item({ progress: none }), t)).toBe("Starting");
@@ -262,7 +244,7 @@ describe("active work", () => {
 });
 
 describe("step tree text (Slice 39)", () => {
-  const t = translator("en");
+  const t = translator();
   const started = "2026-11-18T13:12:00.000Z";
   const finishedAt = "2026-11-18T13:20:00.000Z";
   const NOW_MS = Date.parse("2026-11-18T14:14:00.000Z");

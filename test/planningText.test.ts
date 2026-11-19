@@ -5,8 +5,7 @@ import { PartState } from "../src/domain/parts";
 import { checksLine, nowLine, slicePlannedText, summaryText } from "../web/src/planningText";
 import { translator } from "../web/src/strings";
 
-const en = translator("en");
-const de = translator("de");
+const en = translator();
 
 function part(letter: string, state: PartState, title = `T${letter}`): BoardPartDto {
   return { key: `s/part-${letter}`, letter, title, state, step: null, steps_done: null, steps_total: null };
@@ -21,7 +20,6 @@ describe("summaryText", () => {
   it("counts built slices after planned, so a project with only built work shows them", () => {
     const summary = { needs_you: 0, working: 0, planned: 0, built: 4, problems: 0, checks_not_tried: 9 };
     expect(summaryText(summary, en)).toBe("nothing running · 4 built · 9 checks not tried");
-    expect(summaryText(summary, de)).toBe("nichts läuft · 4 gebaut · 9 Prüfungen offen");
   });
 
   it("says nothing running and leaves out what is 0, with singular forms", () => {
@@ -38,12 +36,6 @@ describe("summaryText", () => {
     const two = { needs_you: 2, working: 2, planned: 0, built: 0, problems: 0, checks_not_tried: 0 };
     expect(summaryText(one, en)).toBe("1 needs you · 1 working");
     expect(summaryText(two, en)).toBe("2 need you · 2 working");
-    expect(summaryText(one, de)).toBe("1 braucht dich · 1 arbeitet");
-    expect(summaryText(two, de)).toBe("2 brauchen dich · 2 arbeiten");
-  });
-
-  it("is worded in German too", () => {
-    expect(summaryText({ needs_you: 0, working: 0, planned: 2, built: 0, problems: 0, checks_not_tried: 0 }, de)).toBe("nichts läuft · 2 geplant");
   });
 });
 

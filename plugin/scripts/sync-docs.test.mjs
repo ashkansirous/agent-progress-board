@@ -797,7 +797,7 @@ describe('Slice 27: cards that say what, for which slice and why', () => {
     const planText = table('| 5 | Picker | planned | | | [file](docs/plan/slices/05-picker.md) |');
     const unverifiedText = '### Slice 5: x\n\n- **You:** check the picker on a phone so that the release can go out.\n- **You:** open the board once\n';
     const owner = buildItems({ project: PROJECT, planText, unverifiedText, repoUrl: REPO }).filter((item) => item.type === 'waiting_for_me');
-    assert.equal(owner[0].title, 'check the picker on a phone so that the release can go out.');
+    assert.equal(owner[0].title, 'Slice 5: check the picker on a phone so that the release can go out.');
     assert.equal(owner[0].why, 'Slice 5: Picker — so that the release can go out.');
     assert.equal(owner[1].why, 'Not yet verified for Slice 5: Picker');
     assert.deepEqual(owner[1].links, [{ label: 'Slice file', url: `${REPO}/blob/main/docs/plan/slices/05-picker.md` }]);
@@ -903,7 +903,7 @@ describe('Slice 31: plan sync reads the documents right', () => {
 
   test('owner steps of a block with no status row make no card, and a notice says so', () => {
     const snapshot = buildSnapshot({ project: PROJECT, planText: table('| 5 | Five | planned | | | |'), unverifiedText: '### Slice 5: x\n\n- **You:** do five\n\n### Slice 8: y\n\n- **You:** do eight\n' });
-    assert.deepEqual(snapshot.items.filter((item) => item.type === 'waiting_for_me').map((item) => item.title), ['do five']);
+    assert.deepEqual(snapshot.items.filter((item) => item.type === 'waiting_for_me').map((item) => item.title), ['Slice 5: do five']);
     assert.match(snapshot.notices.join(''), /slice 8 has owner steps in unverified.md but no status row/);
   });
 
@@ -967,7 +967,67 @@ describe('Slice 31: plan sync reads the documents right', () => {
     const owner = buildItems({ project: PROJECT, planText: table('| 5 | Five | planned | | | |'), unverifiedText }).filter((item) => item.type === 'waiting_for_me');
     assert.equal(owner[0].why, 'Slice 5: Five — so that the release in v1.2.3 can go out.');
     assert.equal(owner[1].why, 'Slice 5: Five — so that it ships.');
-    assert.ok(owner[1].title.length <= 300);
+    assert.ok(owner[1].title.length <= 80);
+  });
+
+  test('Slice 44: "<action> | <steps>" is the title "Slice N: <action>" and the steps are the description', () => {
+    const unverifiedText = '### Slice 5: x\n\n- **You:** Set the environment variables | Go to https://claude.ai/code and complete 2 steps: 1. a 2. b\n';
+    const owner = buildItems({ project: PROJECT, planText: table('| 5 | Five | planned | | | |'), unverifiedText }).find((item) => item.type === 'waiting_for_me');
+    assert.equal(owner.title, 'Slice 5: Set the environment variables');
+    assert.equal(owner.details_md, 'Go to https://claude.ai/code and complete 2 steps: 1. a 2. b');
+  });
+
+  test('Slice 44: a line with no bar gets the prefix and an 80-character cut, the rest in the description', () => {
+    const unverifiedText = `### Slice 5: x\n\n- **You:** ${'word '.repeat(30)}end\n`;
+    const owner = buildItems({ project: PROJECT, planText: table('| 5 | Five | planned | | | |'), unverifiedText }).find((item) => item.type === 'waiting_for_me');
+    assert.ok(owner.title.startsWith('Slice 5: word word'));
+    assert.ok(owner.title.length <= 80);
+    assert.ok(owner.title.endsWith('…'));
+    assert.ok(owner.details_md.endsWith('word end'));
+  });
+
+  const ownerOf = (unverifiedText) => buildItems({ project: PROJECT, planText: table('| 5 | Five | planned | | | |'), unverifiedText }).find((item) => item.type === 'waiting_for_me');
+
+  test('Slice 44: a long action before the bar is cut at 80 characters and the rest leads the description', () => {
+    const owner = ownerOf(`### Slice 5: x\n\n- **You:** ${'word '.repeat(30)}end | open the page\n`);
+    assert.ok(owner.title.length <= 80);
+    assert.ok(owner.title.endsWith('…'));
+    assert.ok(owner.details_md.startsWith('…'));
+    assert.ok(owner.details_md.endsWith('word end open the page'));
+  });
+
+  test('Slice 44: an empty action takes the steps as the action, with the prefix and never the raw bar', () => {
+    const owner = ownerOf('### Slice 5: x\n\n- **You:** | go to https://claude.ai/code\n');
+    assert.equal(owner.title, 'Slice 5: go to https://claude.ai/code');
+    assert.equal(owner.details_md, undefined);
+    const long = ownerOf(`### Slice 5: x\n\n- **You:** | ${'word '.repeat(30)}end\n`);
+    assert.ok(long.title.startsWith('Slice 5: word') && long.title.length <= 80 && long.title.endsWith('…'));
+    assert.ok(long.details_md.startsWith('…') && long.details_md.endsWith('word end'));
+  });
+
+  test('Slice 44: a trailing bar, with or without a space after it, is dropped from the title', () => {
+    const plainEnd = ownerOf('### Slice 5: x\n\n- **You:** Set variables |\n');
+    assert.equal(plainEnd.title, 'Slice 5: Set variables');
+    assert.equal(plainEnd.details_md, undefined);
+    const spaced = ownerOf('### Slice 5: x\n\n- **You:** Set variables | \n');
+    assert.equal(spaced.title, 'Slice 5: Set variables');
+  });
+
+  test('Slice 44: a bar inside a code span, or with no space on a side, does not split', () => {
+    const inCode = ownerOf('### Slice 5: x\n\n- **You:** run `cat log | grep ERROR` and check the count\n');
+    assert.equal(inCode.title, 'Slice 5: run cat log | grep ERROR and check the count');
+    assert.equal(inCode.details_md, undefined);
+    const tight = ownerOf('### Slice 5: x\n\n- **You:** pick a|b or c\n');
+    assert.equal(tight.title, 'Slice 5: pick a|b or c');
+    const after = ownerOf('### Slice 5: x\n\n- **You:** run `a | b` | then open https://x.test\n');
+    assert.equal(after.title, 'Slice 5: run a | b');
+    assert.equal(after.details_md, 'then open https://x.test');
+  });
+
+  test('Slice 44: steps written as nested bullets after the bar are the description', () => {
+    const owner = ownerOf('### Slice 5: x\n\n- **You:** Set the variables |\n  - Go to https://claude.ai/code\n  - Complete 2 steps\n');
+    assert.equal(owner.title, 'Slice 5: Set the variables');
+    assert.equal(owner.details_md, 'Go to https://claude.ai/code Complete 2 steps');
   });
 
   test('the title of a parked card loses a trailing attribution', () => {
@@ -1016,7 +1076,7 @@ describe('Slice 43: code spans keep their names', () => {
     const planText = table('| 5 | Cloud | planned | | | |');
     const unverifiedText = '### Slice 5: x\n\n- **You:** set `AGENT_BOARD_URL` in the cloud environment.\n';
     const owner = buildItems({ project: PROJECT, planText, unverifiedText }).filter((item) => item.type === 'waiting_for_me');
-    assert.equal(owner[0].title, 'set AGENT_BOARD_URL in the cloud environment.');
+    assert.equal(owner[0].title, 'Slice 5: set AGENT_BOARD_URL in the cloud environment.');
   });
 
   test('the check key does not move when a line has a code span with underscores', () => {

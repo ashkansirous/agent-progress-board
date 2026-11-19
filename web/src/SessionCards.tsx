@@ -2,7 +2,7 @@ import type { MouseEvent } from "react";
 import type { BoardItemDto } from "../../src/api/boardDto";
 import { StepState } from "../../src/domain/stepTypes";
 import { OutcomeLine } from "./ActiveCard";
-import { cardLabel, ownerStepFallback, resolveBoardAddress, sessionLabel, waitingText } from "./cards";
+import { cardLabel, fillBoardAddress, ownerStepDetails, ownerStepFallback, resolveBoardAddress, sessionLabel, stepUrls, waitingText } from "./cards";
 import { projectLabel } from "./model";
 import { isSafeHttpUrl } from "./safeUrl";
 import { ageText } from "./time";
@@ -54,6 +54,12 @@ function addressLinks(texts: Array<string | null>): CardLink[] {
   return [...new Set(urls)].map((url) => ({ label: url.slice(window.location.origin.length) || url, url, sameTab: true }));
 }
 
+/** One link per address: a step's own link is not listed twice when the item also carries it. */
+function dedupeLinks(links: CardLink[]): CardLink[] {
+  const seen = new Set<string>();
+  return links.filter((link) => !seen.has(link.url) && seen.add(link.url));
+}
+
 interface CardLink {
   label: string;
   url: string;
@@ -75,7 +81,9 @@ export function QuestionCard({ item, onOpen }: CardProps) {
   const question = item.needs_you ?? ownerStepFallback(item);
   const work = item.title !== question ? item.title : null;
   const why = item.why && item.why !== question ? item.why : null;
-  const links: CardLink[] = [...addressLinks([work, question, why, item.after_answer]), ...item.links.filter((link) => isSafeHttpUrl(link.url))];
+  const steps = ownerStepDetails(item);
+  const stepLinks: CardLink[] = stepUrls(steps ? fillBoardAddress(steps, window.location.origin) : "").filter(isSafeHttpUrl).map((url) => ({ label: url, url }));
+  const links: CardLink[] = dedupeLinks([...addressLinks([work, question, why, item.after_answer, steps]), ...stepLinks, ...item.links.filter((link) => isSafeHttpUrl(link.url))]);
   // The whole card opens the drawer (a tap on its padding too); the button keeps the keyboard and the screen reader
   // path, and a link inside the card follows its own address.
   const openFromPadding = (event: MouseEvent<HTMLDivElement>) => {
@@ -99,6 +107,7 @@ export function QuestionCard({ item, onOpen }: CardProps) {
         {work && <span className="question-work"><AddressText text={work} asText /></span>}
         {question ? <span className="question-text"><AddressText text={question} asText /></span> : <span className="question-text question-none">{t("noQuestionRecorded")}</span>}
         {why && <span className="question-why"><AddressText text={why} asText /></span>}
+        {steps && <span className="question-why question-steps"><AddressText text={steps} asText /></span>}
         {item.after_answer && <span className="question-after">{t("afterThen", { text: addressAsText(item.after_answer) })}</span>}
         {item.needs_you ? <span className="question-asked">{phone ? asked : `${asked} · ${t("answerInSession")}`}</span> : null}
       </button>

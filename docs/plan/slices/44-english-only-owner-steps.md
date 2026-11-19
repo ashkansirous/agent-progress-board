@@ -7,10 +7,11 @@ be title: slice XXX: set the environment variables for claude-environment. descr
 click on xxx and complete 2 steps."* Starts after Slice 43 (both edit `plugin/scripts/sync-docs.mjs` and the card
 components).
 
-*In progress (wave 2026-11-19), draft PR.*
+*Built 2026-11-19, PR #160, not merged; the two Verification lines need the release.*
 
 **Touches:** `web/src/strings.ts`, `web/src/App.tsx`, `test/web.test.ts`, `test/partsWeb.test.ts`,
-`test/capCostFormat.test.ts`, `test/planningText.test.ts`, `test/sessionWeb.test.ts`, `e2e/projects.spec.ts`,
+`test/capCostFormat.test.ts`, `test/planningText.test.ts`, `test/sessionWeb.test.ts`, `test/usageWeb.test.ts`, `e2e/projects.spec.ts`, `web/src/cards.ts`,
+`web/src/SessionCards.tsx`, the e2e spec and fixture that cover owner-step cards, `docs/setup/plan-sync.md`, `docs/clients.md`,
 `plugin/scripts/sync-docs.mjs`, `plugin/scripts/sync-docs.test.mjs`, `plugin/skills/agent-board/SKILL.md`,
 `src/mcp/instructions.ts` (only if it describes the owner-step line), `docs/plan/slices/44-english-only-owner-steps.md`
 
@@ -41,12 +42,47 @@ components).
 
 #### Work
 
-- [ ] Remove the German table and locale picking; update strings tests and e2e.
-- [ ] `sync-docs.mjs`: split `**You:** <action> | <steps>` into title and description, prefix the slice number,
+- [x] Remove the German table and locale picking; update strings tests and e2e.
+- [x] `sync-docs.mjs`: split `**You:** <action> | <steps>` into title and description, prefix the slice number,
   apply the 80-character cut; tests for both forms.
-- [ ] `SKILL.md`: the owner-step line format.
+- [x] `SKILL.md`: the owner-step line format.
 
 #### Verification
 
 - [ ] After the release, the page reads English on a browser set to German.
 - [ ] A `**You:**` line in the new form shows on the board as "Slice N: <action>" with its steps underneath.
+
+*Changed while building:*
+
+- The German table, `LOCALES` and `pickLocale` are gone; `translator()` takes no argument and `App.tsx` fixes the Intl
+  locale to "en" (what every non-German viewer already got).
+- `sync-docs.mjs` (`ownerTitleFields`, `actionBar`): `**You:** <action> | <steps>` is split at the first ` | ` outside a
+  code span; the title is `Slice N: <action>` cut at 80 (`OWNER_TITLE_LIMIT`), the cut-off part and the steps go to
+  `details_md`; an empty action uses the steps as the action; a trailing bar is dropped. `plain()` and `checkHash` are
+  unchanged, so existing check keys stay.
+- Added after review: the owner-step card shows `details_md` under its title (`ownerStepDetails`, `stepUrls` in
+  `web/src/cards.ts`, `SessionCards.tsx`), with `<board address>` filled and the links in the card's link row, so the
+  steps no longer wait in the drawer.
+- `docs/setup/plan-sync.md`, `docs/clients.md` and `plugin/skills/agent-board/SKILL.md` describe the format (the
+  first two are now in Touches).
+- Fast tests (fix round 2): 721 vitest, 396 plugin, 330 e2e passed, 4 skipped.
+
+#### From review
+
+*Reviews:* `reviews/pr-160-high.md` (7 findings), `reviews/pr-160-medium.md` (4), `reviews/pr-160-check-medium.md` (3).
+
+- Applied: high #1, #3, #4, #5, #7; medium #1, #2, #3.
+- Follow-ups, low, none applied (the check pass converged): check-medium #1 (`reviews/pr-160-check-medium.md`): a line already starting with `Slice N:` gets the prefix twice; #2: `actionBar` splits the raw line before `plain()`, so a bar inside bold or link text splits it; #3: board-address links are built twice (`addressLinks` and `stepUrls`) and hidden only by `dedupeLinks`.
+
+- Skipped #2 (`reviews/pr-160-high.md`): "Existing cards keep an old details_md while the title is cut at 80." - a one-off for cards already synced; a line rewritten to the bar form gets a new checkHash key and a fresh details_md, and the COALESCE lives in `d1Repository.ts`, outside this slice's Touches.
+- Skipped #4 (`reviews/pr-160-medium.md`): "The overflow of a cut title goes in front of the steps in details_md." - the Decision says the title is "cut at 80 characters with the rest in the description", so the cut-off part leads the description by the slice's own rule.
+- Skipped #6 (`reviews/pr-160-high.md`): "The Decision says number and date formats stay in the viewer's locale through Intl, but `locale: "en"` is hard-coded." - the Decision says formats stay "through Intl, as today", and today every non-German viewer already got the "en" locale from `pickLocale`; passing `navigator.language` broke the setup e2e date.
+
+#### For CLAUDE.md
+
+- The owner-step title rule (`**You:** <action> | <steps>` into `Slice N: <action>` plus details) lives only in `ownerTitleFields` in `plugin/scripts/sync-docs.mjs`; the card's steps text only in `ownerStepDetails` in `web/src/cards.ts`. The page has one string table (English) and no locale picking (Slice 44: docs/plan/slices/44-english-only-owner-steps.md).
+
+#### Not yet verified
+
+- After the release, the page reads English on a browser set to German.
+- A `**You:** ` line in the new form shows on the board as "Slice N: <action>" with its steps underneath.

@@ -11,18 +11,20 @@ import {
   isStaleSession,
   isWorkingCard,
   opensCardDrawer,
+  ownerStepDetails,
   ownerStepFallback,
   purposeText,
   questionStart,
   resolveBoardAddress,
   sessionLabel,
+  stepUrls,
   waitingText,
 } from "../web/src/cards";
 import { groupBoard } from "../src/domain/boardGroups";
 import { translator } from "../web/src/strings";
 
 const NOW = Date.parse("2026-11-17T13:48:00.000Z");
-const t = translator("en");
+const t = translator();
 
 function item(over: Partial<BoardItemDto>): BoardItemDto {
   return {
@@ -129,7 +131,6 @@ describe("card words", () => {
     expect(waitingText(item({ needs_you_at: "2026-11-17T13:42:00.000Z" }), NOW, t)).toBe("waiting 6 min");
     expect(waitingText(item({ needs_you_at: "2026-11-17T13:48:00.000Z" }), NOW, t)).toBe("waiting 1 min");
     expect(waitingText(item({ needs_you_at: "2026-11-17T03:40:00.000Z" }), NOW, t)).toBe("waiting 10 h");
-    expect(waitingText(item({ needs_you_at: "2026-11-17T03:40:00.000Z" }), NOW, translator("de"))).toBe("wartet seit 10 Std.");
     expect(waitingText(item({ needs_you_at: null }), NOW, t)).toBeNull();
   });
 
@@ -195,7 +196,6 @@ describe("history in plain words", () => {
     expect(cardLabel(item({ key: "p/q", needs_you: "Which?" }), t)).toBe("Question");
     expect(isOwnerStep(item({ ...step, key: "p/waiting-9c1e" }))).toBe(false);
     expect(isOwnerStep(item({ ...step, needs_you: "Which?" }))).toBe(false);
-    expect(cardLabel(step, translator("de"))).toBe("Dein Schritt");
   });
 
   it("an owner step with no why still asks its title; another card asks nothing without a why (Slice 43)", () => {
@@ -203,6 +203,16 @@ describe("history in plain words", () => {
     expect(ownerStepFallback(step)).toBe("Connect the phone");
     expect(ownerStepFallback(item({ ...step, key: "p/waiting-9c1e" }))).toBeNull();
     expect(ownerStepFallback(item({ ...step, key: "p/waiting-9c1e", why: "Because" }))).toBe("Connect the phone");
+  });
+
+  it("an owner step's details_md is its steps; no other card has steps, and its links are read from the text (Slice 44)", () => {
+    const step = item({ key: "p/slice-4/check-0a1b2c3d", title: "Slice 4: Set the variables", type: ItemType.WaitingForMe, agent: null, status: ItemStatus.Open, details_md: "Go to https://claude.ai/code, then open <board address>/#/setup." });
+    expect(ownerStepDetails(step)).toBe("Go to https://claude.ai/code, then open <board address>/#/setup.");
+    expect(ownerStepDetails(item({ ...step, details_md: null }))).toBeNull();
+    expect(ownerStepDetails(item({ ...step, key: "p/waiting-9c1e" }))).toBeNull();
+    expect(ownerStepFallback(step)).toBe("Slice 4: Set the variables");
+    expect(stepUrls("Go to https://claude.ai/code, then https://x.test/a?b=1. Done (https://y.test)")).toEqual(["https://claude.ai/code", "https://x.test/a?b=1", "https://y.test"]);
+    expect(stepUrls("Open https://console.example/path(1)/x. Or (see https://z.test/a(b)).")).toEqual(["https://console.example/path(1)/x", "https://z.test/a(b)"]);
   });
 
   it("reads <board address> as the page's origin and links a board page (Slice 43)", () => {
@@ -222,11 +232,5 @@ describe("history in plain words", () => {
 
   it("fills every <board address> for text that holds no link (Slice 43)", () => {
     expect(fillBoardAddress("a <board address>/#/x and <board address>", "https://b.test")).toBe("a https://b.test/#/x and https://b.test");
-  });
-
-  it("has the German words too", () => {
-    const de = translator("de");
-    expect(historyWords(event(ItemStatus.InProgress, ANSWERED_NOTE), de)).toBe("Beantwortet");
-    expect(historyWords(event(ItemStatus.Stale, null), de)).toContain("15");
   });
 });

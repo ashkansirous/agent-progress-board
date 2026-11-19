@@ -19,6 +19,7 @@ import { callTool, normaliseSliceNumber, parseArgs, projectSlug, resolveConfig, 
 export const SYNC_TIMEOUT_MS = 5000;
 export const MAX_ITEMS = 200;
 const TITLE_LIMIT = 300;
+const OWNER_TITLE_LIMIT = 80; // an owner step's title, "Slice N: <action>"
 const DETAILS_LIMIT = 20000; // the board's longest details_md
 const WHY_LIMIT = 2000;
 const SLICES_DIR = 'docs/plan/slices';
@@ -517,8 +518,23 @@ const OWNER_PREFIX = /^\s*(?:[-*]\s+)?\*\*you:\*\*\s*/i;
 // end ("v1.2", "e.g. the picker" stay inside), and it is read from the whole step, before the title is clipped.
 const SO_THAT = /\b[Ss]o that\b.*?(?:[.!?](?=\s+[A-Z])|[.!?]?$)/;
 
+function ownerStepRaw(entry) {
+  return [entry.line.replace(OWNER_PREFIX, ''), ...entry.nested].join(' ');
+}
+
 function ownerStepFull(entry) {
-  return plain([entry.line.replace(OWNER_PREFIX, ''), ...entry.nested].join(' '));
+  return plain(ownerStepRaw(entry));
+}
+
+// The index of the first " | " (a bar with a space before it or first on the line, and a space after it or last on the line)
+// outside a code span, or -1.
+function actionBar(raw) {
+  let inCode = false;
+  for (let index = 0; index < raw.length; index += 1) {
+    if (raw[index] === '`') inCode = !inCode;
+    else if (!inCode && raw[index] === '|' && (index + 1 === raw.length || raw[index + 1] === ' ') && (index === 0 || raw[index - 1] === ' ')) return index;
+  }
+  return -1;
 }
 
 // The owner's steps of a block stay items of their own, as before checks moved into the slice item. Each says what
@@ -535,6 +551,24 @@ function ownerItems(project, blocks, notices, rows, repoUrl) {
   }));
 }
 
+// "<short action> | <steps>" splits at the first " | " outside a code span; a line with no bar is all action. The title is
+// "Slice N: <action>" cut at OWNER_TITLE_LIMIT; what the cut takes off goes in front of the steps, so `details_md` shows
+// the whole text. An empty action makes the steps the action; no text at all gives null (the caller falls back to the
+// entry's own title).
+function ownerTitleFields(number, raw) {
+  const bar = actionBar(raw);
+  const before = flatten(plain(bar < 0 ? raw : raw.slice(0, bar)));
+  const after = bar < 0 ? '' : flatten(plain(raw.slice(bar + 1)));
+  const action = before || after;
+  const steps = before ? after : '';
+  if (!action) return null;
+  const heading = `Slice ${number}: ${action}`;
+  const cut = heading.length > OWNER_TITLE_LIMIT ? codePointBoundary(heading, OWNER_TITLE_LIMIT - 1) : heading.length;
+  const title = cut < heading.length ? `${heading.slice(0, cut).trimEnd()}…` : heading;
+  const description = [cut < heading.length ? `…${heading.slice(cut).trim()}` : '', steps].filter(Boolean).join(' ');
+  return description ? { title, details_md: description.slice(0, codePointBoundary(description, DETAILS_LIMIT)) } : { title };
+}
+
 function ownerItem(project, block, row, entry, repoUrl) {
   const full = ownerStepFull(entry);
   const rowTitle = clip(row.title, TITLE_LIMIT);
@@ -544,7 +578,7 @@ function ownerItem(project, block, row, entry, repoUrl) {
   return {
     key: `${project}/slice-${block.number}/check-${checkHash(entry.line)}`, project,
     type: 'waiting_for_me', status: 'open',
-    ...(clip(full, TITLE_LIMIT) ? titleFields(full) : { title: entryTitle(entry) }),
+    ...((clip(full, TITLE_LIMIT) && ownerTitleFields(block.number, ownerStepRaw(entry))) || { title: entryTitle(entry) }),
     why: clip(unblocks ? `${sliceName} — ${unblocks[0]}` : `Not yet verified for ${sliceName}`, WHY_LIMIT),
     parent: `Slice ${block.number} · Not yet verified`,
     ...(links.length ? { links } : {}),

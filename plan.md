@@ -24,7 +24,13 @@ owner's config repo. Decisions in [Slice 20](docs/plan/slices/20-plugin-connect.
 | --- | --- | --- | --- | --- | --- |
 | 49 | Follow-ups left open by Slice 48 | planned | | | [slice](docs/plan/slices/49-slice-48-follow-ups.md) |
 | 50 | Item tools one by one and in batches, archive instead of delete | planned | | | [slice](docs/plan/slices/50-batch-and-archive.md) |
-| 51 | Bug: blocked step state, true step times, a visible reason when a card reopens | planned (owner 2026-11-19) | | | [slice](docs/plan/slices/51-blocked-steps-true-times.md) |
+| 51 | Bug: blocked step state, true step times, a visible reason when a card reopens; each step time names its source | planned (owner 2026-11-19; time sources added by owner 2026-11-22) | | | [slice](docs/plan/slices/51-blocked-steps-true-times.md) |
+| 52 | Spike: rebuild one session's true step timeline from hooks and the transcript | planned (owner 2026-11-22) | | | [slice](docs/plan/slices/52-timeline-spike.md) |
+| 53 | Task tools become card steps with times seen by the hooks | planned (owner 2026-11-22; needs 51, 52) | | | [slice](docs/plan/slices/53-task-tools-steps.md) |
+| 54 | Cost per step: model, tokens, peak context, compactions | planned (owner 2026-11-22; needs 53) | | | [slice](docs/plan/slices/54-step-cost.md) |
+| 55 | Process keys, step counts and read tools for analysis | planned (owner 2026-11-22; needs 54) | | | [slice](docs/plan/slices/55-process-keys.md) |
+| 56 | Budgets per process, with a live breach on the card | planned (owner 2026-11-22; needs 55) | | | [slice](docs/plan/slices/56-process-budgets.md) |
+| 57 | Process optimiser: a skill that finds waste in the recorded runs | planned (owner 2026-11-22; needs 55, 56) | | | [slice](docs/plan/slices/57-process-optimiser.md) |
 
 Notes:
 
@@ -138,3 +144,6 @@ Notes:
 - Spin-offs for later: ntfy push for new waiting_for_me items (check pricing first), a daily
   overnight digest, a read-only share link per project, the board as the cloud-offload "done"
   signal instead of polling `gh pr checks`, a summary in `_STATUS.md`, a scheduled doc sync.
+- Process optimiser (Slices 52 to 57, owner 2026-11-22): the board never edits a skill or repo (it flags; gates live in
+  the skills); OpenTelemetry ingest, step times for cloud sessions, a monthly cost-of-a-slice trend and aggregates kept
+  past 180 days are later spin-offs.

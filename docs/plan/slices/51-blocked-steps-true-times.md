@@ -37,6 +37,13 @@ Decided by this session (bug fix, no open question):
    with an open check never reads 100%. A doc-sync reopen writes a history note with the reason, and the card shows it.
 4. A merged slice with an open check is shown as Built (Slice 42) whatever the doc sync's status write was; the sync
    does not move a done slice back to in progress for an open check.
+5. *Added 2026-11-22 from the owner's phone scope "Process optimiser and true per-step telemetry" (decision "Which step
+   time wins", approved by the owner 2026-11-21; folding it into this slice approved by the owner 2026-11-22):* every
+   stored step time carries its source: `observed` (a plugin hook saw the change as it happened, Slice 53), `reported`
+   (the agent sent the time) or `stamped` (the server used its own clock). A later report replaces a time only with one
+   from a source at least as good: observed, then reported, then stamped. An observed time is never overwritten by a
+   reported or stamped one. The card shows the source of each time (stamped times stay hidden as durations, Decision 2),
+   and the detail drawer names it ("seen by hook", "reported", "guessed").
 
 ## Work
 
@@ -47,6 +54,11 @@ Decided by this session (bug fix, no open question):
 - [ ] **C.** Slice card shows its check items after the steps and counts them in progress; a reopen writes a history
   note with the reason and the card shows it.
 - [ ] **D.** Doc sync leaves a done slice with an open check done, so it groups as Built.
+- [ ] **F.** Time sources (Decision 5): `started_source` / `done_source` on each stored step (`observed | reported |
+  stamped`), the precedence rule in one place in `src/domain/steps.ts` (used by `saveStepsReport`), the MCP schema and
+  reporting rules text (both copies) taking an optional source on reported times (only the plugin's hooks send
+  `observed`), the drawer naming the source. Tests: an observed end time survives a later batched report; a reported
+  time replaces a stamped one; a stamped time never replaces either.
 - [ ] **E.** Tests for each, and a plugin release so clients can send the new fields.
 
 ## Verification
@@ -54,3 +66,5 @@ Decided by this session (bug fix, no open question):
 - A test slice with 11 done steps and one open blocked check reads 11 of 12, shows the check as an orange step with its
   note, and groups as Built.
 - A batched late report without times shows no durations; one with times shows the reported durations.
+- A step whose end was sent as observed at 10:05 and then marked done again in a batched report at 10:50 keeps 10:05 and
+  reads "5 min, seen by hook" (the phone scope's "active 1 h, really done 45 min ago" case).

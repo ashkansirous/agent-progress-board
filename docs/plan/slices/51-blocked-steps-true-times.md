@@ -59,6 +59,13 @@ Decided by this session (bug fix, no open question):
   reporting rules text (both copies) taking an optional source on reported times (only the plugin's hooks send
   `observed`), the drawer naming the source. Tests: an observed end time survives a later batched report; a reported
   time replaces a stamped one; a stamped time never replaces either.
+- [ ] **G.** *Added 2026-11-22 (bug card `agent-progress-board/bug-steps-kept`, seen by a desk session on its own task
+  card):* a report that sent step `refine` without a `children` field came back with `children: []`, although the
+  stored step had three children and the rules text says they are kept (`keptChildren` in `src/domain/steps.ts`). The
+  same reply showed every done step's `started_at` and `done_at` as the report's time. The cause is not known yet: the
+  live Worker may be older than `main`, or the plugin's own hook report (`source: hook` on the reply) may have sent the
+  tree without them. Find which from the item's history and the plugin's `senders.log`, fix it, and add a test that
+  replays the two reports.
 - [ ] **E.** Tests for each, and a plugin release so clients can send the new fields.
 
 ## Verification

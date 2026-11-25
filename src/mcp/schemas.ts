@@ -3,8 +3,9 @@ import { MAX_CHECKS, MAX_KEY_LENGTH, PART_SUFFIX_LENGTH } from "../domain/checks
 import { BatchOp, MAX_BATCH_ITEMS, MAX_EXPANDED_ITEMS, MAX_SNAPSHOT_ITEMS } from "../domain/docSync";
 import { ItemStatus, ItemType, Priority } from "../domain/item";
 import { MAX_PARTS } from "../domain/parts";
+import { DEFAULT_RUN_LIMIT, DEFAULT_WINDOW_DAYS, MAX_PROCESS_FILTER, MAX_RUN_LIMIT, MAX_WINDOW_DAYS } from "../domain/processStats";
 import { MAX_AFTER_ANSWER, MAX_NEEDS_YOU, MAX_OUTCOME } from "../domain/upsert";
-import { MAX_STEP_COMPACTIONS, MAX_STEP_DEPTH, MAX_STEP_ID, MAX_STEP_LABEL, MAX_STEP_LINK, MAX_STEP_NOTE, MAX_STEPS } from "../domain/steps";
+import { MAX_PROCESS_KEY, MAX_STEP_COMPACTIONS, MAX_STEP_COUNTS, MAX_STEP_DEPTH, MAX_STEP_ID, MAX_STEP_LABEL, MAX_STEP_LINK, MAX_STEP_NOTE, MAX_STEPS } from "../domain/steps";
 import { type StepInput, StepState, TimeSource } from "../domain/stepTypes";
 
 const MAX_KEY = MAX_KEY_LENGTH;
@@ -60,6 +61,11 @@ const stepCost = z
   .optional()
   .describe("The measured cost of a finished step, sent only by the plugin's hooks: {agent_id?, models: [{model, input_tokens, cache_read_tokens, cache_write_tokens, output_tokens}] (1 to 20), peak_context, compactions, writer?, seq?}; needs the step's own id and times (done step); stored as its own row, never in the steps list; one that does not fit is dropped and the rest of the report is kept");
 
+const MAX_LOOSE_FIELD_JSON = 2000;
+
+// Any JSON value up to a size: a wrong type never refuses the report, the domain drops it with a note (Decision 6, Slice 55).
+const looseField = z.unknown().refine((value) => value === undefined || JSON.stringify(value).length <= MAX_LOOSE_FIELD_JSON, { message: `needs at most ${MAX_LOOSE_FIELD_JSON} characters as JSON` });
+
 const stepBase = {
   id: z.string().trim().min(1).max(MAX_STEP_ID).optional().describe("Stable id of the step, kept across reports; made from the label path when left out"),
   label: z.string().trim().min(1).max(MAX_STEP_LABEL),
@@ -72,6 +78,8 @@ const stepBase = {
   started_source: z.enum(TimeSource).nullable().optional().describe("Where started_at came from: reported (default) or observed (only a hook that saw it happen)"),
   done_source: z.enum(TimeSource).nullable().optional().describe("Where done_at came from: reported (default) or observed (only a hook that saw it happen)"),
   compactions: z.number().int().min(0).max(MAX_STEP_COMPACTIONS).nullable().optional().describe("Times the context was compacted while the step ran; a hook counts them, the stored count only grows"),
+  process: looseField.optional().describe(`The kind of step as a key of lower-case words joined by "/" (for example slice/implement), at most ${MAX_PROCESS_KEY} characters; the same key for the same kind of step, so runs compare; left out or invalid keeps the stored one, null or "" clears it`),
+  counts: looseField.optional().describe(`Up to ${MAX_STEP_COUNTS} named whole numbers the step produced (for example findings, fixed, skipped); name = lower-case letters, digits or _; left out or invalid keeps the stored ones, null clears them`),
   cost: stepCost,
 };
 
@@ -201,6 +209,19 @@ export const listOpenShape = {
   project: label.optional(),
   type: z.enum(ItemType).optional(),
   window_hours: z.number().positive().optional().describe("Hours a done item stays; capped by config"),
+};
+
+export const queryRunsShape = {
+  project: label.optional(),
+  process: z.string().trim().min(1).max(MAX_PROCESS_FILTER).optional().describe("Only steps of this process key, in any case (a step with none is grouped as <agent type>/<label>, in lower case)"),
+  from: z.string().max(TIME_TEXT_MAX).optional().describe("Earliest finish time (ISO); default 30 days before to"),
+  to: z.string().max(TIME_TEXT_MAX).optional().describe("Latest finish time (ISO); default now"),
+  limit: z.number().int().min(1).max(MAX_RUN_LIMIT).optional().describe(`Most rows, newest first; default ${DEFAULT_RUN_LIMIT}, at most ${MAX_RUN_LIMIT}`),
+};
+
+export const processStatsShape = {
+  project: label.optional(),
+  window_days: z.number().int().min(1).max(MAX_WINDOW_DAYS).optional().describe(`Days back from now; default ${DEFAULT_WINDOW_DAYS}, at most ${MAX_WINDOW_DAYS}`),
 };
 
 export const getItemShape = {

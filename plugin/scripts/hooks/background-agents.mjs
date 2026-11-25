@@ -302,8 +302,14 @@ function taskState(task) {
 // hooks saw (never the creation time).
 function taskStep(task, counts) {
   const state = taskState(task);
-  const step = { id: taskRowId(task.taskId), label: clip(maskSecrets(task.subject.slice(0, MASK_WINDOW)), STEP_LABEL_MAX), state, ...observedTimes(task, state) };
+  const step = { id: taskRowId(task.taskId), label: clip(maskSecrets(task.subject.slice(0, MASK_WINDOW)), STEP_LABEL_MAX), state, ...observedTimes(task, state), ...(task.process ? { process: task.process } : {}) };
   return withCompactions(step, counts[taskCountKey(task.taskId)] || 0);
+}
+
+// A reported step matches a task by the stripped subject or by the full "[key] subject" text (Slice 55 Decision 6).
+function taskMatchesLabel(task, label) {
+  if (sameLabel(clip(task.subject, STEP_LABEL_MAX), label)) return true;
+  return Boolean(task.process) && sameLabel(clip(`[${task.process}] ${task.subject}`, STEP_LABEL_MAX), label);
 }
 
 // The sent steps with the compaction counts put on (every level), and the observed times of a task whose label equals a
@@ -311,11 +317,12 @@ function taskStep(task, counts) {
 function overlayRoot(sent, rootTasks, counts) {
   const open = [...rootTasks];
   const mark = (level, top) => level.map((step) => {
-    const at = top ? open.findIndex((task) => sameLabel(clip(task.subject, STEP_LABEL_MAX), step.label)) : -1;
+    const at = top ? open.findIndex((task) => taskMatchesLabel(task, step.label)) : -1;
     const task = at >= 0 ? open.splice(at, 1)[0] : null;
     const count = (counts[stepKey(step)] || 0) + (task ? counts[taskCountKey(task.taskId)] || 0 : 0);
     const children = Array.isArray(step.children) ? mark(step.children, false) : null;
-    return withCompactions({ ...step, ...(task ? observedTimes(task, step.state) : {}), ...(children ? { children } : {}) }, count);
+    const process = task && task.process && !step.process ? { process: task.process } : {}; // a reported step keeps its own key
+    return withCompactions({ ...step, ...(task ? observedTimes(task, step.state) : {}), ...process, ...(children ? { children } : {}) }, count);
   });
   const marked = mark(sent, true);
   return [...marked, ...open.map((task) => taskStep(task, counts))];

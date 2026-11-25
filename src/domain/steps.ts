@@ -14,6 +14,15 @@ export const MAX_STEP_ID = 80;
 export const MAX_STEP_LINK = 500;
 /** Largest compaction count a step may carry. */
 export const MAX_STEP_COMPACTIONS = 1000;
+/** Longest process key (Slice 55). */
+export const MAX_PROCESS_KEY = 80;
+/** Named counts one step may carry, the longest count name and the largest count value (Slice 55). */
+export const MAX_STEP_COUNTS = 10;
+export const MAX_COUNT_NAME = 40;
+export const MAX_COUNT_VALUE = 1_000_000;
+/** Lower-case words (letters, digits, `-` or `_` inside a word) joined by `/`. */
+const PROCESS_KEY_PATTERN = /^[a-z0-9]+(?:[-_][a-z0-9]+)*(?:\/[a-z0-9]+(?:[-_][a-z0-9]+)*)*$/;
+const COUNT_NAME_PATTERN = /^[a-z][a-z0-9_]*$/;
 const HTTP_PROTOCOLS = ["http:", "https:"];
 /** How far ahead of the server's clock a reported time may be (clock skew between the reporter and the Worker). */
 export const REPORTED_TIME_SKEW_MS = 60_000;
@@ -36,6 +45,61 @@ function checkStep(step: StepInput, at: string): void {
     fail(`${at} id needs 1 to ${MAX_STEP_ID} characters`);
   }
   checkBlocked(step, at);
+}
+
+/** Whether the text is a process key: lower-case words joined by "/", at most `MAX_PROCESS_KEY` characters. */
+export function isProcessKey(text: string): boolean {
+  return text.length >= 1 && text.length <= MAX_PROCESS_KEY && PROCESS_KEY_PATTERN.test(text);
+}
+
+/** A sent `process` that clears the stored key (Decision 6): an explicit null or an empty text. */
+function clearsProcess(given: unknown): boolean {
+  return given === null || (typeof given === "string" && given.trim() === "");
+}
+
+/** A sent `process` that is neither a clear nor a key: dropped with a notice, the stored key stays. */
+function badProcess(given: unknown): boolean {
+  if (given === undefined || clearsProcess(given)) return false;
+  return typeof given !== "string" || !isProcessKey(given.trim());
+}
+
+/** Counts that fit: an object of at most `MAX_STEP_COUNTS` names, each a valid name with a whole number value. */
+function fittingCounts(given: unknown): given is Record<string, number> {
+  if (!given || typeof given !== "object" || Array.isArray(given)) return false;
+  const entries = Object.entries(given);
+  return entries.length <= MAX_STEP_COUNTS && entries.every(([name, value]) => COUNT_NAME_PATTERN.test(name) && name.length <= MAX_COUNT_NAME && isCountValue(value));
+}
+
+/** A sent `counts` that is neither a clear (null) nor fitting: dropped with a notice, the stored counts stay. */
+function badCounts(given: unknown): boolean {
+  return given !== undefined && given !== null && !fittingCounts(given);
+}
+
+/** The labels of the sent steps (any level) whose `process` or `counts` was invalid: that field is dropped (the stored one stays), and the reply says so. */
+export function badFieldSteps(steps: readonly StepInput[] | undefined): string[] {
+  return (steps ?? []).flatMap((step) => {
+    const bad = badProcess(step.process) || badCounts(step.counts);
+    return [...(bad ? [step.label.trim()] : []), ...badFieldSteps(step.children)];
+  });
+}
+
+function isCountValue(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= MAX_COUNT_VALUE;
+}
+
+/** The process key after a report (Decision 6): left out or invalid keeps the stored one; only null or "" clears; a stored value that is no key (a hand-edited row) reads as none. */
+function keptProcess(given: unknown, stored: string | undefined): string | null {
+  const value = given === undefined || badProcess(given) ? stored : given;
+  const text = typeof value === "string" ? value.trim() : "";
+  return isProcessKey(text) ? text : null;
+}
+
+/** The counts after a report (Decision 6): left out or invalid keeps the stored ones; only null clears; stored entries that do not fit are left out. */
+function keptCounts(given: unknown, stored: Record<string, number> | undefined): Record<string, number> | null {
+  const source = given === undefined || badCounts(given) ? stored : given;
+  if (!source || typeof source !== "object") return null;
+  const valid = Object.entries(source).filter(([name, value]) => COUNT_NAME_PATTERN.test(name) && name.length <= MAX_COUNT_NAME && isCountValue(value));
+  return valid.length > 0 ? Object.fromEntries(valid.slice(0, MAX_STEP_COUNTS)) : null;
 }
 
 /** A blocked step says what it waits on (its note). A bad `waits_on` or `link` never refuses the report: `buildStep` drops it. */
@@ -188,7 +252,9 @@ function buildStep(input: StepInput, ctx: BuildContext): Step {
   const link = blocked ? validLink(input.link) : null;
   const compactions = keptCompactions(input.compactions, ctx.kept(id)?.compactions);
   const costRef = costRefOfStep(input, ctx.kept(id));
-  return { id, label: input.label.trim(), state: input.state, note: input.note?.trim() || null, ...ctx.stamp(input, id, input.state), waits_on: waitsOn, link, compactions, ...(costRef ? { cost_ref: costRef } : {}), children };
+  const process = keptProcess(input.process, ctx.kept(id)?.process);
+  const counts = keptCounts(input.counts, ctx.kept(id)?.counts);
+  return { id, label: input.label.trim(), state: input.state, note: input.note?.trim() || null, ...ctx.stamp(input, id, input.state), waits_on: waitsOn, link, compactions, ...(costRef ? { cost_ref: costRef } : {}), ...(process ? { process } : {}), ...(counts ? { counts } : {}), children };
 }
 
 /**
@@ -323,7 +389,7 @@ function storedTime(at: string | null | undefined, source: TimeSource | null | u
 }
 
 /** An ISO-8601 date and time with a zone ("Z" or an offset); anything else (a bare number, a date without a zone) is not a reported time. */
-const ISO_WITH_ZONE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/;
+export const ISO_WITH_ZONE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/;
 
 /**
  * A time a report sent, as ISO. A source of `stamped` (an echo of a guess) is no report; one that is unparsable or
@@ -441,20 +507,25 @@ function hookStep(sent: StepInput, match: Step | undefined): StepInput {
   const givenOwn = given.filter((child) => !isHookOwned(child.id));
   const own: StepInput[] = givenOwn.length > 0 ? hookLevel(match?.children ?? [], givenOwn) : (match?.children ?? []).filter((child) => !isHookOwned(child.id));
   const rows = given.filter((child) => isAgentRow(child.id)).map((row) => hookAgentRow(row, (match?.children ?? []).find((candidate) => sameStep(row, candidate))));
-  return { ...sent, children: [...own, ...rows, ...given.filter((child) => isTaskRow(child.id))] };
+  return { ...sent, children: [...own, ...rows, ...given.filter((child) => isTaskRow(child.id)).map(hookTaskRow)] };
 }
 
 /** One level of a hook report: only the steps sent, the session's own first in order, then the agent rows and the task rows sent. */
 function hookLevel(stored: readonly Step[], sent: readonly StepInput[]): StepInput[] {
   const own = sent.filter((step) => !isHookOwned(step.id)).map((step) => hookStep(step, stored.find((candidate) => sameStep(step, candidate))));
   const rows = sent.filter((step) => isAgentRow(step.id)).map((row) => hookAgentRow(row, stored.find((candidate) => sameStep(row, candidate))));
-  return [...own, ...rows, ...sent.filter((step) => isTaskRow(step.id))];
+  return [...own, ...rows, ...sent.filter((step) => isTaskRow(step.id)).map(hookTaskRow)];
+}
+
+/** A task row from a hook: the hook's list is the whole list, so a row sent with no process key has none (it clears a stale stored one). */
+function hookTaskRow(row: StepInput): StepInput {
+  return { ...row, process: row.process ?? null };
 }
 
 /** An agent row from a hook: the helper's own stored children stay, whatever their ids; its task rows are exactly the ones sent (none clears them). */
 function hookAgentRow(row: StepInput, match: Step | undefined): StepInput {
   const helperOwn = (match?.children ?? []).filter((child) => !isTaskRow(child.id));
-  return { ...row, children: [...helperOwn, ...(row.children ?? []).filter((child) => isTaskRow(child.id))] };
+  return { ...row, children: [...helperOwn, ...(row.children ?? []).filter((child) => isTaskRow(child.id)).map(hookTaskRow)] };
 }
 
 /** The stored task rows of a level, in their order. */

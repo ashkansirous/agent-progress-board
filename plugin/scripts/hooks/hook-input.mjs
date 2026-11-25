@@ -252,10 +252,24 @@ function taskOf(value) {
     subject: value.subject,
     agentId: typeof value.agentId === 'string' ? value.agentId : '',
     cardKey: typeof value.cardKey === 'string' ? value.cardKey : '', // the card open when the task was made ('' = none)
+    process: typeof value.process === 'string' ? value.process : '', // the `[key]` prefix of the subject (Slice 55), '' = none
     createdAt: time(value.createdAt),
     startedAt: time(value.startedAt),
     doneAt: time(value.doneAt),
   };
+}
+
+const PROCESS_PREFIX = /^\s*\[([a-z0-9]+(?:[-_][a-z0-9]+)*(?:\/[a-z0-9]+(?:[-_][a-z0-9]+)*)*)\]\s*/; // same key shape as the board's `isProcessKey`
+const PROCESS_KEY_MAX = 80; // MAX_PROCESS_KEY in src/domain/steps.ts
+
+// A task subject split into its name and the process key of a leading `[key]` (Slice 55); a prefix that is no key stays in the name.
+// A subject that is only the prefix keeps it as the name (a task with no name mirrors no step) and still gives the key.
+export function splitSubject(raw) {
+  const text = typeof raw === 'string' ? raw : '';
+  const match = PROCESS_PREFIX.exec(text);
+  if (!match || match[1].length > PROCESS_KEY_MAX) return { subject: text, process: '' };
+  const name = text.slice(match[0].length);
+  return { subject: name.trim() === '' ? text.trim() : name, process: match[1] };
 }
 
 export function readTask(id, taskId, root) {

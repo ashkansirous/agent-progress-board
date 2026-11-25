@@ -102,6 +102,10 @@ export interface Step {
   compactions?: number;
   /** The stored cost row this done step shows (Decision 7b); absent when it has none. Stored in the steps text. */
   cost_ref?: CostRef;
+  /** The kind of step as a key of lower-case words joined by `/` (Slice 55); absent when the step has none. Stored in the steps text. */
+  process?: string;
+  /** Named whole numbers the step reports (for example findings, fixed; Slice 55); absent when none. Stored in the steps text. */
+  counts?: Record<string, number>;
   /** The step's measured cost, attached at read from `step_runs` (Slice 54); never part of the stored steps text. */
   cost?: StepCost | null;
   children: Step[];
@@ -129,6 +133,10 @@ export interface StepInput {
   compactions?: number | null;
   /** The measured cost of a finished step, from a plugin hook (Slice 54); needs an explicit `id`, else it is ignored. */
   cost?: unknown;
+  /** The step's process key (Slice 55); left out keeps the stored one, null clears it. */
+  process?: unknown;
+  /** The step's named counts (Slice 55); left out keeps the stored ones, null clears them. */
+  counts?: unknown;
   /** Carried from a stored step by the server's own merges; a client's value is dropped by the schema. */
   cost_ref?: CostRef;
   children?: StepInput[];

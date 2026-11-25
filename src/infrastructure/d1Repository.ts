@@ -7,6 +7,9 @@ import {
   ArchivedItemError,
   StepsChangedError,
   STEP_RUN_READ_LIMIT,
+  type StepListFilter,
+  type StepListPage,
+  type StepListRow,
   type SessionWindow,
   type StaleCutoffs,
   type StaleResult,
@@ -754,7 +757,31 @@ export class D1ItemRepository implements ItemRepository, UsageRepository, Archiv
     const result = await this.db.prepare("DELETE FROM step_runs WHERE ended_at < ?1").bind(cutoff).run();
     return result.meta.changes ?? 0;
   }
+
+  async stepListsSince(filter: StepListFilter): Promise<StepListPage> {
+    // One row more than the limit tells whether the read was cut.
+    const { results } = await this.db.prepare(STEP_LISTS_SINCE).bind(filter.since, filter.project ?? null, filter.limit + 1).all<StepListDbRow>();
+    const kept = results.slice(0, filter.limit);
+    const rows = kept.flatMap((row): StepListRow[] => {
+      const steps = parseStoredSteps(row.steps);
+      return steps ? [{ key: row.key, project: row.project, agent: row.agent, updated_at: row.updated_at, steps }] : [];
+    });
+    return { rows, cutAt: results.length > filter.limit ? (kept[kept.length - 1]?.updated_at ?? null) : null };
+  }
 }
+
+interface StepListDbRow {
+  key: string;
+  project: string;
+  agent: string | null;
+  updated_at: string;
+  steps: string | null;
+}
+
+/** ?1 the earliest update, ?2 one project or NULL, ?3 the most items. A new read of items keeps `archived_at IS NULL` (Slice 50). */
+const STEP_LISTS_SINCE = `SELECT key, project, agent, updated_at, steps FROM items
+  WHERE archived_at IS NULL AND steps IS NOT NULL AND updated_at >= ?1 AND (?2 IS NULL OR project = ?2)
+  ORDER BY updated_at DESC LIMIT ?3`;
 
 /** A `step_runs` row as stored (`models` is JSON text). */
 interface StepRunRow extends Omit<StepRun, "models" | "started_source" | "ended_source"> {

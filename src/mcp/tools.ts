@@ -3,8 +3,10 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { type ArchiveRepository, archiveItem, getItemWithArchive } from "../application/archive";
 import { applyBatch, askHuman, type Clock, listOpen, listSynced, markDone, reportProgress, syncSnapshot, upsertItem, withStepCosts } from "../application/board";
 import type { ItemRepository, UsageRepository } from "../application/ports";
+import { processStats, queryRuns } from "../application/processRuns";
 import { reportCap, reportUsage } from "../application/usage";
 import { parseConfig } from "../config";
+import { badFieldSteps, MAX_PROCESS_KEY, MAX_STEP_COUNTS } from "../domain/steps";
 import { DomainError } from "../domain/upsert";
 import { allows, Need, Scope } from "../domain/scope";
 import {
@@ -15,6 +17,8 @@ import {
   listOpenShape,
   listSyncedShape,
   markDoneShape,
+  processStatsShape,
+  queryRunsShape,
   reportCapShape,
   reportProgressShape,
   reportUsageShape,
@@ -47,7 +51,7 @@ class Truncated {
 }
 
 /** Identity, link and time fields a clip never touches: cutting one makes a key that names no item, a URL that goes nowhere or a time that is no time. */
-const UNCLIPPED_FIELDS = new Set(["key", "parent_key", "project", "type", "status", "at", "url"]);
+const UNCLIPPED_FIELDS = new Set(["key", "item_key", "step_id", "process", "process_source", "parent_key", "project", "type", "status", "at", "url"]);
 
 function isUnclipped(name: string): boolean {
   return UNCLIPPED_FIELDS.has(name) || name.endsWith("_at");
@@ -137,25 +141,52 @@ function cutReply(plan: CutPlan): Truncated {
   return plan.fallback;
 }
 
-/** The note: how many were shown and dropped, the first dropped key when the entries have one (ask for it with get_item), and whether text was cut. */
-function cutNote(shown: number, total: number, clip: number | null, what: string, advice: string, firstDroppedKey: string | null = null, droppedLinks = false): string {
+/** The note: how many were shown and dropped, the first dropped entry when it can be named, and whether text was cut. */
+function cutNote(shown: number, total: number, clip: number | null, what: string, advice: string, firstDropped: string | null = null, droppedLinks = false): string {
   const dropped = total - shown;
-  const first = firstDroppedKey === null ? "" : `, first dropped key ${firstDroppedKey}; ask for it with get_item`;
+  const first = firstDropped === null ? "" : `, first dropped ${firstDropped}`;
   const droppedText = dropped > 0 ? ` (${dropped} dropped${first})` : "";
   return `truncated: ${shown} of ${total} ${what} shown${droppedText}${advice}${clip === null ? "" : "; long text is cut"}${droppedLinks ? "; links were dropped" : ""}`;
 }
 
-function keyOf(entry: unknown): string | null {
-  const key = (entry as { key?: unknown } | undefined)?.key;
-  return typeof key === "string" ? key : null;
+function stringField(entry: unknown, name: string): string | null {
+  const value = (entry as Record<string, unknown> | undefined)?.[name];
+  return typeof value === "string" ? value : null;
 }
 
-/** The entries as they are when they fit the limit, else a `Truncated` whose measured reply fits it. */
-export function fitList<T>(entries: T[]): unknown {
+/** An item entry is named by its key, with the hint to read it with get_item. */
+function itemDropped(entry: unknown): string | null {
+  const key = stringField(entry, "key");
+  return key === null ? null : `key ${key}; ask for it with get_item`;
+}
+
+/** A run row is named by its item key and step id, which `get_item` takes; a stat row by its process key. */
+export function runDropped(entry: unknown): string | null {
+  const item = stringField(entry, "item_key");
+  const step = stringField(entry, "step_id");
+  if (item !== null && step !== null) return `run ${item} step ${step}`;
+  const process = stringField(entry, "process");
+  return process === null ? null : `process key ${process}`;
+}
+
+/** How a list reply is worded: what the entries are, how to narrow the call, how a dropped entry is named, and a notice the reader must see even when everything fits. */
+export interface ListOptions {
+  what?: string;
+  advice?: string;
+  dropped?: (entry: unknown) => string | null;
+  notice?: string;
+}
+
+/**
+ * The entries as they are when they fit the limit, else a `Truncated` whose measured reply fits it. A `notice`
+ * (a partial read) always comes as the note block.
+ */
+export function fitList<T>(entries: T[], options: ListOptions = {}): unknown {
+  const { what = "items", advice = "; narrow the call with project, type or window_hours", dropped = itemDropped, notice = "" } = options;
+  const withNotice = (note: string): string => (notice ? `${note}; ${notice}` : note);
   const sizes = entries.map((entry) => JSON.stringify(entry).length);
   const whole = 2 + sizes.reduce((sum, size) => sum + size, 0) + Math.max(entries.length - 1, 0);
-  if (whole <= MAX_RESULT_CHARS) return entries;
-  const advice = "; narrow the call with project, type or window_hours";
+  if (whole <= MAX_RESULT_CHARS) return notice ? new Truncated(entries, notice) : entries;
   return cutReply({
     sizes,
     fixed: 2,
@@ -164,9 +195,9 @@ export function fitList<T>(entries: T[]): unknown {
     build: (shown, clip, dropLongLinks = false) => {
       const kept = entries.slice(0, shown);
       const data = clip === null ? kept : kept.map((entry) => clipStrings(entry, clip, dropLongLinks));
-      return new Truncated(data, cutNote(shown, entries.length, clip, "items", advice, keyOf(entries[shown]), dropLongLinks));
+      return new Truncated(data, withNotice(cutNote(shown, entries.length, clip, what, advice, dropped(entries[shown]), dropLongLinks)));
     },
-    fallback: new Truncated([], cutNote(0, entries.length, null, "items", `; the first item alone is over the size limit${advice}`, keyOf(entries[0]))),
+    fallback: new Truncated([], withNotice(cutNote(0, entries.length, null, what, `; the first entry alone is over the size limit${advice}`, dropped(entries[0])))),
   });
 }
 
@@ -224,6 +255,8 @@ export enum ToolName {
   ListSynced = "list_synced",
   ReportUsage = "report_usage",
   ReportCap = "report_cap",
+  QueryRuns = "query_runs",
+  ProcessStats = "process_stats",
 }
 
 export function registerTools(server: McpServer, ctx: ToolContext): void {
@@ -239,6 +272,8 @@ export function registerTools(server: McpServer, ctx: ToolContext): void {
   registerListSynced(server, ctx);
   registerReportUsage(server, ctx);
   registerReportCap(server, ctx);
+  registerQueryRuns(server, ctx);
+  registerProcessStats(server, ctx);
 }
 
 function registerReportUsage(server: McpServer, ctx: ToolContext): void {
@@ -333,8 +368,16 @@ function registerReportProgress(server: McpServer, ctx: ToolContext): void {
         "Create or update one item by its stable key (idempotent). project, type and title are required for a new key. A chat or Claude Design session reports itself here: at the start of a piece of work send key <project>/session-<id>, type unplanned, agent session, environment \"Claude chat\" or \"Claude Design\", the goal as title and its steps; report again when the work changes; the last report ends the work window the board uses to place usage it cannot read.",
       inputSchema: reportProgressShape,
     },
-    (args) => run(ctx, Need.Write, () => reportProgress(ctx.repo, args, ctx.clock)),
+    (args) => run(ctx, Need.Write, () => reportWithNotice(ctx, args)),
   );
+}
+
+/** The saved item; a step whose `process` or `counts` was invalid keeps its stored value, and a second text part names those steps. */
+async function reportWithNotice(ctx: ToolContext, args: Parameters<typeof reportProgress>[1]): Promise<unknown> {
+  const item = await reportProgress(ctx.repo, args, ctx.clock);
+  const bad = badFieldSteps(args.steps ?? undefined);
+  if (bad.length === 0) return item;
+  return new Truncated(item, `process or counts dropped: ${bad.map((label) => `"${label}"`).join(", ")} sent a process that is not a key (lower-case words joined by "/", at most ${MAX_PROCESS_KEY} characters) or counts that do not fit (at most ${MAX_STEP_COUNTS} lower-case names with whole numbers); the stored values were kept (null clears them)`);
 }
 
 function registerMarkDone(server: McpServer, ctx: ToolContext): void {
@@ -374,6 +417,41 @@ function registerGetItem(server: McpServer, ctx: ToolContext): void {
     ToolName.GetItem,
     { description: "One item with its full event history. An archived item reads only with include_archived true.", inputSchema: getItemShape },
     (args) => run(ctx, Need.Read, async () => fitItem(await itemWithCosts(ctx, args.key, args.include_archived === true))),
+  );
+}
+
+const RUNS_ADVICE = "; narrow the call with process, project, limit or a shorter from/to range";
+const STATS_ADVICE = "; narrow the call with project or a shorter window_days";
+
+function registerQueryRuns(server: McpServer, ctx: ToolContext): void {
+  server.registerTool(
+    ToolName.QueryRuns,
+    {
+      description:
+        "Finished steps in a date range (default the last 30 days), newest first, each with its process key, time, counts and measured cost; for analysis. A step with no process key is grouped as <agent type>/<label> (process_source derived).",
+      inputSchema: queryRunsShape,
+    },
+    (args) =>
+      run(ctx, Need.Read, async () => {
+        const read = await queryRuns(ctx.repo, args, ctx.clock);
+        return fitList(read.rows, { what: "runs", advice: RUNS_ADVICE, dropped: runDropped, notice: read.notice });
+      }),
+  );
+}
+
+function registerProcessStats(server: McpServer, ctx: ToolContext): void {
+  server.registerTool(
+    ToolName.ProcessStats,
+    {
+      description:
+        "Per process key over the last window_days (default 30): runs, median and p90 time, total tokens and peak context, and the named counts summed. A figure with no run to take it from is null.",
+      inputSchema: processStatsShape,
+    },
+    (args) =>
+      run(ctx, Need.Read, async () => {
+        const read = await processStats(ctx.repo, args, ctx.clock);
+        return fitList(read.rows, { what: "process keys", advice: STATS_ADVICE, dropped: runDropped, notice: read.notice });
+      }),
   );
 }
 

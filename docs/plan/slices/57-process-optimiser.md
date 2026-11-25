@@ -45,3 +45,10 @@ useful if something reads it and proposes concrete changes with evidence.
 
 - Every positive fixture is flagged by its detector and no negative fixture is flagged.
 - Live: the first weekly dry-run report exists on the board with at least one real run per detector input.
+
+## Changes from the Slice 52 spike (2026-11-25)
+
+Source: [note](../notes/2026-11-22-timeline-spike.md), *Changes Slices 53 to 57 need* ("Slice 55 and later").
+
+- 2026-11-25: do not promise "hook added time < 200 ms" in a spec; promise "append-only, no transcript read in the
+  hook" and measure the sender instead.

@@ -3,6 +3,10 @@
 Every open "Not yet verified" check, one block per slice. A check that passes, or that the
 owner confirms, is removed here and its slice marked `verified`.
 
+### Slice 52: Spike, one session's true step timeline ([slice](slices/52-timeline-spike.md))
+
+- [session] Compaction before/after context was not measured (the 87 s run had none): the cost slice forces one compaction to measure before/after context.
+
 ### Slice 48: Follow-ups left open by Slice 47 ([slice](slices/48-slice-47-follow-ups.md))
 
 - [chrome] Items 1 and 2: on the live page, an aborted first load shows no stranded spinner, and returning to `#/needs-you` or an Active card scrolls again. Tried 2026-11-19: the aborted first load was not provoked; the scroll half passed (scrollY 0 to 672 on arrival at `#/needs-you`).

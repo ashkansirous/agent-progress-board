@@ -2,6 +2,7 @@ import { expect, type Page, test } from "@playwright/test";
 import type { BoardResponse } from "../src/api/boardDto";
 import { demoBoard, SERVER_TIME } from "./fixture";
 import { project, projectToggle } from "./projectBlock";
+import { LAST_SCROLL_AT, STAMP_START, waitForQuietScrolls } from "./scrollQuiet";
 
 const BOARD_ROUTE = "**/api/board";
 const STORAGE_KEY = "board.projectOpen";
@@ -90,15 +91,19 @@ test.describe("project blocks", () => {
 
   test("the waiting-questions link scrolls again when the address returns to it: needs-you, another page, needs-you (Slice 48 2)", async ({ page }) => {
     test.skip(test.info().project.name === "phone", "the phone's questions sit above the projects");
-    await page.addInitScript(() => {
+    await page.addInitScript(STAMP_START);
+    await page.addInitScript((stampName) => {
       const scrolls: string[] = [];
       (window as unknown as { __needsYouScrolls: string[] }).__needsYouScrolls = scrolls;
       const original = Element.prototype.scrollIntoView;
       Element.prototype.scrollIntoView = function (this: Element, ...args: Parameters<Element["scrollIntoView"]>) {
-        if (this.hasAttribute("data-needs-you")) scrolls.push("needs-you");
+        if (this.hasAttribute("data-needs-you")) {
+          scrolls.push("needs-you");
+          (window as unknown as Record<string, number>)[stampName] = performance.now();
+        }
         return original.apply(this, args);
       };
-    });
+    }, LAST_SCROLL_AT);
     await openBoard(page);
     const scrolls = () => page.evaluate(() => (window as unknown as { __needsYouScrolls: string[] }).__needsYouScrolls.length);
     const goTo = (hash: string) =>
@@ -107,10 +112,15 @@ test.describe("project blocks", () => {
       }, hash);
     await goTo("#/needs-you");
     await expect.poll(scrolls).toBeGreaterThanOrEqual(1);
-    const before = await scrolls();
     await goTo("#/");
+    await expect(page).toHaveURL((url) => url.hash === "#/");
+    await expect(page.getByRole("heading", { level: 1, name: "Board" })).toBeVisible();
+    // Settled: no scroll for 300 ms by the page's clock (a late re-render scroll has landed); the count read after that
+    // is the one to beat.
+    await waitForQuietScrolls(page);
+    const settled = await scrolls();
     await goTo("#/needs-you");
-    await expect.poll(scrolls).toBeGreaterThan(before);
+    await expect.poll(scrolls).toBeGreaterThan(settled);
   });
 
   test("the page draws expanded projects when storage fails", async ({ page }) => {

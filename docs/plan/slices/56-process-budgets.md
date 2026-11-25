@@ -29,3 +29,10 @@ only in a weekly report.
 ## Verification
 
 - Unit and E2E tests above; live: a step with a 1-minute test budget, left running 2 minutes, shows the breach.
+
+## Changes from the Slice 52 spike (2026-11-25)
+
+Source: [note](../notes/2026-11-22-timeline-spike.md), *Changes Slices 53 to 57 need* ("Slice 55 and later").
+
+- 2026-11-25: do not promise "hook added time < 200 ms" in a spec; promise "append-only, no transcript read in the
+  hook" and measure the sender instead.

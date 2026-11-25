@@ -1,6 +1,6 @@
 ### Slice 52 — Spike: rebuild one session's true step timeline from hooks and the transcript
 
-*Built (2026-11-25), PR #201.* First step of the process-optimiser scope (Slices 52 to 57). No board change.
+*Built 2026-11-25, merged as PR #201 (aced4d9).* First step of the process-optimiser scope (Slices 52 to 57). No board change.
 
 **Touches:** `tmp/` (scratch script, git-ignored), `docs/plan/notes/2026-11-22-timeline-spike.md` (new)
 

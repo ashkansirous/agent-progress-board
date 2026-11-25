@@ -43,3 +43,17 @@ context grew and whether a compact would have helped.
 - A fixture transcript with two steps and a compaction gives the right tokens, peak context and compaction count per
   step (unit tests).
 - Live: a real slice build's card shows the cost line on its implement step, and `get_item` returns the same numbers.
+
+## Changes from the Slice 52 spike (2026-11-25)
+
+Source: [note](../notes/2026-11-22-timeline-spike.md), *Changes Slices 53 to 57 need*.
+
+- 2026-11-25 (migration number): migration 0010 is taken by Slice 50 (claimed, PR #199), so this slice's migration
+  becomes `0011_step_runs.sql`, not `0010_step_runs.sql` as the *Touches* line says.
+- 2026-11-25 (attribution, shared with Slice 53): merge assistant lines by `message.id` (a request is streamed as several
+  lines; the last carries the final usage); read the subagent file from `agent_transcript_path` on `SubagentStop`; place a
+  request on the step open at its timestamp, with the spike note's transition-request rule; keep an explicit "outside
+  any step" bucket so totals still add up.
+- 2026-11-25 (compaction): nothing was observed in the spike. Test one forced compaction (`/compact` in a session)
+  before claiming before/after context sizes; the size comes from the transcript's last request before the
+  `compact_boundary` line and the first after it (`PostCompact` gives a summary text, not a token count).

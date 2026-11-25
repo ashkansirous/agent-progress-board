@@ -36,3 +36,10 @@ runs comparable across items and days. An analysis agent needs the runs without 
 - Tests: 40 seeded runs of one key give the expected median and p90; a step without a key groups under its agent type.
 - Live: `process_stats` for the last 30 days returns at least the review and implement keys once the owner's skills
   send them (planned in the owner's private config repo).
+
+## Changes from the Slice 52 spike (2026-11-25)
+
+Source: [note](../notes/2026-11-22-timeline-spike.md), *Changes Slices 53 to 57 need*.
+
+- 2026-11-25: do not promise "hook added time < 200 ms" in a spec; promise "append-only, no transcript read in the
+  hook" and measure the sender instead.

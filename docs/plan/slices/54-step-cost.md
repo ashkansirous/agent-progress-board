@@ -1,6 +1,6 @@
 ### Slice 54 — Cost per step: model, tokens, peak context, compactions
 
-*Built (wave 2026-11-25), PR #207, not merged; see Not yet verified below.* Needs Slice 53 (built).
+*Built (wave 2026-11-25), merged as PR #207 (8f00a4a); see Not yet verified below.* Needs Slice 53 (built).
 
 **Touches:** `migrations/0011_step_runs.sql` (new), `src/domain/stepRuns.ts` (new), `src/domain/steps.ts`,
 `src/domain/stepTypes.ts`, `src/domain/upsert.ts`, `src/application/board.ts`, `src/application/usage.ts`,
@@ -151,7 +151,7 @@ Source: [note](../notes/2026-11-22-timeline-spike.md), *Changes Slices 53 to 57 
 - Skipped #4 (`reviews/pr-207-check-3-medium.md`): "Comments and schema text say a cost needs an explicit `id`" - the code resolves ids from the label; wording only; follow-up.
 - Skipped #5 (`reviews/pr-207-check-3-medium.md`): "`cost` is z.unknown with no size bound" - request size is bounded and no stored text grows; follow-up.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-25)
 
 - Step cost rows are measured facts, one writer per row (`writer`, `seq`), shown only through a step's `cost_ref`; the rules are in `src/domain/stepRuns.ts` and `costRefOfStep` in `src/domain/steps.ts`; never add a second shown rule (Slice 54: docs/plan/slices/54-step-cost.md).
 

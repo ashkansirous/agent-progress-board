@@ -20,6 +20,9 @@ const GOAL_SUFFIX = '.goal.json';
 const PROMPT_SUFFIX = '.prompt.json';
 const SEEN_SUFFIX = '.seen';
 const STOPPED_SUFFIX = '.stopped';
+const TASKS_SUFFIX = '.tasks';
+const COMPACTIONS_SUFFIX = '.compactions';
+const COMPACTING_SUFFIX = '.compacting.json';
 
 export function parseInput(text) {
   try {
@@ -201,13 +204,109 @@ function stoppedFile(id, agentId, root) {
   return join(dir, `${createHash('sha256').update(agentId).digest('hex').slice(0, 32)}.json`);
 }
 
-// The session's stopped-agents folder goes with the rest of its state files.
+// The session's stopped-agents folder (and its mirrored tasks and compaction counts) goes with the rest of its state files.
 function removeStoppedFolder(id, root) {
-  const dir = stoppedDir(id, root);
-  if (!dir) return;
+  for (const dir of [stoppedDir(id, root), taskDir(id, root), compactionDir(id, root), sessionFile(id, COMPACTING_SUFFIX, root)]) {
+    if (!dir) continue;
+    try {
+      rmSync(dir, { recursive: true, force: true });
+    } catch { /* the next call retries */ }
+  }
+}
+
+// Tasks the session's task tools made (Slice 53): one small file per task in `<id>.tasks/`, written only by the hook
+// events of that task (create, start, complete come one after another), so no file is ever shared by two writers.
+// `{ taskId, subject, agentId, startedAt, doneAt }`, times in ms from the hook's own clock.
+function taskDir(id, root) {
+  return sessionFile(id, TASKS_SUFFIX, root);
+}
+
+function taskFile(id, taskId, root) {
+  const dir = taskDir(id, root);
+  if (!dir || typeof taskId !== 'string' || !taskId) return '';
+  return join(dir, `${createHash('sha256').update(taskId).digest('hex').slice(0, 32)}.json`);
+}
+
+function taskOf(value) {
+  if (!value || typeof value.taskId !== 'string' || typeof value.subject !== 'string') return null;
+  const time = (field) => (Number.isFinite(field) ? field : 0);
+  return {
+    taskId: value.taskId,
+    subject: value.subject,
+    agentId: typeof value.agentId === 'string' ? value.agentId : '',
+    cardKey: typeof value.cardKey === 'string' ? value.cardKey : '', // the card open when the task was made ('' = none)
+    createdAt: time(value.createdAt),
+    startedAt: time(value.startedAt),
+    doneAt: time(value.doneAt),
+  };
+}
+
+export function readTask(id, taskId, root) {
+  return taskOf(readJson(taskFile(id, taskId, root)));
+}
+
+// The tasks of the session, oldest first. Empty when the session never used the task tools.
+export function readTasks(id, root) {
+  const dir = taskDir(id, root);
+  if (!dir) return [];
   try {
-    rmSync(dir, { recursive: true, force: true });
-  } catch { /* the next call retries */ }
+    return readdirSync(dir)
+      .filter((name) => name.endsWith('.json'))
+      .map((name) => taskOf(readJson(join(dir, name))))
+      .filter(Boolean)
+      .sort((left, right) => left.createdAt - right.createdAt);
+  } catch {
+    return [];
+  }
+}
+
+// Writes the task's own file whole; `task` has the fields of `readTask`.
+export function writeTask(id, task, root) {
+  writeJson(taskFile(id, task.taskId, root), task);
+}
+
+// A deleted task leaves the list: its file is removed.
+export function removeTask(id, taskId, root) {
+  removeFile(taskFile(id, taskId, root));
+}
+
+// A compaction (Slice 53): PreCompact notes the step key that was running, PostCompact adds one for it as its own small
+// file in `<id>.compactions/`, so the count is the number of files for a key and no counter is ever read and rewritten.
+function compactionDir(id, root) {
+  return sessionFile(id, COMPACTIONS_SUFFIX, root);
+}
+
+// A compaction belongs to the card (`card`, '' when none was open) it was seen under, like a task's cardKey.
+export function writeCompacting(id, key, card, root, now = Date.now()) {
+  writeJson(sessionFile(id, COMPACTING_SUFFIX, root), { key, card, at: now });
+}
+
+// The `{ key, card }` noted by PreCompact, or null (and the note is removed, so one compaction counts once).
+export function takeCompacting(id, root) {
+  const file = sessionFile(id, COMPACTING_SUFFIX, root);
+  const value = readJson(file);
+  removeFile(file);
+  return value && typeof value.key === 'string' && value.key ? { key: value.key, card: typeof value.card === 'string' ? value.card : '' } : null;
+}
+
+export function addCompaction(id, key, card, root, now = Date.now()) {
+  const dir = compactionDir(id, root);
+  if (!dir || !key) return;
+  writeJson(join(dir, `${now}-${Math.random().toString(36).slice(2)}.json`), { key, card });
+}
+
+// `{ stepKey: count }` of the compactions counted for the card `cardKey` (the ones of any other card are not its own).
+export function readCompactions(id, root, cardKey) {
+  const dir = compactionDir(id, root);
+  const counts = {};
+  if (!dir) return counts;
+  try {
+    for (const name of readdirSync(dir).filter((file) => file.endsWith('.json'))) {
+      const value = readJson(join(dir, name));
+      if (value && typeof value.key === 'string' && value.key && (value.card || '') === cardKey) counts[value.key] = (counts[value.key] || 0) + 1;
+    }
+  } catch { /* no compactions */ }
+  return counts;
 }
 
 function stoppedEntries(id, root) {

@@ -60,6 +60,16 @@ environment (`AGENT_BOARD_URL`, `AGENT_BOARD_TOKEN`); there is no built-in addre
   `description` from `subagents/*.meta.json`, after the steps the session sent; it is `done` once it stopped. The board
   allows any number of active steps (Slice 39), so every running agent is `active` and the session's own active step
   stays as it is.
+- **Task steps (Slice 53).** Claude Code's own task tools are mirrored onto the session's card by the `TaskCreated`,
+  `TaskCompleted`, `PostToolUse` (`TaskUpdate`), `PreCompact` and `PostCompact` hooks. A task is a step `task-<id>`:
+  pending when created, active when `TaskUpdate` sets it in progress (that is its start), done at `TaskCompleted`, both
+  times `observed` from the hook's own clock (creation is never a start); one made inside a subagent sits under that
+  agent's row. A reported step whose label equals a task's (case and spaces ignored) takes the task's observed times
+  instead of a second step. A compaction adds one to the running step's `compactions`, sent with the next report. The
+  hooks never block and read no transcript. **To get these steps** a current model needs
+  `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` in the environment (older models have the task tools on; `CLAUDE_CODE_ENABLE_TASKS=0`
+  brings back `TodoWrite`, which is not mirrored): you then see true start and end times per step with no extra
+  reporting. Without the task tools a session has no mirrored steps.
 - **A dead session's waiting item.** A waiting item whose session sent nothing (no prompt, tool call or hook) for 30
   minutes is closed "Session ended" by the next hook of any session on the same machine.
 - **The CLI.** `plugin/scripts/report-progress.mjs` sends one report from a script (`--key` or `--slice`, `--title`,

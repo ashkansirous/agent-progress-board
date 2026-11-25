@@ -200,8 +200,8 @@ describe("GET /api/board active work", () => {
     await env.DB.prepare("UPDATE items SET steps = ? WHERE key = ?").bind(flat, TASK.key).run();
     const item = await itemOf(TASK.key);
     expect(item.steps).toEqual([
-      { id: "A", label: "A", state: "done", note: null, started_at: null, done_at: null, started_source: null, done_source: null, waits_on: null, link: null, children: [] },
-      { id: "B", label: "B", state: "active", note: "now", started_at: null, done_at: null, started_source: null, done_source: null, waits_on: null, link: null, children: [] },
+      { id: "A", label: "A", state: "done", note: null, started_at: null, done_at: null, started_source: null, done_source: null, waits_on: null, link: null, compactions: 0, children: [] },
+      { id: "B", label: "B", state: "active", note: "now", started_at: null, done_at: null, started_source: null, done_source: null, waits_on: null, link: null, compactions: 0, children: [] },
     ]);
     expect(item.progress).toMatchObject({ done: 1, total: 2, running: 1, current: "B" });
   });

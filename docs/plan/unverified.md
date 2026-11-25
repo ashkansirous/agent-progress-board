@@ -3,6 +3,12 @@
 Every open "Not yet verified" check, one block per slice. A check that passes, or that the
 owner confirms, is removed here and its slice marked `verified`.
 
+### Slice 53: Task tools become card steps with times seen by the hooks ([slice](slices/53-task-tools-steps.md))
+
+- [session] A real session with `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` shows its tasks as steps, with times within a minute of the transcript (read back with `get_item`).
+- [session] The `TaskUpdate` `tool_input` keys (`taskId`, `status`) are seen in a live payload.
+- [session] A compaction adds to the running step's count.
+
 ### Slice 51: Blocked step state, true step times, and a visible reason when a card reopens ([slice](slices/51-blocked-steps-true-times.md))
 
 - [chrome] On the live board after the release, a slice card with a blocked step shows orange, and an owner-blocked one shows red under Needs you.

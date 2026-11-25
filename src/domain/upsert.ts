@@ -12,7 +12,7 @@ import {
   type Priority,
 } from "./item";
 import { DomainError } from "./errors";
-import { blankToNull, HOOK_SOURCE, hookStepsInput, normalizeSteps, replaceChildren } from "./steps";
+import { blankToNull, HOOK_SOURCE, hookStepsInput, keepMirroredRows, normalizeSteps, replaceChildren } from "./steps";
 import type { StepInput } from "./stepTypes";
 
 export { DomainError };
@@ -66,12 +66,12 @@ function checkLength(field: "needs_you" | "after_answer" | "outcome", value: str
 /** The steps to store: the whole list, or the stored list with one step's children replaced (`under_step`), stamped from the stored tree. */
 function checkedSteps(input: ReportInput, existing: Pick<Item, "steps"> | null, now: string | null) {
   if (input.under_step === undefined) {
-    const sent = input.source === HOOK_SOURCE && input.steps ? hookStepsInput(existing?.steps, input.steps) : input.steps;
+    const sent = input.source === HOOK_SOURCE ? input.steps && hookStepsInput(existing?.steps, input.steps) : input.steps && keepMirroredRows(existing?.steps, input.steps);
     return normalizeSteps(sent, { previous: existing?.steps, now });
   }
   if (input.steps === undefined) throw new DomainError("under_step", "field under_step: send steps with it, the list for that step's children");
   const merged = replaceChildren(existing?.steps, input.under_step, input.steps);
-  return normalizeSteps(merged, { previous: existing?.steps, now });
+  return normalizeSteps(input.source === HOOK_SOURCE ? merged : keepMirroredRows(existing?.steps, merged), { previous: existing?.steps, now });
 }
 
 /** The report with its steps validated and stamped and a whitespace-only agent or model made absent (null); fields not sent stay unsent. */

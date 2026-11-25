@@ -46,6 +46,8 @@ export interface Step {
   waits_on: WaitsOn | null;
   /** For a blocked step: an optional http(s) link to what it waits on; null otherwise. */
   link: string | null;
+  /** Times a context compaction happened while the step ran (Slice 53); only ever grows. Always set when built; optional in the type so a hand-made step (a page fixture) may leave it out, read as 0. */
+  compactions?: number;
   children: Step[];
 }
 
@@ -67,6 +69,8 @@ export interface StepInput {
   /** `observed` only from a plugin hook that saw the change; default `reported`. */
   started_source?: ReportedSource | TimeSource | null;
   done_source?: ReportedSource | TimeSource | null;
+  /** Compactions seen during the step (a hook counts them); the stored count is kept when it is larger. */
+  compactions?: number | null;
   children?: StepInput[];
 }
 

@@ -1,5 +1,5 @@
 {
-  "description": "Keeps the session's board cards true: done on Stop (unless background agents work), agent steps, waiting on Notification, a goal reminder, and token usage reports (option report_usage) and the plan cap reading (option read_plan_cap)",
+  "description": "Keeps the session's board cards true: done on Stop (unless background agents work), agent steps, task-tool steps with hook-seen times, waiting on Notification, a goal reminder, and token usage reports (option report_usage) and the plan cap reading (option read_plan_cap)",
   "hooks": {
     "Stop": [
       {
@@ -40,7 +40,43 @@
         ]
       }
     ],
+    "TaskCreated": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/hooks/task-steps.mjs"], "timeout": 5 }
+        ]
+      }
+    ],
+    "TaskCompleted": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/hooks/task-steps.mjs"], "timeout": 5 }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "manual|auto",
+        "hooks": [
+          { "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/hooks/task-steps.mjs"], "timeout": 5 }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "matcher": "manual|auto",
+        "hooks": [
+          { "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/hooks/task-steps.mjs"], "timeout": 5 }
+        ]
+      }
+    ],
     "PostToolUse": [
+      {
+        "matcher": "TaskUpdate",
+        "hooks": [
+          { "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/hooks/task-steps.mjs"], "timeout": 5 }
+        ]
+      },
       {
         "hooks": [
           { "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/hooks/goal-reminder.mjs"], "timeout": 5 },

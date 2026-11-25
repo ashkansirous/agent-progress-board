@@ -4,7 +4,7 @@ import { BatchOp, MAX_BATCH_ITEMS, MAX_EXPANDED_ITEMS, MAX_SNAPSHOT_ITEMS } from
 import { ItemStatus, ItemType, Priority } from "../domain/item";
 import { MAX_PARTS } from "../domain/parts";
 import { MAX_AFTER_ANSWER, MAX_NEEDS_YOU, MAX_OUTCOME } from "../domain/upsert";
-import { MAX_STEP_DEPTH, MAX_STEP_ID, MAX_STEP_LABEL, MAX_STEP_LINK, MAX_STEP_NOTE, MAX_STEPS } from "../domain/steps";
+import { MAX_STEP_COMPACTIONS, MAX_STEP_DEPTH, MAX_STEP_ID, MAX_STEP_LABEL, MAX_STEP_LINK, MAX_STEP_NOTE, MAX_STEPS } from "../domain/steps";
 import { type StepInput, StepState, TimeSource } from "../domain/stepTypes";
 
 const MAX_KEY = MAX_KEY_LENGTH;
@@ -65,6 +65,7 @@ const stepBase = {
   done_at: z.string().max(TIME_TEXT_MAX).nullable().optional().describe("When the step really finished (ISO time), when you know it; same rules as started_at"),
   started_source: z.enum(TimeSource).nullable().optional().describe("Where started_at came from: reported (default) or observed (only a hook that saw it happen)"),
   done_source: z.enum(TimeSource).nullable().optional().describe("Where done_at came from: reported (default) or observed (only a hook that saw it happen)"),
+  compactions: z.number().int().min(0).max(MAX_STEP_COMPACTIONS).nullable().optional().describe("Times the context was compacted while the step ran; a hook counts them, the stored count only grows"),
 };
 
 /** A step with `levels` more levels of children allowed below it; the schema is unrolled, not recursive, so every client reads it as plain JSON Schema. */

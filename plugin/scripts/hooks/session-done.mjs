@@ -19,7 +19,7 @@ import { isOrchestrator, resolveConfig } from '../report-progress.mjs';
 import { AGENT_FRESH_MS, AGENT_PREFIX, AGENT_STATE, CARD_NOTE, RESUME_SLACK_MS, agentRowId, hasActiveAgent, hasAgentMeta, isForegroundAgent, mergeSteps, placeAgents, readBackgroundAgents, subagentsDir, liveAgentIds } from './background-agents.mjs';
 import {
   CLOSED_BY, HOOK_SOURCE, ORCH_CLOSE, HOOK_TIMEOUT_MS, addStoppedAgent, hasMarker, listMarkers, parseInput, readGoal, readMarkerKey, readSeen, readStdinText,
-  readStoppedAt, removeMarker, removeStoppedAgent, sendCardReport, sessionContext, sessionIdOf, stateRoot, touchSeen, updateGoal,
+  readCompactions, readStoppedAt, readTasks, removeMarker, removeStoppedAgent, sendCardReport, sessionContext, sessionIdOf, stateRoot, touchSeen, updateGoal, writeTask,
 } from './hook-input.mjs';
 
 export const DEAD_SESSION_MS = 30 * 60 * 1000; // a waiting card whose session sent nothing for this long is closed
@@ -117,7 +117,7 @@ async function stopCard(input, env, goal, root, now, options) {
   const agents = knownAgents(input, id, root, goal.agentParents, goal.agentStarts, now);
   if (hasActiveAgent(agents)) {
     const parents = placeAgents(goal.steps, agents, goal.agentParents);
-    const steps = mergeSteps(goal.steps, agents, parents);
+    const steps = mergeSteps(goal.steps, agents, parents, mirroredTasks(id, root, goal.key));
     const body = keepQuestion(goal, { key: goal.key, status: 'in_progress', source: HOOK_SOURCE, note: CARD_NOTE, steps });
     const sentAt = Date.now(); // taken before the hold is written: a close that sees the hold is written at or after it
     // Held before the call, so a SubagentStop of the last agent during it already finds the hold; heldAt is then
@@ -213,7 +213,7 @@ async function subagentCard(input, env, goal, root, now, options) {
   if (!agents.length) return { skipped: 'no background agents' };
   const parents = placeAgents(goal.steps, agents, goal.agentParents);
   saveGoal(id, (current) => ({ agentParents: mergeParents(current, parents) }), root, now); // before the send: a failed send must not lose the place
-  const steps = mergeSteps(goal.steps, agents, parents);
+  const steps = mergeSteps(goal.steps, agents, parents, mirroredTasks(id, root, goal.key));
   const sig = JSON.stringify(steps);
   if (sig === goal.sig) return { skipped: 'steps unchanged' };
   const body = keepQuestion(goal, { key: goal.key, status: 'in_progress', source: HOOK_SOURCE, steps, ...(hasActiveAgent(agents) ? { note: CARD_NOTE } : {}) });
@@ -236,7 +236,7 @@ async function startCard(input, env, goal, root, now, options) {
   const merged = readGoal(id, root, now) || goal;
   const placed = merged.agentParents || parents;
   const agents = knownAgents(input, id, root, placed, merged.agentStarts || {}, now);
-  const steps = mergeSteps(merged.steps, agents, placed);
+  const steps = mergeSteps(merged.steps, agents, placed, mirroredTasks(id, root, goal.key));
   const body = keepQuestion(goal, { key: goal.key, status: 'in_progress', source: HOOK_SOURCE, steps, note: CARD_NOTE });
   const patch = (current) => ({ sig: JSON.stringify(steps), agentParents: mergeParents(current, placed) });
   return sendCard(resolveConfig(env), id, root, { tool: 'report_progress', body, patch, running: runningIds(input, id, root, now) }, now, options);
@@ -255,6 +255,41 @@ function knownAgents(input, id, root, parents, starts, now) {
     && !Object.hasOwn(stopped, agentId)
     && now - (starts[agentId] ?? -Infinity) <= PENDING_AGENT_MS && !hasAgentMeta(input, agentId));
   return [...listed, ...missing.map((agentId) => ({ id: agentId, label: AGENT_PREFIX, model: '', state: AGENT_STATE.active, atMs: now }))];
+}
+
+function bindTask(id, root, task, cardKey) {
+  const bound = { ...task, cardKey };
+  writeTask(id, bound, root);
+  return bound;
+}
+
+// The mirrored tasks of the card `cardKey` and the session's compaction counts (Slice 53), as `mergeSteps` takes them; null when
+// it used no task tools. A task belongs to the card it was created under (`cardKey`); one made while no card was open ('')
+// takes the key of the first card that reads it, written into its file once, and never shows on a later card (Slice 53 rule 6).
+// A task with no subject yet (a completion seen before its creation) is no step.
+function mirroredTasks(id, root, cardKey) {
+  const items = readTasks(id, root)
+    .map((task) => (task.cardKey || !cardKey ? task : bindTask(id, root, task, cardKey)))
+    .filter((task) => task.cardKey === cardKey && task.subject);
+  const compactions = readCompactions(id, root, cardKey);
+  return items.length || Object.keys(compactions).length ? { items, compactions } : null;
+}
+
+// Sends the card's list again with the session's tasks in it (task-steps.mjs), only when it differs from the last one
+// sent and the card is open. The agents are listed as in SubagentStop, so the list still holds their rows. A session with
+// no task left is sent too, so the board drops the task rows it holds (Slice 53 rule 5); an unchanged list is not sent.
+export async function resendSteps(input, env, goal, root, now, options) {
+  const id = sessionIdOf(input);
+  if (goal.closed) return { skipped: 'card closed' };
+  const tasks = mirroredTasks(id, root, goal.key);
+  const agents = knownAgents(input, id, root, goal.agentParents, goal.agentStarts, now);
+  const parents = placeAgents(goal.steps, agents, goal.agentParents);
+  const steps = mergeSteps(goal.steps, agents, parents, tasks);
+  const sig = JSON.stringify(steps);
+  if (sig === goal.sig) return { skipped: 'steps unchanged' };
+  const body = keepQuestion(goal, { key: goal.key, status: 'in_progress', source: HOOK_SOURCE, steps, ...(hasActiveAgent(agents) ? { note: CARD_NOTE } : {}) });
+  const patch = (current) => ({ sig, agentParents: mergeParents(current, parents) });
+  return sendCard(resolveConfig(env), id, root, { tool: 'report_progress', body, patch, running: runningIds(input, id, root, now) }, now, options);
 }
 
 // What the new agent is told (hookSpecificOutput.additionalContext): its card key and its own row id. '' without a card.

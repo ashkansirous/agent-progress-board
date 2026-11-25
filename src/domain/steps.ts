@@ -11,6 +11,8 @@ export const MAX_STEP_LABEL = 80;
 export const MAX_STEP_NOTE = 120;
 export const MAX_STEP_ID = 80;
 export const MAX_STEP_LINK = 500;
+/** Largest compaction count a step may carry. */
+export const MAX_STEP_COMPACTIONS = 1000;
 const HTTP_PROTOCOLS = ["http:", "https:"];
 /** How far ahead of the server's clock a reported time may be (clock skew between the reporter and the Worker). */
 export const REPORTED_TIME_SKEW_MS = 60_000;
@@ -64,15 +66,20 @@ function isHttpUrl(value: string): boolean {
  */
 function checkSize(steps: readonly StepInput[]): void {
   let count = 0;
-  const walk = (level: readonly StepInput[], depth: number): void => {
-    if (depth > MAX_STEP_DEPTH) fail(`at most ${MAX_STEP_DEPTH} levels of sub-steps`);
-    count += level.length;
-    if (count > MAX_STEPS) fail(`at most ${MAX_STEPS} steps in all`);
+  let total = 0;
+  // Mirrored task rows are fitted after the merge (`fitMirroredRows`), so they count only against a cost bound here.
+  const walk = (level: readonly StepInput[], depth: number, inTask: boolean): void => {
+    if (depth > MAX_STEP_DEPTH && !inTask) fail(`at most ${MAX_STEP_DEPTH} levels of sub-steps`);
+    total += level.length;
+    if (total > MAX_STEPS * 2) fail(`at most ${MAX_STEPS} steps in all`);
     level.forEach((step) => {
-      if (step.children && step.children.length > 0) walk(step.children, depth + 1);
+      const task = inTask || isTaskRow(step.id);
+      if (!task) count += 1;
+      if (count > MAX_STEPS) fail(`at most ${MAX_STEPS} steps in all`);
+      if (step.children && step.children.length > 0) walk(step.children, depth + 1, task);
     });
   };
-  walk(steps, 1);
+  walk(steps, 1, false);
 }
 
 /** Checks every step of the given tree (texts, states, ids) before anything is built; `path` is "3.2" style. */
@@ -120,9 +127,21 @@ function withinLimit(id: string): string {
   return `${id.slice(0, MAX_STEP_ID - tail.length)}${tail}`;
 }
 
+/**
+ * The step id prefix of a task the plugin's hooks mirror (Slice 53). Only a hook report writes rows with it
+ * (`keepMirroredRows`, `hookStepsInput`), and `generatedId` never makes an id that starts with it. The plugin holds
+ * the same text (`TASK_ID_PREFIX` in background-agents.mjs); `test/taskSteps.test.ts` holds the two equal.
+ */
+export const TASK_ROW_PREFIX = "mirror-task:";
+
+function isTaskRow(id: string | undefined): boolean {
+  return id !== undefined && id.trim().startsWith(TASK_ROW_PREFIX);
+}
+
 /** An id made from the label path (at most `MAX_STEP_ID` characters), made unique with "#2", "#3" ... when taken. */
 function generatedId(parentId: string | null, label: string, used: Set<string>): string {
-  const base = parentId === null ? label : `${parentId}${ID_SEPARATOR}${label}`;
+  const path = parentId === null ? label : `${parentId}${ID_SEPARATOR}${label}`;
+  const base = path.startsWith(TASK_ROW_PREFIX) ? `#${path}` : path;
   let id = withinLimit(base);
   for (let n = 2; used.has(id); n += 1) id = withinLimit(`${base}#${n}`);
   return id;
@@ -130,7 +149,8 @@ function generatedId(parentId: string | null, label: string, used: Set<string>):
 
 /** Every step of the tree finished; a level whose `children` are left out stays left out (its stored ones are finished when built). */
 function asDone(steps: readonly StepInput[]): StepInput[] {
-  return steps.map((step) => ({ ...step, state: StepState.Done, children: step.children === undefined ? undefined : asDone(step.children) }));
+  // A mirrored task row keeps its own state: only a hook report changes it (Slice 53 rule 9).
+  return steps.map((step) => (isTaskRow(step.id) ? step : { ...step, state: StepState.Done, children: step.children === undefined ? undefined : asDone(step.children) }));
 }
 
 /** The stored children a step whose report left `children` out keeps: the stored ones the report does not place by id. */
@@ -160,7 +180,14 @@ function buildStep(input: StepInput, ctx: BuildContext): Step {
   const blocked = input.state === StepState.Blocked;
   const waitsOn = blocked ? (validWaitsOn(input.waits_on) ?? WaitsOn.Work) : null;
   const link = blocked ? validLink(input.link) : null;
-  return { id, label: input.label.trim(), state: input.state, note: input.note?.trim() || null, ...ctx.stamp(input, id, input.state), waits_on: waitsOn, link, children };
+  const compactions = keptCompactions(input.compactions, ctx.kept(id)?.compactions);
+  return { id, label: input.label.trim(), state: input.state, note: input.note?.trim() || null, ...ctx.stamp(input, id, input.state), waits_on: waitsOn, link, compactions, children };
+}
+
+/** The compaction count after a report: the larger of the sent and stored counts (a count only grows), clamped to a whole number in range. */
+function keptCompactions(given: number | null | undefined, stored: number | undefined): number {
+  const whole = (value: number | null | undefined): number => (Number.isFinite(value) ? Math.min(MAX_STEP_COMPACTIONS, Math.max(0, Math.trunc(value as number))) : 0);
+  return Math.max(whole(given), whole(stored));
 }
 
 function buildSteps(inputs: readonly StepInput[], ctx: BuildContext): Step[] {
@@ -206,13 +233,46 @@ function explicitIds(steps: readonly StepInput[]): string[] {
   return steps.flatMap((step) => [...(step.id?.trim() ? [step.id.trim()] : []), ...explicitIds(step.children ?? [])]);
 }
 
+function deepest(level: readonly Step[], depth: number): number {
+  return Math.max(depth, ...level.map((step) => deepest(step.children, depth + 1)));
+}
+
 function checkTree(steps: readonly Step[]): void {
   const all = flatten(steps);
   if (all.length > MAX_STEPS) fail(`at most ${MAX_STEPS} steps in all, got ${all.length}`);
   if (new Set(all.map((step) => step.id)).size !== all.length) fail("step ids must be unique in the whole list");
-  const deepest = (level: Step[], depth: number): number =>
-    Math.max(depth, ...level.map((step) => deepest(step.children, depth + 1)));
-  if (deepest(steps as Step[], 0) > MAX_STEP_DEPTH) fail(`at most ${MAX_STEP_DEPTH} levels of sub-steps`);
+  if (deepest(steps, 0) > MAX_STEP_DEPTH) fail(`at most ${MAX_STEP_DEPTH} levels of sub-steps`);
+}
+
+function fitsLimits(steps: readonly Step[]): boolean {
+  return flatten(steps).length <= MAX_STEPS && deepest(steps, 0) <= MAX_STEP_DEPTH;
+}
+
+/** When finished, a task row's done time; a row not finished sorts after every finished one. */
+function finishedAt(row: Step): number {
+  return row.state === StepState.Done ? Date.parse(row.done_at ?? "") || 0 : Number.MAX_SAFE_INTEGER;
+}
+
+/**
+ * Slice 53 rule 8, the one place the mirrored task rows are cut to fit: only when the final tree (every kept row in it)
+ * is over the step or depth limit, drops mirrored task rows, finished ones first and oldest first, in place, until it
+ * fits. A tree still over with none left is the report's own rows, which `checkTree` refuses.
+ */
+function fitMirroredRows(tree: Step[]): void {
+  if (fitsLimits(tree)) return;
+  const rows: { level: Step[]; row: Step }[] = [];
+  const gather = (level: Step[]): void => {
+    level.forEach((step) => {
+      if (isTaskRow(step.id)) rows.push({ level, row: step });
+      else gather(step.children);
+    });
+  };
+  gather(tree);
+  rows.sort((left, right) => finishedAt(left.row) - finishedAt(right.row));
+  for (const { level, row } of rows) {
+    if (fitsLimits(tree)) return;
+    level.splice(level.indexOf(row), 1);
+  }
 }
 
 /** The four time fields of a stored step. */
@@ -312,6 +372,7 @@ export function normalizeSteps(steps: StepInput[] | null | undefined, context: S
   const explicit = new Set(explicitIds(steps));
   const ctx: BuildContext = { explicit, stamp: stampFrom(context), kept: (id) => stored.get(id) };
   const built = buildSteps(resolveIds(steps, ctx), ctx);
+  fitMirroredRows(built);
   checkTree(built);
   return built;
 }
@@ -350,18 +411,54 @@ function sameStep(sent: StepInput, stored: Step): boolean {
   return id ? id === stored.id : sent.label.trim() === stored.label;
 }
 
-/** One step a hook sent: its non-agent children are the ones sent, else the stored ones as stored; its agent rows are the ones sent. */
-function hookStep(sent: StepInput, match: Step | undefined): StepInput {
-  const given = sent.children ?? [];
-  const givenOwn = given.filter((child) => !isAgentRow(child.id));
-  const own: StepInput[] = givenOwn.length > 0 ? hookLevel(match?.children ?? [], givenOwn) : (match?.children ?? []).filter((child) => !isAgentRow(child.id));
-  return { ...sent, children: [...own, ...given.filter((child) => isAgentRow(child.id))] };
+function isHookOwned(id: string | undefined): boolean {
+  return isAgentRow(id) || isTaskRow(id);
 }
 
-/** One level of a hook report: only the steps sent, non-agent ones first in order, then the agent rows sent. */
+/** One step a hook sent: its session-owned children are the ones sent, else the stored ones as stored; its agent and task rows are the ones sent. */
+function hookStep(sent: StepInput, match: Step | undefined): StepInput {
+  const given = sent.children ?? [];
+  const givenOwn = given.filter((child) => !isHookOwned(child.id));
+  const own: StepInput[] = givenOwn.length > 0 ? hookLevel(match?.children ?? [], givenOwn) : (match?.children ?? []).filter((child) => !isHookOwned(child.id));
+  const rows = given.filter((child) => isAgentRow(child.id)).map((row) => hookAgentRow(row, (match?.children ?? []).find((candidate) => sameStep(row, candidate))));
+  return { ...sent, children: [...own, ...rows, ...given.filter((child) => isTaskRow(child.id))] };
+}
+
+/** One level of a hook report: only the steps sent, the session's own first in order, then the agent rows and the task rows sent. */
 function hookLevel(stored: readonly Step[], sent: readonly StepInput[]): StepInput[] {
-  const own = sent.filter((step) => !isAgentRow(step.id)).map((step) => hookStep(step, stored.find((candidate) => sameStep(step, candidate))));
-  return [...own, ...sent.filter((step) => isAgentRow(step.id))];
+  const own = sent.filter((step) => !isHookOwned(step.id)).map((step) => hookStep(step, stored.find((candidate) => sameStep(step, candidate))));
+  const rows = sent.filter((step) => isAgentRow(step.id)).map((row) => hookAgentRow(row, stored.find((candidate) => sameStep(row, candidate))));
+  return [...own, ...rows, ...sent.filter((step) => isTaskRow(step.id))];
+}
+
+/** An agent row from a hook: the helper's own stored children stay, whatever their ids; its task rows are exactly the ones sent (none clears them). */
+function hookAgentRow(row: StepInput, match: Step | undefined): StepInput {
+  const helperOwn = (match?.children ?? []).filter((child) => !isTaskRow(child.id));
+  return { ...row, children: [...helperOwn, ...(row.children ?? []).filter((child) => isTaskRow(child.id))] };
+}
+
+/** The stored task rows of a level, in their order. */
+function storedTaskRows(stored: readonly Step[]): StepInput[] {
+  return stored.filter((step) => isTaskRow(step.id));
+}
+
+/** One step of a report that is not a hook's: its task rows are dropped, and the stored ones of the same step follow the rows it sends. */
+function keepMirroredStep(sent: StepInput, match: Step | undefined): StepInput {
+  if (sent.children === undefined) return sent; // the stored children, task rows with them, are kept as stored
+  return { ...sent, children: keepMirroredLevel(match?.children ?? [], sent.children) };
+}
+
+function keepMirroredLevel(stored: readonly Step[], sent: readonly StepInput[]): StepInput[] {
+  const own = sent.filter((step) => !isTaskRow(step.id)).map((step) => keepMirroredStep(step, stored.find((candidate) => sameStep(step, candidate))));
+  return [...own, ...storedTaskRows(stored)];
+}
+
+/**
+ * The list a report that is not a hook's stands for (Slice 53 rule 2): it cannot add, change or drop the mirrored task rows.
+ * Rows it sends with their prefix are dropped, and the stored ones stay under the same parent after the rows it sends.
+ */
+export function keepMirroredRows(stored: readonly Step[] | null | undefined, sent: StepInput[]): StepInput[] {
+  return keepMirroredLevel(stored ?? [], sent);
 }
 
 /**
@@ -396,7 +493,9 @@ function isStoredStep(value: unknown): value is StoredStep {
   const { waits_on, link } = value as Record<string, unknown>;
   const waitsOk = waits_on === undefined || waits_on === null || Object.values(WaitsOn).includes(waits_on as WaitsOn);
   const linkOk = link === undefined || link === null || typeof link === "string";
-  return typeof label === "string" && stateOk && (note === undefined || note === null || typeof note === "string") && idOk && timeOk(started_at) && timeOk(done_at) && waitsOk && linkOk && childrenOk;
+  const { compactions } = value as Record<string, unknown>;
+  const compactionsOk = compactions === undefined || compactions === null || typeof compactions === "number";
+  return compactionsOk && typeof label === "string" && stateOk && (note === undefined || note === null || typeof note === "string") && idOk && timeOk(started_at) && timeOk(done_at) && waitsOk && linkOk && childrenOk;
 }
 
 /** A stored list this much over the write limit is not read: a legacy row cannot make every board read build thousands of steps (Slice 47 2b). */

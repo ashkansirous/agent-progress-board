@@ -1,19 +1,25 @@
 import {
   assertSameProject,
+  BatchOp,
   closeTargets,
+  MAX_BATCH_ITEMS,
   MAX_EXPANDED_ITEMS,
   planItem,
   type SnapshotItem,
+  type SyncedEntry,
   type SyncRow,
+  syncedEntries,
+  type SyncWrite,
   validateSnapshot,
 } from "../domain/docSync";
+import { type ArchiveRepository, archiveRefused, assertMayArchive, type BatchApplied, docSyncChildren } from "./archive";
 import { type Item, ItemStatus, ItemType, type ItemWithEvents } from "../domain/item";
 import { ancestorKeys, itemProblem, MAX_PARENT_DEPTH, nestedChecks, type ParentRef } from "../domain/checks";
 import { expandParts } from "../domain/parts";
 import { DEFAULT_STALE_AFTER_MINUTES, expiryMinutesFor, hasOpenQuestion, SESSION_AGENT, staleCutoff, waitingCutoff } from "../domain/stale";
 import { checkReport, DomainError, newItem, type ReportInput, withQuestion } from "../domain/upsert";
 import { resolveWindowHours, type WindowConfig, windowCutoff } from "../domain/window";
-import { type BoardRow, type ItemRepository, LIST_EVENT_LIMIT, type StaleResult, StepsChangedError } from "./ports";
+import { ArchivedItemError, type BoardRow, type ItemRepository, LIST_EVENT_LIMIT, type StaleResult, StepsChangedError } from "./ports";
 
 export type AskHumanInput = Omit<ReportInput, "type" | "status">;
 
@@ -89,7 +95,20 @@ async function saveReport(
   const now = clock.now().toISOString();
   const checked = withQuestion(checkReport(input, existing, now), existing, now);
   if (!alreadyFitted) await assertItemFits(repo, checked, existing);
-  return repo.save({ insert: existing ?? newItem(checked, now), input: checked, now, ifStepsText: stepsText });
+  try {
+    return await repo.save({ insert: existing ?? newItem(checked, now), input: checked, now, ifStepsText: stepsText });
+  } catch (error) {
+    if (error instanceof ArchivedItemError) throw archivedReply(error.key);
+    throw error;
+  }
+}
+
+/** The refusal of a report on an archived key: nothing was written, and the reply says how to bring the item back (Slice 50). */
+function archivedReply(key: string): DomainError {
+  return new DomainError(
+    "key",
+    `field key: ${key} is archived, so this report was not saved; a report does not bring an item back. Upsert it with upsert_item (needs the static write token) to restore it`,
+  );
 }
 
 /**
@@ -251,6 +270,235 @@ export async function syncSnapshot(
     raced: changed.length - wrote.length,
     skipped,
   };
+}
+
+/** One operation of `apply_batch`: an upsert carries the whole item, a close or archive only its key. */
+export type BatchOperation =
+  | { op: BatchOp.Upsert; item: SnapshotItem }
+  | { op: BatchOp.Close; key: string }
+  | { op: BatchOp.Archive; key: string };
+
+export interface ApplyBatchInput {
+  project: string;
+  operations: BatchOperation[];
+}
+
+export enum OpOutcome {
+  Created = "created",
+  Updated = "updated",
+  Unchanged = "unchanged",
+  /** The write found the row changed since it was read and left it: send the operation again. */
+  Raced = "raced",
+  Closed = "closed",
+  AlreadyClosed = "already_closed",
+  Archived = "archived",
+  AlreadyArchived = "already_archived",
+}
+
+export interface OpResult {
+  op: BatchOp;
+  key: string;
+  outcome: OpOutcome;
+}
+
+export interface BatchSummary {
+  project: string;
+  /** One line per operation, in the order sent. */
+  results: OpResult[];
+  created: number;
+  updated: number;
+  unchanged: number;
+  /** Rows closed: the operations' own and the parts and checks left out of an upserted slice's lists. */
+  closed: number;
+  /** Rows archived: each item with its parts and checks. */
+  archived: number;
+  /** Writes the stale-read guard left because their row moved since it was read: send the batch again to apply them. */
+  raced: number;
+}
+
+/** What a caller that may not write plan documents is told when a batch holds an upsert or a close. */
+const BATCH_FORBIDDEN = "forbidden: apply_batch upsert and close operations need the static write token";
+
+type BatchRepository = ItemRepository & ArchiveRepository;
+
+/** The operation's key: an upsert's item key, else the operation's own. */
+function opKey(operation: BatchOperation): string {
+  return operation.op === BatchOp.Upsert ? operation.item.key : operation.key;
+}
+
+/** Refuses a batch that names one key twice or holds more than `MAX_BATCH_ITEMS` items once parts and checks are expanded (the count includes closes and archives). */
+function assertBatchShape(operations: BatchOperation[], expanded: number): void {
+  const seen = new Set<string>();
+  operations.forEach((operation, index) => {
+    const key = opKey(operation);
+    if (seen.has(key)) throw new DomainError("operations", `field operations: operation ${index} repeats key ${key}`);
+    seen.add(key);
+  });
+  if (expanded > MAX_BATCH_ITEMS) {
+    throw new DomainError("operations", `field operations: at most ${MAX_BATCH_ITEMS} items per call after parts and checks, got ${expanded}`);
+  }
+}
+
+/**
+ * Add, update, close and archive in one atomic batch (Slice 50). Nothing relies on absence: only the items an upsert names
+ * are written, and only the keys a close names are closed (with their parts and checks), so a partial run never closes
+ * anything wrongly. A bad operation refuses the whole call and names its key. Upserts and closes write plan documents, so
+ * they need the sync token (`canSync`); an archive needs it only for an item the documents own.
+ */
+export async function applyBatch(repo: BatchRepository, input: ApplyBatchInput, clock: Clock, canSync: boolean): Promise<BatchSummary> {
+  const { project, operations } = input;
+  const upserts = operations.flatMap((operation) => (operation.op === BatchOp.Upsert ? [operation.item] : []));
+  validateSnapshot(project, upserts, upserts.length);
+  const groups = upserts.map((item) => ({ item, members: expandParts([item, ...nestedChecks(item)]) }));
+  const candidates = groups.flatMap((group) => group.members);
+  assertBatchShape(operations, candidates.length + operations.length - upserts.length);
+  if (!canSync && operations.some((operation) => operation.op !== BatchOp.Archive)) throw new DomainError("operations", BATCH_FORBIDDEN);
+  const now = clock.now().toISOString();
+  const named = operations.filter((operation) => operation.op !== BatchOp.Upsert).map(opKey);
+  const stored = await repo.loadForSync(project, [...loadKeys(candidates), ...named]);
+  const byKey = new Map(stored.map((row) => [row.key, row]));
+  for (const candidate of candidates) assertSameProject(byKey.get(candidate.key), project);
+  const plan = planBatch(project, operations, groups, byKey, now, canSync);
+  const applied = await repo.applyBatch(plan.writes, plan.closes, { keys: plan.archiveKeys, canSync }, now);
+  if (!canSync && plan.archiveKeys.length > 0 && applied.archived === 0) throw archiveRefused(plan.archiveKeys.join(", "));
+  return summarise(project, plan, applied);
+}
+
+/** Everything a batch will write, worked out from one read, before any write. */
+interface BatchPlan {
+  operations: BatchOperation[];
+  merges: { key: string; existed: boolean; write: SyncWrite | null }[];
+  writes: SyncWrite[];
+  closes: SyncRow[];
+  /** Keys of the close operations whose row was still in the documents (the others were closed before). */
+  closeKeys: Set<string>;
+  archiveKeys: string[];
+  alreadyArchived: Set<string>;
+}
+
+function planBatch(
+  project: string,
+  operations: BatchOperation[],
+  groups: SnapshotGroup[],
+  byKey: Map<string, SyncRow>,
+  now: string,
+  canSync: boolean,
+): BatchPlan {
+  const { items, skipped } = screenSnapshot(project, groups, byKey);
+  const first = skipped[0];
+  if (first) throw new DomainError("operations", `field operations: ${first.key} is refused: ${first.reason}`);
+  const merges = items.map((snap) => ({ key: snap.key, existed: byKey.has(snap.key), write: planItem(byKey.get(snap.key), snap, project, now, true) }));
+  const listed = new Set(items.map((item) => item.key));
+  const tops = groups.map((group) => group.item);
+  const keepParts = new Set(tops.filter((i) => i.parts === undefined).map((i) => i.key));
+  const keepChecks = new Set(tops.filter((i) => i.checks === undefined).map((i) => i.key));
+  const leftOut = closeTargets(childrenOf(tops, byKey), project, listed, keepParts, keepChecks);
+  const writes = merges.flatMap((merge) => (merge.write ? [merge.write] : []));
+  const closing = closeOperations(project, operations, byKey);
+  const closes = [...new Map([...leftOut, ...closing.rows].map((row) => [row.key, row])).values()];
+  const archives = archiveOperations(project, operations, byKey, canSync);
+  return { operations, merges, writes, closes, closeKeys: closing.keys, ...archives };
+}
+
+/** The stored doc-sync parts and checks of the slices an upsert names. */
+function childrenOf(tops: SnapshotItem[], byKey: Map<string, SyncRow>): SyncRow[] {
+  const parents = new Set(tops.map((item) => item.key));
+  const isChild = (row: SyncRow): boolean => row.type === ItemType.Part || row.type === ItemType.Check;
+  return [...byKey.values()].filter((row) => isChild(row) && parents.has(row.parent_key ?? ""));
+}
+
+/** The row a close or archive names: it must exist in this project. */
+function namedRow(project: string, key: string, byKey: Map<string, SyncRow>): SyncRow {
+  const row = byKey.get(key);
+  if (!row) throw new DomainError("operations", `field operations: no item ${key}`);
+  if (row.project !== project) throw new DomainError("operations", `field operations: ${key} belongs to project ${row.project}, not ${project}`);
+  return row;
+}
+
+/** A close takes the item and its stored doc-sync parts and checks; an item the documents no longer hold is left as it is. */
+function closeOperations(project: string, operations: BatchOperation[], byKey: Map<string, SyncRow>): { rows: SyncRow[]; keys: Set<string> } {
+  const rows: SyncRow[] = [];
+  const keys = new Set<string>();
+  for (const operation of operations) {
+    if (operation.op !== BatchOp.Close) continue;
+    const row = namedRow(project, operation.key, byKey);
+    if (!row.in_doc_sync || row.archived_at) continue;
+    keys.add(row.key);
+    rows.push(row, ...[...byKey.values()].filter((child) => child.parent_key === row.key && child.in_doc_sync && !child.archived_at));
+  }
+  return { rows, keys };
+}
+
+function archiveOperations(
+  project: string,
+  operations: BatchOperation[],
+  byKey: Map<string, SyncRow>,
+  canSync: boolean,
+): { archiveKeys: string[]; alreadyArchived: Set<string> } {
+  const archiveKeys: string[] = [];
+  const alreadyArchived = new Set<string>();
+  for (const operation of operations) {
+    if (operation.op !== BatchOp.Archive) continue;
+    const row = namedRow(project, operation.key, byKey);
+    assertMayArchive(row, canSync, docSyncChildren(row, byKey.values()));
+    if (row.archived_at) alreadyArchived.add(row.key);
+    else archiveKeys.push(row.key);
+  }
+  return { archiveKeys, alreadyArchived };
+}
+
+function summarise(project: string, plan: BatchPlan, applied: BatchApplied): BatchSummary {
+  const merged = new Map(plan.merges.map((merge) => [merge.key, merge]));
+  const results = plan.operations.map((operation): OpResult => {
+    const key = opKey(operation);
+    return { op: operation.op, key, outcome: outcomeOf(operation, plan, applied, merged.get(key)) };
+  });
+  const count = (outcome: OpOutcome): number => results.filter((result) => result.outcome === outcome).length;
+  const lostWrites = results.filter((result) => result.op === BatchOp.Upsert && result.outcome === OpOutcome.Raced).length;
+  return {
+    project,
+    results,
+    created: count(OpOutcome.Created),
+    updated: count(OpOutcome.Updated),
+    unchanged: count(OpOutcome.Unchanged),
+    closed: applied.closed,
+    archived: applied.archived,
+    raced: lostWrites + Math.max(0, plan.closes.length - applied.closed),
+  };
+}
+
+function outcomeOf(
+  operation: BatchOperation,
+  plan: BatchPlan,
+  applied: BatchApplied,
+  merge: BatchPlan["merges"][number] | undefined,
+): OpOutcome {
+  if (operation.op === BatchOp.Archive) return plan.alreadyArchived.has(operation.key) ? OpOutcome.AlreadyArchived : OpOutcome.Archived;
+  if (operation.op === BatchOp.Close) return plan.closeKeys.has(operation.key) ? OpOutcome.Closed : OpOutcome.AlreadyClosed;
+  if (!merge?.write) return OpOutcome.Unchanged;
+  if (!applied.written.has(merge.key)) return OpOutcome.Raced;
+  return merge.existed ? OpOutcome.Updated : OpOutcome.Created;
+}
+
+/** One doc-synced item by itself (add or update, with its parts and checks): `apply_batch` with one upsert. */
+export async function upsertItem(repo: BatchRepository, item: SnapshotItem, clock: Clock): Promise<OpResult & { raced: number }> {
+  const summary = await applyBatch(repo, { project: item.project, operations: [{ op: BatchOp.Upsert, item }] }, clock, true);
+  return { ...summary.results[0]!, raced: summary.raced };
+}
+
+/** The page size of `list_synced` when the call gives none; 100 entries of at most 200-character keys stay far under the reply limit. */
+export const LIST_SYNCED_PAGE = 100;
+
+export interface ListSyncedInput {
+  project: string;
+  after_key?: string;
+  limit?: number;
+}
+
+/** A project's live top-level doc-sync items by key with the hash of what the documents last said, one page at a time (Slice 50). */
+export async function listSynced(repo: ArchiveRepository, input: ListSyncedInput): Promise<SyncedEntry[]> {
+  const page = await repo.syncedPage(input.project, input.after_key ?? null, input.limit ?? LIST_SYNCED_PAGE);
+  return syncedEntries(page.rows, page.children);
 }
 
 /** The keys one sync loads: every item's own, plus each parent's (read once, in the same query, for the parent checks). */

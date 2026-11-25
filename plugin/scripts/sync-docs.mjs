@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /* global process */
-// Doc sync for the Agent Progress Board: read a repo's plan documents from origin/main and send
-// the whole set to the board with one `sync_snapshot` call. Idempotent (same documents, same
-// snapshot, nothing changes on the board), fails open (no token, no plan.md, a timeout or any
-// board error is one stderr line and exit 0). Details: docs/setup/plan-sync.md.
+// Doc sync for the Agent Progress Board: read a repo's plan documents from origin/main, ask the board what it holds
+// (`list_synced`: key, status and a hash per item), and send only the changes with `apply_batch`: adds and updates as
+// upserts, items gone from the documents as closes, in calls of at most 200 items (Slice 50). Idempotent (same
+// documents, nothing to send), fails open (no token, no plan.md, a timeout or any board error is one stderr line and
+// exit 0). Details: docs/setup/plan-sync.md.
 //
 // Usage: node sync-docs.mjs [--repo <dir>] [--ref origin/main] [--root <dir>] [--project <slug>]
 //          [--parked <parked.md>] [--repo-url <https url>] [--dry-run]
@@ -17,7 +18,8 @@ import { fileURLToPath } from 'node:url';
 import { callTool, normaliseSliceNumber, parseArgs, projectSlug, resolveConfig, slugify } from './report-progress.mjs';
 
 export const SYNC_TIMEOUT_MS = 5000;
-export const MAX_ITEMS = 200;
+export const MAX_BATCH_ITEMS = 200; // the board's limit of items per apply_batch call, parts and checks counted (src/domain/docSync.ts)
+const LIST_SYNCED_LIMIT = 200; // entries per list_synced page (the board's most)
 const TITLE_LIMIT = 300;
 const OWNER_TITLE_LIMIT = 80; // an owner step's title, "Slice N: <action>"
 const DETAILS_LIMIT = 20000; // the board's longest details_md
@@ -73,7 +75,6 @@ const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})/;
 const FENCE_CLOSE = /^ {0,3}(`{3,}|~{3,})\s*$/;
 const PART_HEADING = /^\s*(?:[-*+]\s+)?\*\*([A-Z])\.\s+(.+?)\*\*/;
 const CHECKBOX = /^\s*(?:[-*+]|\d+[.)])\s+\[([ xX])\]/;
-export const MAX_EXPANDED_ITEMS = 1000; // the board's limit on items plus parts (docs/clients.md, sync_snapshot)
 
 function flatten(text) {
   return String(text || '').replace(/\s+/g, ' ').trim();
@@ -649,20 +650,13 @@ function attachChecks(project, slices, blocks, notices) {
   });
 }
 
-// Never a partial snapshot: sync_snapshot closes whatever is missing, so a cut item would read as
-// done. Over the cap the whole list is withheld (`items` is empty, `withheld` holds the list for a dry run) and the
-// caller reports the count.
-// The board's 200 limit counts the items sent; items plus parts have their own limit of 1000
-// (docs/clients.md, sync_snapshot). `limit` names the one that was hit.
-export function capItems(all) {
-  const expanded = all.reduce((sum, item) => sum + 1 + (item.parts ? item.parts.length : 0), 0); // checks have their own per-slice cap (MAX_CHECKS), they are not items or parts
-  if (all.length > MAX_ITEMS) return { items: [], withheld: all, count: all.length, expanded, overflow: true, limit: MAX_ITEMS };
-  if (expanded > MAX_EXPANDED_ITEMS) return { items: [], withheld: all, count: expanded, expanded, overflow: true, limit: MAX_EXPANDED_ITEMS };
-  return { items: all, count: all.length, expanded, overflow: false, limit: 0 };
+// The items one apply_batch call counts for an item: the item, its parts and its checks (src/domain/docSync.ts, MAX_BATCH_ITEMS).
+export function expandedCount(item) {
+  return 1 + (item.parts ? item.parts.length : 0) + (item.checks ? item.checks.length : 0);
 }
 
-// Pure: documents in, snapshot out ({ items, cut, overflow }). The same documents give the same
-// snapshot for every caller, because sync_snapshot closes whatever is missing from it.
+// Pure: documents in, snapshot out ({ items, count, expanded, notices }). The same documents give the same
+// items for every caller; there is no size cap, the sync sends them in as many batches as it needs.
 export function buildSnapshot({ project, planText, unverifiedText = null, doneText = '', sliceTexts = {}, repoUrl = '' }) {
   const open = parsePlanTable(planText);
   const notices = [];
@@ -681,7 +675,111 @@ export function buildSnapshot({ project, planText, unverifiedText = null, doneTe
   const blocks = unverifiedText === null ? null : parseUnverified(unverifiedText);
   const withChecks = attachChecks(project, slices, blocks, notices);
   const owner = blocks === null ? [] : ownerItems(project, blocks, notices, rows, repoUrl);
-  return { ...capItems([...withChecks, ...owner]), notices };
+  const items = [...withChecks, ...owner];
+  return { items, count: items.length, expanded: items.reduce((sum, item) => sum + expandedCount(item), 0), notices };
+}
+
+// cyrb53, a 53-bit string hash: a copy of `hashText` in src/domain/docSync.ts (the board). It only tells whether the
+// documents' words for an item changed. The same vectors are in test/docHash.test.ts and in this script's test, which hold both copies equal.
+function cyrb53(text) {
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  for (let i = 0; i < text.length; i += 1) {
+    const code = text.charCodeAt(i);
+    h1 = Math.imul(h1 ^ code, 2654435761);
+    h2 = Math.imul(h2 ^ code, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507);
+  h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507);
+  h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return 4294967296 * (2097151 & h2) + (h1 >>> 0);
+}
+
+const byText = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+
+// What the documents say about one item, as the board hashes it (`docHash` in src/domain/docSync.ts): type, title, status,
+// why, parent label, parent key, links, an owner step's details, and the parts and checks in letter and key order.
+export function docHash(item) {
+  const view = [
+    item.type,
+    item.title,
+    item.status,
+    item.why ?? null,
+    item.parent ?? null,
+    item.parent_key ?? null,
+    (item.links ?? []).map((link) => [link.label, link.url]),
+    item.type === 'waiting_for_me' ? (item.details_md ?? null) : null,
+    [...(item.parts ?? [])].sort((a, b) => byText(a.letter, b.letter)).map((part) => [part.letter, part.title, part.done]),
+    [...(item.checks ?? [])].sort((a, b) => byText(a.key, b.key)).map((check) => [check.key, check.title]),
+  ];
+  return cyrb53(JSON.stringify(view)).toString(16).padStart(14, '0');
+}
+
+// What to send: an upsert for each item the board lacks or holds in other words, a close for each key the board holds that
+// the documents no longer list. `remote` is the board's list_synced entries ({ key, status, hash }). Nothing relies on
+// absence on the board's side, so any subset of these operations can be sent in any order and a partial run closes nothing wrongly.
+export function planOperations(items, remote) {
+  const held = new Map(remote.map((entry) => [entry.key, entry.hash]));
+  const listed = new Set(items.map((item) => item.key));
+  const upserts = items.filter((item) => held.get(item.key) !== docHash(item)).map((item) => ({ op: 'upsert', item }));
+  // An archived entry is never closed or re-added for being archived: with an unchanged hash it stays archived (nothing is
+  // sent), a changed hash is an upsert, which brings it back; one the documents dropped stays archived until the purge.
+  const closes = remote.filter((entry) => !entry.archived && !listed.has(entry.key)).map((entry) => ({ op: 'close', key: entry.key }));
+  return { operations: [...upserts, ...closes], unchanged: items.length - upserts.length };
+}
+
+// The operations in calls of at most MAX_BATCH_ITEMS items counted the board's way (an upsert is the item with its parts and checks, a close is one).
+export function chunkOperations(operations) {
+  const chunks = [];
+  let current = [];
+  let used = 0;
+  for (const operation of operations) {
+    const cost = operation.op === 'upsert' ? expandedCount(operation.item) : 1;
+    if (current.length > 0 && used + cost > MAX_BATCH_ITEMS) {
+      chunks.push(current);
+      current = [];
+      used = 0;
+    }
+    current.push(operation);
+    used += cost;
+  }
+  if (current.length > 0) chunks.push(current);
+  return chunks;
+}
+
+// Everything the board holds for the project, page by page: each page starts after the last key of the one before; an empty page is the end.
+// A failed page is `{ ok: false, error }` and nothing is sent: a partial list would close items that are only on a later page.
+export async function readRemote(config, project, call = callTool) {
+  const entries = [];
+  let afterKey;
+  for (;;) {
+    const args = { project, limit: LIST_SYNCED_LIMIT, ...(afterKey ? { after_key: afterKey } : {}) };
+    const outcome = await call(config, 'list_synced', args, { timeoutMs: SYNC_TIMEOUT_MS });
+    if (!outcome.ok) return { ok: false, error: outcome.error };
+    // A reply that is not a list (the board cut it at its size limit) is a failed read, never the end of the list.
+    if (!Array.isArray(outcome.data)) return { ok: false, error: 'list_synced did not return a list (the page was cut at the size limit)' };
+    const page = outcome.data;
+    if (page.length === 0) return { ok: true, entries };
+    entries.push(...page);
+    afterKey = page[page.length - 1].key;
+  }
+}
+
+const COUNTS = ['created', 'updated', 'closed', 'unchanged', 'archived', 'raced'];
+
+// Sends the chunks one after the other and stops at the first one that fails (the next sync sends the rest again, since
+// the board's hashes then still differ); the counts of the calls that went through are added up.
+export async function sendChunks(config, project, chunks, call = callTool) {
+  const totals = Object.fromEntries(COUNTS.map((name) => [name, 0]));
+  let sent = 0;
+  for (const operations of chunks) {
+    const outcome = await call(config, 'apply_batch', { project, operations }, { timeoutMs: SYNC_TIMEOUT_MS });
+    if (!outcome.ok) return { ok: false, error: outcome.error, sent, totals };
+    sent += 1;
+    for (const name of COUNTS) if (outcome.data && Number.isFinite(outcome.data[name])) totals[name] += outcome.data[name];
+  }
+  return { ok: true, sent, totals };
 }
 
 export function buildItems(documents) {
@@ -842,18 +940,29 @@ export function collect(parsed, env = process.env) {
   return { project, ...snapshot, notices };
 }
 
-function reportCaps(snapshot) {
+function reportNotices(snapshot) {
   for (const notice of snapshot.notices) process.stderr.write(notice);
-  if (!snapshot.overflow) return;
-  const what = snapshot.limit === MAX_ITEMS ? 'items' : 'items and parts';
-  process.stderr.write(`sync-docs: ${snapshot.count} ${what} exceed the ${snapshot.limit}-${snapshot.limit === MAX_ITEMS ? 'item' : 'item-and-part'} cap, nothing sent\n`);
 }
 
-// The result line: each count the board gave, only when it is a number; a reply with none says so.
-export function syncLine(snapshot, data) {
+// The result line: each count the board gave, only when it is a number; a reply with none says so. `batches` is how many apply_batch calls went out.
+export function syncLine(snapshot, data, batches) {
   const counts = data && typeof data === 'object' ? data : {};
   const given = ['created', 'updated', 'closed', 'unchanged'].filter((name) => Number.isFinite(counts[name])).map((name) => `${name}=${counts[name]}`);
-  return `sync-docs: ${snapshot.project} items=${snapshot.items.length} ${given.length ? given.join(' ') : 'the board gave no counts'}`;
+  const sent = Number.isFinite(batches) ? ` batches=${batches}` : '';
+  return `sync-docs: ${snapshot.project} items=${snapshot.items.length} ${given.length ? given.join(' ') : 'the board gave no counts'}${sent}`;
+}
+
+// Reads the board's list, works out the changes and sends them; the counts are the calls' own plus the items that needed no call.
+async function syncChanges(config, snapshot) {
+  const remote = await readRemote(config, snapshot.project);
+  if (!remote.ok) return process.stderr.write(`sync-docs: list_synced skipped (${remote.error}), nothing sent\n`);
+  const { operations, unchanged } = planOperations(snapshot.items, remote.entries);
+  const sent = await sendChunks(config, snapshot.project, chunkOperations(operations));
+  const totals = { ...sent.totals, unchanged: sent.totals.unchanged + unchanged };
+  if (sent.totals.raced > 0) process.stderr.write(`sync-docs: ${sent.totals.raced} row(s) moved while the batch was written and were left; the next sync sends them again\n`);
+  if (!sent.ok) return process.stderr.write(`sync-docs: apply_batch skipped after ${sent.sent} call(s) (${sent.error}); the next sync sends the rest\n`);
+  process.stdout.write(`${syncLine(snapshot, totals, sent.sent)}\n`);
+  return { synced: true };
 }
 
 export async function main(argv, env = process.env) {
@@ -866,15 +975,11 @@ export async function main(argv, env = process.env) {
     return process.stderr.write(`sync-docs: could not read ${error.path}, nothing sent\n`);
   }
   if (!snapshot) return process.stderr.write('sync-docs: no plan.md with a recognised status table, nothing sent\n');
-  reportCaps(snapshot);
-  if (argv.includes('--dry-run')) return process.stdout.write(`${JSON.stringify(snapshot.overflow ? snapshot.withheld : snapshot.items, null, 2)}\n`);
-  if (snapshot.overflow) return;
+  reportNotices(snapshot);
+  if (argv.includes('--dry-run')) return process.stdout.write(`${JSON.stringify(snapshot.items, null, 2)}\n`);
   const config = resolveConfig(env);
   if (!config) return;
-  const outcome = await callTool(config, 'sync_snapshot', { project: snapshot.project, items: snapshot.items }, { timeoutMs: SYNC_TIMEOUT_MS });
-  if (!outcome.ok) return process.stderr.write(`sync-docs: sync_snapshot skipped (${outcome.error})\n`);
-  process.stdout.write(`${syncLine(snapshot, outcome.data)}\n`);
-  return { synced: true };
+  return syncChanges(config, snapshot);
 }
 
 function isInvokedDirectly() {

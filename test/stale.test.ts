@@ -74,6 +74,10 @@ interface SqlRow extends ExpiryRow {
   key: string;
 }
 
+async function archive(key: string): Promise<void> {
+  await env.DB.prepare("UPDATE items SET archived_at = ?2 WHERE key = ?1").bind(key, ago(1)).run();
+}
+
 async function insertRow(row: SqlRow): Promise<void> {
   await env.DB.prepare(
     `INSERT INTO items (key, project, type, priority, status, title, links, heartbeat_at, created_at, updated_at,
@@ -118,8 +122,12 @@ describe("markStale (SQL) agrees with isExpired", () => {
       { key: "h", status: ItemStatus.InProgress, heartbeat_at: ago(16), doc_status_at: null, live_status_at: ago(300), agent: SESSION_AGENT },
       { key: "i", status: ItemStatus.InProgress, heartbeat_at: ago(14), doc_status_at: null, live_status_at: ago(300), agent: SESSION_AGENT },
       { key: "j", status: ItemStatus.InProgress, heartbeat_at: ago(16), doc_status_at: null, live_status_at: ago(300), agent: "Implementer" },
+      { key: "k", status: ItemStatus.InProgress, heartbeat_at: ago(200), doc_status_at: null, live_status_at: ago(300), archived_at: ago(1) },
     ];
-    for (const row of cases) await insertRow(row);
+    for (const row of cases) {
+      await insertRow(row);
+      if (row.archived_at) await archive(row.key);
+    }
     const repo = new D1ItemRepository(env.DB);
     const { stale: turned } = await markStaleItems(repo, MINUTES, { now: () => NOW });
     const expected = cases.filter((row) => isExpired(row, MINUTES, NOW)).map((row) => row.key);
@@ -415,9 +423,10 @@ describe("waiting cards with no slice behind them (Slice 34)", () => {
       { type: ItemType.WaitingForMe, status: ItemStatus.Open, heartbeat_at: hoursAgo(23), in_doc_sync: false, parent_type: null },
       { type: ItemType.WaitingForMe, status: ItemStatus.Done, heartbeat_at: hoursAgo(25), in_doc_sync: false, parent_type: null },
       { type: ItemType.Bug, status: ItemStatus.Open, heartbeat_at: hoursAgo(25), in_doc_sync: false, parent_type: null },
+      { type: ItemType.WaitingForMe, status: ItemStatus.Open, heartbeat_at: hoursAgo(25), in_doc_sync: false, parent_type: null, archived_at: hoursAgo(1) },
     ];
     const expected = rows.map((row) => isWaitingClosable(row, NOW));
-    expect(expected).toEqual([true, false, false, true, false, false, false, false]);
+    expect(expected).toEqual([true, false, false, true, false, false, false, false, false]);
     for (const [index, row] of rows.entries()) {
       const key = `rule-${index}`;
       if (row.parent_type) {
@@ -430,6 +439,7 @@ describe("waiting cards with no slice behind them (Slice 34)", () => {
         `INSERT INTO items (key, project, type, priority, status, title, links, heartbeat_at, created_at, updated_at, in_doc_sync, parent_key)
          VALUES (?1, 'p', ?2, 'P2', ?3, 'T', '[]', ?4, ?4, ?4, ?5, ?6)`,
       ).bind(key, row.type, row.status, row.heartbeat_at, row.in_doc_sync ? 1 : 0, row.parent_type ? `parent-${index}` : null).run();
+      if (row.archived_at) await env.DB.prepare("UPDATE items SET archived_at = ?2 WHERE key = ?1").bind(key, row.archived_at).run();
     }
     const closable = await env.DB.prepare(`SELECT key FROM items WHERE key LIKE 'rule-%' AND ${WAITING_ROWS} ORDER BY key`)
       .bind(hoursAgo(24))

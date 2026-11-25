@@ -24,6 +24,8 @@ export interface ExpiryRow {
   live_status_at: string | null;
   /** Only `SESSION_AGENT` matters here: a session card expires after `SESSION_STALE_AFTER_MINUTES`. */
   agent?: string | null;
+  /** When the item was archived (Slice 50); an archived row never expires. Left out on a live row. */
+  archived_at?: string | null;
 }
 
 /** The expiry that applies to an item: the session one for a session card, else the configured one. */
@@ -70,6 +72,8 @@ export interface WaitingRow {
   heartbeat_at: string;
   in_doc_sync: boolean;
   parent_type: ItemType | null;
+  /** When the item was archived (Slice 50); an archived card is never closed by the cron. Left out on a live row. */
+  archived_at?: string | null;
 }
 
 /**
@@ -79,6 +83,7 @@ export interface WaitingRow {
 export function isWaitingClosable(row: WaitingRow, now: Date): boolean {
   return (
     row.type === ItemType.WaitingForMe &&
+    !row.archived_at &&
     row.status !== ItemStatus.Done &&
     !row.in_doc_sync &&
     !(row.parent_type !== null && WAITING_KEPT_PARENT_TYPES.includes(row.parent_type)) &&
@@ -133,6 +138,7 @@ export function hasOpenQuestion(
  */
 export function isExpired(row: ExpiryRow, staleAfterMinutes: number, now: Date): boolean {
   return (
+    !row.archived_at &&
     EXPIRING_STATUSES.includes(row.status) &&
     showsLiveStatus(row.live_status_at, row.doc_status_at) &&
     isHeartbeatExpired(row.heartbeat_at, staleAfterMinutes, now, row.agent)

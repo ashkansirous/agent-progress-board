@@ -8,7 +8,8 @@
 src/application/archive.ts (new), src/domain/docSync.ts, src/domain/archive.ts (new), src/domain/scope.ts,
 src/infrastructure/d1Repository.ts, src/index.ts, migrations/0010_archive.sql (new), plugin/scripts/sync-docs.mjs,
 plugin/scripts/*.test.mjs, plugin/skills/agent-board/SKILL.md, docs/clients.md, test/*.test.ts,
-test/pluginRules.test.ts, CLAUDE.md, README.md.
+test/pluginRules.test.ts, CLAUDE.md, README.md, docs/setup/plan-sync.md (widened while building: its "At most 200
+items" line is wrong once the cap goes).
 
 Night 2026-11-25 claim note: the live run of the plugin's sync in the owner's repo that hit the cap (Verification) is a
 `[session]` line in `docs/plan/unverified.md`, run by the live-checks session after the release.
@@ -94,3 +95,26 @@ Decided by the starter session (2026-11-19), inside those answers:
 
 - A page to browse archived items; the owner reads them through `get_item` for now.
 - Undo of the purge; after 30 days the data is gone.
+
+#### From review
+
+- Skipped #4 (`reviews/pr-199-high.md`): "One refused item now refuses the whole apply_batch chunk of up to 200 items, and the plugin stops at the first failed chunk, so closes never go out." - Work 3 decides it: "one D1 batch, all or nothing; a bad operation refuses the call".
+- Archive and revive, one design after two failed passes (`reviews/pr-199-medium.md` #1-#6, `reviews/pr-199-high.md` #1, #2): archiving key K sets the same `archived_at` on K and every descendant (recursive on `parent_key`, any type, one `ARCHIVE_ROWS` statement). Any write that revives K (upsert, sync, `report_progress`, `mark_done`, `ask_human`) clears `archived_at` on K and every descendant whose time equals K's, in the same batch (`reviveSubtree` in `d1Repository.ts`, run before the write and guarded by the write's own compare-and-swap); a child archived on its own earlier keeps its time and stays archived. `reviveChildren` and the live-parent purge guard are gone: the purge deletes rows whose `archived_at` is past 30 days, nothing else (`PURGE_UNLINK` stays). `list_synced` returns archived doc-synced rows too, flagged `archived: true`, with their hash; the plugin sends nothing for one whose hash is unchanged and an upsert when it changed, and never closes one. `ARCHIVE_EVENTS` is bound by `changes() > 0` and adjacent to its update (one event per archived root). A part the documents dropped while its slice was archived comes back live with the slice and is closed by the next sync.
+- Archive and revive, third design (coordinator, 2026-11-25, after `reviews/pr-199-check-medium.md` #1-#8; it replaces
+  the second design above). Each rule lives in one place and holds inside the SQL statement, never on an earlier read:
+  1. *What an archive takes:* K plus its plan-owned descendants (recursive on `parent_key`, only rows with
+     `in_doc_sync = 1` or type part or check), all with the same `archived_at` (Decision 8). Live cards under K (bug,
+     problem, waiting, agent rows that are not doc-synced) are never archived. A caller without the sync scope
+     archives only when K and every row the statement takes have `in_doc_sync = 0`: the condition is in the archive
+     statement itself, and `changes() = 0` refuses the call (#6, #7).
+  2. *What revives:* only an explicit write of the item's content: `upsert_item`, an `apply_batch` upsert, and a sync
+     write whose document fields really changed (`archived_at` is not a document field, so an unchanged doc item stays
+     archived under `sync_snapshot` too) (#2). The revive clears `archived_at` on K and on descendants reached only
+     through rows whose `archived_at` equals K's, in the same batch, with K's time read by a subquery inside the
+     statement (#4). `report_progress`, `mark_done`, `ask_human` and heartbeats on an archived key are refused by the
+     write's own SQL condition (`archived_at IS NULL`) with a reply saying it is archived and how to bring it back;
+     reporters fail open, so a refusal never blocks a client (#3, pr-199-high #1).
+  3. *Purge:* deletes archived rows past 30 days and their steps and events. `PURGE_UNLINK` clears `parent_key` only on
+     rows that are not doc-synced (#5), and the cron logs both counts (#8).
+  4. *A purged item the documents still list comes back new on the next sync* (#1): the documents are the source of
+     record (Decision 3), so this is the intended behaviour, written here, not a fix.

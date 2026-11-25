@@ -1,7 +1,9 @@
 import { createProvider, issuerOrigin } from "./api/oauth/provider";
+import { purgeArchive } from "./application/archive";
 import { markStaleItems } from "./application/board";
 import { thinOldUsage } from "./application/usage";
 import { parseConfig } from "./config";
+import { ARCHIVE_KEEP_DAYS } from "./domain/archive";
 import type { Env } from "./env";
 import { D1ItemRepository } from "./infrastructure/d1Repository";
 
@@ -35,6 +37,18 @@ async function runUsageThinning(env: Env): Promise<void> {
   }
 }
 
+/** The cron's third job: removes items archived more than 30 days ago (Slice 50). A failure is logged and never stops the other jobs. */
+async function runArchivePurge(env: Env): Promise<void> {
+  try {
+    const { removed, unlinked } = await purgeArchive(new D1ItemRepository(env.DB), clock);
+    console.log(
+      `archive purge: ${removed} item(s) removed for good (archived more than ${ARCHIVE_KEEP_DAYS} days ago), ${unlinked} other row(s) unlinked from them`,
+    );
+  } catch (error) {
+    console.error("archive purge failed", error);
+  }
+}
+
 /**
  * A plain object, not the provider itself, so `scheduled` stays on the default export. The OAuth
  * provider answers the metadata documents, registration and the token endpoint, checks every
@@ -57,7 +71,7 @@ export default {
   },
   async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
     // Each job runs even when the other throws; a failed stale check is still raised after both ran.
-    const results = await Promise.allSettled([runStaleCheck(env), runUsageThinning(env)]);
+    const results = await Promise.allSettled([runStaleCheck(env), runUsageThinning(env), runArchivePurge(env)]);
     const failed = results.find((result) => result.status === "rejected");
     if (failed?.status === "rejected") throw failed.reason;
   },

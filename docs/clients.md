@@ -90,7 +90,8 @@ cap state live in `CLAUDE_PLUGIN_DATA/state`; nothing is written to the Claude f
 ### Plan sync (Slice 23, optional)
 
 `plugin/scripts/sync-docs.mjs` reads a repo's `plan.md` `## Status` table, `docs/plan/slices/`, and
-`docs/plan/unverified.md` from `origin/main` and sends them with one `sync_snapshot` call (fail open, idempotent;
+`docs/plan/unverified.md` from `origin/main`, reads what the board holds with `list_synced` and sends only the changes
+with `apply_batch`, in calls of at most 200 items (Slice 50; fail open, idempotent;
 usage and the layout it expects: `docs/setup/plan-sync.md`). A `parked:` row becomes a `waiting_for_me` card unless
 its reason only waits on work (another slice, an interactive session, a deploy, a merge); an `unverified.md` line
 starting `**You:**` becomes a `waiting_for_me` card: its title is `Slice <N>: <short action>` and its steps are the card's text (write the line `**You:** <short action> | <steps>`; a line with no bar is all action), `why` names the slice and what the step unblocks, and it links to the slice file (a `parked:` card's title is the slice file's "Open for the owner" lines). The plugin installs no hook for it; run it after a merge.
@@ -402,7 +403,8 @@ with `events`: its latest 20 events, newest first.
 
 ### `get_item` (read or write token)
 
-Field: `key` (required). Returns the item with `events`: its full history, newest first. An
+Field: `key` (required), `include_archived` (optional, default false: an archived item is read only with it,
+and the reply then carries `archived_at`). Returns the item with `events`: its full history, newest first. An
 unknown key is the tool error `field key: no item <key>`.
 
 ### `sync_snapshot` (write token)
@@ -444,6 +446,49 @@ Errors (tool errors, nothing written): a read token (`forbidden: this token is r
 write token is required`); more than 200 items; an item whose `project` differs from the
 call's (`field items: <key> has project <p>, the call is for <project>`); a repeated key; a key
 that is already stored under another project; any invalid value.
+
+`sync_snapshot` stays for older plugin copies; the plugin now sends only changes with the tools below, because a
+snapshot closes everything it leaves out and so cannot be split.
+
+### One item, a batch, and archive (Slice 50)
+
+There is no delete: **delete means archive**. An archived item with its parts, checks, steps and events is kept
+unchanged but hidden from the board page, `list_open` and every count; 30 days after it was archived the daily cron
+removes it and everything under it for good. Until then `get_item` with `include_archived: true` reads it (the reply
+carries `archived_at`); without the flag an archived key is `field key: no item <key>`. Archiving a key sets the same
+`archived_at` on it and on the plan-owned items under it (by `parent_key`: doc-synced rows, parts and checks); a live
+bug, problem, waiting or session card under it is never archived. A caller without the static write token archives only
+while nothing the archive would take is doc-synced; the check is in the archive's own write, and a refused call changes
+nothing. Only an explicit write of the item's content revives it: `upsert_item`, an `apply_batch` upsert, or a
+`sync_snapshot` write whose document fields really changed (an unchanged item stays archived under a sync). The revive
+clears `archived_at` on the key and on the items under it reached only through rows with the same time, in the same
+batch; an item archived at another time stays archived, and so does everything below it. `report_progress`, `mark_done`,
+`ask_human` and heartbeats on an archived key are refused (`field key: <key> is archived ...`) and write nothing;
+restore it with `upsert_item` first. The purge removes rows by their own `archived_at` only, so a row archived on its
+own goes on its own 30 days. It clears the `parent_key` of rows that are not doc-synced and name a purged item (a
+doc-synced row keeps its own), and the cron logs how many rows it removed and how many it unlinked. A purged item that
+the documents still list comes back as a new item on the next sync: the documents are the source of record.
+
+- `upsert_item` (static write token): one doc-sync item, the same fields as a `sync_snapshot` item (parts and checks
+  included). It adds or updates that item and closes nothing else. Reply `{op, key, outcome, raced}`; `outcome` is
+  `created`, `updated`, `unchanged` or `raced` (the row moved between the read and the write: send it again).
+- `archive_item` (write token): `key`. Archives the item and everything under it. An item from the plan documents
+  needs the static write token (as `sync_snapshot` does), any other item the owner's write scope. Reply
+  `{key, outcome, archived}`; `outcome` is `archived` or `already_archived` (the first archive time is kept).
+- `apply_batch` (write token): `project` and `operations`, each `{op: "upsert", item}`, `{op: "close", key}` or
+  `{op: "archive", key}`, every key at most once. At most 200 items per call, counted after a slice's parts and checks
+  are expanded (a close or an archive counts one); more, a repeated key, an item of another project or any bad
+  operation refuses the whole call and names the key, and nothing is written. The call is one atomic batch. `close`
+  marks a doc-sync item done with its parts and checks (what `sync_snapshot` does to an item it leaves out); `upsert`
+  and `close` need the static write token. Nothing relies on absence: only the named items are touched, so a client
+  can send a large project as several calls. Reply: `{project, results[], created, updated, unchanged, closed,
+  archived, raced}`, `results` one `{op, key, outcome}` per operation in the order sent.
+- `list_synced` (read token): `project`, optional `after_key` and `limit` (at most 200, default 100). The project's
+  top-level doc-sync items by key, `[{key, status, hash}]` (an archived one carries `archived: true`; the plugin sends
+  nothing for it while its hash is unchanged and an upsert, which brings it back, when it changed); the hash covers what the documents said about the
+  item (type, title, status, why, parent, links, an owner step's details, its parts and checks) and is `docHash` in
+  `src/domain/docSync.ts`, mirrored in the plugin. Ask for the next page with `after_key` = the last key; an empty
+  page is the end.
 
 ```
 curl -sS --max-time 3 -X POST "$AGENT_BOARD_URL/mcp" \

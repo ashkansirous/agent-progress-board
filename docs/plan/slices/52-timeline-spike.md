@@ -1,8 +1,14 @@
 ### Slice 52 — Spike: rebuild one session's true step timeline from hooks and the transcript
 
-*Planned.* First step of the process-optimiser scope (Slices 52 to 57). No board change.
+*Built (2026-11-25), PR #201.* First step of the process-optimiser scope (Slices 52 to 57). No board change.
 
 **Touches:** `tmp/` (scratch script, git-ignored), `docs/plan/notes/2026-11-22-timeline-spike.md` (new)
+
+Night 2026-11-25 claim notes (coordinator, no open question): the night is headless, so Work A's real session is one
+local `claude -p` run started by the builder from `tmp/` with `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` and the logging hook
+given through `--settings`, doing a small build task with task tools and one review subagent (capped at 15 minutes);
+the note says it was that small run, not a full slice build. The note holds no transcript paths, project folder names,
+hostnames or other project names: made-up names, relative times and counts only (public repo).
 
 Source: the owner's phone scope "Process optimiser and true per-step telemetry" (2026-11-21), refined at the desk
 2026-11-22 (all recommendations approved by the owner that day).
@@ -38,14 +44,33 @@ context" and that it differs from what the card showed.
 
 ## Work
 
-- [ ] **A.** Logging hook and scratch script; one real session (a slice build with a review pass) run with the task
+- [x] **A.** Logging hook and scratch script; one real session (a slice build with a review pass) run with the task
   tools on.
-- [ ] **B.** Timeline table per step: start, end, source, model(s), tokens by kind, peak context, compactions; next to
+- [x] **B.** Timeline table per step: start, end, source, model(s), tokens by kind, peak context, compactions; next to
   it what the card showed (`get_item` history).
-- [ ] **C.** Note `docs/plan/notes/2026-11-22-timeline-spike.md` with the result, the measured cost of reading the
+- [x] **C.** Note `docs/plan/notes/2026-11-22-timeline-spike.md` with the result, the measured cost of reading the
   transcript per hook (time and bytes, with offset caching), and any change Slices 53 to 57 need. No owner data in it.
 
 ## Verification
 
 - The note shows at least one step whose observed end is earlier than the card's stamped end, with both times.
 - The hook script's added time per call is measured and under 200 ms.
+
+## Result (2026-11-25)
+
+Full record: [note](../notes/2026-11-22-timeline-spike.md). The run was one small local `claude -p` task of about
+87 s, not a full slice build.
+
+- **Kill rule did not fire.** 7 of 10 requests were placed on steps by timestamp; 3 fell outside any step.
+- **Verification 1 met.** The claim step's observed end was 32 s before the card's stamped end (one step, small run).
+- **Verification 2 partly met.** The hook script's own work was about 0.1 ms, but a whole node hook process took
+  153 to 849 ms on this host (bare node 124 ms), so 200 ms is not reachable by a node process. The note lists five
+  changes for the later slices (53 to 57); they are the follow-up.
+
+*Changed while building:* the review pass was not run (Markdown only, spike, no review gate).
+
+*From review:* no findings skipped (no review ran).
+
+#### Not yet verified
+
+- [session] Compaction before/after context was not measured: the 87 s run had none. The cost slice forces one compaction to measure before/after context.

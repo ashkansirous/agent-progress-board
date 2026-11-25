@@ -64,21 +64,24 @@ function checkLength(field: "needs_you" | "after_answer" | "outcome", value: str
 }
 
 /** The steps to store: the whole list, or the stored list with one step's children replaced (`under_step`), stamped from the stored tree. */
-function checkedSteps(input: ReportInput, existing: Pick<Item, "steps"> | null, now: string | null) {
+function checkedSteps(input: ReportInput, existing: Pick<Item, "steps"> | null, now: string | null, costs?: Map<string, unknown>) {
   if (input.under_step === undefined) {
     const sent = input.source === HOOK_SOURCE ? input.steps && hookStepsInput(existing?.steps, input.steps) : input.steps && keepMirroredRows(existing?.steps, input.steps);
-    return normalizeSteps(sent, { previous: existing?.steps, now });
+    return normalizeSteps(sent, { previous: existing?.steps, now, costs });
   }
   if (input.steps === undefined) throw new DomainError("under_step", "field under_step: send steps with it, the list for that step's children");
   const merged = replaceChildren(existing?.steps, input.under_step, input.steps);
-  return normalizeSteps(input.source === HOOK_SOURCE ? merged : keepMirroredRows(existing?.steps, merged), { previous: existing?.steps, now });
+  return normalizeSteps(input.source === HOOK_SOURCE ? merged : keepMirroredRows(existing?.steps, merged), { previous: existing?.steps, now, costs });
 }
 
-/** The report with its steps validated and stamped and a whitespace-only agent or model made absent (null); fields not sent stay unsent. */
-export function checkReport(input: ReportInput, existing: Pick<Item, "steps"> | null = null, now: string | null = null): ReportInput {
+/**
+ * The report with its steps validated and stamped and a whitespace-only agent or model made absent (null); fields not sent stay unsent.
+ * `costs`, when given, is filled with the cost each sent step carried, by the step's resolved id (Slice 54).
+ */
+export function checkReport(input: ReportInput, existing: Pick<Item, "steps"> | null = null, now: string | null = null, costs?: Map<string, unknown>): ReportInput {
   const checked = { ...input };
   if (input.parent_key === input.key) throw new DomainError("parent_key", "field parent_key: an item cannot be its own parent");
-  if (input.steps !== undefined || input.under_step !== undefined) checked.steps = checkedSteps(input, existing, now);
+  if (input.steps !== undefined || input.under_step !== undefined) checked.steps = checkedSteps(input, existing, now, costs);
   delete checked.under_step;
   if (input.agent !== undefined) checked.agent = blankToNull(input.agent);
   if (input.model !== undefined) checked.model = blankToNull(input.model);

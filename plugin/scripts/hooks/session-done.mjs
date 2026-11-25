@@ -16,6 +16,7 @@ import { realpathSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isOrchestrator, resolveConfig } from '../report-progress.mjs';
+import { refreshCosts, withCosts } from '../step-cost.mjs';
 import { AGENT_FRESH_MS, AGENT_PREFIX, AGENT_STATE, CARD_NOTE, RESUME_SLACK_MS, agentRowId, hasActiveAgent, hasAgentMeta, isForegroundAgent, mergeSteps, placeAgents, readBackgroundAgents, subagentsDir, liveAgentIds } from './background-agents.mjs';
 import {
   CLOSED_BY, HOOK_SOURCE, ORCH_CLOSE, HOOK_TIMEOUT_MS, addStoppedAgent, hasMarker, listMarkers, parseInput, readGoal, readMarkerKey, readSeen, readStdinText,
@@ -114,10 +115,11 @@ function currentAgents(input, id, root, now) {
 async function stopCard(input, env, goal, root, now, options) {
   const config = resolveConfig(env);
   const id = sessionIdOf(input);
+  const costed = refreshCosts(input, env, now); // the turn ends: the steps' costs are read from the transcript offset (Slice 54)
   const agents = knownAgents(input, id, root, goal.agentParents, goal.agentStarts, now);
   if (hasActiveAgent(agents)) {
     const parents = placeAgents(goal.steps, agents, goal.agentParents);
-    const steps = mergeSteps(goal.steps, agents, parents, mirroredTasks(id, root, goal.key));
+    const steps = cardSteps(goal.steps, agents, parents, id, root, goal.key);
     const body = keepQuestion(goal, { key: goal.key, status: 'in_progress', source: HOOK_SOURCE, note: CARD_NOTE, steps });
     const sentAt = Date.now(); // taken before the hold is written: a close that sees the hold is written at or after it
     // Held before the call, so a SubagentStop of the last agent during it already finds the hold; heldAt is then
@@ -127,6 +129,7 @@ async function stopCard(input, env, goal, root, now, options) {
     const outcome = await sendCard(config, id, root, { tool: 'report_progress', body, patch, running: runningIds(input, id, root, now) }, now, options);
     return reCloseIfClosedMeanwhile(config, id, root, outcome, sentAt, options);
   }
+  if (costed) await resendSteps(input, env, goal, root, now, options); // the last step's cost goes on before the card is closed (or a slice card left)
   return closeCard(config, goal, id, root, now, options);
 }
 
@@ -205,15 +208,17 @@ function releaseHold(id, root, now) {
 // left the card open for the agents (`held`) and none is running any more, the turn is over: the card is closed.
 async function subagentCard(input, env, goal, root, now, options) {
   const id = sessionIdOf(input);
+  const costed = refreshCosts(input, env, now); // the agent stopped: its transcript is read for the steps' costs (Slice 54)
   const agents = knownAgents(input, id, root, goal.agentParents, goal.agentStarts, now);
   if (goal.held && !hasActiveAgent(agents)) {
     if (mainThreadWorked(input, goal)) return releaseHold(id, root, now); // a new turn is running: its own Stop closes the card
+    if (costed) await resendSteps(input, env, goal, root, now, options);
     return closeCard(resolveConfig(env), goal, id, root, now, options);
   }
-  if (!agents.length) return { skipped: 'no background agents' };
+  if (!agents.length) return costed ? resendSteps(input, env, goal, root, now, options) : { skipped: 'no background agents' };
   const parents = placeAgents(goal.steps, agents, goal.agentParents);
   saveGoal(id, (current) => ({ agentParents: mergeParents(current, parents) }), root, now); // before the send: a failed send must not lose the place
-  const steps = mergeSteps(goal.steps, agents, parents, mirroredTasks(id, root, goal.key));
+  const steps = cardSteps(goal.steps, agents, parents, id, root, goal.key);
   const sig = JSON.stringify(steps);
   if (sig === goal.sig) return { skipped: 'steps unchanged' };
   const body = keepQuestion(goal, { key: goal.key, status: 'in_progress', source: HOOK_SOURCE, steps, ...(hasActiveAgent(agents) ? { note: CARD_NOTE } : {}) });
@@ -236,7 +241,7 @@ async function startCard(input, env, goal, root, now, options) {
   const merged = readGoal(id, root, now) || goal;
   const placed = merged.agentParents || parents;
   const agents = knownAgents(input, id, root, placed, merged.agentStarts || {}, now);
-  const steps = mergeSteps(merged.steps, agents, placed, mirroredTasks(id, root, goal.key));
+  const steps = cardSteps(merged.steps, agents, placed, id, root, goal.key);
   const body = keepQuestion(goal, { key: goal.key, status: 'in_progress', source: HOOK_SOURCE, steps, note: CARD_NOTE });
   const patch = (current) => ({ sig: JSON.stringify(steps), agentParents: mergeParents(current, placed) });
   return sendCard(resolveConfig(env), id, root, { tool: 'report_progress', body, patch, running: runningIds(input, id, root, now) }, now, options);
@@ -275,16 +280,21 @@ function mirroredTasks(id, root, cardKey) {
   return items.length || Object.keys(compactions).length ? { items, compactions } : null;
 }
 
+// The list a hook report sends: the session's steps, its agents and mirrored tasks (`mergeSteps`), with the measured cost on each
+// finished task (step-cost.mjs, Slice 54). The cost is part of the list, so the `sig` compare sends it when it changes.
+function cardSteps(sent, agents, parents, id, root, cardKey) {
+  return withCosts(mergeSteps(sent, agents, parents, mirroredTasks(id, root, cardKey)), id, root);
+}
+
 // Sends the card's list again with the session's tasks in it (task-steps.mjs), only when it differs from the last one
 // sent and the card is open. The agents are listed as in SubagentStop, so the list still holds their rows. A session with
 // no task left is sent too, so the board drops the task rows it holds (Slice 53 rule 5); an unchanged list is not sent.
 export async function resendSteps(input, env, goal, root, now, options) {
   const id = sessionIdOf(input);
   if (goal.closed) return { skipped: 'card closed' };
-  const tasks = mirroredTasks(id, root, goal.key);
   const agents = knownAgents(input, id, root, goal.agentParents, goal.agentStarts, now);
   const parents = placeAgents(goal.steps, agents, goal.agentParents);
-  const steps = mergeSteps(goal.steps, agents, parents, tasks);
+  const steps = cardSteps(goal.steps, agents, parents, id, root, goal.key);
   const sig = JSON.stringify(steps);
   if (sig === goal.sig) return { skipped: 'steps unchanged' };
   const body = keepQuestion(goal, { key: goal.key, status: 'in_progress', source: HOOK_SOURCE, steps, ...(hasActiveAgent(agents) ? { note: CARD_NOTE } : {}) });

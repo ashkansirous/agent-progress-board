@@ -23,6 +23,10 @@ const STOPPED_SUFFIX = '.stopped';
 const TASKS_SUFFIX = '.tasks';
 const COMPACTIONS_SUFFIX = '.compactions';
 const COMPACTING_SUFFIX = '.compacting.json';
+// The step-cost files of a session (step-cost.mjs, Slice 54): the stored costs, the lock, and one transcript state per transcript.
+export const COST_SUFFIX = '.costs.json';
+export const COST_LOCK_SUFFIX = '.cost.lock';
+export const COST_STATE_INFIX = '.cost-';
 
 export function parseInput(text) {
   try {
@@ -212,6 +216,19 @@ function removeStoppedFolder(id, root) {
       rmSync(dir, { recursive: true, force: true });
     } catch { /* the next call retries */ }
   }
+  removeCostFiles(id, root);
+}
+
+// The session's step-cost files (costs, lock and every transcript state) go with its other state files (Slice 54).
+function removeCostFiles(id, root) {
+  const safe = safeId(id);
+  if (!safe) return;
+  const own = new Set([`${safe}${COST_SUFFIX}`, `${safe}${COST_LOCK_SUFFIX}`]);
+  try {
+    for (const name of readdirSync(root)) {
+      if (own.has(name) || (name.startsWith(`${safe}${COST_STATE_INFIX}`) && name.endsWith('.json'))) rmSync(join(root, name), { force: true });
+    }
+  } catch { /* no state folder, or a file held: the next call retries */ }
 }
 
 // Tasks the session's task tools made (Slice 53): one small file per task in `<id>.tasks/`, written only by the hook

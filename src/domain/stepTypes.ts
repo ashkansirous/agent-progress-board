@@ -23,6 +23,58 @@ export enum TimeSource {
 /** The sources a report may name for a time it sends; `stamped` is the server's alone. */
 export type ReportedSource = TimeSource.Observed | TimeSource.Reported;
 
+/** One model's tokens by kind in a step's cost (Slice 54). */
+export interface ModelTokens {
+  model: string;
+  input_tokens: number;
+  cache_read_tokens: number;
+  cache_write_tokens: number;
+  output_tokens: number;
+}
+
+/**
+ * The measured cost of a finished step as a report sends it (Slice 54): never stored on the step itself; the server keeps it
+ * as a `step_runs` row (one per step and agent) in the same write. The step's times and their sources are the row's.
+ */
+export interface StepCostInput {
+  /** The agent that owned the step; left out for the main thread. */
+  agent_id?: string | null;
+  /** The models the step used with their tokens by kind (a step's cost holds one entry per model). */
+  models: ModelTokens[];
+  /** The largest single request's input + cache read + cache creation tokens. */
+  peak_context: number;
+  /** Context compactions seen while the step ran. */
+  compactions: number;
+  /** The session id of the plugin that computed this cost: with the step and agent it is the row's key (Slice 54 Decision 10). Absent reads as ''. */
+  writer?: string | null;
+  /** The writer's counter for this cost, raised only when its numbers change; the server replaces the row only when it is greater. Absent reads as 0. */
+  seq?: number;
+}
+
+/** Which stored row a done step shows (Slice 54 Decision 7b): set when the step is saved done with a cost, cleared when it leaves done. */
+export interface CostRef {
+  writer: string;
+  agent_id: string;
+}
+
+/** A step's cost as read (Slice 54): the stored facts of every agent that ran it, with the sums worked out at read. */
+export interface StepCost {
+  models: ModelTokens[];
+  input_tokens: number;
+  cache_read_tokens: number;
+  cache_write_tokens: number;
+  output_tokens: number;
+  /** All four kinds together. */
+  total_tokens: number;
+  peak_context: number;
+  compactions: number;
+  /** Seconds from the run's start to its end. */
+  duration_seconds: number;
+  /** Where the times came from; a cost with a stamped time is stored but the page shows none. */
+  started_source: TimeSource;
+  ended_source: TimeSource;
+}
+
 /**
  * One step of a task as stored: free text, shown as sent. Steps form a tree (Slice 39): a step with
  * children is a parent, one with none is a leaf. `started_at` and `done_at` are the reporter's when it sent
@@ -48,6 +100,10 @@ export interface Step {
   link: string | null;
   /** Times a context compaction happened while the step ran (Slice 53); only ever grows. Always set when built; optional in the type so a hand-made step (a page fixture) may leave it out, read as 0. */
   compactions?: number;
+  /** The stored cost row this done step shows (Decision 7b); absent when it has none. Stored in the steps text. */
+  cost_ref?: CostRef;
+  /** The step's measured cost, attached at read from `step_runs` (Slice 54); never part of the stored steps text. */
+  cost?: StepCost | null;
   children: Step[];
 }
 
@@ -71,6 +127,10 @@ export interface StepInput {
   done_source?: ReportedSource | TimeSource | null;
   /** Compactions seen during the step (a hook counts them); the stored count is kept when it is larger. */
   compactions?: number | null;
+  /** The measured cost of a finished step, from a plugin hook (Slice 54); needs an explicit `id`, else it is ignored. */
+  cost?: unknown;
+  /** Carried from a stored step by the server's own merges; a client's value is dropped by the schema. */
+  cost_ref?: CostRef;
   children?: StepInput[];
 }
 

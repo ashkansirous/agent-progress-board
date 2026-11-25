@@ -6,6 +6,7 @@ import {
   type ItemWrite,
   ArchivedItemError,
   StepsChangedError,
+  STEP_RUN_READ_LIMIT,
   type SessionWindow,
   type StaleCutoffs,
   type StaleResult,
@@ -41,6 +42,8 @@ import {
 import { IDENTITY_TRIM_CHARS } from "../domain/capCost";
 import { partLetterOf } from "../domain/parts";
 import { parseStoredSteps } from "../domain/steps";
+import type { StepRun } from "../domain/stepRuns";
+import type { ModelTokens, TimeSource } from "../domain/stepTypes";
 import type { ReportInput } from "../domain/upsert";
 
 interface ItemRow extends Omit<Item, "links" | "type" | "priority" | "status" | "steps"> {
@@ -614,6 +617,8 @@ export class D1ItemRepository implements ItemRepository, UsageRepository, Archiv
       this.db.prepare(UPSERT_ITEM).bind(...upsertParams(write)),
       this.db.prepare(INSERT_EVENT).bind(write.now, eventNote, key),
     ];
+    // The measured rows of the report's finished steps follow the event at once (their `changes() > 0` reads the event insert).
+    for (const run of write.stepRuns ?? []) statements.push(this.db.prepare(UPSERT_STEP_RUN).bind(...stepRunParams(run)));
     if (eventNote === HEARTBEAT_NOTE) statements.push(this.db.prepare(COALESCE_HEARTBEATS).bind(key, HEARTBEAT_NOTE));
     const results = await this.db.batch(statements);
     const row = results[0]?.results[0] as ItemRow | undefined;
@@ -738,6 +743,90 @@ export class D1ItemRepository implements ItemRepository, UsageRepository, Archiv
       .all<ItemEvent>();
     return results;
   }
+
+  async stepRunsFor(keys: string[]): Promise<StepRun[]> {
+    if (keys.length === 0) return [];
+    const { results } = await this.db.prepare(STEP_RUNS_FOR).bind(JSON.stringify(keys), STEP_RUN_READ_LIMIT).all<StepRunRow>();
+    return results.map(toStepRun);
+  }
+
+  async deleteStepRunsBefore(cutoff: string): Promise<number> {
+    const result = await this.db.prepare("DELETE FROM step_runs WHERE ended_at < ?1").bind(cutoff).run();
+    return result.meta.changes ?? 0;
+  }
+}
+
+/** A `step_runs` row as stored (`models` is JSON text). */
+interface StepRunRow extends Omit<StepRun, "models" | "started_source" | "ended_source"> {
+  models: string;
+  started_source: string;
+  ended_source: string;
+}
+
+/** ?1 the item keys (JSON), ?2 the most rows taken of each item (the newest ends). */
+const STEP_RUNS_FOR = `SELECT item_key, step_id, agent_id, writer, process_key, models, started_at, ended_at, started_source, ended_source,
+    peak_context, compactions, seq, reported_at
+  FROM (
+    SELECT *, ROW_NUMBER() OVER (PARTITION BY item_key ORDER BY ended_at DESC) AS n
+    FROM step_runs WHERE item_key IN (SELECT value FROM json_each(?1))
+  ) WHERE n <= ?2 ORDER BY ended_at DESC`;
+
+function stepRunParams(run: StepRun): (string | number)[] {
+  return [
+    run.item_key,
+    run.step_id,
+    run.agent_id,
+    run.writer,
+    JSON.stringify(run.models),
+    run.started_at,
+    run.ended_at,
+    run.started_source,
+    run.ended_source,
+    run.peak_context,
+    run.compactions,
+    run.seq,
+    run.reported_at,
+  ];
+}
+
+function toStepRun(row: StepRunRow): StepRun {
+  return {
+    ...row,
+    models: parseModels(row.models),
+    started_source: row.started_source as TimeSource,
+    ended_source: row.ended_source as TimeSource,
+  };
+}
+
+/** The stored models text; text that does not parse reads as no models (the row is then summed as zero tokens). */
+function parseModels(text: string): ModelTokens[] {
+  try {
+    const parsed: unknown = JSON.parse(text);
+    return Array.isArray(parsed) ? (parsed as ModelTokens[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * ?1 item key, ?2 step id, ?3 agent id, ?4 writer, ?5 models JSON, ?6 started, ?7 ended, ?8 started source, ?9 ended source,
+ * ?10 peak, ?11 compactions, ?12 seq, ?13 now. Bound by `changes() > 0` like INSERT_EVENT: it runs in the same batch right
+ * after the event (and after the earlier rows of the report), so a write that lost its race or an archived item stores no row.
+ * The key holds the writer, so each row has one writer; a later report of the same row replaces every column (compactions
+ * included) only when its `seq` is greater than the stored one (Decision 10). Keep the statements adjacent to the event.
+ */
+const UPSERT_STEP_RUN = `INSERT INTO step_runs (item_key, step_id, agent_id, writer, models, started_at, ended_at, started_source, ended_source,
+    peak_context, compactions, seq, reported_at)
+  SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13 WHERE changes() > 0
+  ON CONFLICT (item_key, step_id, agent_id, writer) DO UPDATE SET
+    models = ${newer("models")}, started_at = ${newer("started_at")}, ended_at = ${newer("ended_at")},
+    started_source = ${newer("started_source")}, ended_source = ${newer("ended_source")}, peak_context = ${newer("peak_context")},
+    compactions = ${newer("compactions")}, reported_at = ${newer("reported_at")},
+    seq = MAX(step_runs.seq, excluded.seq)`;
+
+/** A column of an existing step run takes the report's value only when the report's seq is greater; the update still counts as a change, so the next row of the batch finds `changes() > 0`. */
+function newer(column: string): string {
+  return `CASE WHEN excluded.seq > step_runs.seq THEN excluded.${column} ELSE step_runs.${column} END`;
 }
 
 const ENCODER = new TextEncoder();

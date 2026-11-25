@@ -3,7 +3,10 @@ import { ItemStatus } from "../../src/domain/item";
 import { leavesOf, ownerBlockedSteps, type Step, StepState, TimeSource } from "../../src/domain/stepTypes";
 import type { StringKey, Translate } from "./strings";
 import { clockTime } from "./time";
+import { isShownCost } from "../../src/domain/stepRuns";
+import { tokenText } from "./usageFormat";
 
+const MS_PER_SECOND = 1000;
 const MS_PER_MINUTE = 60_000;
 const MINUTES_PER_HOUR = 60;
 const MINUTE_DIGITS = 2;
@@ -138,6 +141,28 @@ export function isOwnerBlocked(step: Step): boolean {
 /** The red "Waiting on you" for a step blocked on the owner, else the orange "Blocked". */
 function blockedKey(step: Step): StringKey {
   return isOwnerBlocked(step) ? "stepWaitsOwner" : "stepBlocked";
+}
+
+const PAGE_LOCALE = "en-US";
+/** The one separator between the segments of the cost line. */
+const COST_SEPARATOR = " · ";
+
+/**
+ * A done step's cost line (Slice 54): "8 min · model-mid · 300 k tokens · peak context 300 k", with "· N compactions" when the
+ * context was compacted. null when the step is not done, has no cost, or a time came from the server's own clock (no cost is
+ * shown for a guess).
+ */
+export function costText(step: Step, t: Translate): string | null {
+  const cost = step.cost;
+  if (step.state !== StepState.Done || !cost || !isShownCost(cost)) return null;
+  const segments = [
+    durationText(cost.duration_seconds * MS_PER_SECOND, t),
+    cost.models.map((model) => model.model).join(", "),
+    t("stepCostTokens", { tokens: tokenText(cost.total_tokens, PAGE_LOCALE) }),
+    t("stepCostPeak", { peak: tokenText(cost.peak_context, PAGE_LOCALE) }),
+  ];
+  if (cost.compactions > 0) segments.push(t(cost.compactions === 1 ? "stepCostCompaction" : "stepCostCompactions", { n: cost.compactions }));
+  return segments.join(COST_SEPARATOR);
 }
 
 /** The open box's times line, as the mock words it. */

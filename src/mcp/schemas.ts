@@ -54,6 +54,12 @@ const environment = z
   .max(MAX_ENVIRONMENT)
   .describe("Where the work ran, free text as the client names it (for example laptop, cloud-vm, Claude chat or Claude Design)");
 
+// Not checked here: a bad cost never refuses the report, the board drops it per step (`stepRunsOf`, Slice 54).
+const stepCost = z
+  .unknown()
+  .optional()
+  .describe("The measured cost of a finished step, sent only by the plugin's hooks: {agent_id?, models: [{model, input_tokens, cache_read_tokens, cache_write_tokens, output_tokens}] (1 to 20), peak_context, compactions, writer?, seq?}; needs the step's own id and times (done step); stored as its own row, never in the steps list; one that does not fit is dropped and the rest of the report is kept");
+
 const stepBase = {
   id: z.string().trim().min(1).max(MAX_STEP_ID).optional().describe("Stable id of the step, kept across reports; made from the label path when left out"),
   label: z.string().trim().min(1).max(MAX_STEP_LABEL),
@@ -66,6 +72,7 @@ const stepBase = {
   started_source: z.enum(TimeSource).nullable().optional().describe("Where started_at came from: reported (default) or observed (only a hook that saw it happen)"),
   done_source: z.enum(TimeSource).nullable().optional().describe("Where done_at came from: reported (default) or observed (only a hook that saw it happen)"),
   compactions: z.number().int().min(0).max(MAX_STEP_COMPACTIONS).nullable().optional().describe("Times the context was compacted while the step ran; a hook counts them, the stored count only grows"),
+  cost: stepCost,
 };
 
 /** A step with `levels` more levels of children allowed below it; the schema is unrolled, not recursive, so every client reads it as plain JSON Schema. */

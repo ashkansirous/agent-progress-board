@@ -1,7 +1,8 @@
 import { ItemStatus } from "./item";
 import { DomainError } from "./errors";
 import { type ExpiryRow, isHeartbeatExpired } from "./stale";
-import { leavesOf, ownerBlockedSteps, type Step, type StepInput, type StepProgress, StepState, TimeSource, WaitsOn } from "./stepTypes";
+import { costRefOf, validCostRef } from "./stepRuns";
+import { type CostRef, leavesOf, ownerBlockedSteps, type Step, type StepInput, type StepProgress, StepState, TimeSource, WaitsOn } from "./stepTypes";
 
 /** Steps in the whole tree, parents and leaves together (Slice 39). */
 export const MAX_STEPS = 200;
@@ -95,9 +96,13 @@ function checkInputs(steps: readonly StepInput[], path: string): void {
 export interface StampContext {
   previous?: readonly Step[] | null;
   now?: string | null;
+  /** Filled while building: the `cost` each sent step carried, by the step's resolved id (a step sent without an id included; Slice 54). */
+  costs?: Map<string, unknown>;
 }
 
 interface BuildContext {
+  /** Where the costs the sent steps carry are collected, by resolved id. */
+  costs?: Map<string, unknown>;
   /** The ids the report gives explicitly, anywhere in its tree. */
   explicit: ReadonlySet<string>;
   stamp: (input: StepInput, id: string, state: StepState) => TimeFields;
@@ -175,13 +180,28 @@ function withoutExplicit(steps: readonly Step[], explicit: ReadonlySet<string>):
 /** Builds one step whose id is already settled by `resolveIds`. A done parent finishes every descendant, sent or kept. */
 function buildStep(input: StepInput, ctx: BuildContext): Step {
   const id = input.id!.trim();
+  if (input.cost && ctx.costs) ctx.costs.set(id, input.cost);
   const sent = input.children !== undefined && input.state === StepState.Done ? asDone(input.children) : input.children;
   const children = sent === undefined ? keptChildren(ctx.kept(id), input.state, ctx) : buildSteps(sent, ctx);
   const blocked = input.state === StepState.Blocked;
   const waitsOn = blocked ? (validWaitsOn(input.waits_on) ?? WaitsOn.Work) : null;
   const link = blocked ? validLink(input.link) : null;
   const compactions = keptCompactions(input.compactions, ctx.kept(id)?.compactions);
-  return { id, label: input.label.trim(), state: input.state, note: input.note?.trim() || null, ...ctx.stamp(input, id, input.state), waits_on: waitsOn, link, compactions, children };
+  const costRef = costRefOfStep(input, ctx.kept(id));
+  return { id, label: input.label.trim(), state: input.state, note: input.note?.trim() || null, ...ctx.stamp(input, id, input.state), waits_on: waitsOn, link, compactions, ...(costRef ? { cost_ref: costRef } : {}), children };
+}
+
+/**
+ * The cost row a step shows after a report (Slice 54 Decision 7b): none unless it is done; a done step sent with a cost shows that
+ * cost's row; else it keeps the reference it already had while it stays done (the stored step, or the one a server merge carried on
+ * the input), so a step reopened and finished again shows nothing until a new cost arrives.
+ */
+function costRefOfStep(input: StepInput, stored: Step | undefined): CostRef | null {
+  if (input.state !== StepState.Done) return null;
+  if (input.cost) return costRefOf(input.cost);
+  const carried = validCostRef(input.cost_ref);
+  if (carried) return carried;
+  return stored?.state === StepState.Done ? validCostRef(stored.cost_ref) : null;
 }
 
 /** The compaction count after a report: the larger of the sent and stored counts (a count only grows), clamped to a whole number in range. */
@@ -370,7 +390,7 @@ export function normalizeSteps(steps: StepInput[] | null | undefined, context: S
   checkInputs(steps, "");
   const stored = new Map(flatten(context.previous ?? []).map((step) => [step.id, step]));
   const explicit = new Set(explicitIds(steps));
-  const ctx: BuildContext = { explicit, stamp: stampFrom(context), kept: (id) => stored.get(id) };
+  const ctx: BuildContext = { explicit, stamp: stampFrom(context), kept: (id) => stored.get(id), costs: context.costs };
   const built = buildSteps(resolveIds(steps, ctx), ctx);
   fitMirroredRows(built);
   checkTree(built);

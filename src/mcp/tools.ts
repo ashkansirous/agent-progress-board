@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { type ArchiveRepository, archiveItem, getItemWithArchive } from "../application/archive";
-import { applyBatch, askHuman, type Clock, listOpen, listSynced, markDone, reportProgress, syncSnapshot, upsertItem } from "../application/board";
+import { applyBatch, askHuman, type Clock, listOpen, listSynced, markDone, reportProgress, syncSnapshot, upsertItem, withStepCosts } from "../application/board";
 import type { ItemRepository, UsageRepository } from "../application/ports";
 import { reportCap, reportUsage } from "../application/usage";
 import { parseConfig } from "../config";
@@ -373,8 +373,15 @@ function registerGetItem(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
     ToolName.GetItem,
     { description: "One item with its full event history. An archived item reads only with include_archived true.", inputSchema: getItemShape },
-    (args) => run(ctx, Need.Read, async () => fitItem(await getItemWithArchive(ctx.repo, args.key, args.include_archived === true))),
+    (args) => run(ctx, Need.Read, async () => fitItem(await itemWithCosts(ctx, args.key, args.include_archived === true))),
   );
+}
+
+/** The item as `get_item` returns it, each finished step carrying its measured cost (Slice 54). */
+async function itemWithCosts(ctx: ToolContext, key: string, includeArchived: boolean): ReturnType<typeof getItemWithArchive> {
+  const item = await getItemWithArchive(ctx.repo, key, includeArchived);
+  await withStepCosts(ctx.repo, [item]);
+  return item;
 }
 
 async function run(ctx: ToolContext, needed: Need, work: () => Promise<unknown>, tool: ToolName = ToolName.SyncSnapshot): Promise<CallToolResult> {

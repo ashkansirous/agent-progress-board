@@ -2,7 +2,7 @@ import { expect, type Locator, type Page, test } from "@playwright/test";
 import type { BoardResponse } from "../src/api/boardDto";
 import exampleConfig from "../config/board.example.json" with { type: "json" };
 import { ItemStatus } from "../src/domain/item";
-import { type Step, StepState, WaitsOn } from "../src/domain/stepTypes";
+import { type Step, type StepCost, StepState, TimeSource, WaitsOn } from "../src/domain/stepTypes";
 import { activeBoard, activeTasks, CRASH, PART_B, PART_C, STALE, treeTasks } from "./activeFixture";
 import { demoBoard, SERVER_TIME } from "./fixture";
 import { expectLoadingAfterDelay, holdBoardRoute, pageSettled, pausedClock } from "./loadingClock";
@@ -222,6 +222,26 @@ test.describe("active work page", () => {
     await expect(part.locator(".reopened-line")).toHaveText("Reopened by the docs: the plan now says in progress");
     await part.locator(".step-row").first().click();
     await expect(part.locator(".step-link").first()).toHaveAttribute("href", "https://example.com/pr/9");
+  });
+
+  test("a finished step shows its cost line under its label, none when its times were guessed (Slice 54)", async ({ page }) => {
+    const costOf = (source: TimeSource): StepCost => ({
+      models: [{ model: "model-mid", input_tokens: 10, cache_read_tokens: 299_000, cache_write_tokens: 500, output_tokens: 490 }],
+      input_tokens: 10, cache_read_tokens: 299_000, cache_write_tokens: 500, output_tokens: 490, total_tokens: 300_000,
+      peak_context: 280_000, compactions: 1, duration_seconds: 20 * 60, started_source: source, ended_source: source,
+    });
+    const done = (id: string, label: string, source: TimeSource): Step => ({
+      id, label, state: StepState.Done, note: null, started_at: new Date(Date.parse(SERVER_TIME) - 30 * 60_000).toISOString(), done_at: new Date(Date.parse(SERVER_TIME) - 10 * 60_000).toISOString(),
+      started_source: source, done_source: source, waits_on: null, link: null, cost: costOf(source), children: [],
+    });
+    const tasks = activeTasks().map((task) =>
+      task.key === PART_B ? { ...task, steps: [done("a", "Implement", TimeSource.Observed), done("b", "Guessed", TimeSource.Stamped)] } : task,
+    );
+    await openActive(page, activeBoard(tasks));
+    const part = card(page, "Part B · Search box");
+    await expect(part.locator(".step-cost")).toHaveCount(1);
+    await expect(part.locator(".step-cost")).toHaveText("20 min · model-mid · 300 k tokens · peak context 280 k · 1 compaction");
+    await expect(part.locator(".step-cost")).toHaveCSS("white-space", "normal"); // wraps on a phone, never cut with an ellipsis (Decision 9)
   });
 
   test("a task with no active step reads Starting", async ({ page }) => {

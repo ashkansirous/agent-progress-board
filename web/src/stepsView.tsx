@@ -5,7 +5,7 @@ import { leavesOf, type Step, StepState } from "../../src/domain/stepTypes";
 import { isSafeHttpUrl } from "./safeUrl";
 import { ChevronIcon } from "./icons";
 import type { StringKey, Translate } from "./strings";
-import { isOwnerBlocked, secondLine, shownState, type StepClock, stateText, timesText } from "./stepsText";
+import { costText, isOwnerBlocked, secondLine, shownState, type StepClock, stateText, timesText } from "./stepsText";
 import { statusName, useView } from "./view";
 
 const CHECK_WORDS: Partial<Record<ItemStatus, StringKey>> = {
@@ -104,6 +104,7 @@ function StepRow({ step, path, level, isNext, open, clock, notes, t, onToggle }:
   const state = shownState(step, clock.finished);
   const parent = step.children.length > 0;
   const line = secondLine(step, clock.finished, t);
+  const cost = costText(step, t);
   return (
     <li className="step-item" style={{ paddingLeft: level * INDENT_PX }}>
       <button
@@ -123,6 +124,7 @@ function StepRow({ step, path, level, isNext, open, clock, notes, t, onToggle }:
         <span className="step-text">
           <span className="step-label">{step.label}</span>
           {line && (parent || notes) && <span className="step-note">{line}</span>}
+          {cost && <span className="step-note step-cost">{cost}</span>}
         </span>
         <span className="step-state">{stateText(step, clock, isNext, t)}</span>
       </button>

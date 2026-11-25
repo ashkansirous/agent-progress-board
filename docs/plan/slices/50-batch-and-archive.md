@@ -1,11 +1,17 @@
 ### Slice 50 — Item tools one by one and in batches, archive instead of delete
 
+*In progress (wave 2026-11-25), draft PR.*
+
 **Status:** planned (2026-11-19, the owner's answers in a RefineScope pass; no review round).
 
 **Touches:** src/mcp/tools.ts, src/mcp/schemas.ts, src/mcp/instructions.ts, src/application/board.ts,
 src/application/archive.ts (new), src/domain/docSync.ts, src/domain/archive.ts (new), src/domain/scope.ts,
 src/infrastructure/d1Repository.ts, src/index.ts, migrations/0010_archive.sql (new), plugin/scripts/sync-docs.mjs,
-plugin/scripts/*.test.mjs, plugin/skills/agent-board/SKILL.md, docs/clients.md, test/*.test.ts, CLAUDE.md, README.md.
+plugin/scripts/*.test.mjs, plugin/skills/agent-board/SKILL.md, docs/clients.md, test/*.test.ts,
+test/pluginRules.test.ts, CLAUDE.md, README.md.
+
+Night 2026-11-25 claim note: the live run of the plugin's sync in the owner's repo that hit the cap (Verification) is a
+`[session]` line in `docs/plan/unverified.md`, run by the live-checks session after the release.
 
 **Migrations:** 0010
 

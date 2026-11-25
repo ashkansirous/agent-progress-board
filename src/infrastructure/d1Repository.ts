@@ -58,12 +58,12 @@ interface SyncItemRow extends ItemRow {
 
 const SYNC_COLUMNS: ReadonlySet<string> = new Set(["in_doc_sync", "doc_status", "doc_status_at", "live_status_at"]);
 
-/** An item and its ancestors, nearest first, at most ?2 deep; a stored loop repeats rows until the depth ends, and `findChain` cuts at the repeat (Slice 48 9). */
-const CHAIN_ROWS = `WITH RECURSIVE chain(key, depth) AS (
-  SELECT ?1, 0
+/** An item and its ancestors, nearest first, at most ?2 deep; the walk carries the visited keys (`path`, joined by the unit separator) and stops at a repeat, so a stored loop reads each key once (Slice 49 2). */
+export const CHAIN_ROWS = `WITH RECURSIVE chain(key, depth, path) AS (
+  SELECT ?1, 0, char(31) || ?1 || char(31)
   UNION ALL
-  SELECT i.parent_key, chain.depth + 1 FROM items i JOIN chain ON i.key = chain.key
-  WHERE i.parent_key IS NOT NULL AND chain.depth + 1 < ?2
+  SELECT i.parent_key, chain.depth + 1, chain.path || i.parent_key || char(31) FROM items i JOIN chain ON i.key = chain.key
+  WHERE i.parent_key IS NOT NULL AND chain.depth + 1 < ?2 AND instr(chain.path, char(31) || i.parent_key || char(31)) = 0
 ) SELECT items.* FROM chain JOIN items ON items.key = chain.key ORDER BY chain.depth`;
 /**
  * Close rows per JSON parameter: at most this many rows and at most `CLOSE_CHUNK_BYTES` UTF-8 bytes, whichever
@@ -511,6 +511,7 @@ export class D1ItemRepository implements ItemRepository, UsageRepository {
   async findChain(key: string, limit: number): Promise<Item[]> {
     if (limit < 1) return [];
     const { results } = await this.db.prepare(CHAIN_ROWS).bind(key, limit).all<ItemRow>();
+    // Deliberate backstop: CHAIN_ROWS already stops at a repeat; this cut keeps a loop from ever reaching the caller if that SQL changes.
     const seen = new Set<string>();
     const chain: Item[] = [];
     for (const row of results) {

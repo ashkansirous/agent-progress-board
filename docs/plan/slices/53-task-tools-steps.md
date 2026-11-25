@@ -44,3 +44,18 @@ Decided by this session from the approved answers:
   `report_progress` marking it done at 10:50) leaves the step at 10:00 to 10:05, source observed.
 - Live: one real session with the task tools on shows its task list as steps on its card with times matching the
   transcript within a minute (read back with `get_item`).
+
+## Changes from the Slice 52 spike (2026-11-25)
+
+Source: [note](../notes/2026-11-22-timeline-spike.md), *Changes Slices 53 to 57 need*.
+
+- 2026-11-25 (capture): stamp the time in the hook; use `PostToolUse(TaskUpdate in_progress)` as step start and
+  `TaskCompleted` as step end, never `TaskCreated`. Keep the hook to an append-only write (no parse of the transcript).
+  Task tools exist only with `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` on current models, so a session without them has no
+  steps: say so in the data (one "whole session" bucket) rather than inventing steps.
+- 2026-11-25 (attribution, shared with Slice 54): merge assistant lines by `message.id` (a request is streamed as several
+  lines; the last carries the final usage); read the subagent file from `agent_transcript_path` on `SubagentStop`; place a
+  request on the step open at its timestamp, with the spike note's transition-request rule; keep an explicit "outside
+  any step" bucket so totals still add up.
+- 2026-11-25: the card's steps keep the server's arrival stamps until Slice 51 lands; the timeline sends the hook times
+  as the step times and does not rely on the report's arrival.

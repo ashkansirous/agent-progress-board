@@ -6,6 +6,7 @@ import { type Step, StepState, WaitsOn } from "../src/domain/stepTypes";
 import { activeBoard, activeTasks, CRASH, PART_B, PART_C, STALE, treeTasks } from "./activeFixture";
 import { demoBoard, SERVER_TIME } from "./fixture";
 import { expectLoadingAfterDelay, holdBoardRoute, pageSettled, pausedClock } from "./loadingClock";
+import { LAST_SCROLL_AT, STAMP_START, waitForQuietScrolls } from "./scrollQuiet";
 
 const BOARD_ROUTE = "**/api/board";
 
@@ -278,30 +279,39 @@ test.describe("active work page", () => {
   });
 
   test("a card named by #/active/<key> scrolls again when the address returns to it: A, B, A (Slice 48 4)", async ({ page }) => {
-    await page.addInitScript(() => {
+    await page.addInitScript(STAMP_START);
+    await page.addInitScript((stampName) => {
       const scrolls: string[] = [];
       (window as unknown as { __cardScrolls: string[] }).__cardScrolls = scrolls;
       const original = Element.prototype.scrollIntoView;
       Element.prototype.scrollIntoView = function (this: Element, ...args: Parameters<Element["scrollIntoView"]>) {
-        if (this.classList.contains("active-card")) scrolls.push(this.querySelector("h2")?.textContent ?? "");
+        if (this.classList.contains("active-card")) {
+          scrolls.push(this.querySelector("h2")?.textContent ?? "");
+          (window as unknown as Record<string, number>)[stampName] = performance.now();
+        }
         return original.apply(this, args);
       };
-    });
+    }, LAST_SCROLL_AT);
     await openActive(page);
     const scrolls = () => page.evaluate(() => (window as unknown as { __cardScrolls: string[] }).__cardScrolls);
     const goTo = (key: string) =>
       page.evaluate((hash) => {
         window.location.hash = hash;
       }, `#/active/${encodeURIComponent(key)}`);
-    // The last card scrolled to follows the address; a second visit to A must scroll A after B did (one naming may scroll
-    // its card more than once, so the test reads the last scroll, not a count).
-    const lastScrolled = async () => (await scrolls()).at(-1);
-    await goTo(PART_C);
-    await expect.poll(lastScrolled).toBe("Part C · Notification channel");
-    await goTo(PART_B);
-    await expect.poll(lastScrolled).toBe("Part B · Search box");
-    await goTo(PART_C);
-    await expect.poll(lastScrolled).toBe("Part C · Notification channel");
+    // Each visit must add a scroll beyond the count seen before it, ending on that visit's card (one naming may scroll its
+    // card more than once, so the test reads the count before the visit, not a fixed number) (Slice 49 4).
+    const visit = async (key: string, title: string) => {
+      // Settled: no scroll for 300 ms by the page's clock, so a late duplicate scroll of the previous card has landed and
+      // only this visit can raise the count.
+      await waitForQuietScrolls(page);
+      const before = (await scrolls()).length;
+      await goTo(key);
+      await expect.poll(async () => (await scrolls()).length).toBeGreaterThan(before);
+      await expect.poll(async () => (await scrolls()).at(-1)).toBe(title);
+    };
+    await visit(PART_C, "Part C · Notification channel");
+    await visit(PART_B, "Part B · Search box");
+    await visit(PART_C, "Part C · Notification channel");
   });
 
   test("a failed first load keeps the open-item address", async ({ page }) => {

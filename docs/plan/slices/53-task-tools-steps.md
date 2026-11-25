@@ -1,6 +1,6 @@
 ### Slice 53 — Task tools become card steps with times seen by the hooks
 
-*Built 2026-11-25 (PR #205), not yet verified in a live session.* Needs Slice 51 (time sources) built and Slice 52's note.
+*Merged as PR #205 (54e436c), not yet verified in a live session.* Needs Slice 51 (time sources) built and Slice 52's note.
 
 **Touches:** `plugin/hooks/hooks.json`, `plugin/scripts/hooks/task-steps.mjs` (new), `plugin/scripts/hooks/task-steps.test.mjs` (new),
 `plugin/scripts/hooks/hook-input.mjs`, `plugin/scripts/hooks/session-done.mjs`,
@@ -138,7 +138,7 @@ a resend to repair another:
 - The id prefix is `mirror-task:`, not `task-` as first built (see the Ownership design).
 - Checks run (2026-11-25, final tree): lint and typecheck clean, 883 vitest, 474 plugin tests, 338 e2e passed.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-25)
 
 - Mirrored task rows are owned only by hook reports: the prefix is `TASK_ROW_PREFIX` in `src/domain/steps.ts` and its twin in `plugin/scripts/hooks/`, held equal by a test; a non-hook report never adds, changes or drops them. The step-limit fit for them is only `fitMirroredRows`; never add a second trim (Slice 53: docs/plan/slices/53-task-tools-steps.md).
 

@@ -55,3 +55,4 @@ Rows moved out of `plan.md`'s status table once built.
 | 50 | Item tools one by one and in batches, archive instead of delete | built | #199 | | [50](../slices/50-batch-and-archive.md) |
 | 51 | Bug: blocked step state, true step times, a visible reason when a card reopens; each step time names its source | built | #200 | | [51](../slices/51-blocked-steps-true-times.md) |
 | 52 | Spike: rebuild one session's true step timeline from hooks and the transcript | built | #201 | | [52](../slices/52-timeline-spike.md) |
+| 53 | Task tools become card steps with times seen by the hooks | built | #205 | | [53](../slices/53-task-tools-steps.md) |

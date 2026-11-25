@@ -272,6 +272,15 @@ describe("report_progress under_step and the tree (Slice 39)", () => {
     expect((await itemOf(TASK.key)).steps![1]!.children).toHaveLength(2);
   });
 
+  it("Slice 51 G: a hook report of a step with no children field keeps the stored three, while children: [] would wipe them", async () => {
+    const three = [step("a", "done"), step("b", "done"), step("c", "active")];
+    await callTool("report_progress", { ...TASK, steps: [{ id: "refine", label: "Refine", state: "active", children: three }] });
+    await callTool("report_progress", { key: TASK.key, steps: [{ id: "refine", label: "Refine", state: "active", note: "background agents running" }] });
+    expect((await itemOf(TASK.key)).steps![0]!.children).toHaveLength(3);
+    await callTool("report_progress", { key: TASK.key, steps: [{ id: "refine", label: "Refine", state: "active", children: [] }] });
+    expect((await itemOf(TASK.key)).steps![0]!.children).toEqual([]);
+  });
+
   it("counts a resent identical tree as a heartbeat", async () => {
     await callTool("report_progress", { ...TASK, steps: RECORD });
     await callTool("report_progress", { key: TASK.key, steps: RECORD });

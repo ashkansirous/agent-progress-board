@@ -174,10 +174,11 @@ describe('background agents', () => {
     assert.deepEqual([merged[0].state, merged[0].children[0].state], ['active', 'active']);
   });
 
-  test('when the last agent under a step ages out, the step is sent with its own children list so the old row goes', () => {
+  test('Slice 51 G: when the last agent under a step ages out, the step is sent without `children`, so the board keeps its stored children', () => {
     const sent = [{ id: 's3', label: 'Record audio', state: 'active' }];
     const merged = mergeSteps(sent, [], { gone: 'id:s3' });
-    assert.deepEqual(merged, [{ id: 's3', label: 'Record audio', state: 'active', children: [] }]);
+    assert.deepEqual(merged, [{ id: 's3', label: 'Record audio', state: 'active' }]);
+    assert.equal('children' in merged[0], false);
   });
 
   test('an agent row leaves room for its helper\'s subtree: never deeper than level 3, else under the level-2 ancestor', () => {
@@ -352,7 +353,7 @@ describe('Stop, SubagentStop and UserPromptSubmit (session-done)', () => {
     await runDone({ session_id: 'sess-1', cwd: process.cwd(), hook_event_name: 'SubagentStart', agent_id: 'a2' }, envFor(board.url, root), {}, NOW);
     board.server.close();
     assert.equal(callsOf(board).length, 1);
-    assert.deepEqual(callsOf(board)[0].args.steps[0].children.map((step) => step.id), []);
+    assert.equal('children' in callsOf(board)[0].args.steps[0], false); // Slice 51 G: never `children: []`
     assert.deepEqual(readGoal('sess-1', root, NOW).agentParents, { old: 'id:s1', a2: 'id:s1' });
   });
 

@@ -7,7 +7,8 @@
 `src/infrastructure/d1Repository.ts`, `web/src/`, `plugin/scripts/report-progress.mjs`, `plugin/scripts/sync-docs.mjs`,
 `plugin/scripts/hooks/goal-reminder.mjs`, `plugin/scripts/**/*.test.mjs`, `plugin/skills/agent-board/SKILL.md`,
 `docs/clients.md`, `test/`, `e2e/`, `src/api/board.ts`, `src/api/boardDto.ts` (widened while building: the card data
-carries checks in progress, `blocked_on_owner` and `reopened`)
+carries checks in progress, `blocked_on_owner` and `reopened`), `plugin/scripts/hooks/background-agents.mjs` (widened
+for G: the hook's `children: []` was the cause)
 
 Night 2026-11-25 claim notes (coordinator, no open question): Touches widened from the premise check (`schemas.ts`
 holds `z.enum(StepState)`, `saveStepsReport` is in `board.ts`, doc sync's status write in `d1Repository.ts` and
@@ -77,6 +78,14 @@ Decided by this session (bug fix, no open question):
   live Worker may be older than `main`, or the plugin's own hook report (`source: hook` on the reply) may have sent the
   tree without them. Find which from the item's history and the plugin's `senders.log`, fix it, and add a test that
   replays the two reports.
+  *Fixed (fix pass 2):* the server is not the cause: `test/stepsTools.test.ts` replays the two reports (three stored
+  children, then a report without `children`) and the three are kept; only an explicit `children: []` clears them. The
+  cause is in the hook: `emptiedKeys`/`attach` in `plugin/scripts/hooks/background-agents.mjs` sent `children: []` for a
+  step whose agents had aged out, wiping stored children the hook never filled (confirmed by the `mergeSteps` test that
+  used to assert `children: []`, now asserting the key is absent). The hook now never sends `children: []`; one cost: an
+  aged-out agent's old row stays on the board until the session resends the step with its own children. Touches
+  widened with `plugin/scripts/hooks/background-agents.mjs`. The `started_at`/`done_at` half is Work A-D's rule
+  (times only from the report), not changed here.
 - [ ] **E.** Tests for each, and a plugin release so clients can send the new fields.
 
 ## Verification

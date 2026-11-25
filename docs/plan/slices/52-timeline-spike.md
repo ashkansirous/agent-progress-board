@@ -1,8 +1,14 @@
 ### Slice 52 — Spike: rebuild one session's true step timeline from hooks and the transcript
 
-*Planned.* First step of the process-optimiser scope (Slices 52 to 57). No board change.
+*In progress (wave 2026-11-25), draft PR.* First step of the process-optimiser scope (Slices 52 to 57). No board change.
 
 **Touches:** `tmp/` (scratch script, git-ignored), `docs/plan/notes/2026-11-22-timeline-spike.md` (new)
+
+Night 2026-11-25 claim notes (coordinator, no open question): the night is headless, so Work A's real session is one
+local `claude -p` run started by the builder from `tmp/` with `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` and the logging hook
+given through `--settings`, doing a small build task with task tools and one review subagent (capped at 15 minutes);
+the note says it was that small run, not a full slice build. The note holds no transcript paths, project folder names,
+hostnames or other project names: made-up names, relative times and counts only (public repo).
 
 Source: the owner's phone scope "Process optimiser and true per-step telemetry" (2026-11-21), refined at the desk
 2026-11-22 (all recommendations approved by the owner that day).

@@ -1,10 +1,20 @@
 ### Slice 53 — Task tools become card steps with times seen by the hooks
 
-*Planned.* Needs Slice 51 (time sources) built and Slice 52's note.
+*In progress (wave 2026-11-25), draft PR.* Needs Slice 51 (time sources) built and Slice 52's note.
 
 **Touches:** `plugin/hooks/hooks.json`, `plugin/scripts/hooks/task-steps.mjs` (new), `plugin/scripts/hooks/task-steps.test.mjs` (new),
 `plugin/scripts/hooks/hook-input.mjs`, `plugin/scripts/hooks/session-done.mjs`, `plugin/scripts/report-progress.mjs`,
-`plugin/skills/agent-board/SKILL.md`, `src/mcp/instructions.ts`, `test/pluginRules.test.ts`, `docs/clients.md`
+`plugin/scripts/hooks/goal-reminder.mjs`, `plugin/scripts/hooks/background-agents.mjs`, `plugin/scripts/hooks/hooks.test.mjs`,
+`plugin/CLAUDE.md`, `plugin/skills/agent-board/SKILL.md`, `src/mcp/instructions.ts`, `src/mcp/schemas.ts`,
+`src/domain/stepTypes.ts`, `src/domain/steps.ts`, `test/`, `test/pluginRules.test.ts`, `docs/clients.md`
+
+**Migrations:** none (`items.steps` is one JSON text column, `migrations/0004_steps.sql`; a compaction count is a new key
+inside a step).
+
+Premise check (2026-11-25, wave): no step has a compaction count yet, so Decision 3 adds `compactions` (a whole number)
+to a step in `src/mcp/schemas.ts`, `src/domain/stepTypes.ts` and `src/domain/steps.ts`; the page does not show it in this
+slice. Item D, plugin release: the plugin has no version (`plugin/` holds none), so the release is the merge to `main`;
+users get it by updating the plugin and restarting Claude Code.
 
 Source: phone scope "Process optimiser and true per-step telemetry" (2026-11-21), milestone 1; desk refinement
 2026-11-22, question 1 (owner approved: hook-seen times plus the task tools turned on).

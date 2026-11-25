@@ -192,4 +192,6 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
 - Board freshness after a page arrival is `isFreshLoad` / `isFreshData` in `web/src/boardState.ts`, from the `settles`
   count; never a time-based reuse window (Slice 47: docs/plan/slices/47-open-follow-ups.md).
 - The agent prune rule lives only in `liveAgentIds` (`plugin/scripts/hooks/background-agents.mjs`) used by `runningIds` in
-  `session-done.mjs`; a read it cannot make prunes nothing (Slice 48: docs/plan/slices/48-slice-47-follow-ups.md).
+  `session-done.mjs`; a read it cannot make prunes nothing. The agent time is one rule, `agentTime` in the same file
+  (record mtime, else the meta file's, else unknown and kept unless a stop file names it); never add a second time
+  reading (Slice 48: docs/plan/slices/48-slice-47-follow-ups.md; Slice 49: docs/plan/slices/49-slice-48-follow-ups.md).

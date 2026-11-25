@@ -1,6 +1,6 @@
 ### Slice 49 — Follow-ups left open by Slice 48
 
-*Built (2026-11-25), PR #198.*
+*Built 2026-11-25, merged as PR #198 (f4b206b).*
 
 **Status:** planned (starter session 2026-11-19, the owner's standing "build all", no review round; the possible
 data-loss item first). Planned 2026-11-19 by the feedback loop of night
@@ -67,7 +67,7 @@ Follow-ups (check pass 2, pr-198-check-2-medium.md):
 - #4 (`src/infrastructure/d1Repository.ts:61`): "`CHAIN_ROWS` is exported only for a test; with the SQL cut the `seen` backstop in `findChain` is unreachable and no test covers it. Fix: drop the backstop, or test it with a stubbed SQL."
 - #5 (`test/usageTools.test.ts:360`): "Uses real `Date.now()`; the seed spans 12-37 h only while `SAMPLE_MINUTES * 300` >= 25 h. If the constant shrinks, nothing falls past the keep-time. Fix: assert at least one row dropped and one kept, or derive the span from the constant."
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-25)
 
 - The agent prune rule lives only in `liveAgentIds` (`plugin/scripts/hooks/background-agents.mjs`) used by `runningIds` in
   `session-done.mjs`; a read it cannot make prunes nothing. The agent time is one rule, `agentTime` in the same file

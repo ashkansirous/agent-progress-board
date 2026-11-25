@@ -1,10 +1,13 @@
 ### Slice 55 — Process keys, step counts and read tools for analysis
 
-*Planned.* Needs Slice 54.
+*In progress (wave 2026-11-25), draft PR.*
 
-**Touches:** `src/domain/stepTypes.ts`, `src/domain/processStats.ts` (new), `src/application/board.ts`,
-`src/infrastructure/d1Repository.ts`, `src/mcp/schemas.ts`, `src/mcp/tools.ts`, `src/mcp/instructions.ts`,
-`plugin/skills/agent-board/SKILL.md`, `plugin/scripts/hooks/task-steps.mjs`, `test/pluginRules.test.ts`, `test/`
+**Touches:** `src/domain/stepTypes.ts`, `src/domain/steps.ts`, `src/domain/stepRuns.ts`, `src/domain/processStats.ts` (new),
+`src/application/board.ts`, `src/application/processRuns.ts` (new), `src/infrastructure/d1Repository.ts`,
+`src/mcp/schemas.ts`, `src/mcp/tools.ts`, `src/mcp/instructions.ts`, `plugin/skills/agent-board/SKILL.md`,
+`plugin/scripts/hooks/task-steps.mjs`, `plugin/scripts/hooks/task-steps.test.mjs`, `test/pluginRules.test.ts`, `test/`
+
+**Migrations:** none
 
 Source: phone scope milestones 3 and 4 (decision "Process keys", approved 2026-11-21); desk refinement 2026-11-22.
 
@@ -24,6 +27,12 @@ runs comparable across items and days. An analysis agent needs the runs without 
    default 30 days). Both are computed at read and cut by `cutReply`.
 4. The keys themselves are named by the skills that run the steps, in the owner's other repos (scope decision
    "Enforcement"); this repo's docs use made-up examples only.
+5. (Coordinator, wave 2026-11-25, premise check.) `process` and `counts` are stored on the step itself, in the
+   `items.steps` JSON that `saveStepsReport` writes, so the slice needs no migration. `query_runs` and `process_stats`
+   read the steps of items in the window from `items.steps` (bounded query, `archived_at IS NULL`) and take each step's
+   cost from its Slice 54 `step_runs` rows by item key and step id (the shown rule, `costRefOfStep`). The
+   `step_runs.process_key` column stays unused: a second copy of the key would be a second writer.
+   Why: one place holds what the step reported; the cost rows have one writer each (Slice 54).
 
 ## Work
 

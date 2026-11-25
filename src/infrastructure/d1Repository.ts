@@ -241,22 +241,23 @@ const UPSERT_ITEM = `INSERT INTO items (key, project, parent, type, priority, st
  * A doc-sync write: the row is computed in the domain from one read, so only the columns sync
  * owns are set on an existing key; type, priority, details, heartbeat and created_at stay.
  * ?20 and ?21 are the updated_at and live_status_at the sync read (null for a new key): the
- * update applies only while the row still has them, so it never acts on a stale read.
+ * update applies only while the row still has them, so it never acts on a stale read. A doc-synced row takes its parent's
+ * `archived_at` (null when the parent is live or absent), insert and update alike, so none sits live under an archived parent.
  * ?22 is details_md as the domain decided it (`detailsOf` in docSync.ts: a reporter's notes are kept, the documents' own
  * text is refreshed); the compare-and-swap above means it was decided from the row as it still is.
  */
 const SYNC_UPSERT = `INSERT INTO items (key, project, parent, type, priority, status, title, why, links,
   source, heartbeat_at, created_at, updated_at, done_at, in_doc_sync, doc_status, doc_status_at, live_status_at,
-  parent_key, details_md)
-  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?22)
+  parent_key, details_md, archived_at)
+  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?22,
+    CASE WHEN ?15 = 1 THEN (SELECT p.archived_at FROM items p WHERE p.key = ?19) END)
   ON CONFLICT (key) DO UPDATE SET type = excluded.type, parent = excluded.parent, parent_key = excluded.parent_key,
   status = excluded.status,
   title = excluded.title, why = excluded.why, links = excluded.links, source = excluded.source,
   updated_at = excluded.updated_at, done_at = excluded.done_at, in_doc_sync = excluded.in_doc_sync,
   doc_status = excluded.doc_status, doc_status_at = excluded.doc_status_at,
   details_md = excluded.details_md,
-  archived_at = CASE WHEN EXISTS (SELECT 1 FROM items p WHERE p.key = excluded.parent_key AND p.archived_at IS NOT NULL)
-    THEN items.archived_at ELSE NULL END
+  archived_at = excluded.archived_at
   WHERE items.updated_at IS ?20 AND items.live_status_at IS ?21`;
 
 /**
@@ -272,7 +273,7 @@ const SYNC_EVENT = `INSERT INTO events (item_key, at, status, source, note)
  * one statement. Like the write guard, a row whose updated_at or live_status_at moved since
  * the read (a live report, even one with the same status) is left open.
  */
-const CLOSE_ROWS = `in_doc_sync = 1
+const CLOSE_ROWS = `in_doc_sync = 1 AND archived_at IS NULL
   AND key IN (SELECT json_extract(k.value, '$.key') FROM json_each(?1) AS k)
   AND EXISTS (
   SELECT 1 FROM json_each(?1) AS r

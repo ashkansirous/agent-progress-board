@@ -218,6 +218,37 @@ describe("archive_item", () => {
     for (const key of ["demo-app/slice-1", "demo-app/slice-1/part-A", "demo-app/slice-1/check-1"]) expect(await archivedAt(key)).toBeNull();
   });
 
+  it("a sync that adds or changes a part under an archived slice stores it archived with the slice's time", async () => {
+    const full = slice(1, { parts: [{ letter: "A", title: "Work", done: false }] });
+    await upsert(full);
+    await archive("demo-app/slice-1");
+    const more = { ...full, parts: [{ letter: "A", title: "Work", done: false }, { letter: "B", title: "New", done: false }] };
+    expect((await callTool("sync_snapshot", { project: PROJECT, items: [more] })).isError).toBeFalsy();
+    expect(await archivedAt("demo-app/slice-1/part-B")).toBe(NOW.toISOString());
+    const changed = { ...more, parts: [{ letter: "A", title: "Renamed", done: false }, more.parts[1]] };
+    await callTool("sync_snapshot", { project: PROJECT, items: [changed] });
+    for (const key of ["demo-app/slice-1", "demo-app/slice-1/part-A", "demo-app/slice-1/part-B"]) expect(await archivedAt(key)).toBe(NOW.toISOString());
+    await upsert(slice(1));
+    for (const key of ["demo-app/slice-1", "demo-app/slice-1/part-A", "demo-app/slice-1/part-B"]) expect(await archivedAt(key)).toBeNull();
+  });
+
+  it("a bug card reported under an archived slice stays live", async () => {
+    await upsert(slice(1));
+    await archive("demo-app/slice-1");
+    await addChild("demo-app/bug-1", "demo-app/slice-1");
+    expect(await archivedAt("demo-app/bug-1")).toBeNull();
+  });
+
+  it("a sync close never touches an archived row", async () => {
+    await upsert(slice(1));
+    await upsert(slice(2));
+    await archive("demo-app/slice-1");
+    const before = await env.DB.prepare("SELECT status, in_doc_sync, updated_at FROM items WHERE key = 'demo-app/slice-1'").first();
+    expect((await callTool("sync_snapshot", { project: PROJECT, items: [slice(2)] })).isError).toBeFalsy();
+    expect(await env.DB.prepare("SELECT status, in_doc_sync, updated_at FROM items WHERE key = 'demo-app/slice-1'").first()).toEqual(before);
+    expect(await archivedAt("demo-app/slice-1")).toBe(NOW.toISOString());
+  });
+
   it("an owner-scope caller cannot archive a slice that has doc-synced checks under it", async () => {
     await callTool("report_progress", { key: "demo-app/slice-9", project: PROJECT, type: "slice", title: "By a report" });
     await upsert(slice(1, { checks: [{ key: "demo-app/slice-1/check-1", title: "One" }] }));
@@ -276,14 +307,16 @@ describe("purge after 30 days", () => {
     expect(await purgeArchive(repo(), clockAt(NOW))).toEqual({ removed: 0, unlinked: 0 });
   });
 
-  it("clears the parent_key of a row that is not doc-synced and keeps a doc-synced row's, and counts both", async () => {
+  it("purges a doc-synced check with its slice (never a NULL parent left) and clears the parent_key of a live bug card", async () => {
     await upsert(slice(1, { checks: [{ key: "demo-app/slice-1/check-1", title: "One" }] }));
     await callTool("report_progress", { key: "demo-app/bug-1", project: PROJECT, type: "bug", title: "A bug", parent_key: "demo-app/slice-1" });
-    await env.DB.prepare("UPDATE items SET archived_at = ?1 WHERE key = 'demo-app/slice-1'").bind(purgeCutoff(new Date(NOW.getTime() - DAY_MS))).run();
-    expect(await purgeArchive(repo(), clockAt(NOW))).toEqual({ removed: 1, unlinked: 1 });
+    await archive("demo-app/slice-1");
+    const old = purgeCutoff(new Date(NOW.getTime() - DAY_MS));
+    await env.DB.prepare("UPDATE items SET archived_at = ?1 WHERE archived_at IS NOT NULL").bind(old).run();
+    expect(await purgeArchive(repo(), clockAt(NOW))).toEqual({ removed: 2, unlinked: 1 });
     const parentOf = async (key: string) => (await env.DB.prepare("SELECT parent_key FROM items WHERE key = ?1").bind(key).first<{ parent_key: string | null }>())?.parent_key;
     expect(await parentOf("demo-app/bug-1")).toBeNull();
-    expect(await parentOf("demo-app/slice-1/check-1")).toBe("demo-app/slice-1");
+    expect(await countRows("items")).toBe(1);
   });
 
   it("purges by the row's own time only: a child archived on its own goes on its own time under a live parent, one past 30 days with it", async () => {

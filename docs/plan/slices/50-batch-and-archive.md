@@ -1,8 +1,8 @@
 ### Slice 50 — Item tools one by one and in batches, archive instead of delete
 
-*In progress (wave 2026-11-25), draft PR.*
+*Built (2026-11-25), PR #199.*
 
-**Status:** planned (2026-11-19, the owner's answers in a RefineScope pass; no review round).
+Planned 2026-11-19 from the owner's answers in a RefineScope pass (no review round).
 
 **Touches:** src/mcp/tools.ts, src/mcp/schemas.ts, src/mcp/instructions.ts, src/application/board.ts,
 src/application/archive.ts (new), src/domain/docSync.ts, src/domain/archive.ts (new), src/domain/scope.ts,
@@ -62,26 +62,26 @@ Decided by the starter session (2026-11-19), inside those answers:
 
 #### Work
 
-- [ ] 1. **Archive in storage.** Migration `0010_archive.sql` adds `archived_at` (UTC ISO, null) to items with an index.
+- [x] 1. **Archive in storage.** Migration `0010_archive.sql` adds `archived_at` (UTC ISO, null) to items with an index.
   `BOARD_WHERE`, `EXPIRED_ROWS`, `WAITING_ROWS`, `OPEN_CHECK_OF` and the usage and count queries leave archived rows
   out. Tests: an archived item and its children vanish from the board read and counts; `get_item` with
   `include_archived` returns it.
-- [ ] 2. **`upsert_item` and `archive_item`.** One application path each, shared with `apply_batch`; schemas in
+- [x] 2. **`upsert_item` and `archive_item`.** One application path each, shared with `apply_batch`; schemas in
   `src/mcp/schemas.ts`; scope per Decision 7. Tests for add, update, archive, revive and refusal by scope.
-- [ ] 3. **`apply_batch`.** Up to 200 expanded items per call, one D1 batch, all or nothing; a bad operation refuses the
+- [x] 3. **`apply_batch`.** Up to 200 expanded items per call, one D1 batch, all or nothing; a bad operation refuses the
   whole call and names it. Events are bound by `changes() > 0` like `INSERT_EVENT` and `SYNC_EVENT`. Tests: 200
   accepted, 201 refused, a mixed batch of upsert, close and archive, one bad item refusing the call.
-- [ ] 4. **`list_synced`.** Keys, status and a content hash per doc-synced item of one project, paged by key, cut only
+- [x] 4. **`list_synced`.** Keys, status and a content hash per doc-synced item of one project, paged by key, cut only
   by `cutReply`. The hash is the same one the plugin computes, defined once in `src/domain/docSync.ts` and mirrored in
   the plugin with a test holding the two equal.
-- [ ] 5. **Plugin sync by changes.** `sync-docs.mjs` reads `list_synced`, works out adds, changed items and items gone
+- [x] 5. **Plugin sync by changes.** `sync-docs.mjs` reads `list_synced`, works out adds, changed items and items gone
   from the documents, and sends them with `apply_batch` (gone items as `close`) in chunks of at most 200 expanded
   items. The 200-item refusal goes; the 1000-item guard is replaced by the chunking. A failed chunk stops the run and
   is retried on the next sync; nothing is marked done unless it is really gone from the documents. Tests: 450 items
   sync in three calls; an unchanged plan sends nothing; a removed slice is closed; a failed second chunk closes nothing.
-- [ ] 6. **Purge after 30 days.** The cron removes items archived more than 30 days ago, with their parts, checks,
+- [x] 6. **Purge after 30 days.** The cron removes items archived more than 30 days ago, with their parts, checks,
   steps and events, in bounded chunks. The 30 days are one constant in `src/domain/archive.ts`. Test with a fixed clock.
-- [ ] 7. **Words.** `SERVER_INSTRUCTIONS` and the mirrored rules in `plugin/skills/agent-board/SKILL.md` (held equal by
+- [x] 7. **Words.** `SERVER_INSTRUCTIONS` and the mirrored rules in `plugin/skills/agent-board/SKILL.md` (held equal by
   `test/pluginRules.test.ts`), `docs/clients.md` and README name the new tools, that delete is archive, and the 30 days.
 
 #### Verification
@@ -118,3 +118,47 @@ Decided by the starter session (2026-11-19), inside those answers:
      rows that are not doc-synced (#5), and the cron logs both counts (#8).
   4. *A purged item the documents still list comes back new on the next sync* (#1): the documents are the source of
      record (Decision 3), so this is the intended behaviour, written here, not a fix.
+  5. *Added after `reviews/pr-199-check-2-medium.md` #1-#4 (coordinator, 2026-11-25):* no live doc-synced row ever sits
+     under an archived parent. Every write of a doc-synced row (insert or update, sync or upsert) whose parent is archived
+     takes the parent's `archived_at` in the same SQL statement; the dead "archived-parent guard" goes. An explicit
+     upsert of the parent revives the row with it (rule 2, same time). A row that is not doc-synced (a bug, problem,
+     waiting or agent card) written under an archived parent stays live; the purge clears its `parent_key` (rule 3).
+     Closes (`CLOSE_ROWS`, `CLOSE_ITEMS`) skip archived rows (`archived_at IS NULL`).
+- Follow-ups (`reviews/pr-199-check-2-medium.md`, not built in this slice):
+  - #5: "SYNC_REVIVE adds a statement per write, so a 200-item batch uses about 600+ statements in one D1 batch, near or over the per-invocation limit; if rejected nothing applies and the plugin retries the same call."
+  - #6: "ARCHIVE_EVENTS writes an archived event only for named keys, not for the parts and checks the same statement archived; a revive writes no restored event."
+  - #7: "docSyncChildren walks only rows loadForSync returned; a closed part/check (in_doc_sync = 0) or a live card in the chain can hide a doc-synced grandchild, so the early check passes and the SQL guard refuses with the generic text. Treat the early check as advisory."
+- Follow-ups (`reviews/pr-199-check-3-medium.md`, converged, not built in this slice):
+  - #1 (`src/domain/docSync.ts:288`, a visibility fault, no data lost): "Archived child dropped by the documents revives live." `closeTargets` skips archived rows, so when the revive restores a slice, a part or check the documents dropped while it was archived comes back open and counts on the board; the plugin sends the slice only when its hash changes, so nothing closes it later.
+  - #2: "SYNC_UPSERT ON CONFLICT sets `archived_at = excluded.archived_at`; a write with `in_doc_sync = 0` yields NULL and un-archives the row."
+  - #3: "Explicit upsert of an archived child under an archived parent plans `archived_at: null`, so `docFieldsDiffer` reports a change every call."
+  - #4: the comment on `SYNCED_ROWS` and `ArchiveRepository.syncedPage` says "live" rows but the query lists archived ones on purpose; reword both.
+  - #5: the `archived` event covers only named keys (same as check-2 #6).
+Five review passes ran (high 8, medium 6, check 8, check-2 7, check-3 5 findings). The high, medium and first check
+findings are fixed by the second and third designs above, except high #4 (the one line naming it above); check-2 #1-#4
+by rule 5; check-2 #5-#7 and all five check-3 findings are the follow-ups above.
+
+#### Changed while building
+
+- A report, `mark_done`, `ask_human` or heartbeat on an archived key is refused with an "archived" reply, and says how to bring it back; reporters fail open, so the caller is never blocked.
+- A purged item the documents still list comes back new on the next sync (rule 4 above): the documents are the source of record.
+
+#### For CLAUDE.md
+
+- The archive rules (what an archive takes, what revives, the purge, an archived parent's time passed to its doc-synced rows) live in the write statements of `src/infrastructure/d1Repository.ts` (`ARCHIVE_ROWS`, `SYNC_UPSERT`, `SYNC_REVIVE`, `UPSERT_ITEM`, `PURGE_*`), never on an earlier read (Slice 50: docs/plan/slices/50-batch-and-archive.md).
+- The archive filters live in `BOARD_WHERE`, `EXPIRED_ROWS`, `WAITING_ROWS`, `OPEN_CHECK_OF` and `SESSION_WINDOWS`, and in their twins in `src/domain/stale.ts`; a new read of items adds `archived_at IS NULL` (Slice 50: docs/plan/slices/50-batch-and-archive.md).
+- The 30 days are `ARCHIVE_KEEP_DAYS` in `src/domain/archive.ts`; never write the number elsewhere (Slice 50: docs/plan/slices/50-batch-and-archive.md).
+- `docHash` has one board copy (`src/domain/docSync.ts`) and one plugin copy (`plugin/scripts/sync-docs.mjs`), held equal by `test/docHash.test.ts` and the plugin's vectors test; change both (Slice 50: docs/plan/slices/50-batch-and-archive.md).
+
+#### For README.md
+
+- `upsert_item`: add or update one item, with its parts and checks (static write token).
+- `archive_item`: archive an item and its plan-owned parts and checks; it is purged after 30 days.
+- `apply_batch`: up to 200 upserts, closes and archives in one all-or-nothing call.
+- `list_synced`: keys, status and content hash of a project's doc-synced items, paged by key.
+- `get_item` takes `include_archived` to read an archived item.
+
+#### Not yet verified
+
+- `[session]` After release, run the plugin's sync in the owner's repo that hit the 200-item cap: it sends in several batches, no "exceed the 200-item cap" line appears, and the board's project block shows its open slices.
+- `[session]` After release, archive one test item with `archive_item`: it is gone from the board and readable with `get_item` and `include_archived`.

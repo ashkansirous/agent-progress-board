@@ -1,6 +1,6 @@
 ### Slice 51 — Blocked step state, true step times, and a visible reason when a card reopens (bug)
 
-*In progress (wave 2026-11-25), draft PR.* Bug, the board's part. The client's part is planned in the owner's private config repo.
+*Built (2026-11-25), PR #200.* Bug, the board's part. The client's part is planned in the owner's private config repo.
 
 **Touches:** `src/domain/stepTypes.ts`, `src/domain/steps.ts`, `src/domain/docSync.ts`, `src/domain/checks.ts`,
 `src/domain/boardGroups.ts`, `src/mcp/instructions.ts`, `src/mcp/schemas.ts`, `src/application/board.ts`,
@@ -8,7 +8,8 @@
 `plugin/scripts/hooks/goal-reminder.mjs`, `plugin/scripts/**/*.test.mjs`, `plugin/skills/agent-board/SKILL.md`,
 `docs/clients.md`, `test/`, `e2e/`, `src/api/board.ts`, `src/api/boardDto.ts` (widened while building: the card data
 carries checks in progress, `blocked_on_owner` and `reopened`), `plugin/scripts/hooks/background-agents.mjs` (widened
-for G: the hook's `children: []` was the cause)
+for G: the hook's `children: []` was the cause), `src/domain/upsert.ts` (widened for G: `checkedSteps` applies the
+hook rule)
 
 Night 2026-11-25 claim notes (coordinator, no open question): Touches widened from the premise check (`schemas.ts`
 holds `z.enum(StepState)`, `saveStepsReport` is in `board.ts`, doc sync's status write in `d1Repository.ts` and
@@ -59,19 +60,19 @@ Decided by this session (bug fix, no open question):
 
 ## Work
 
-- [ ] **A.** `StepState.Blocked` in the domain, MCP schema, plugin validation and the reporting rules text (both
+- [x] **A.** `StepState.Blocked` in the domain, MCP schema, plugin validation and the reporting rules text (both
   copies, `test/pluginRules.test.ts`); orange/red in the card; blocked-on-owner steps in Needs you.
-- [ ] **B.** Reported `started_at`/`done_at` accepted and validated; a stamped-by-server flag; durations hidden when
+- [x] **B.** Reported `started_at`/`done_at` accepted and validated; a stamped-by-server flag; durations hidden when
   guessed.
-- [ ] **C.** Slice card shows its check items after the steps and counts them in progress; a reopen writes a history
+- [x] **C.** Slice card shows its check items after the steps and counts them in progress; a reopen writes a history
   note with the reason and the card shows it.
-- [ ] **D.** Doc sync leaves a done slice with an open check done, so it groups as Built.
-- [ ] **F.** Time sources (Decision 5): `started_source` / `done_source` on each stored step (`observed | reported |
+- [x] **D.** Doc sync leaves a done slice with an open check done, so it groups as Built.
+- [x] **F.** Time sources (Decision 5): `started_source` / `done_source` on each stored step (`observed | reported |
   stamped`), the precedence rule in one place in `src/domain/steps.ts` (used by `saveStepsReport`), the MCP schema and
   reporting rules text (both copies) taking an optional source on reported times (only the plugin's hooks send
   `observed`), the drawer naming the source. Tests: an observed end time survives a later batched report; a reported
   time replaces a stamped one; a stamped time never replaces either.
-- [ ] **G.** *Added 2026-11-22 (bug card `agent-progress-board/bug-steps-kept`, seen by a desk session on its own task
+- [x] **G.** *Added 2026-11-22 (bug card `agent-progress-board/bug-steps-kept`, seen by a desk session on its own task
   card):* a report that sent step `refine` without a `children` field came back with `children: []`, although the
   stored step had three children and the rules text says they are kept (`keptChildren` in `src/domain/steps.ts`). The
   same reply showed every done step's `started_at` and `done_at` as the report's time. The cause is not known yet: the
@@ -86,7 +87,21 @@ Decided by this session (bug fix, no open question):
   aged-out agent's old row stays on the board until the session resends the step with its own children. Touches
   widened with `plugin/scripts/hooks/background-agents.mjs`. The `started_at`/`done_at` half is Work A-D's rule
   (times only from the report), not changed here.
-- [ ] **E.** Tests for each, and a plugin release so clients can send the new fields.
+  *Third strike, one design (replaces the two hook rules above):* a report with `source: "hook"` (the marker the hooks
+  already send; no new field) is turned into input by `hookStepsInput` in `src/domain/steps.ts`, called from
+  `checkedSteps` (so `saveStepsReport` stores it). Its step list is the whole list, as before G: a stored step the hook
+  does not send is dropped at every level, so no stored step is kept unmatched or re-validated. For each step it sends,
+  the non-agent children (ids not starting `agent-`, `agentRowId`) are the ones it sent if it sent any, else the stored
+  step's non-agent children kept as stored (deeper levels included); the agent rows are exactly the ones it sent (none:
+  none kept). Non-agent children come first in their order, agent rows after. A session or agent report keeps the old
+  rule (children omitted: kept; sent: replace). Tests: `test/stepsTools.test.ts` (hook report with no agent rows keeps three children and drops
+  the row; session report without children keeps all), `hooks.test.mjs` (the hook sends no `children: []`).
+  Follow-ups (not code): #3 "`timeFields` can send `started_at`/`done_at` with no source; the server defaults a missing
+  source to `reported`, so a server-stamped guess echoed back without its source becomes "reported"."; #4
+  "`orderedTimes` fixes start-after-end by stamping the end with `now` only if `now >= start.at`; with no `now` ... the
+  end becomes `start.at` with source `stamped`, a 0 s step. Confirm every `normalizeSteps` caller passes `now`, or test
+  the null path".
+- [x] **E.** Tests for each, and a plugin release so clients can send the new fields.
 
 ## Verification
 
@@ -106,4 +121,28 @@ Decided by this session (bug fix, no open question):
 - Applied pass-2 #2, #3, #6, #7: the hook never sends a `stamped` time back; `blocked_on_owner` only for a live card (not done, not stale, heartbeat not expired); a bad `link` or `waits_on` on a step is dropped in `buildStep`, never refuses the report; the card's checks heading counts the rows it shows.
 - Applied #3 by counting a blocked check (`COUNTED_CHECK_STATUSES` in `src/domain/checks.ts`: open, in progress, blocked; stale is still not counted), so progress, the checks heading, Built and `OPEN_CHECK_OF` agree; the Slice 42 and 47 tests that said a blocked check is not counted were changed to match.
 - Applied pass-3 (`reviews/pr-200-check-medium.md`) #1 to #5: `stepWords` reads `shownState` and `blockedKey`; an owner-blocked card's `needs_you_at` is the earliest `started_at` of its owner-blocked steps (`ownerBlockedSince`, set in `waitingSinceOf` in `src/api/board.ts`; `groupBoard` unchanged); `givenTime` takes only ISO times with a zone; `reopened` carries `status` and the page words it; the hook sends `started_at` only for non-pending and `done_at` only for done steps.
+- Applied pass-4 (`reviews/pr-200-check-4-medium.md`) #2: the MCP schema takes any string (bounded) for a step's `waits_on` and `link`; `buildStep` drops a bad one. Follow-ups (not code), with the finding's words: #1 "ownerBlockedSince uses a step's old started_at; the card shows "waiting on you" since the step began, not since it was blocked. Fix: stamp when the step entered blocked."; #3 "stepProgress returns null for empty steps even with open checks; slice with checks only shows no bar or count."; #4 "hookStep/hookLevel: sent step with id and renamed label never matches stored id-less step; stored non-agent children lost on next hook report."; #5 "statusAfterSync keep-done decision uses snapshot checks, OPEN_CHECK_OF counts every check row under the parent; rules can disagree ... Add equality test."; #6 "timeFields sends echoed started_at/done_at with no source when none was echoed; server stores as reported, promoting a stamped guess. Send only when source is reported or observed."
 - Skipped #6 (`reviews/pr-200-check-medium.md`): "A reported `started_at` up to 60 s ahead is accepted; a running step shows "Running · 1 min" and a future "Started" time. Fix: clamp to `now`." - Decision 2's validation allows a small future skew, and the fix pass 1 design set it to 60 s; a minute's lead reads the same.
+- Applied pass-5 (`reviews/pr-200-check-2-medium.md`) #1 and #2 by the third-strike design in G (`hookStepsInput`; the replay test asserts the stored tree); #3 and #4 are the follow-ups listed in G.
+- Applied pass-6 (`reviews/pr-200-check-3-medium.md`) #1, #2, #4 and #5 by the same `hookStepsInput` design (the hook's copy gives membership and order, stored steps are not re-fed, the hook sends no `children: []`). Follow-up (not code), with the finding's words: #3 "Agent rows are identified only by the `agent-` id prefix and `source: "hook"` is trusted. A session step with id `agent-plumbing` is dropped by a hook report that does not send it, or moved to the end."
+- Converged (`reviews/pr-200-check-5-medium.md`, 4 nits, all follow-ups, no code): #1 "hook merge keyed on client-sent `source: "hook"`; any client can trigger it and cannot clear step children."; #2 "`ownerBlockedSince` uses step `started_at`, so a long-running step shows as waiting since its start when blocked."; #3 "`isStoredStep` rejects unknown `waits_on`/state, so a rollback or bad value makes the whole step list parse as null."; #4 "blocked step with empty note refuses the whole report instead of defaulting the note."
+
+*Changed while building:* a blocked check counts in progress and Built (`COUNTED_CHECK_STATUSES` in `src/domain/checks.ts`); a bad reported time, `waits_on` or `link` is dropped and never refuses a report; stored times without a source read as stamped and show no duration (Decision 2); a hook report's step list is the whole list (`hookStepsInput`). G's cause was confirmed by a replay test: the plugin hook's emptied-step branch sent `children: []`.
+
+#### For CLAUDE.md
+
+- The step-time source precedence (observed, reported, stamped) lives only in `betterTime` in `src/domain/steps.ts`, used by `saveStepsReport`; never compare sources elsewhere (Slice 51: docs/plan/slices/51-blocked-steps-true-times.md).
+- "A step is blocked on the owner" is one rule, `ownerBlockedSteps` in `src/domain/stepTypes.ts`; never a second copy (Slice 51: docs/plan/slices/51-blocked-steps-true-times.md).
+- A hook report's (`source: "hook"`) children rule is one function, `hookStepsInput` in `src/domain/steps.ts`: the hook owns only `agent-` rows and its step list is the whole list (Slice 51: docs/plan/slices/51-blocked-steps-true-times.md).
+- The done-slice keep rule (a done slice with a counted check stays done in doc sync) is `keepsDoneForChecks` in `src/domain/docSync.ts` (Slice 51: docs/plan/slices/51-blocked-steps-true-times.md).
+- Blocked colours come from the config palette (`needFg` / `bugFg` families), never a literal (Slice 51: docs/plan/slices/51-blocked-steps-true-times.md).
+
+#### For README.md
+
+- A step state `blocked`, with `waits_on` (`work` or `owner`) and an optional `link`.
+- Steps take `started_at` / `done_at` with a source (`observed`, `reported`, `stamped`).
+
+#### Not yet verified
+
+- [chrome] On the live board after the release, a slice card with a blocked step shows orange, and an owner-blocked one shows red under Needs you.
+- [session] In a real session, the hook's reports keep the session's own step children and drop an aged-out agent row.

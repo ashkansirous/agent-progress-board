@@ -59,7 +59,7 @@ export interface StepInput {
   state: StepState;
   note?: string | null;
   /** A blocked step's target (default work) and link; ignored for other states. */
-  waits_on?: WaitsOn | null;
+  waits_on?: string | null;
   link?: string | null;
   /** Times the reporter knows; kept when valid (not in the future, start before end). A late or batched report sends them so no duration is guessed. */
   started_at?: string | null;

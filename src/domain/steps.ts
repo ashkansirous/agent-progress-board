@@ -336,6 +336,43 @@ export function replaceChildren(stored: readonly Step[] | null | undefined, id: 
   return walk(stored ?? []);
 }
 
+/** The step id prefix of an agent's row; the plugin's hooks own only rows with it (`agentRowId` in the plugin). */
+export const AGENT_ROW_PREFIX = "agent-";
+/** The report `source` of the plugin's hooks. */
+export const HOOK_SOURCE = "hook";
+
+function isAgentRow(id: string | undefined): boolean {
+  return id !== undefined && id.trim().startsWith(AGENT_ROW_PREFIX);
+}
+
+function sameStep(sent: StepInput, stored: Step): boolean {
+  const id = sent.id?.trim();
+  return id ? id === stored.id : sent.label.trim() === stored.label;
+}
+
+/** One step a hook sent: its non-agent children are the ones sent, else the stored ones as stored; its agent rows are the ones sent. */
+function hookStep(sent: StepInput, match: Step | undefined): StepInput {
+  const given = sent.children ?? [];
+  const givenOwn = given.filter((child) => !isAgentRow(child.id));
+  const own: StepInput[] = givenOwn.length > 0 ? hookLevel(match?.children ?? [], givenOwn) : (match?.children ?? []).filter((child) => !isAgentRow(child.id));
+  return { ...sent, children: [...own, ...given.filter((child) => isAgentRow(child.id))] };
+}
+
+/** One level of a hook report: only the steps sent, non-agent ones first in order, then the agent rows sent. */
+function hookLevel(stored: readonly Step[], sent: readonly StepInput[]): StepInput[] {
+  const own = sent.filter((step) => !isAgentRow(step.id)).map((step) => hookStep(step, stored.find((candidate) => sameStep(step, candidate))));
+  return [...own, ...sent.filter((step) => isAgentRow(step.id))];
+}
+
+/**
+ * The list a report from the plugin's hooks stands for (Slice 51 G): the whole list, so a stored step it does not
+ * send is dropped. For each step it sends, the non-agent children are the ones it sent if any, else the stored ones;
+ * its agent rows are exactly the ones it sent.
+ */
+export function hookStepsInput(stored: readonly Step[] | null | undefined, sent: StepInput[]): StepInput[] {
+  return hookLevel(stored ?? [], sent);
+}
+
 /** An optional free-text field: whitespace-only reads as absent. */
 export function blankToNull(value: string | null | undefined): string | null {
   const trimmed = value?.trim();

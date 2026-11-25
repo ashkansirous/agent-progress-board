@@ -5,7 +5,7 @@ import { ItemStatus, ItemType, Priority } from "../domain/item";
 import { MAX_PARTS } from "../domain/parts";
 import { MAX_AFTER_ANSWER, MAX_NEEDS_YOU, MAX_OUTCOME } from "../domain/upsert";
 import { MAX_STEP_DEPTH, MAX_STEP_ID, MAX_STEP_LABEL, MAX_STEP_LINK, MAX_STEP_NOTE, MAX_STEPS } from "../domain/steps";
-import { type StepInput, StepState, TimeSource, WaitsOn } from "../domain/stepTypes";
+import { type StepInput, StepState, TimeSource } from "../domain/stepTypes";
 
 const MAX_KEY = MAX_KEY_LENGTH;
 const MAX_LABEL = 300;
@@ -58,8 +58,8 @@ const stepBase = {
   label: z.string().trim().min(1).max(MAX_STEP_LABEL),
   state: z.enum(StepState),
   note: z.string().trim().max(MAX_STEP_NOTE).nullable().optional().describe("Short text shown under the label; a blocked step needs it, saying what it waits on"),
-  waits_on: z.enum(WaitsOn).nullable().optional().describe("For a blocked step: work (default, orange) or owner (red, listed under Needs you)"),
-  link: z.string().max(MAX_STEP_LINK).refine((value) => isSafeUrl(value), "url must be a valid http or https URL").nullable().optional().describe("For a blocked step: an optional http or https link to what it waits on"),
+  waits_on: z.string().max(MAX_STEP_ID).nullable().optional().describe("For a blocked step: work (default, orange) or owner (red, listed under Needs you)"),
+  link: z.string().max(MAX_STEP_LINK).nullable().optional().describe("For a blocked step: an optional http or https link to what it waits on"),
   started_at: z.string().max(TIME_TEXT_MAX).nullable().optional().describe("When the step really started (ISO time), when you know it: kept as sent if not in the future; leave out to let the board stamp it (a stamped time shows no duration)"),
   done_at: z.string().max(TIME_TEXT_MAX).nullable().optional().describe("When the step really finished (ISO time), when you know it; same rules as started_at"),
   started_source: z.enum(TimeSource).nullable().optional().describe("Where started_at came from: reported (default) or observed (only a hook that saw it happen)"),

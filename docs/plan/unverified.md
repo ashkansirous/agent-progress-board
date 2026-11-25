@@ -3,6 +3,11 @@
 Every open "Not yet verified" check, one block per slice. A check that passes, or that the
 owner confirms, is removed here and its slice marked `verified`.
 
+### Slice 55: Process keys, step counts and read tools for analysis ([slice](slices/55-process-keys.md))
+
+- [session] `process_stats` for the last 30 days returns review and implement keys once the owner's skills send them.
+- [session] A task subject `[key] ...` shows on the card step with that key after the plugin update.
+
 ### Slice 54: Cost per step: model, tokens, peak context, compactions ([slice](slices/54-step-cost.md))
 
 - [session] A real slice build's card shows the cost line on its implement-slice agent row, and `get_item` returns the same numbers.

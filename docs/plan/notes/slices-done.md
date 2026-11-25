@@ -57,3 +57,4 @@ Rows moved out of `plan.md`'s status table once built.
 | 52 | Spike: rebuild one session's true step timeline from hooks and the transcript | built | #201 | | [52](../slices/52-timeline-spike.md) |
 | 53 | Task tools become card steps with times seen by the hooks | built | #205 | | [53](../slices/53-task-tools-steps.md) |
 | 54 | Cost per step: model, tokens, peak context, compactions | built | #207 | | [54](../slices/54-step-cost.md) |
+| 55 | Process keys, step counts and read tools for analysis | built | #209 | | [55](../slices/55-process-keys.md) |

@@ -19,6 +19,8 @@ import { ancestorKeys, isCountedCheck, itemProblem, MAX_PARENT_DEPTH, nestedChec
 import { expandParts } from "../domain/parts";
 import { DEFAULT_STALE_AFTER_MINUTES, expiryMinutesFor, hasOpenQuestion, SESSION_AGENT, staleCutoff, waitingCutoff } from "../domain/stale";
 import { checkReport, DomainError, newItem, type ReportInput, withQuestion } from "../domain/upsert";
+import { attachStepCosts, type StepRun, stepRunCutoff, stepRunsOf } from "../domain/stepRuns";
+import type { Step } from "../domain/stepTypes";
 import { resolveWindowHours, type WindowConfig, windowCutoff } from "../domain/window";
 import { ArchivedItemError, type BoardRow, type ItemRepository, LIST_EVENT_LIMIT, type StaleResult, StepsChangedError } from "./ports";
 
@@ -94,10 +96,13 @@ async function saveReport(
   alreadyFitted = false,
 ): Promise<Item> {
   const now = clock.now().toISOString();
-  const checked = withQuestion(checkReport(input, existing, now), existing, now);
+  const costs = new Map<string, unknown>();
+  const checked = withQuestion(checkReport(input, existing, now, costs), existing, now);
   if (!alreadyFitted) await assertItemFits(repo, checked, existing);
   try {
-    return await repo.save({ insert: existing ?? newItem(checked, now), input: checked, now, ifStepsText: stepsText });
+    // The costs ride on the steps the report sent, found by the id each step resolved to; the rows join them with the step as built (its times and their sources).
+    const stepRuns = stepRunsOf(input.key, costs, checked.steps as Step[] | null | undefined, now);
+    return await repo.save({ insert: existing ?? newItem(checked, now), input: checked, now, ifStepsText: stepsText, stepRuns });
   } catch (error) {
     if (error instanceof ArchivedItemError) throw archivedReply(error.key);
     throw error;
@@ -674,15 +679,33 @@ export async function listBoardRows(
   window: WindowConfig,
   clock: Clock,
   withRiders = true,
+  withCosts = true,
 ): Promise<BoardRow[]> {
   const hours = resolveWindowHours(input.window_hours, window);
-  return repo.listBoard({
+  const rows = await repo.listBoard({
     project: input.project,
     type: input.type,
     cutoff: windowCutoff(clock.now(), hours),
     eventLimit: LIST_EVENT_LIMIT,
     withRiders,
   });
+  if (withCosts) await withStepCosts(repo, rows);
+  return rows;
+}
+
+/** Puts each listed item's step costs from the stored step runs on its steps (Slice 54): derived at read, one query for all items with steps. */
+export async function withStepCosts<T extends Pick<Item, "key" | "steps">>(repo: ItemRepository, items: readonly T[]): Promise<void> {
+  const keys = items.filter((item) => (item.steps?.length ?? 0) > 0).map((item) => item.key);
+  if (keys.length === 0) return;
+  const runs = await repo.stepRunsFor(keys);
+  const byItem = new Map<string, StepRun[]>();
+  for (const run of runs) byItem.set(run.item_key, [...(byItem.get(run.item_key) ?? []), run]);
+  for (const item of items) attachStepCosts(item.steps, byItem.get(item.key) ?? []);
+}
+
+/** The cron's step-run job: deletes the measured rows that ended more than 180 days ago; returns how many (Slice 54). */
+export async function thinOldStepRuns(repo: ItemRepository, clock: Clock): Promise<number> {
+  return repo.deleteStepRunsBefore(stepRunCutoff(clock.now()));
 }
 
 export async function listOpen(
@@ -691,7 +714,8 @@ export async function listOpen(
   window: WindowConfig,
   clock: Clock,
 ): Promise<ItemWithEvents[]> {
-  const rows = await listBoardRows(repo, input, window, clock, false);
+  // No step costs here: only the board page and get_item show them, and list_open replies are cut at a size (Slice 54 Decision 11).
+  const rows = await listBoardRows(repo, input, window, clock, false, false);
   return rows.map(withoutExpiry);
 }
 

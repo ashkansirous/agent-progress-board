@@ -8,16 +8,20 @@
 //   is the one TaskCreated stored; an input with neither a known task nor a subject is ignored.
 // - PreCompact / PostCompact: one compaction counted on the step running on the session's own card; sent with the next step report.
 // Local files only, then one report through sendCardReport (session-done.mjs `resendSteps`) when the session has a card.
-// Never blocks, never prints a decision, never reads a transcript; the exit code is always 0.
+// - A step's end (TaskCompleted, or TaskUpdate completed) also reads the transcript from its kept offset for the step's cost
+//   (step-cost.mjs, Slice 54); no other event reads it.
+// Never blocks, never prints a decision; the exit code is always 0.
 import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { isOrchestrator } from '../report-progress.mjs';
+import { refreshCosts } from '../step-cost.mjs';
 import { runningKey, taskCountKey } from './background-agents.mjs';
 import { addCompaction, parseInput, readGoal, readStdinText, readTask, readTasks, removeTask, sessionIdOf, stateRoot, takeCompacting, touchSeen, writeCompacting, writeTask } from './hook-input.mjs';
 
 export const EVENT = { created: 'TaskCreated', completed: 'TaskCompleted', tool: 'PostToolUse', preCompact: 'PreCompact', postCompact: 'PostCompact' };
 const TASK_UPDATE_TOOL = 'TaskUpdate';
 const IN_PROGRESS = 'in_progress';
+const COMPLETED = 'completed';
 const DELETED = 'deleted';
 const BOARD_REPORT_TOOL = /^mcp__(?:plugin_agent-board_)?agent-board__report_progress$/;
 
@@ -150,12 +154,21 @@ export async function afterBoardReport(input, env = process.env, now = Date.now(
   return sendIfOpen(input, env, id, root, now, options);
 }
 
+// A step ends (Slice 54): TaskCompleted, or the PostToolUse of a TaskUpdate that completes the task (it comes a little later, so
+// the transcript then holds the step's last request). Both read the transcript from its offset and may change a step's cost.
+export function isStepEnd(input) {
+  if (input.hook_event_name === EVENT.completed) return true;
+  return input.hook_event_name === EVENT.tool && input.tool_name === TASK_UPDATE_TOOL && updateTarget(input.tool_input).status === COMPLETED;
+}
+
 export async function handle(input, env = process.env, now = Date.now(), options = {}) {
   const id = sessionIdOf(input);
   if (!id) return { skipped: 'no session' };
   const root = stateRoot(env);
   touchSeen(id, root, now);
-  if (!record(input, id, root, now)) return { skipped: 'nothing to send' };
+  const changed = record(input, id, root, now);
+  const costed = isStepEnd(input) && refreshCosts(input, env, now);
+  if (!changed && !costed) return { skipped: 'nothing to send' };
   return sendIfOpen(input, env, id, root, now, options);
 }
 

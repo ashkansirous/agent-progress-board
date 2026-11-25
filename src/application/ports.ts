@@ -2,6 +2,7 @@ import type { CapReading } from "../domain/cap";
 import type { SyncRow, SyncWrite } from "../domain/docSync";
 import type { Item, ItemEvent, ItemStatus, ItemType, ItemWithEvents } from "../domain/item";
 import type { ExpiryRow } from "../domain/stale";
+import type { StepRun } from "../domain/stepRuns";
 import type { ReportInput } from "../domain/upsert";
 import type { UsageSample } from "../domain/usage";
 
@@ -60,6 +61,8 @@ export interface ItemWrite {
    * its stored steps text still equals this, else `save` throws `StepsChangedError` and writes nothing.
    */
   ifStepsText?: string | null;
+  /** The measured rows of the report's finished steps (Slice 54), written in the same batch right after the event, bound to the upsert having taken effect. */
+  stepRuns?: StepRun[];
 }
 
 /** A report named an archived key: `save` wrote nothing (a report never brings an archived item back; Slice 50). */
@@ -121,7 +124,14 @@ export interface ItemRepository {
   listBoard(filter: BoardFilter): Promise<BoardRow[]>;
   /** Newest first, all events. */
   eventsFor(key: string): Promise<ItemEvent[]>;
+  /** The stored step runs of the given items, newest end first, at most `STEP_RUN_READ_LIMIT` for each item (Slice 54). */
+  stepRunsFor(keys: string[]): Promise<StepRun[]>;
+  /** Deletes the step runs that ended before `cutoff`; returns how many (Slice 54). */
+  deleteStepRunsBefore(cutoff: string): Promise<number>;
 }
+
+/** Rows one board read takes of the step runs of each item; the newest ones win, so a busy item never hides another item's costs. */
+export const STEP_RUN_READ_LIMIT = 1000;
 
 export enum SeriesKind {
   Model = "model",

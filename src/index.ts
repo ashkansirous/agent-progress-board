@@ -1,9 +1,10 @@
 import { createProvider, issuerOrigin } from "./api/oauth/provider";
 import { purgeArchive } from "./application/archive";
-import { markStaleItems } from "./application/board";
+import { markStaleItems, thinOldStepRuns } from "./application/board";
 import { thinOldUsage } from "./application/usage";
 import { parseConfig } from "./config";
 import { ARCHIVE_KEEP_DAYS } from "./domain/archive";
+import { STEP_RUN_KEEP_DAYS } from "./domain/stepRuns";
 import type { Env } from "./env";
 import { D1ItemRepository } from "./infrastructure/d1Repository";
 
@@ -49,6 +50,16 @@ async function runArchivePurge(env: Env): Promise<void> {
   }
 }
 
+/** The cron's fourth job: deletes step runs that ended more than 180 days ago (Slice 54). A failure is logged and never stops the other jobs. */
+async function runStepRunThinning(env: Env): Promise<void> {
+  try {
+    const deleted = await thinOldStepRuns(new D1ItemRepository(env.DB), clock);
+    console.log(`step run thinning: ${deleted} row(s) deleted (keep ${STEP_RUN_KEEP_DAYS} days)`);
+  } catch (error) {
+    console.error("step run thinning failed", error);
+  }
+}
+
 /**
  * A plain object, not the provider itself, so `scheduled` stays on the default export. The OAuth
  * provider answers the metadata documents, registration and the token endpoint, checks every
@@ -71,7 +82,7 @@ export default {
   },
   async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
     // Each job runs even when the other throws; a failed stale check is still raised after both ran.
-    const results = await Promise.allSettled([runStaleCheck(env), runUsageThinning(env), runArchivePurge(env)]);
+    const results = await Promise.allSettled([runStaleCheck(env), runUsageThinning(env), runArchivePurge(env), runStepRunThinning(env)]);
     const failed = results.find((result) => result.status === "rejected");
     if (failed?.status === "rejected") throw failed.reason;
   },

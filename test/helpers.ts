@@ -54,10 +54,11 @@ export async function resetBoard(): Promise<void> {
     env.DB.prepare("DELETE FROM usage_samples"),
     env.DB.prepare("DELETE FROM cap_readings"),
     env.DB.prepare("DELETE FROM usage_series"),
+    env.DB.prepare("DELETE FROM step_runs"),
   ]);
 }
 
-export async function countRows(table: "items" | "events" | "usage_samples" | "cap_readings" | "usage_series"): Promise<number> {
+export async function countRows(table: "items" | "events" | "usage_samples" | "cap_readings" | "usage_series" | "step_runs"): Promise<number> {
   const row = await env.DB.prepare(`SELECT COUNT(*) AS n FROM ${table}`).first<{ n: number }>();
   return row?.n ?? 0;
 }

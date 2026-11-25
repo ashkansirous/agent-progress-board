@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import { TASK_ID_PREFIX as P, mergeSteps, taskRowId } from './background-agents.mjs';
 import { handle as remind } from './goal-reminder.mjs';
-import { readCompactions, readGoal, readTasks, writeGoal } from './hook-input.mjs';
+import { readCompactions, readGoal, readTasks, splitSubject, writeGoal } from './hook-input.mjs';
 import { afterBoardReport, handle, updateTarget } from './task-steps.mjs';
 import { cleanUpAfterTests, envFor, callsOf, replyOk, startFakeBoard, trackedTemp } from '../test-helpers.mjs';
 
@@ -242,5 +242,76 @@ describe('task tools become card steps', () => {
     const tasks = { items: [{ taskId: 't8', subject: 'Orphan', agentId: 'gone', createdAt: T0, startedAt: 0, doneAt: 0 }], compactions: {} };
     const steps = mergeSteps([{ id: 's1', label: 'Write text', state: 'active' }], [], {}, tasks);
     assert.deepEqual(steps.map((step) => step.id), ['s1', `${P}t8`]);
+  });
+});
+
+describe('a [key] prefix in a task subject is the step process (Slice 55)', () => {
+  test('is stripped from the label on create, kept on the task and sent as process; a non-key prefix stays', async () => {
+    const { board, root, env, created, started } = await setup();
+    await handle(created('t1', '[review/pass-2] Check the diff'), env, T0 - MINUTE);
+    await handle(created('t2', '[Not A Key] Plain'), env, T0 - MINUTE);
+    await handle(started('t1'), env, T0);
+    board.server.close();
+    const tasks = readTasks('sess-1', root);
+    assert.deepEqual(tasks.map((task) => [task.subject, task.process]), [['Check the diff', 'review/pass-2'], ['[Not A Key] Plain', '']]);
+    const calls = callsOf(board).filter((call) => call.tool === 'report_progress');
+    const row = calls[calls.length - 1].args.steps.find((step) => step.id === `${P}t1`);
+    assert.equal(row.label, 'Check the diff');
+    assert.equal(row.process, 'review/pass-2');
+  });
+
+  test('a subject that is only the prefix keeps it as the name and still gives the key', () => {
+    assert.deepEqual(splitSubject('[review/pass-2]'), { subject: '[review/pass-2]', process: 'review/pass-2' });
+    assert.deepEqual(splitSubject('[review/pass-2]  '), { subject: '[review/pass-2]', process: 'review/pass-2' });
+    assert.deepEqual(splitSubject('[review/pass-2] Go'), { subject: 'Go', process: 'review/pass-2' });
+  });
+
+  test('a task created again with no prefix starts clean; one completed or updated with no prefix keeps its key', async () => {
+    const { board, root, env, input, created, completed } = await setup();
+    await handle(created('t1', '[review/pass-2] Check the diff'), env, T0 - MINUTE);
+    await handle(created('t1', 'Check the diff'), env, T0 - MINUTE);
+    await handle(created('t2', '[review/pass-2] Other'), env, T0 - MINUTE);
+    await handle(input('PostToolUse', { tool_name: 'TaskUpdate', tool_input: { taskId: 't2', status: 'in_progress', subject: 'Other' } }), env, T0 - 1);
+    await handle(completed('t2', { task_subject: 'Other' }), env, T0);
+    board.server.close();
+    const tasks = readTasks('sess-1', root);
+    assert.deepEqual(tasks.map((task) => [task.subject, task.process]), [['Check the diff', ''], ['Other', 'review/pass-2']]);
+  });
+
+  test('a completion or update whose subject carries a valid prefix changes the key, even after the task started', async () => {
+    const { board, root, env, input, created, started, completed } = await setup();
+    await handle(created('t1', '[review/pass-1] One'), env, T0 - MINUTE);
+    await handle(created('t2', '[review/pass-1] Two'), env, T0 - MINUTE);
+    await handle(started('t1'), env, T0 - 2);
+    await handle(input('PostToolUse', { tool_name: 'TaskUpdate', tool_input: { taskId: 't1', status: 'in_progress', subject: '[review/pass-2] One' } }), env, T0 - 1);
+    await handle(completed('t2', { task_subject: '[tests/full] Two' }), env, T0);
+    board.server.close();
+    assert.deepEqual(readTasks('sess-1', root).map((task) => task.process), ['review/pass-2', 'tests/full']);
+  });
+
+  test('a TaskUpdate with a valid prefix stores the key whatever its status, and sends nothing', async () => {
+    const { board, root, env, input, created } = await setup();
+    await handle(created('t1', '[review/pass-1] One'), env, T0 - MINUTE);
+    await handle(input('PostToolUse', { tool_name: 'TaskUpdate', tool_input: { taskId: 't1', status: 'pending', subject: '[review/pass-2] One' } }), env, T0);
+    await handle(input('PostToolUse', { tool_name: 'TaskUpdate', tool_input: { taskId: 't1', status: 'pending', subject: 'One' } }), env, T0 + 1);
+    board.server.close();
+    assert.deepEqual(readTasks('sess-1', root).map((task) => task.process), ['review/pass-2']);
+  });
+
+  test('a reported step with the full "[key] subject" text matches its task and takes the key', () => {
+    const tasks = { items: [{ taskId: 't9', subject: 'Check X', process: 'review/pass-2', agentId: '', createdAt: T0, startedAt: T0, doneAt: 0 }], compactions: {} };
+    const steps = mergeSteps([{ id: 's1', label: '[review/pass-2] Check X', state: 'active' }], [], {}, tasks);
+    assert.deepEqual(steps.map((step) => [step.id, step.process]), [['s1', 'review/pass-2']]);
+    const stripped = mergeSteps([{ id: 's1', label: 'Check X', state: 'active' }], [], {}, tasks);
+    assert.deepEqual(stripped.map((step) => [step.id, step.process]), [['s1', 'review/pass-2']]);
+  });
+
+  test('is stripped when the first sight of the task is a completion or an update', async () => {
+    const { board, root, env, input, completed } = await setup();
+    await handle(completed('t3', { task_subject: '[tests/full] Run all' }), env, T0);
+    await handle(input('PostToolUse', { tool_name: 'TaskUpdate', tool_input: { taskId: 't4', status: 'in_progress', subject: '[slice/implement] Build it' } }), env, T0);
+    board.server.close();
+    const tasks = readTasks('sess-1', root);
+    assert.deepEqual(tasks.map((task) => [task.subject, task.process]).sort(), [['Build it', 'slice/implement'], ['Run all', 'tests/full']]);
   });
 });

@@ -3,6 +3,7 @@ import type { SyncRow, SyncWrite } from "../domain/docSync";
 import type { Item, ItemEvent, ItemStatus, ItemType, ItemWithEvents } from "../domain/item";
 import type { ExpiryRow } from "../domain/stale";
 import type { StepRun } from "../domain/stepRuns";
+import type { Step } from "../domain/stepTypes";
 import type { ReportInput } from "../domain/upsert";
 import type { UsageSample } from "../domain/usage";
 
@@ -128,7 +129,39 @@ export interface ItemRepository {
   stepRunsFor(keys: string[]): Promise<StepRun[]>;
   /** Deletes the step runs that ended before `cutoff`; returns how many (Slice 54). */
   deleteStepRunsBefore(cutoff: string): Promise<number>;
+  /**
+   * The step lists of the live (not archived) items with steps that were updated at or after `since`, newest update first, at most
+   * `limit` of them, optionally one project's (Slice 55). A step finished at `since` or later is on an item updated then or later.
+   * When more items matched than `limit`, `cutAt` is the update time of the oldest item returned (items updated before it were not read).
+   */
+  stepListsSince(filter: StepListFilter): Promise<StepListPage>;
 }
+
+export interface StepListPage {
+  rows: StepListRow[];
+  cutAt: string | null;
+}
+
+export interface StepListFilter {
+  project?: string;
+  since: string;
+  limit: number;
+}
+
+/** One item's stored steps for the process reads. */
+export interface StepListRow {
+  key: string;
+  project: string;
+  agent: string | null;
+  updated_at: string;
+  steps: Step[];
+}
+
+/** Items one process read scans; a read that hits it says so (`StepListPage.cutAt`), so a figure is never silently partial. */
+export const PROCESS_ITEM_LIMIT = 1000;
+
+/** Items whose step costs one process read looks up (the newest first); a read that has more says so. */
+export const PROCESS_COST_ITEM_LIMIT = 200;
 
 /** Rows one board read takes of the step runs of each item; the newest ones win, so a busy item never hides another item's costs. */
 export const STEP_RUN_READ_LIMIT = 1000;

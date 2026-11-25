@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { isOrchestrator } from '../report-progress.mjs';
 import { refreshCosts } from '../step-cost.mjs';
 import { runningKey, taskCountKey } from './background-agents.mjs';
-import { addCompaction, parseInput, readGoal, readStdinText, readTask, readTasks, removeTask, sessionIdOf, stateRoot, takeCompacting, touchSeen, writeCompacting, writeTask } from './hook-input.mjs';
+import { addCompaction, parseInput, readGoal, readStdinText, readTask, readTasks, removeTask, sessionIdOf, splitSubject, stateRoot, takeCompacting, touchSeen, writeCompacting, writeTask } from './hook-input.mjs';
 
 export const EVENT = { created: 'TaskCreated', completed: 'TaskCompleted', tool: 'PostToolUse', preCompact: 'PreCompact', postCompact: 'PostCompact' };
 const TASK_UPDATE_TOOL = 'TaskUpdate';
@@ -52,15 +52,17 @@ function openCardKey(id, root, now) {
   return goal && goal.key && !goal.closed ? goal.key : '';
 }
 
-function blankTask(taskId, subject, agentId, now, cardKey) {
-  return { taskId, subject, agentId, cardKey, createdAt: now, startedAt: 0, doneAt: 0 };
+function blankTask(taskId, rawSubject, agentId, now, cardKey) {
+  const { subject, process } = splitSubject(rawSubject);
+  return { taskId, subject, process, agentId, cardKey, createdAt: now, startedAt: 0, doneAt: 0 };
 }
 
 function recordCreated(input, id, root, now) {
   const taskId = text(input.task_id);
   if (!taskId) return false;
   const known = readTask(id, taskId, root);
-  writeTask(id, { ...(known || blankTask(taskId, '', agentOf(input), now, openCardKey(id, root, now))), subject: text(input.task_subject) || (known ? known.subject : '') }, root);
+  const named = splitSubject(text(input.task_subject));
+  writeTask(id, { ...(known || blankTask(taskId, '', agentOf(input), now, openCardKey(id, root, now))), subject: named.subject || (known ? known.subject : ''), process: named.subject ? named.process : (known ? known.process : '') }, root); // a subject sent decides the key, with none it clears a stale one
   return true;
 }
 
@@ -69,22 +71,38 @@ function recordCompleted(input, id, root, now) {
   if (!taskId) return false;
   const known = readTask(id, taskId, root) || blankTask(taskId, text(input.task_subject), agentOf(input), now, openCardKey(id, root, now));
   if (known.doneAt) return false; // the first completion is the one seen
-  writeTask(id, { ...known, doneAt: now }, root); // kept even with no name yet: its creation gives the name later
+  const sent = text(input.task_subject);
+  const process = splitSubject(sent).process || known.process; // only a subject with a valid [key] prefix changes the key (Decision 6)
+  writeTask(id, { ...known, process, doneAt: now }, root); // kept even with no name yet: its creation gives the name later
   return Boolean(known.subject); // a task with no name is no step, so nothing is sent until it has one
+}
+
+/** A TaskUpdate that is not a start: a valid [key] prefix still stores the key, whatever the status (Decision 6); nothing is sent. */
+function storeKeyOnly(input, id, root, now, { taskId, sentKey }) {
+  if (!sentKey) return false;
+  const seen = readTask(id, taskId, root) || blankTask(taskId, '', agentOf(input), now, openCardKey(id, root, now)); // no name: creation gives it later
+  if (seen.process !== sentKey) writeTask(id, { ...seen, process: sentKey }, root);
+  return false;
 }
 
 function recordUpdate(input, id, root, now) {
   const { taskId, status, subject } = updateTarget(input.tool_input);
   if (!taskId) return false;
   if (status === DELETED) return deleteTask(id, taskId, root);
-  if (status !== IN_PROGRESS) return false;
-  const known = readTask(id, taskId, root) || blankTask(taskId, subject, agentOf(input), now, openCardKey(id, root, now));
+  const sentKey = splitSubject(subject).process;
+  if (status !== IN_PROGRESS) return storeKeyOnly(input, id, root, now, { taskId, sentKey });
+  const seen = readTask(id, taskId, root) || blankTask(taskId, subject, agentOf(input), now, openCardKey(id, root, now));
+  const known = sentKey ? { ...seen, process: sentKey } : seen; // only a subject with a valid [key] prefix changes the key (Decision 6)
   if (!known.subject) return false; // no name
   if (known.doneAt) { // reopened after completion: the end is cleared, the first start stays
     writeTask(id, { ...known, startedAt: known.startedAt || now, doneAt: 0 }, root);
     return true;
   }
-  if (known.startedAt) return false; // already started: the first start is the one seen
+  if (known.startedAt) { // already started: the first start is the one seen
+    if (known.process === seen.process) return false;
+    writeTask(id, known, root);
+    return true;
+  }
   writeTask(id, { ...known, startedAt: now }, root);
   return true;
 }

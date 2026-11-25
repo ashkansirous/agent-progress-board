@@ -364,6 +364,17 @@ describe("step text at the tool boundary", () => {
     const blank = await callTool("report_progress", { ...SLICE, steps: [{ label: "   ", state: "pending" }] });
     expect(blank.isError).toBe(true);
   });
+
+  it("a wrong-typed process or counts never refuses the report; the stored values stay and the reply names the step (Slice 55)", async () => {
+    const good = { label: "Run", state: "active", process: "slice/implement", counts: { findings: 2 } };
+    expect((await callTool("report_progress", { ...SLICE, steps: [good] })).isError).toBeFalsy();
+    const wrong = { label: "Run", state: "active", process: 5, counts: { findings: "3" } };
+    const reply = await callTool("report_progress", { ...SLICE, steps: [wrong] });
+    expect(reply.isError).toBeFalsy();
+    expect(JSON.stringify(reply.data)).toContain("Run");
+    const huge = await callTool("report_progress", { ...SLICE, steps: [{ ...good, process: { x: "y".repeat(3000) } }] });
+    expect(huge.isError).toBe(true);
+  });
 });
 
 describe("result size limit", () => {
@@ -554,6 +565,8 @@ describe("raw http", () => {
       "list_open",
       "list_synced",
       "mark_done",
+      "process_stats",
+      "query_runs",
       "report_cap",
       "report_progress",
       "report_usage",

@@ -1,5 +1,7 @@
 ### Slice 49 — Follow-ups left open by Slice 48
 
+*In progress (wave 2026-11-25), draft PR.*
+
 **Status:** planned (starter session 2026-11-19, the owner's standing "build all", no review round; the possible
 data-loss item first). Planned 2026-11-19 by the feedback loop of night
 2026-11-19-0734 ([note](../notes/2026-11-19-0734-feedback-loop.md), pass 1). Slice 48's last check pass returned four

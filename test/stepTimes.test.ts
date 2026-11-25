@@ -98,7 +98,7 @@ describe("which step time wins (Slice 51 F)", () => {
   });
 
   it("reads a stored step with times but no source as stamped (a row from before Slice 51)", () => {
-    const legacy: Step[] = [{ id: "a", label: "A", state: StepState.Done, note: null, started_at: T0, done_at: T1, started_source: null, done_source: null, waits_on: null, link: null, children: [] }];
+    const legacy: Step[] = [{ id: "a", label: "A", state: StepState.Done, note: null, started_at: T0, done_at: T1, started_source: null, done_source: null, waits_on: null, link: null, compactions: 0, children: [] }];
     const next = only(normalizeSteps([done({ done_at: T2 })], { previous: legacy, now: T3 }));
     expect([next.started_at, next.done_at, next.done_source]).toEqual([T0, T2, TimeSource.Reported]);
   });

@@ -3,10 +3,12 @@
 // (`description`, `agentType`, `finished`). An agent whose record changed in the last AGENT_FRESH_MS is working.
 // Local files only; every helper fails open with an empty list.
 import { Buffer } from 'node:buffer';
+import { createHash } from 'node:crypto';
 import { closeSync, existsSync, openSync, readFileSync, readSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { STEP_LABEL_MAX, STEP_NOTE_MAX, STEPS_MAX } from '../report-progress.mjs';
+import { STEP_ID_MAX, STEP_LABEL_MAX, STEP_NOTE_MAX, STEPS_MAX } from '../report-progress.mjs';
 import { clip } from './hook-input.mjs';
+import { sameLabel } from './task-steps.mjs';
 import { MASK_WINDOW, maskSecrets } from './waiting-card.mjs';
 
 export const AGENT_FRESH_MS = 10 * 60 * 1000;
@@ -223,7 +225,7 @@ function walkSteps(steps, path = []) {
 }
 
 // A step's address in the goal file: its own `id` when the session gave one (stable), else its label.
-function stepKey(step) {
+export function stepKey(step) {
   return typeof step.id === 'string' && step.id ? `${KEY_ID}${step.id}` : `${KEY_LABEL}${step.label}`;
 }
 
@@ -254,10 +256,91 @@ function ownerPath(steps, parent) {
   return path ? path.slice(0, STEP_DEPTH_MAX - 2) : null;
 }
 
-function agentNode(agent) {
+function agentNode(agent, taskRows = []) {
   const note = agent.model ? `${AGENT_PREFIX} · ${agent.model}` : AGENT_PREFIX;
-  // No `children`: the board keeps what the helper reported under this id (Slice 39).
-  return { id: agentRowId(agent.id), label: agent.label, state: agent.state, note: clip(note, STEP_NOTE_MAX) };
+  // No `children` unless the agent has mirrored tasks: the board keeps what the helper reported under this id (Slice 39),
+  // and takes the mirrored task rows of an agent row only from a hook (an empty list clears them) (`hookAgentRow` in src/domain/steps.ts).
+  const node = { id: agentRowId(agent.id), label: agent.label, state: agent.state, note: clip(note, STEP_NOTE_MAX) };
+  return taskRows.length ? { ...node, children: taskRows } : node;
+}
+
+export const TASK_ID_PREFIX = 'mirror-task:'; // the step id prefix of a mirrored task (TASK_ROW_PREFIX in src/domain/steps.ts, held equal by test/taskSteps.test.ts)
+const TASK_COUNT_KEY = 'task:'; // a mirrored task's address in the compaction counts
+const TASKS_KEEP = 100; // the newest mirrored tasks sent: the board's tree holds 200 steps in all
+const OBSERVED = 'observed';
+
+export function taskCountKey(taskId) {
+  return `${TASK_COUNT_KEY}${taskId}`;
+}
+
+// The row id of a mirrored task: the prefix and the task id, and when that is over the id limit a clipped form ending in a
+// short hash of the full task id, so two long ids that differ only past the cut stay two rows (a repeated id refuses the report).
+export function taskRowId(taskId) {
+  const full = `${TASK_ID_PREFIX}${taskId}`;
+  if (full.length <= STEP_ID_MAX) return full;
+  const hash = createHash('sha256').update(String(taskId)).digest('hex').slice(0, 8);
+  return `${full.slice(0, STEP_ID_MAX - hash.length - 1)}~${hash}`;
+}
+
+function observedTimes(task, state) {
+  return {
+    ...(task.startedAt && state !== 'pending' ? { started_at: new Date(task.startedAt).toISOString(), started_source: OBSERVED } : {}),
+    ...(task.doneAt && state === AGENT_STATE.done ? { done_at: new Date(task.doneAt).toISOString(), done_source: OBSERVED } : {}),
+  };
+}
+
+function withCompactions(step, count) {
+  return count > 0 ? { ...step, compactions: count } : step;
+}
+
+function taskState(task) {
+  if (task.doneAt) return AGENT_STATE.done;
+  return task.startedAt ? AGENT_STATE.active : 'pending';
+}
+
+// A task the session's task tools made, as a step of its own: pending until started, active, then done, with the times its
+// hooks saw (never the creation time).
+function taskStep(task, counts) {
+  const state = taskState(task);
+  const step = { id: taskRowId(task.taskId), label: clip(maskSecrets(task.subject.slice(0, MASK_WINDOW)), STEP_LABEL_MAX), state, ...observedTimes(task, state) };
+  return withCompactions(step, counts[taskCountKey(task.taskId)] || 0);
+}
+
+// The sent steps with the compaction counts put on (every level), and the observed times of a task whose label equals a
+// top-level step's label put on that step (a task matches one step; the rest become steps of their own).
+function overlayRoot(sent, rootTasks, counts) {
+  const open = [...rootTasks];
+  const mark = (level, top) => level.map((step) => {
+    const at = top ? open.findIndex((task) => sameLabel(clip(task.subject, STEP_LABEL_MAX), step.label)) : -1;
+    const task = at >= 0 ? open.splice(at, 1)[0] : null;
+    const count = (counts[stepKey(step)] || 0) + (task ? counts[taskCountKey(task.taskId)] || 0 : 0);
+    const children = Array.isArray(step.children) ? mark(step.children, false) : null;
+    return withCompactions({ ...step, ...(task ? observedTimes(task, step.state) : {}), ...(children ? { children } : {}) }, count);
+  });
+  const marked = mark(sent, true);
+  return [...marked, ...open.map((task) => taskStep(task, counts))];
+}
+
+// The tasks that fit in `room` steps: the oldest finished ones go first, then the oldest running ones. `items` is oldest first.
+function fitTasks(items, room) {
+  let over = items.length - room;
+  if (over <= 0) return items;
+  const dropped = new Set();
+  for (const task of [...items.filter((t) => t.doneAt), ...items.filter((t) => !t.doneAt)]) {
+    if (over <= 0) break;
+    dropped.add(task);
+    over -= 1;
+  }
+  return items.filter((task) => !dropped.has(task));
+}
+
+// The mirrored tasks as steps: those of a shown agent go under its row, the rest (the session's own, and those of an agent
+// with no row) at the top level. The session's own reported steps (`sent`) are kept first: the tasks get the room they leave
+// in the board's 200 steps, so a hook report is never over the limit.
+function splitTasks(tasks, agents, sent) {
+  const rowIds = new Set(agents.map((agent) => agent.id));
+  const items = fitTasks(tasks.items.slice(-TASKS_KEEP), Math.max(0, STEPS_MAX - countSteps(sent)));
+  return { root: items.filter((task) => !rowIds.has(task.agentId)), byAgent: (agentId) => items.filter((task) => task.agentId === agentId) };
 }
 
 function countSteps(steps) {
@@ -283,13 +366,14 @@ function pathKey(path) {
 }
 
 // Where each shown agent's row goes: Map of owner path key to its rows, and the root rows.
-function groupRows(sent, shown, parents) {
+function groupRows(sent, shown, parents, taskRowsOf = () => []) {
   const under = new Map();
   const roots = [];
   for (const agent of shown) {
     const path = ownerPath(sent, parents[agent.id]);
-    if (!path) roots.push(agentNode(agent));
-    else under.set(pathKey(path), [...(under.get(pathKey(path)) || []), { node: agentNode(agent), running: agent.state === AGENT_STATE.active }]);
+    const node = agentNode(agent, taskRowsOf(agent));
+    if (!path) roots.push(node);
+    else under.set(pathKey(path), [...(under.get(pathKey(path)) || []), { node, running: agent.state === AGENT_STATE.active }]);
   }
   return { under, roots };
 }
@@ -328,9 +412,20 @@ function attach(level, context, prefix = []) {
 // step whose agents all aged out is sent as the session sent it, never with `children: []`; the board's rule for a hook
 // report (`hookStepsInput`) keeps its stored non-agent children and drops the stored agent rows (Slice 51, G). Over the board's 200-step
 // limit (nested steps count) the oldest finished agents are dropped first.
-export function mergeSteps(sent, agents, parents = {}) {
-  const shown = fitAgents(countSteps(sent), agents);
-  const { under, roots } = groupRows(sent, shown, parents);
+// `tasks` (Slice 53) is `{ items, compactions }` from the task state files: each task is a step of its own (under its agent's
+// row, else at the top level) unless its label equals a top-level reported step's, which then takes its observed times.
+export function mergeSteps(sent, agents, parents = {}, tasks = null) {
+  if (!tasks || (tasks.items.length === 0 && Object.keys(tasks.compactions).length === 0)) return mergeAgents(sent, agents, parents);
+  const split = splitTasks(tasks, agents, sent);
+  const own = overlayRoot(sent, split.root, tasks.compactions);
+  const taskRowsOf = (agent) => split.byAgent(agent.id).map((task) => taskStep(task, tasks.compactions));
+  return mergeAgents(own, agents, parents, taskRowsOf);
+}
+
+function mergeAgents(sent, agents, parents, taskRowsOf = () => []) {
+  const taskRows = agents.reduce((sum, agent) => sum + taskRowsOf(agent).length, 0);
+  const shown = fitAgents(countSteps(sent) + taskRows, agents);
+  const { under, roots } = groupRows(sent, shown, parents, taskRowsOf);
   const context = { under, live: liveKeys(under) };
   return [...attach(sent, context), ...roots];
 }

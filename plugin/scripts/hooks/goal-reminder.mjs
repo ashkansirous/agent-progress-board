@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { STEPS_MAX, STEP_ID_MAX, STEP_LABEL_MAX, STEP_NOTE_MAX, activeTaskCard, isOrchestrator, touchOrchestrator } from '../report-progress.mjs';
 import { STEP_DEPTH_MAX } from './background-agents.mjs';
 import { markWaitingDone } from './session-done.mjs';
+import { afterBoardReport } from './task-steps.mjs';
 import { CARD_KIND, CLOSED_BY, parseInput, readGoal, readPrompt, readStdinText, sessionIdOf, stateRoot, touchSeen, updateGoal, writePrompt } from './hook-input.mjs';
 
 export const REMIND_AT_TOOL = 2;
@@ -189,6 +190,8 @@ if (invokedDirectly) {
   } catch { /* fail open */ }
   Promise.resolve()
     .then(() => closeAnsweredWaiting(input))
+    .catch(() => {})
+    .then(() => afterBoardReport(input)) // Slice 53: the session's tasks' observed times go on again after its own steps report
     .catch(() => {})
     .finally(() => { process.exitCode = 0; });
 }

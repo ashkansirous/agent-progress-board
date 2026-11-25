@@ -11,7 +11,7 @@ import { ItemStatus } from "../../src/domain/item";
 import { PriorityBadge } from "./PriorityBadge";
 import { isSafeHttpUrl } from "./safeUrl";
 import { progressText } from "./stepsText";
-import { StepBar, StepRows } from "./stepsView";
+import { CardChecks, ReopenedLine, StepBar, StepRows } from "./stepsView";
 import { clockTime } from "./time";
 import { statusLabel, statusName, useView } from "./view";
 
@@ -53,6 +53,8 @@ function StepsSection({ item }: { item: BoardItemDto }) {
       </div>
       <StepBar steps={item.steps} variant="drawer" finished={finished} type={looks.type(item.type)} />
       <StepRows steps={item.steps} finished={finished} t={t} notes={false} label={t("stepsHeading")} />
+      <CardChecks item={item} />
+      <ReopenedLine item={item} />
     </div>
   );
 }

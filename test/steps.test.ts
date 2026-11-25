@@ -79,7 +79,7 @@ describe("normalizeSteps", () => {
 
 describe("stepProgress", () => {
   it("reads 1 of 7 as 14% with the active step's label", () => {
-    expect(stepProgress(steps(1, 1, 5), ItemStatus.InProgress)).toEqual({ done: 1, total: 7, percent: 14, running: 1, current: "Step 2" });
+    expect(stepProgress(steps(1, 1, 5), ItemStatus.InProgress)).toEqual({ done: 1, total: 7, percent: 14, running: 1, blocked: 0, open_checks: 0, current: "Step 2" });
   });
 
   it("follows a list that shrinks: six steps with two done is 33%", () => {
@@ -90,11 +90,11 @@ describe("stepProgress", () => {
     expect(stepProgress(null, ItemStatus.InProgress)).toBeNull();
     expect(stepProgress(undefined, ItemStatus.InProgress)).toBeNull();
     expect(stepProgress([], ItemStatus.InProgress)).toBeNull();
-    expect(stepProgress(steps(0, 0, 3), ItemStatus.InProgress)).toEqual({ done: 0, total: 3, percent: 0, running: 0, current: null });
+    expect(stepProgress(steps(0, 0, 3), ItemStatus.InProgress)).toEqual({ done: 0, total: 3, percent: 0, running: 0, blocked: 0, open_checks: 0, current: null });
   });
 
   it("shows 100% for a done item whatever its list says", () => {
-    expect(stepProgress(steps(1, 1, 5), ItemStatus.Done)).toEqual({ done: 7, total: 7, percent: 100, running: 0, current: null });
+    expect(stepProgress(steps(1, 1, 5), ItemStatus.Done)).toEqual({ done: 7, total: 7, percent: 100, running: 0, blocked: 0, open_checks: 0, current: null });
   });
 });
 
@@ -169,7 +169,7 @@ describe("the step tree (Slice 39)", () => {
     const tree = normalizeSteps([...book, { label: "Write", state: StepState.Pending }])!;
     expect(tree.map((step) => step.id)).toEqual(["Write", "Record audio", "Write#2"]);
     expect(tree[1]!.children.map((step) => step.id)).toEqual(["Record audio/English", "Record audio/French", "Record audio/German"]);
-    expect(stepProgress(tree, ItemStatus.InProgress)).toEqual({ done: 1, total: 5, percent: 20, running: 2, current: null });
+    expect(stepProgress(tree, ItemStatus.InProgress)).toEqual({ done: 1, total: 5, percent: 20, running: 2, blocked: 0, open_checks: 0, current: null });
   });
 
   it("counts leaves for progress and names the running leaf when exactly one runs", () => {

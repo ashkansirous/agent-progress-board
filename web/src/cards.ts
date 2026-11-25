@@ -1,6 +1,7 @@
 import type { BoardEventDto, BoardItemDto } from "../../src/api/boardDto";
 import { EventMarker, HEARTBEAT_NOTE, ItemStatus, ItemType, NEEDS_YOU_NOTE_PREFIX, NOTE_SEPARATOR, STATUS_DROPPED_NOTE } from "../../src/domain/item";
 import { SESSION_AGENT, SESSION_STALE_AFTER_MINUTES } from "../../src/domain/stale";
+import { ownerBlockedSteps } from "../../src/domain/stepTypes";
 import type { Translate } from "./strings";
 import { isTime, minutesSince } from "./time";
 
@@ -22,7 +23,7 @@ export function isSessionItem(item: BoardItemDto): boolean {
 
 /** The item holds a question for the owner; the Worker sends `needs_you` only while it waits (not done, not expired). */
 export function isQuestion(item: BoardItemDto): boolean {
-  return item.needs_you != null;
+  return item.needs_you != null || item.blocked_on_owner === true;
 }
 
 const OWNER_STEP_KEY = /\/slice-[^/]+\/check-[^/]+$/;
@@ -41,9 +42,16 @@ export function ownerStepFallback(item: BoardItemDto): string | null {
   return item.why ? item.title : null;
 }
 
-/** What a card asks: its own question, else (an owner step, or a card with a why) its title; null when it asks nothing. The one reading for the card and its drawer heading. */
+/** What a card blocked on the owner asks: each blocked step's label and its note, one line; null when none is. */
+function ownerBlockedText(item: BoardItemDto): string | null {
+  if (!item.blocked_on_owner) return null;
+  const lines = ownerBlockedSteps(item.steps).map((step) => (step.note ? `${step.label}: ${step.note}` : step.label));
+  return lines.length > 0 ? lines.join(" · ") : null;
+}
+
+/** What a card asks: its own question, else a step blocked on the owner, else (an owner step, or a card with a why) its title; null when it asks nothing. The one reading for the card and its drawer heading. */
 export function cardQuestion(item: BoardItemDto): string | null {
-  return item.needs_you ?? ownerStepFallback(item);
+  return item.needs_you ?? ownerBlockedText(item) ?? ownerStepFallback(item);
 }
 
 /** The steps under an owner step's title (the doc sync's `details_md`, Slice 44), or null when it has none or is not an owner step. */

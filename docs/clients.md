@@ -274,7 +274,9 @@ Returns the item. A report that changes nothing but the heartbeat writes an even
 
 A task carries its own list of steps; the board has no built-in list and holds no step names.
 Each step is `{id?, label, state, note?, children?}`: `label` 1 to 80 characters, `state` one of `done`,
-`active` or `pending`, `note` 0 to 120 characters (shown under the label). Steps form a tree (Slice 39):
+`active`, `pending` or `blocked`, `note` 0 to 120 characters (shown under the label). A `blocked` step (Slice 51)
+must have a `note` saying what it waits on, may carry `waits_on` (`work`, the default, shown orange, or `owner`,
+shown red and listed under Needs you) and an http(s) `link`. Steps form a tree (Slice 39):
 at most 200 steps in all, at most 4 levels, and any number may be `active` at once. Labels and notes are shown as sent.
 
 - **Send the whole list each time.** The newest list wins and replaces the stored one; a report
@@ -285,7 +287,13 @@ at most 200 steps in all, at most 4 levels, and any number may be `active` at on
   reports; left out, the board makes it from the label path (`Parent/Child`, `#2` on a repeat, cut to 80
   characters with a short hash). That form changes when a label or the order changes, so send a short stable
   `id` on every step that has children or that helpers report under, and tell the helper the id. The board
-  stamps `started_at` (first active or done) and `done_at` (became done), UTC ISO, and keeps them by id.
+  stamps `started_at` (first active or done) and `done_at` (became done), UTC ISO, and keeps them by id. A report may
+  send `started_at` and `done_at` itself (a late or batched report knows them): they are kept when not in the future
+  (a minute of clock skew is allowed) and the start is not after the end; a time that fails either is dropped and the
+  board stamps that end instead, so the report is never refused for it. A report names the source in `started_source` / `done_source`, `reported` (default) or `observed`
+  (only a hook that saw the change). Each stored time carries its source, `observed`, `reported` or `stamped` (the
+  board's clock); a later report replaces a time only with one from a source at least as good, and the card shows a
+  duration only when both ends are observed or reported.
 - **`under_step`.** `report_progress` with `under_step: <step id>` takes `steps` as only that step's
   children (an empty list clears them); the rest of the list stays. An unknown id is refused with the ids
   that exist. A helper agent uses it to report its own steps under the step it works on.
@@ -681,7 +689,7 @@ A "not yet tried on a device" line is a check, never a card. A made-up snapshot 
   is never retyped by a snapshot: the item is skipped, with a `type:` reason.
 - A check or part that holds a `needs_you` question is listed in the project's `needs_you`.
 - The board does not list checks as items. A slice's `checks` field lists the ones not tried (open or in
-  progress; a blocked or stale one is not counted). A done slice with any check that is not done is listed
+  progress or blocked; a stale one is not counted). A done slice with any check that is not done is listed
   under `built`; only a check whose slice is not on the board at all is counted in the project's
   `loose_checks`.
 - A `bug` or `problem` may name the slice planned for it in `parent_key`; the board returns that slice

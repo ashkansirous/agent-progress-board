@@ -129,8 +129,8 @@ export interface CheckRow extends CheckView {
   parent_key?: string | null;
 }
 
-/** A check counts as not tried while it is open or being tried; a stale or blocked one is not a check to try now. */
-export const COUNTED_CHECK_STATUSES: readonly ItemStatus[] = [ItemStatus.Open, ItemStatus.InProgress];
+/** A check counts while it is open, being tried or blocked (a blocked one is still to do, Slice 51); a stale one is not a check to try now. */
+export const COUNTED_CHECK_STATUSES: readonly ItemStatus[] = [ItemStatus.Open, ItemStatus.InProgress, ItemStatus.Blocked];
 
 /** The one rule for "a check not tried": the list under a slice, the Built test and the board load (`OPEN_CHECK_OF`) all use it. */
 export function isCountedCheck(status: ItemStatus): boolean {

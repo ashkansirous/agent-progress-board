@@ -5,6 +5,7 @@ import { OutcomeLine } from "./ActiveCard";
 import { cardLabel, cardQuestion, fillBoardAddress, isOwnerStep, ownerStepDetails, resolveBoardAddress, sessionLabel, stepUrls, waitingText, withoutBoardPages } from "./cards";
 import { projectLabel } from "./model";
 import { isSafeHttpUrl } from "./safeUrl";
+import { isOwnerBlocked } from "./stepsText";
 import { ageText } from "./time";
 import { useView } from "./view";
 
@@ -143,6 +144,7 @@ const STEP_MARKS: Record<StepState, string> = {
   [StepState.Done]: "✓",
   [StepState.Active]: "●",
   [StepState.Pending]: "",
+  [StepState.Blocked]: "!",
 };
 
 /** The steps as pills: a mark and the weight say the state (done ✓, now ●), so colour is not the only signal. */
@@ -153,7 +155,7 @@ function StepChips({ item }: { item: BoardItemDto }) {
     <ol className="step-chips" aria-label={t("stepsAria")}>
       {item.steps.map((step, index) => (
         // The list is replaced whole on every report, so the position is its identity.
-        <li key={index} className={`step-chip step-chip-${step.state}`}>
+        <li key={index} className={`step-chip step-chip-${step.state}${isOwnerBlocked(step) ? " step-chip-owner" : ""}`}>
           {STEP_MARKS[step.state] && <span aria-hidden="true">{STEP_MARKS[step.state]}</span>}
           {step.label}
         </li>

@@ -201,16 +201,16 @@ describe("loose checks and counted checks (Slice 33)", () => {
     expect(group.summary.checks_not_tried).toBe(1);
   });
 
-  it("does not list a done slice as built for a blocked or stale check only (the same rule counts them)", () => {
+  it("lists a done slice as built for a blocked check, but not for a stale one only (Slice 51)", () => {
     const blocked = slice(6, { status: ItemStatus.Done, done_at: minutesAgo(30) });
     const stale = slice(7, { status: ItemStatus.Done, done_at: minutesAgo(30) });
     const group = only([blocked, stale], [check("b", blocked.key, { status: ItemStatus.Blocked }), check("s", stale.key, { status: ItemStatus.Stale })]);
-    expect(group.built).toEqual([]);
-    expect(group.summary).toMatchObject({ built: 0, checks_not_tried: 0 });
-    expect(group.done.count).toBe(2);
+    expect(group.built.map((s) => s.key)).toEqual([blocked.key]);
+    expect(group.summary).toMatchObject({ built: 1, checks_not_tried: 1 });
+    expect(group.done.count).toBe(1);
   });
 
-  it("shows a stale or blocked check under its slice with its state, but does not count it as not tried", () => {
+  it("shows a stale or blocked check under its slice with its state; a blocked one is counted, a stale one is not", () => {
     const s = slice(2);
     const group = only([s], [check("a", s.key), check("b", s.key, { status: ItemStatus.Blocked }), check("c", s.key, { status: ItemStatus.Stale }), check("d", s.key, { status: ItemStatus.InProgress }), check("e", s.key, { status: ItemStatus.Done })]);
     expect(group.planned[0]!.checks.map((c) => [c.key, c.status])).toEqual([
@@ -219,12 +219,27 @@ describe("loose checks and counted checks (Slice 33)", () => {
       ["c", ItemStatus.Stale],
       ["d", ItemStatus.InProgress],
     ]);
-    expect(group.summary.checks_not_tried).toBe(2);
+    expect(group.summary.checks_not_tried).toBe(3);
   });
 
   it("shows a stale check of a slice that is not on the board as loose, uncounted", () => {
     const group = only([slice(9)], [check("s", `${PROJECT}/slice-77`, { status: ItemStatus.Stale })]);
     expect(group.loose_checks.map((c) => c.key)).toEqual(["s"]);
     expect(group.summary.checks_not_tried).toBe(0);
+  });
+
+  it("lists a working card with a step blocked on the owner under Needs you, not under Working now (Slice 51)", () => {
+    const waiting = item("demo-app/task-w", { status: ItemStatus.InProgress, working: true, blocked_on_owner: true });
+    const busy = item("demo-app/task-b", { status: ItemStatus.InProgress, working: true });
+    const group = only([waiting, busy]);
+    expect(group.needs_you).toEqual(["demo-app/task-w"]);
+    expect(group.working_now).toEqual(["demo-app/task-b"]);
+    expect(group.summary.needs_you).toBe(1);
+  });
+
+  it("groups a done slice with an open check as Built whatever its steps say (Slice 51)", () => {
+    const group = only([slice(5, { status: ItemStatus.Done, done_at: minutesAgo(60) })], [check("c", `${PROJECT}/slice-5`)]);
+    expect(group.built.map((s) => s.number)).toEqual([5]);
+    expect(group.planned).toEqual([]);
   });
 });

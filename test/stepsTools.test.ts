@@ -58,7 +58,7 @@ describe("report_progress steps", () => {
   it("reads seven steps with one done and one active back as 14% with the active label", async () => {
     await callTool("report_progress", { ...TASK, steps: SEVEN, agent: "Implementer", model: "model-mid" });
     const item = await itemOf(TASK.key);
-    expect(item.progress).toEqual({ done: 1, total: 7, percent: 14, running: 1, current: "Review 1" });
+    expect(item.progress).toEqual({ done: 1, total: 7, percent: 14, running: 1, blocked: 0, open_checks: 0, current: "Review 1" });
     expect(item.steps?.[1]).toMatchObject({ id: "Review 1", label: "Review 1", state: "active", note: "Two helper agents count under this step", children: [] });
     expect(item.steps?.[1]?.started_at).toEqual(expect.any(String));
     expect(item).toMatchObject({ agent: "Implementer", model: "model-mid", working: true });
@@ -68,7 +68,7 @@ describe("report_progress steps", () => {
     await callTool("report_progress", { ...TASK, steps: SEVEN });
     await callTool("report_progress", { key: TASK.key, steps: SIX_TWO_DONE });
     const item = await itemOf(TASK.key);
-    expect(item.progress).toEqual({ done: 2, total: 6, percent: 33, running: 1, current: "Fixing" });
+    expect(item.progress).toEqual({ done: 2, total: 6, percent: 33, running: 1, blocked: 0, open_checks: 0, current: "Fixing" });
     expect(item.steps).toHaveLength(6);
   });
 
@@ -192,8 +192,8 @@ describe("GET /api/board active work", () => {
     await env.DB.prepare("UPDATE items SET steps = ? WHERE key = ?").bind(flat, TASK.key).run();
     const item = await itemOf(TASK.key);
     expect(item.steps).toEqual([
-      { id: "A", label: "A", state: "done", note: null, started_at: null, done_at: null, children: [] },
-      { id: "B", label: "B", state: "active", note: "now", started_at: null, done_at: null, children: [] },
+      { id: "A", label: "A", state: "done", note: null, started_at: null, done_at: null, started_source: null, done_source: null, waits_on: null, link: null, children: [] },
+      { id: "B", label: "B", state: "active", note: "now", started_at: null, done_at: null, started_source: null, done_source: null, waits_on: null, link: null, children: [] },
     ]);
     expect(item.progress).toMatchObject({ done: 1, total: 2, running: 1, current: "B" });
   });

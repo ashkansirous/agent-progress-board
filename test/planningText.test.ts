@@ -85,12 +85,13 @@ describe("check and slice words", () => {
       { key: "b", title: "B", status: ItemStatus.Blocked },
     ];
     expect(looseCountOf(blocked)).toBe(2);
-    expect(looseCountOf([...blocked, { key: "c", title: "C", status: ItemStatus.Open }])).toBe(1);
+    expect(looseCountOf([...blocked, { key: "c", title: "C", status: ItemStatus.Open }])).toBe(3);
+    expect(looseCountOf([{ key: "s", title: "S", status: ItemStatus.Stale }, { key: "c", title: "C", status: ItemStatus.Open }])).toBe(1);
   });
 
-  it("does not say 'not tried' in the list header when only blocked checks are listed (Slice 47 review #2)", () => {
-    const blocked = [{ key: "a", title: "A", status: ItemStatus.Blocked }];
-    expect(looseHeadKey(blocked)).toBe("drawerLooseChecksHead");
-    expect(looseHeadKey([...blocked, { key: "c", title: "C", status: ItemStatus.Open }])).toBe("drawerChecksHead");
+  it("does not say 'not tried' in the list header when only stale checks are listed (Slice 47 review #2)", () => {
+    const stale = [{ key: "a", title: "A", status: ItemStatus.Stale }];
+    expect(looseHeadKey(stale)).toBe("drawerLooseChecksHead");
+    expect(looseHeadKey([...stale, { key: "c", title: "C", status: ItemStatus.Open }])).toBe("drawerChecksHead");
   });
 });

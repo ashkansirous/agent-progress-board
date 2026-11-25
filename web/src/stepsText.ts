@@ -1,6 +1,6 @@
 import type { BoardItemDto } from "../../src/api/boardDto";
 import { ItemStatus } from "../../src/domain/item";
-import { leavesOf, type Step, StepState } from "../../src/domain/stepTypes";
+import { leavesOf, ownerBlockedSteps, type Step, StepState, TimeSource } from "../../src/domain/stepTypes";
 import type { StringKey, Translate } from "./strings";
 import { clockTime } from "./time";
 
@@ -27,6 +27,7 @@ const WORD_KEYS: Record<StepState, StringKey> = {
   [StepState.Done]: "stepDone",
   [StepState.Active]: "stepNow",
   [StepState.Pending]: "stepLater",
+  [StepState.Blocked]: "stepBlocked",
 };
 
 export interface StepWord {
@@ -38,12 +39,12 @@ export interface StepWord {
 export function stepWords(steps: Step[], finished: boolean): StepWord[] {
   let seenNext = false;
   return steps.map((step) => {
-    const state = finished ? StepState.Done : step.state;
+    const state = shownState(step, finished);
     if (state === StepState.Pending && !seenNext) {
       seenNext = true;
       return { state, key: "stepNext" };
     }
-    return { state, key: WORD_KEYS[state] };
+    return { state, key: state === StepState.Blocked ? blockedKey(step) : WORD_KEYS[state] };
   });
 }
 
@@ -58,8 +59,9 @@ export function durationText(ms: number, t: Translate): string {
 /** What a step reads as: done for every step of a finished task; a parent with a running leaf below it reads running; else its own state. */
 export function shownState(step: Step, finished: boolean): StepState {
   if (finished) return StepState.Done;
-  const runningBelow = step.children.length > 0 && leavesOf(step.children).some((leaf) => leaf.state === StepState.Active);
-  return runningBelow ? StepState.Active : step.state;
+  const leaves = step.children.length > 0 ? leavesOf(step.children) : [];
+  if (leaves.some((leaf) => leaf.state === StepState.Active)) return StepState.Active;
+  return leaves.some((leaf) => leaf.state === StepState.Blocked) ? StepState.Blocked : step.state;
 }
 
 export interface LeafCounts {
@@ -94,30 +96,62 @@ export interface StepClock {
   nowMs: number;
 }
 
+/** The word for where a stored time came from: "seen by hook", "reported" or "guessed". */
+export function sourceWord(source: TimeSource | null, t: Translate): string {
+  if (source === TimeSource.Observed) return t("srcObserved");
+  return source === TimeSource.Reported ? t("srcReported") : t("srcStamped");
+}
+
+/** A step's whole duration in ms, only when both ends were seen by a hook or reported (a stamped time is the server's guess: no duration); null otherwise. */
+export function trueDuration(step: Step): number | null {
+  if (!step.started_at || !step.done_at) return null;
+  if (step.started_source !== TimeSource.Observed && step.started_source !== TimeSource.Reported) return null;
+  if (step.done_source !== TimeSource.Observed && step.done_source !== TimeSource.Reported) return null;
+  return Date.parse(step.done_at) - Date.parse(step.started_at);
+}
+
+/** The weaker of a step's two time sources, for the one word that names them. */
+function weakerSource(step: Step): TimeSource | null {
+  return step.started_source === TimeSource.Observed && step.done_source === TimeSource.Observed ? TimeSource.Observed : TimeSource.Reported;
+}
+
 const since = (iso: string | null, endMs: number): number | null => (iso === null ? null : endMs - Date.parse(iso));
 
 /** The right-hand state text: "Done · 8 min", "Running · 1 h 02 min", "Next" or "Later". `isNext` marks the first waiting step among its siblings. */
 export function stateText(step: Step, clock: StepClock, isNext: boolean, t: Translate): string {
   const state = shownState(step, clock.finished);
   if (state === StepState.Pending) return t(isNext ? "stepNext" : "stepLater");
+  if (state === StepState.Blocked) return t(blockedKey(step));
   if (state === StepState.Active) {
     const ran = since(step.started_at, clock.nowMs);
     return ran === null ? t("stepNow") : t("stepStateRunning", { dur: durationText(ran, t) });
   }
-  const took = step.started_at && step.done_at ? Date.parse(step.done_at) - Date.parse(step.started_at) : null;
-  return took === null ? t("stepDone") : t("stepStateDone", { dur: durationText(took, t) });
+  const took = trueDuration(step);
+  return took === null ? t("stepDone") : t("stepStateDoneSrc", { dur: durationText(took, t), src: sourceWord(weakerSource(step), t) });
+}
+
+/** Whether the step reads red: it, or a step below it, is blocked on the owner (`ownerBlockedSteps`). */
+export function isOwnerBlocked(step: Step): boolean {
+  return ownerBlockedSteps([step]).length > 0;
+}
+
+/** The red "Waiting on you" for a step blocked on the owner, else the orange "Blocked". */
+function blockedKey(step: Step): StringKey {
+  return isOwnerBlocked(step) ? "stepWaitsOwner" : "stepBlocked";
 }
 
 /** The open box's times line, as the mock words it. */
 export function timesText(step: Step, clock: StepClock, t: Translate): string {
   const state = shownState(step, clock.finished);
   if (state === StepState.Pending) return t("stepNotStarted");
+  if (state === StepState.Blocked) return step.started_at ? t("stepTimesBlocked", { start: clockTime(step.started_at), src: sourceWord(step.started_source, t) }) : t("stepBlocked");
   if (!step.started_at) return t(state === StepState.Done ? "stepDone" : "stepNow");
   const start = clockTime(step.started_at);
   if (state === StepState.Active) {
     return t("stepTimesRunning", { start, dur: durationText(clock.nowMs - Date.parse(step.started_at), t) });
   }
   if (!step.done_at) return t("stepDone");
-  const took = durationText(Date.parse(step.done_at) - Date.parse(step.started_at), t);
-  return t("stepTimesDone", { start, end: clockTime(step.done_at), dur: took });
+  const took = trueDuration(step);
+  if (took === null) return t("stepTimesGuessed", { start, end: clockTime(step.done_at), src: sourceWord(step.done_source, t) });
+  return t("stepTimesDone", { start, end: clockTime(step.done_at), dur: durationText(took, t), src: sourceWord(weakerSource(step), t) });
 }

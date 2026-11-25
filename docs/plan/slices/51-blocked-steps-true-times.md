@@ -6,7 +6,8 @@
 `src/domain/boardGroups.ts`, `src/mcp/instructions.ts`, `src/mcp/schemas.ts`, `src/application/board.ts`,
 `src/infrastructure/d1Repository.ts`, `web/src/`, `plugin/scripts/report-progress.mjs`, `plugin/scripts/sync-docs.mjs`,
 `plugin/scripts/hooks/goal-reminder.mjs`, `plugin/scripts/**/*.test.mjs`, `plugin/skills/agent-board/SKILL.md`,
-`docs/clients.md`, `test/`, `e2e/`
+`docs/clients.md`, `test/`, `e2e/`, `src/api/board.ts`, `src/api/boardDto.ts` (widened while building: the card data
+carries checks in progress, `blocked_on_owner` and `reopened`)
 
 Night 2026-11-25 claim notes (coordinator, no open question): Touches widened from the premise check (`schemas.ts`
 holds `z.enum(StepState)`, `saveStepsReport` is in `board.ts`, doc sync's status write in `d1Repository.ts` and
@@ -85,3 +86,15 @@ Decided by this session (bug fix, no open question):
 - A batched late report without times shows no durations; one with times shows the reported durations.
 - A step whose end was sent as observed at 10:05 and then marked done again in a batched report at 10:50 keeps 10:05 and
   reads "5 min, seen by hook" (the phone scope's "active 1 h, really done 45 min ago" case).
+
+#### From review
+
+- Skipped #8 (`reviews/pr-200-high.md`): "Any MCP caller may send `started_source` / `done_source` = observed (the whole `TimeSource` enum), though docs say only a plugin hook may." - the server cannot tell a hook from an agent, both send with the plugin's token; Decision 5 makes `observed` a client convention.
+- Skipped #9 (`reviews/pr-200-high.md`): "Every stored step with no source reads as "stamped", and the page hides durations for a stamped end ... Decision 2 says durations show when both ends were reported or seen live" - Decision 2 is "The card shows a duration only when both ends were reported or seen live", and a time the board stamped is neither.
+- Skipped #4 (`reviews/pr-200-medium.md`): "betterTime compares rank with >=, so a re-sent older `reported` time overwrites a stored `reported` one." - Decision 5: "A later report replaces a time only with one from a source at least as good", so an equal source replaces.
+- Skipped #5 (`reviews/pr-200-medium.md`): "parseStoredSteps marks all legacy times (no source fields) as `stamped`, so trueDuration is null for every already-stored finished step." - Decision 2: "The card shows a duration only when both ends were reported or seen live"; a legacy time is neither.
+- Applied pass-2 #1 (second strike on the done-slice exemption) by one design: after the snapshot's own checks are applied, a done slice the documents call in progress stays done only when at least one check is counted (`isCountedCheck`) in that resulting state, stored or new in this snapshot; else it reopens with the history note. One function, `keepsDoneForChecks` in `src/domain/docSync.ts`, tested for a new check, a stored open check, all checks done and no checks.
+- Applied pass-2 #2, #3, #6, #7: the hook never sends a `stamped` time back; `blocked_on_owner` only for a live card (not done, not stale, heartbeat not expired); a bad `link` or `waits_on` on a step is dropped in `buildStep`, never refuses the report; the card's checks heading counts the rows it shows.
+- Applied #3 by counting a blocked check (`COUNTED_CHECK_STATUSES` in `src/domain/checks.ts`: open, in progress, blocked; stale is still not counted), so progress, the checks heading, Built and `OPEN_CHECK_OF` agree; the Slice 42 and 47 tests that said a blocked check is not counted were changed to match.
+- Applied pass-3 (`reviews/pr-200-check-medium.md`) #1 to #5: `stepWords` reads `shownState` and `blockedKey`; an owner-blocked card's `needs_you_at` is the earliest `started_at` of its owner-blocked steps (`ownerBlockedSince`, set in `waitingSinceOf` in `src/api/board.ts`; `groupBoard` unchanged); `givenTime` takes only ISO times with a zone; `reopened` carries `status` and the page words it; the hook sends `started_at` only for non-pending and `done_at` only for done steps.
+- Skipped #6 (`reviews/pr-200-check-medium.md`): "A reported `started_at` up to 60 s ahead is accepted; a running step shows "Running · 1 min" and a future "Started" time. Fix: clamp to `now`." - Decision 2's validation allows a small future skew, and the fix pass 1 design set it to 60 s; a minute's lead reads the same.

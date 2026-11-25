@@ -1,6 +1,7 @@
 import {
   assertSameProject,
   closeTargets,
+  keepsDoneForChecks,
   MAX_EXPANDED_ITEMS,
   planItem,
   type SnapshotItem,
@@ -8,7 +9,7 @@ import {
   validateSnapshot,
 } from "../domain/docSync";
 import { type Item, ItemStatus, ItemType, type ItemWithEvents } from "../domain/item";
-import { ancestorKeys, itemProblem, MAX_PARENT_DEPTH, nestedChecks, type ParentRef } from "../domain/checks";
+import { ancestorKeys, isCountedCheck, itemProblem, MAX_PARENT_DEPTH, nestedChecks, type ParentRef } from "../domain/checks";
 import { expandParts } from "../domain/parts";
 import { DEFAULT_STALE_AFTER_MINUTES, expiryMinutesFor, hasOpenQuestion, SESSION_AGENT, staleCutoff, waitingCutoff } from "../domain/stale";
 import { checkReport, DomainError, newItem, type ReportInput, withQuestion } from "../domain/upsert";
@@ -209,6 +210,28 @@ export interface SkippedItem {
   reason: string;
 }
 
+/**
+ * The keys of the snapshot items that still list a check to do (Slice 51): a check the store has not seen, or one it
+ * holds in a counted state (`isCountedCheck`). A check the owner has done, or the docs dropped, no longer keeps a done slice done.
+ */
+function slicesWithOpenChecks(
+  items: SnapshotItem[],
+  kept: ReadonlySet<string>,
+  stored: Map<string, SyncRow>,
+  now: string,
+): Set<string> {
+  const heldRow = (check: SnapshotItem) => {
+    const row = stored.get(check.key);
+    return row !== undefined && isCountedCheck(row.status);
+  };
+  const stays = (slice: SnapshotItem) => {
+    const checks = nestedChecks(slice);
+    const applied = checks.filter((check) => kept.has(check.key));
+    return keepsDoneForChecks(applied, stored, now) || checks.some((check) => !kept.has(check.key) && heldRow(check));
+  };
+  return new Set(items.filter(stays).map((item) => item.key));
+}
+
 /** One project's full doc-sync set: merge each item, close the ones that left, one batch. */
 export async function syncSnapshot(
   repo: ItemRepository,
@@ -226,9 +249,10 @@ export async function syncSnapshot(
   const byKey = new Map(stored.map((item) => [item.key, item]));
   for (const candidate of candidates) assertSameProject(byKey.get(candidate.key), input.project);
   const { items, skipped, held } = screenSnapshot(input.project, groups, byKey);
+  const withChecks = slicesWithOpenChecks(input.items, new Set(items.map((item) => item.key)), byKey, now);
   const merges = items.map((snap) => ({
     existed: byKey.has(snap.key),
-    write: planItem(byKey.get(snap.key), snap, input.project, now),
+    write: planItem(byKey.get(snap.key), snap, input.project, now, withChecks.has(snap.key)),
   }));
   const skippedKeys = new Set(skipped.map((entry) => entry.key));
   const listed = new Set([...items.map((item) => item.key), ...skippedKeys, ...held]);

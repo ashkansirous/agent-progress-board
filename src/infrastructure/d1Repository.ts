@@ -80,7 +80,7 @@ interface EventRow extends ItemEvent {
  * What the board lists: open items and those done inside the window, plus the parts of a slice that is
  * itself listed, however long ago a part was done (a slice's bar counts every part; Slice 11). Only parts
  * and checks ride along: a bug or problem that names a slice is listed by its own status and window.
- * A done slice that still has a check not tried (open or in progress, `isCountedCheck`) stays listed whatever its age (Slice 42: the board's Built list);
+ * A done slice that still has a check not tried (open, in progress or blocked, `isCountedCheck`) stays listed whatever its age (Slice 42: the board's Built list);
  * the probe uses idx_items_parent_key. It runs once per row that reaches it: a done slice row asks
  * about its own checks, a done part or check row asks about its siblings (the parent subquery
  * holds no probe, so no row is probed twice).

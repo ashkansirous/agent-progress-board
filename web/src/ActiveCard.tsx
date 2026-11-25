@@ -7,7 +7,7 @@ import { projectLabel } from "./model";
 import { parentText } from "./partsText";
 import { openItemHash } from "./route";
 import { currentStepText, progressText } from "./stepsText";
-import { StepBar, StepRows } from "./stepsView";
+import { CardChecks, ReopenedLine, StepBar, StepRows } from "./stepsView";
 import { ageText } from "./time";
 import { useView } from "./view";
 
@@ -123,6 +123,8 @@ export function ActiveCard({ item, initiallyOpen = false, onScrolled }: CardProp
       {steps.length > 0 && (
         <div className="steps-open">
           <StepRows steps={steps} finished={finished} t={t} notes label={t("stepsHeading")} />
+          <CardChecks item={item} />
+          <ReopenedLine item={item} />
           <a className="back-link" href={openItemHash(item.parent_slice ? item.parent_slice.key : item.key)}>
             {t("backToBoard", { parent: parentText(item, t) ?? projectLabel(item.project, projects) })}
           </a>

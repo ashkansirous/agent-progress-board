@@ -2,6 +2,7 @@ import { expect, type Locator, type Page, test } from "@playwright/test";
 import type { BoardResponse } from "../src/api/boardDto";
 import exampleConfig from "../config/board.example.json" with { type: "json" };
 import { ItemStatus } from "../src/domain/item";
+import { type Step, StepState, WaitsOn } from "../src/domain/stepTypes";
 import { activeBoard, activeTasks, CRASH, PART_B, PART_C, STALE, treeTasks } from "./activeFixture";
 import { demoBoard, SERVER_TIME } from "./fixture";
 import { expectLoadingAfterDelay, holdBoardRoute, pageSettled, pausedClock } from "./loadingClock";
@@ -196,9 +197,35 @@ test.describe("active work page", () => {
     await expect(bug.locator(".step-row .step-state")).toHaveText(["Done", "Now", "Next", "Later"]);
   });
 
+  test("a blocked step reads orange with its note and link, a blocked-on-owner one reads red, and a slice card lists its open checks (Slice 51)", async ({ page }) => {
+    const blocked = (id: string, label: string, waits_on: WaitsOn, note: string): Step => ({
+      id, label, state: StepState.Blocked, note, started_at: null, done_at: null, started_source: null, done_source: null, waits_on, link: "https://example.com/pr/9", children: [],
+    });
+    const tasks = activeTasks().map((task) =>
+      task.key === PART_B
+        ? {
+            ...task,
+            steps: [blocked("w", "Wait for the parser", WaitsOn.Work, "waits on slice 52"), blocked("o", "Approve the design", WaitsOn.Owner, "needs your OK")],
+            checks: [{ key: `${PART_B}/check-a`, title: "Try it on the phone", status: ItemStatus.Open }],
+            reopened: { at: SERVER_TIME, status: ItemStatus.InProgress },
+          }
+        : task,
+    );
+    await openActive(page, activeBoard(tasks));
+    const part = card(page, "Part B · Search box");
+    await expect(part.locator(".step-row-blocked .step-state")).toHaveText(["Blocked", "Waiting on you"]);
+    await expect(part.locator(".step-row-owner")).toHaveCount(1);
+    await expect(part.locator(".seg-blocked.seg-owner")).toHaveCount(1);
+    await expect(part.locator(".card-checks h3")).toHaveText("Checks · 1 not tried");
+    await expect(part.locator(".card-checks .check-state")).toHaveText("Not tried");
+    await expect(part.locator(".reopened-line")).toHaveText("Reopened by the docs: the plan now says in progress");
+    await part.locator(".step-row").first().click();
+    await expect(part.locator(".step-link").first()).toHaveAttribute("href", "https://example.com/pr/9");
+  });
+
   test("a task with no active step reads Starting", async ({ page }) => {
     const starting = activeTasks().map((task) =>
-      task.key === PART_B ? { ...task, progress: { done: 0, total: 5, percent: 0, running: 0, current: null } } : task,
+      task.key === PART_B ? { ...task, progress: { done: 0, total: 5, percent: 0, running: 0, blocked: 0, open_checks: 0, current: null } } : task,
     );
     await openActive(page, activeBoard(starting));
     await expect(card(page, "Part B · Search box").locator(".progress-now")).toHaveText("Starting");
@@ -395,7 +422,7 @@ test.describe("steps on the board", () => {
     const board = demoBoard();
     const done = board.items.map((item) =>
       item.key === "garden-planner/slice-9"
-        ? { ...item, status: ItemStatus.Done, done_at: SERVER_TIME, progress: { done: 7, total: 7, percent: 100, running: 0, current: null }, working: false }
+        ? { ...item, status: ItemStatus.Done, done_at: SERVER_TIME, progress: { done: 7, total: 7, percent: 100, running: 0, blocked: 0, open_checks: 0, current: null }, working: false }
         : item,
     );
     await page.clock.setFixedTime(new Date(SERVER_TIME));
@@ -504,10 +531,10 @@ test.describe("the step tree (Slice 39)", () => {
 
   test("a done leaf opens to its note and its start, finish and duration, and a waiting one says Not started yet", async ({ page }) => {
     const book = await openTree(page, BOOK_TITLE);
-    await expect(rowAt(book, "2").locator(".step-state")).toHaveText("Done · 8 min");
+    await expect(rowAt(book, "2").locator(".step-state")).toHaveText("Done · 8 min, reported");
     await rowAt(book, "2").locator(".step-row").click();
     await expect(rowAt(book, "2").locator(".step-box")).toContainText("Text for 15 languages, 42 lines each");
-    await expect(rowAt(book, "2").locator(".step-times")).toHaveText("Started 12:35 · finished 12:43 · took 8 min");
+    await expect(rowAt(book, "2").locator(".step-times")).toHaveText("Started 12:35 · finished 12:43 · took 8 min, reported");
     await expect(rowAt(book, "4").locator(".step-state")).toHaveText("Next");
     await expect(rowAt(book, "5").locator(".step-state")).toHaveText("Later");
     await rowAt(book, "4").locator(".step-row").click();

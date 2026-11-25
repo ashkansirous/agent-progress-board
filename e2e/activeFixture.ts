@@ -2,7 +2,7 @@ import type { BoardItemDto, BoardResponse } from "../src/api/boardDto";
 import { splitSliceTitle } from "../src/domain/docSync";
 import { ItemStatus, ItemType, Priority } from "../src/domain/item";
 import { normalizeSteps, stepProgress } from "../src/domain/steps";
-import { type Step, type StepInput, StepState } from "../src/domain/stepTypes";
+import { type Step, type StepInput, StepState, TimeSource } from "../src/domain/stepTypes";
 import { demoBoard, SERVER_TIME } from "./fixture";
 
 const MS_PER_MINUTE = 60_000;
@@ -27,6 +27,10 @@ function treeStep(label: string, state: StepState, opts: { start?: number; end?:
     note: opts.note ?? null,
     started_at: opts.start === undefined ? null : minutesAgo(opts.start),
     done_at: opts.end === undefined ? null : minutesAgo(opts.end),
+    started_source: opts.start === undefined ? null : TimeSource.Reported,
+    done_source: opts.end === undefined ? null : TimeSource.Reported,
+    waits_on: null,
+    link: null,
     children: opts.children ?? [],
   };
 }

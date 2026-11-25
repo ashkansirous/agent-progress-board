@@ -8,7 +8,7 @@ import { describe, test } from 'node:test';
 import { setTimeout } from 'node:timers';
 import { fileURLToPath } from 'node:url';
 import { AGENT_FRESH_MS, mergeSteps, placeAgents, readBackgroundAgents, subagentsDir, liveAgentIds } from './background-agents.mjs';
-import { closeAnsweredWaiting, handle as remind, REMINDER_TEXT } from './goal-reminder.mjs';
+import { cardUpdate, closeAnsweredWaiting, handle as remind, REMINDER_TEXT } from './goal-reminder.mjs';
 import { SENDER_LOG_LINES, addStoppedAgent, hasMarker, listMarkers, logSender, readGoal, readStdinText, readStoppedAt, removeGoal, removeStoppedAgent, touchSeen, updateGoal, writeGoal, writeJson, writeMarker, writePrompt } from './hook-input.mjs';
 import { DEAD_SESSION_MS, closeDeadWaiting, markWaitingDone, pruneAgents, run as runDone, startContext } from './session-done.mjs';
 import { execFileSync } from 'node:child_process';
@@ -737,6 +737,32 @@ describe('waiting card title and folder (session-waiting)', () => {
 describe('goal reminder and card key (goal-reminder)', () => {
   const promptInput = { session_id: 'sess-1', hook_event_name: 'UserPromptSubmit' };
   const toolInput = (extra = {}) => ({ session_id: 'sess-1', hook_event_name: 'PostToolUse', tool_name: 'Read', ...extra });
+
+  test('a blocked step and the times the session sent are kept in the goal file, so a hook report sends them again (Slice 51)', () => {
+    const steps = [
+      { id: 'a', label: 'Write', state: 'done', started_at: '2026-11-25T10:00:00.000Z', done_at: '2026-11-25T10:05:00.000Z', done_source: 'observed' },
+      { id: 'b', label: 'Approve', state: 'blocked', note: 'needs your OK', waits_on: 'owner', link: 'https://example.com/pr/1', done_source: 'stamped' },
+      { id: 'c', label: 'Odd', state: 'waiting' },
+    ];
+    const update = cardUpdate({ tool_name: 'mcp__agent-board__report_progress', tool_input: { key: 'demo-app/task-abc', title: 'T', steps } }, null);
+    assert.deepEqual(update.steps, [
+      { id: 'a', label: 'Write', state: 'done', started_at: '2026-11-25T10:00:00.000Z', done_at: '2026-11-25T10:05:00.000Z', done_source: 'observed' },
+      { id: 'b', label: 'Approve', state: 'blocked', note: 'needs your OK', waits_on: 'owner', link: 'https://example.com/pr/1' },
+    ]);
+  });
+
+  test('a pending step sends no times and a step that is not done sends no end time (Slice 51)', () => {
+    const at = '2026-11-25T10:00:00.000Z';
+    const steps = [
+      { id: 'p', label: 'Later', state: 'pending', started_at: at, done_at: at },
+      { id: 'r', label: 'Reopened', state: 'active', started_at: at, done_at: at },
+    ];
+    const update = cardUpdate({ tool_name: 'mcp__agent-board__report_progress', tool_input: { key: 'demo-app/task-abc', title: 'T', steps } }, null);
+    assert.deepEqual(update.steps, [
+      { id: 'p', label: 'Later', state: 'pending' },
+      { id: 'r', label: 'Reopened', state: 'active', started_at: at },
+    ]);
+  });
 
   test('a session with no goal is reminded once, at its second tool call', () => {
     const env = { AGENT_BOARD_SESSION_ROOT: folder() };

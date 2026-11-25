@@ -24,7 +24,9 @@ const SESSION_AGENT = 'session'; // the agent kind the board's reporting rules g
 const SLICE_KEY = /\/slice-\d+$/;
 const TASK_KEY = /\/task-[^/]+$/;
 const BOARD_TOOL = /^mcp__(?:plugin_agent-board_)?agent-board__(report_progress|mark_done)$/;
-const STEP_STATES = new Set(['done', 'active', 'pending']);
+const STEP_STATES = new Set(['done', 'active', 'pending', 'blocked']);
+const WAITS_ON = new Set(['work', 'owner']);
+const TIME_SOURCES = new Set(['reported', 'observed']);
 
 function text(value) {
   return typeof value === 'string' ? value : '';
@@ -44,8 +46,24 @@ function stepLevel(list, depth, budget) {
       label: step.label.slice(0, STEP_LABEL_MAX),
       state: step.state,
       ...(step.note ? { note: String(step.note).slice(0, STEP_NOTE_MAX) } : {}),
+      ...(step.state === 'blocked' && WAITS_ON.has(step.waits_on) ? { waits_on: step.waits_on } : {}),
+      ...(step.state === 'blocked' && typeof step.link === 'string' && step.link ? { link: step.link } : {}),
+      ...timeFields(step),
       ...(children ? { children } : {}),
     });
+  }
+  return out;
+}
+
+// The times the session sent for a step, sent again unchanged so a hook report never turns a reported or observed time into a stamped one.
+function timeFields(step) {
+  const out = {};
+  for (const name of ['started', 'done']) {
+    if (name === 'started' && step.state === 'pending') continue; // a step not started has no start time to send
+    if (name === 'done' && step.state !== 'done') continue; // only a done step has an end; a re-opened step sends none
+    if (step[name + '_source'] === 'stamped') continue; // a server guess is never sent back: it would read as reported
+    if (typeof step[name + '_at'] === 'string' && step[name + '_at']) out[name + '_at'] = step[name + '_at'];
+    if (out[name + '_at'] && TIME_SOURCES.has(step[name + '_source'])) out[name + '_source'] = step[name + '_source'];
   }
   return out;
 }

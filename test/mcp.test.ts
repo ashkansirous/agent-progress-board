@@ -547,14 +547,18 @@ describe("raw http", () => {
     const response = await postMcp({ jsonrpc: "2.0", id: 7, method: "tools/list" }, WRITE_TOKEN);
     const json = (await response.json()) as { result: { tools: { name: string }[] } };
     expect(json.result.tools.map((t) => t.name).sort()).toEqual([
+      "apply_batch",
+      "archive_item",
       "ask_human",
       "get_item",
       "list_open",
+      "list_synced",
       "mark_done",
       "report_cap",
       "report_progress",
       "report_usage",
       "sync_snapshot",
+      "upsert_item",
     ]);
   });
 });

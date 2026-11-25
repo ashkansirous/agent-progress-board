@@ -11,7 +11,7 @@ import { basename, join } from 'node:path';
 import { describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { sliceKey } from './report-progress.mjs';
-import { MAX_CHECKS, MAX_EXPANDED_ITEMS, MAX_ITEMS, SourceError, WAIT_TARGETS, buildItems, buildSnapshot, checkHash, collect, filesForSlice, gitSource, hasEmptyStatusTable, mapStatus, openForOwner, parkNote, plain, parseParts, parsePlanTable, parseParked, parseUnverified, readUnverified, safeLinkPath, syncLine, titleFields, waitsOnlyOnWork } from './sync-docs.mjs';
+import { MAX_BATCH_ITEMS, MAX_CHECKS, SourceError, WAIT_TARGETS, buildItems, buildSnapshot, checkHash, chunkOperations, collect, docHash, filesForSlice, gitSource, hasEmptyStatusTable, mapStatus, openForOwner, parkNote, plain, parseParts, parsePlanTable, parseParked, parseUnverified, planOperations, readRemote, readUnverified, safeLinkPath, sendChunks, syncLine, titleFields, waitsOnlyOnWork } from './sync-docs.mjs';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
 const SCRIPT = join(here, 'sync-docs.mjs');
@@ -27,21 +27,46 @@ function byKey(items) {
   return Object.fromEntries(items.map((item) => [item.key, item]));
 }
 
-function startFakeBoard() {
+// A board in miniature: it keeps `held` (key -> hash, the project's doc-sync set), answers list_synced from it page by page
+// and applies apply_batch to it (an upsert stores the item's hash, a close removes the key), like the real board's tools.
+// `failAt` is the 1-based number of the apply_batch call that answers an error (nothing applied).
+function startFakeBoard({ held = {}, failAt = 0 } = {}) {
   const requests = [];
+  const state = new Map(Object.entries(held));
+  let batches = 0;
+  const reply = (res, data, isError = false) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { isError, content: [{ type: 'text', text: typeof data === 'string' ? data : JSON.stringify(data) }] } }));
+  };
+  const listSynced = ({ after_key: after, limit }) => [...state].sort(([a], [b]) => (a < b ? -1 : 1))
+    .filter(([key]) => !after || key > after).slice(0, limit).map(([key, hash]) => ({ key, status: 'open', hash }));
+  const applyBatch = ({ operations }) => {
+    const counts = { created: 0, updated: 0, unchanged: 0, closed: 0, archived: 0, raced: 0 };
+    for (const operation of operations) {
+      if (operation.op === 'close') { state.delete(operation.key); counts.closed += 1; continue; }
+      counts[state.has(operation.item.key) ? 'updated' : 'created'] += 1;
+      state.set(operation.item.key, docHash(operation.item));
+    }
+    return counts;
+  };
   const server = createServer((req, res) => {
     let body = '';
     req.on('data', (chunk) => { body += chunk; });
     req.on('end', () => {
-      const parsed = JSON.parse(body);
-      requests.push(parsed.params);
-      const text = JSON.stringify({ project: parsed.params.arguments.project, created: 1, updated: 0, closed: 0, unchanged: 0 });
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { content: [{ type: 'text', text }] } }));
+      const { params } = JSON.parse(body);
+      requests.push(params);
+      if (params.name === 'list_synced') return reply(res, listSynced(params.arguments));
+      if (params.name !== 'apply_batch') return reply(res, `unknown tool ${params.name}`, true);
+      batches += 1;
+      if (batches === failAt) return reply(res, 'board down', true);
+      return reply(res, applyBatch(params.arguments));
     });
   });
-  return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve({ server, requests, url: `http://127.0.0.1:${server.address().port}` })));
+  return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve({ server, requests, state, url: `http://127.0.0.1:${server.address().port}` })));
 }
+
+// The apply_batch calls a fake board received.
+const batchesOf = (board) => board.requests.filter((request) => request.name === 'apply_batch');
 
 function runSync(args, env) {
   return new Promise((resolve) => {
@@ -297,25 +322,118 @@ describe('snapshot items', () => {
     assert.equal(byKey(items)['demo-app/slice-5'].links, undefined);
   });
 
-  test('201 items in all: nothing is sent, no HTTP call, one stderr line with the count and the cap, exit 0', async () => {
-    const rows = Array.from({ length: 201 }, (_, index) => `| ${index + 1} | S${index + 1} | planned | | | |`).join('\n');
+  // A plan of `count` slices, each with three checks, in a folder the sync can read with --root.
+  function bigPlanRoot(count, skip = []) {
+    const numbers = Array.from({ length: count }, (_, index) => index + 1).filter((number) => !skip.includes(number));
+    const rows = numbers.map((number) => `| ${number} | S${number} | planned | | | |`).join('\n');
     const lines = Array.from({ length: 3 }, (_, index) => `- check number ${index}`).join('\n');
-    const planText = `## Status\n\n| # | Slice | Status | PR | Issue | File |\n| --- | --- | --- | --- | --- | --- |\n${rows}\n`;
-    const unverifiedText = `### Slice 1: x\n\n${lines}\n`;
-    const snapshot = buildSnapshot({ project: PROJECT, planText, unverifiedText });
-    assert.equal(snapshot.overflow, true);
-    assert.equal(snapshot.count, MAX_ITEMS + 1);
-    assert.deepEqual(snapshot.items, []);
-    const board = await startFakeBoard();
-    const root = mkdtempSync(join(tmpdir(), 'sync-over-'));
-    writeFileSync(join(root, 'plan.md'), planText);
+    const root = mkdtempSync(join(tmpdir(), 'sync-big-'));
+    writeFileSync(join(root, 'plan.md'), `## Status\n\n| # | Slice | Status | PR | Issue | File |\n| --- | --- | --- | --- | --- | --- |\n${rows}\n`);
     mkdirSync(join(root, 'docs', 'plan'), { recursive: true });
-    writeFileSync(join(root, 'docs', 'plan', 'unverified.md'), unverifiedText);
+    writeFileSync(join(root, 'docs', 'plan', 'unverified.md'), numbers.map((number) => `### Slice ${number}: x\n\n${lines}\n`).join('\n'));
+    return root;
+  }
+  const countCost = (call) => call.arguments.operations.reduce((sum, operation) => sum + (operation.op === 'upsert' ? 1 + operation.item.checks.length : 1), 0);
+
+  test('450 slices (with their checks) sync in several calls of at most 200 items each, and no "exceed the cap" line', async () => {
+    const board = await startFakeBoard();
+    const root = bigPlanRoot(450);
     const result = await runSync(['--root', root, '--project', PROJECT], { AGENT_BOARD_URL: board.url, AGENT_BOARD_TOKEN: 't' });
     board.server.close();
     assert.equal(result.code, 0);
-    assert.equal(board.requests.length, 0);
-    assert.equal(result.stderr.trim(), 'sync-docs: 201 items exceed the 200-item cap, nothing sent');
+    assert.doesNotMatch(result.stderr, /exceed the/);
+    const calls = batchesOf(board);
+    assert.equal(calls.length, 9, '450 slices of 4 items each = 1800 items, 50 slices (200 items) per call');
+    assert.ok(calls.every((call) => countCost(call) <= MAX_BATCH_ITEMS));
+    assert.equal(calls.reduce((sum, call) => sum + call.arguments.operations.length, 0), 450);
+    assert.equal(board.state.size, 450);
+    assert.match(result.stdout, /items=450 created=450 updated=0 closed=0 unchanged=0 batches=9/);
+  });
+
+  test('an unchanged plan sends nothing but the list; a removed slice is closed; an edited one is upserted', async () => {
+    const board = await startFakeBoard();
+    const args = ['--project', PROJECT];
+    const env = { AGENT_BOARD_URL: board.url, AGENT_BOARD_TOKEN: 't' };
+    await runSync(['--root', bigPlanRoot(30), ...args], env);
+    const before = batchesOf(board).length;
+    const same = await runSync(['--root', bigPlanRoot(30), ...args], env);
+    assert.equal(batchesOf(board).length, before, 'no apply_batch for an unchanged plan');
+    assert.match(same.stdout, /items=30 created=0 updated=0 closed=0 unchanged=30 batches=0/);
+    await runSync(['--root', bigPlanRoot(30, [7]), ...args], env);
+    board.server.close();
+    const last = batchesOf(board).at(-1).arguments.operations;
+    assert.deepEqual(last, [{ op: 'close', key: 'demo-app/slice-7' }]);
+    assert.equal(board.state.has('demo-app/slice-7'), false);
+    assert.equal(board.state.size, 29);
+  });
+
+  test('a failed second call stops the run, closes nothing, and the next sync sends the rest', async () => {
+    const board = await startFakeBoard({ failAt: 2 });
+    const env = { AGENT_BOARD_URL: board.url, AGENT_BOARD_TOKEN: 't' };
+    const root = bigPlanRoot(120);
+    const failed = await runSync(['--root', root, '--project', PROJECT], env);
+    assert.equal(failed.code, 0);
+    assert.match(failed.stderr, /apply_batch skipped after 1 call\(s\)/);
+    assert.equal(batchesOf(board).length, 2, 'the run stopped at the failed call');
+    assert.ok(batchesOf(board).every((call) => call.arguments.operations.every((operation) => operation.op === 'upsert')), 'no close was sent');
+    const held = board.state.size;
+    assert.ok(held > 0 && held < 120);
+    const retry = await runSync(['--root', root, '--project', PROJECT], env);
+    board.server.close();
+    assert.equal(board.state.size, 120);
+    assert.match(retry.stdout, new RegExp(`created=${120 - held}`));
+  });
+
+  test('planOperations upserts what is new or in other words and closes what left; chunkOperations packs by the board\'s count', () => {
+    const slice = (number, extra = {}) => ({ key: `demo-app/slice-${number}`, project: PROJECT, type: 'slice', title: `S${number}`, status: 'open', ...extra });
+    const items = [slice(1), slice(2, { title: 'Renamed' }), slice(3)];
+    const remote = [{ key: 'demo-app/slice-1', hash: docHash(slice(1)) }, { key: 'demo-app/slice-2', hash: docHash(slice(2)) }, { key: 'demo-app/slice-9', hash: 'x' }];
+    const plan = planOperations(items, remote);
+    assert.deepEqual(plan.operations.map((operation) => [operation.op, operation.op === 'upsert' ? operation.item.key : operation.key]), [['upsert', 'demo-app/slice-2'], ['upsert', 'demo-app/slice-3'], ['close', 'demo-app/slice-9']]);
+    assert.equal(plan.unchanged, 1);
+    const wide = (n) => ({ op: 'upsert', item: slice(n, { parts: Array.from({ length: 26 }, (_, i) => ({ letter: String.fromCharCode(65 + i), title: 't', done: false })), checks: Array.from({ length: 100 }, (_, i) => ({ key: `k${i}`, title: 't' })) }) });
+    const chunks = chunkOperations([wide(1), wide(2), { op: 'close', key: 'a' }]);
+    assert.deepEqual(chunks.map((chunk) => chunk.length), [1, 2], 'two 127-item upserts do not share a call; the close joins the second');
+  });
+
+  test('planOperations never closes or re-adds an archived key for being archived: an unchanged hash sends nothing, a changed one is an upsert', () => {
+    const slice = (number, extra = {}) => ({ key: `demo-app/slice-${number}`, project: PROJECT, type: 'slice', title: `S${number}`, status: 'open', ...extra });
+    const remote = [
+      { key: 'demo-app/slice-1', hash: docHash(slice(1)), archived: true },
+      { key: 'demo-app/slice-2', hash: docHash(slice(2)), archived: true },
+      { key: 'demo-app/slice-9', hash: 'x', archived: true },
+    ];
+    const plan = planOperations([slice(1), slice(2, { title: 'Renamed' })], remote);
+    assert.deepEqual(plan.operations.map((operation) => [operation.op, operation.item?.key ?? operation.key]), [['upsert', 'demo-app/slice-2']]);
+    assert.equal(plan.unchanged, 1);
+  });
+
+  test('readRemote follows the pages to the end, and one failed page gives no list at all', async () => {
+    const held = Object.fromEntries(Array.from({ length: 450 }, (_, i) => [`demo-app/slice-${String(i).padStart(3, '0')}`, 'h']));
+    const board = await startFakeBoard({ held });
+    const config = { url: board.url, token: 't' };
+    const all = await readRemote(config, PROJECT);
+    assert.equal(all.entries.length, 450);
+    assert.equal(board.requests.filter((request) => request.name === 'list_synced').length, 4, '200 + 200 + 50, then the empty page');
+    const calls = [];
+    const failing = await readRemote(config, PROJECT, async (_c, _n, args) => { calls.push(args); return calls.length === 2 ? { ok: false, error: 'timeout' } : { ok: true, data: [{ key: 'a' }] }; });
+    board.server.close();
+    assert.deepEqual(failing, { ok: false, error: 'timeout' });
+  });
+
+  test('readRemote treats a page the board cut at its size limit (not a list) as a failed read, so nothing is closed', async () => {
+    const pages = [{ ok: true, data: [{ key: 'a' }] }, { ok: true, data: { note: 'truncated: 1 of 200 items shown' } }];
+    const result = await readRemote({}, PROJECT, async () => pages.shift());
+    assert.equal(result.ok, false);
+    assert.match(result.error, /not return a list/);
+  });
+
+  test('sendChunks adds up the counts of the calls that went through and says how many that was', async () => {
+    const answers = [{ ok: true, data: { created: 2, raced: 1 } }, { ok: true, data: { created: 1, closed: 4 } }, { ok: false, error: 'HTTP 500' }];
+    const result = await sendChunks({}, PROJECT, [[1], [2], [3]], async () => answers.shift());
+    assert.equal(result.ok, false);
+    assert.equal(result.sent, 2);
+    assert.deepEqual([result.totals.created, result.totals.closed, result.totals.raced], [3, 4, 1]);
   });
 
   test('nested bullets fold into their parent check; the hash stays on the first line', () => {
@@ -330,7 +448,7 @@ describe('snapshot items', () => {
     assert.equal(checks[0].key, `demo-app/slice-5/check-${checkHash('- Import works on the phone')}`);
   });
 
-  test('checks do not count toward the 1000 items-plus-parts cap; they keep their own per-slice cap', () => {
+  test('checks keep their own per-slice cap, and the snapshot has no size cap', () => {
     const rows = Array.from({ length: 20 }, (_, index) => `| ${index + 1} | S${index + 1} | planned | | | |`).join('\n');
     const lines = Array.from({ length: 100 }, (_, index) => `- check number ${index}`).join('\n');
     const unverifiedText = Array.from({ length: 20 }, (_, index) => `### Slice ${index + 1}: x\n\n${lines}\n`).join('\n');
@@ -338,8 +456,7 @@ describe('snapshot items', () => {
       project: PROJECT, unverifiedText,
       planText: `## Status\n\n| # | Slice | Status | PR | Issue | File |\n| --- | --- | --- | --- | --- | --- |\n${rows}\n`,
     });
-    assert.equal(snapshot.overflow, false, '2000 checks, 20 items');
-    assert.equal(snapshot.items.length, 20);
+    assert.equal(snapshot.items.length, 20, '2000 checks, 20 items');
     assert.equal(snapshot.items[0].checks.length, MAX_CHECKS);
   });
 
@@ -360,14 +477,14 @@ describe('snapshot items', () => {
     assert.match(skill, /direct link/);
   });
 
-  test('exactly 200 items are all sent', () => {
+  test('exactly 200 items are all built', () => {
     const rows = Array.from({ length: 200 }, (_, index) => `| ${index + 1} | S${index + 1} | planned | | | |`).join('\n');
     const lines = Array.from({ length: 5 }, (_, index) => `- check number ${index}`).join('\n');
     const many = buildItems({
       project: PROJECT, planText: `## Status\n\n| # | Slice | Status | PR | Issue | File |\n| --- | --- | --- | --- | --- | --- |\n${rows}\n`,
       unverifiedText: `### Slice 1: x\n\n${lines}\n`,
     });
-    assert.equal(many.length, MAX_ITEMS);
+    assert.equal(many.length, MAX_BATCH_ITEMS);
     assert.equal(many[0].checks.length, 5);
   });
 });
@@ -441,7 +558,7 @@ describe('review fixes', () => {
 describe('sync-docs CLI', () => {
   const baseArgs = ['--root', FIXTURE, '--project', PROJECT, '--parked', join(FIXTURE, 'parked.md')];
 
-  test('sends one sync_snapshot with the project and all items; a second run sends the same', async () => {
+  test('lists what the board holds, sends the changes with apply_batch, and a second run sends nothing; sync_snapshot is never called', async () => {
     const board = await startFakeBoard();
     const env = { AGENT_BOARD_URL: board.url, AGENT_BOARD_TOKEN: 'test-token-not-real' };
     const first = await runSync(baseArgs, env);
@@ -449,13 +566,26 @@ describe('sync-docs CLI', () => {
     board.server.close();
     assert.equal(first.code, 0);
     assert.equal(second.code, 0);
-    assert.match(first.stdout, /^sync-docs: demo-app items=\d+ created=1/);
-    assert.equal(board.requests.length, 2);
-    assert.equal(board.requests[0].name, 'sync_snapshot');
-    assert.equal(board.requests[0].arguments.project, PROJECT);
-    assert.deepEqual(board.requests[1], board.requests[0]);
-    assert.equal(board.requests[0].arguments.items.length, snapshotOf().length);
+    const count = snapshotOf().length;
+    assert.match(first.stdout, new RegExp(`^sync-docs: demo-app items=${count} created=${count} updated=0 closed=0 unchanged=0 batches=1`));
+    assert.match(second.stdout, new RegExp(`^sync-docs: demo-app items=${count} created=0 updated=0 closed=0 unchanged=${count} batches=0`));
+    assert.deepEqual(board.requests.map((request) => request.name), ['list_synced', 'apply_batch', 'list_synced', 'list_synced']);
+    assert.equal(batchesOf(board)[0].arguments.project, PROJECT);
+    assert.equal(batchesOf(board)[0].arguments.operations.length, count);
+    assert.ok(batchesOf(board)[0].arguments.operations.every((operation) => operation.op === 'upsert'));
     assert.ok(!JSON.stringify(first).includes('test-token-not-real'));
+  });
+
+  test('docHash equals the vectors test/docHash.test.ts holds the board\'s copy to', () => {
+    const base = { key: 'demo-app/slice-1', project: 'demo-app', type: 'slice', title: 'One', status: 'open' };
+    const vectors = [
+      [base, '12e4cfaf3af5fa'],
+      [{ ...base, why: 'Because', parent: 'Plan · Search', parent_key: 'demo-app/slice-0', links: [{ label: 'PR', url: 'https://example.com/pr/1' }] }, '193506bf9632d9'],
+      [{ ...base, parts: [{ letter: 'B', title: 'Two', done: true }, { letter: 'A', title: 'One', done: false }], checks: [{ key: 'demo-app/slice-1/check-b', title: 'B' }, { key: 'demo-app/slice-1/check-a', title: 'A' }] }, '0ac55f76ec7572'],
+      [{ ...base, type: 'waiting_for_me', details_md: '1. Open the page\n2. Press **Save**' }, '186ef18f34a6ef'],
+      [{ ...base, title: 'Zażółć gęślą jaźń 😀' }, '071f0592b4abc0'],
+    ];
+    for (const [item, hash] of vectors) assert.equal(docHash(item), hash);
   });
 
   test('--parked prints one stderr line per slice whose row is not parked yet and adds no item', async () => {
@@ -636,9 +766,10 @@ describe('sync-docs CLI', () => {
     const result = await runSync(['--repo', fixture.repo, '--ref', 'main', '--project', PROJECT], { AGENT_BOARD_URL: board.url, AGENT_BOARD_TOKEN: 't' });
     board.server.close();
     assert.equal(result.code, 0);
-    assert.equal(board.requests.length, 1);
-    assert.ok(board.requests[0].arguments.items.length > 0);
-    const sliceItems = board.requests[0].arguments.items.filter((item) => item.type === 'slice');
+    assert.equal(batchesOf(board).length, 1);
+    const sent = batchesOf(board)[0].arguments.operations.map((operation) => operation.item);
+    assert.ok(sent.length > 0);
+    const sliceItems = sent.filter((item) => item.type === 'slice');
     assert.ok(sliceItems.every((item) => Array.isArray(item.checks) && item.checks.length === 0), 'absent file: checks [] so the board closes them');
   });
 });
@@ -763,30 +894,26 @@ describe('slice parts (Slice 11 part D)', () => {
     return buildSnapshot({ project: PROJECT, planText: plan, sliceTexts });
   }
 
-  test('parts do not count toward the 200 item limit: 190 items and 60 parts still sync', () => {
+  test('the snapshot counts items and parts apart: 190 items and 60 parts', () => {
     const snapshot = manySlices(190, 0);
-    assert.equal(snapshot.overflow, false);
+    assert.equal(snapshot.items.length, 190);
     const withParts = manySlices(10, 6);
-    assert.equal(withParts.overflow, false);
+    assert.equal(withParts.expanded, 10 + 60);
     const rows = Array.from({ length: 190 }, (_, i) => `| ${i + 1} | S${i + 1} | planned | | | |`).join('\n');
     const plan = `## Status\n\n| # | Slice | Status | PR | Issue | File |\n| --- | --- | --- | --- | --- | --- |\n${rows}\n`;
     const letters = (n) => `#### Work\n${Array.from({ length: n }, (_, i) => `**${String.fromCharCode(65 + i)}. G**`).join('\n')}\n`;
     const mixed = buildSnapshot({ project: PROJECT, planText: plan, sliceTexts: { 1: letters(26), 2: letters(26), 3: letters(8) } });
-    assert.equal(mixed.overflow, false);
     assert.equal(mixed.items.length, 190);
     assert.equal(mixed.expanded, 190 + 60);
   });
 
-  test('more than 200 items is withheld whole; so are items plus parts over 1000', () => {
+  test('more than 200 items, or 1000 with their parts, is built whole: the sync sends it in several calls', () => {
     const items = manySlices(201, 0);
-    assert.equal(items.overflow, true);
-    assert.equal(items.limit, MAX_ITEMS);
-    assert.deepEqual(items.items, []);
+    assert.equal(items.items.length, 201);
+    assert.equal(items.overflow, undefined);
     const parts = manySlices(40, 26); // 40 + 40 * 26 = 1080
-    assert.equal(parts.overflow, true);
-    assert.equal(parts.limit, MAX_EXPANDED_ITEMS);
-    assert.equal(parts.count, 1080);
-    assert.deepEqual(parts.items, []);
+    assert.equal(parts.items.length, 40);
+    assert.equal(parts.expanded, 1080);
   });
 });
 
@@ -929,13 +1056,13 @@ describe('Slice 31: plan sync reads the documents right', () => {
     assert.throws(() => source.list('docs'), SourceError);
   });
 
-  test('on overflow a dry run prints the withheld items, not []; a send prints nothing', async () => {
+  test('a dry run of 201 items prints all of them, with no cap line', async () => {
     const rows = Array.from({ length: 201 }, (_, index) => `| ${index + 1} | S${index + 1} | planned | | | |`).join('\n');
     const root = mkdtempSync(join(tmpdir(), 'sync-dry-'));
     writeFileSync(join(root, 'plan.md'), table(rows));
     const dry = await runSync(['--root', root, '--project', PROJECT, '--dry-run'], {});
     assert.equal(JSON.parse(dry.stdout).length, 201);
-    assert.match(dry.stderr, /201 items exceed the 200-item cap, nothing sent/);
+    assert.doesNotMatch(dry.stderr, /exceed/);
     assert.ok(!dry.stdout.includes('undefined'));
   });
 

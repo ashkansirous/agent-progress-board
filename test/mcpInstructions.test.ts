@@ -4,7 +4,7 @@ import { StepState } from "../src/domain/stepTypes";
 import { HEARTBEAT_MINUTES, SERVER_INSTRUCTIONS } from "../src/mcp/instructions";
 import { postMcp, WRITE_TOKEN } from "./helpers";
 
-const MAX_CHARACTERS = 3400; // 3300 until the slice-card rule was spelled out (review of Slice 41); 2400 until Slice 39 added the step tree, under_step and step id rules; 2900 until Slice 41 added the task-with-outcome rule
+const MAX_CHARACTERS = 3650; // 3400 until Slice 50 added the archive and batch rule; 3300 until the slice-card rule was spelled out (review of Slice 41); 2400 until Slice 39 added the step tree, under_step and step id rules; 2900 until Slice 41 added the task-with-outcome rule
 
 describe("server instructions", () => {
   it("sends the reporting rules in the initialize result", async () => {

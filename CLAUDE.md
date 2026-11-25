@@ -20,9 +20,6 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
   between the BEGIN/END RULES markers of `plugin/skills/agent-board/SKILL.md` and held equal by
   `test/pluginRules.test.ts`; change both together. `plugin/` holds no owner data and no version (public repo)
   (Slice 20: docs/plan/slices/20-plugin-connect.md).
-- **Plugin scripts.** Hooks and the reporter CLI live in `plugin/scripts`; every script fails open (exit 0, short
-  timeout), keeps state only in `CLAUDE_PLUGIN_DATA`, and its tests run with `npm test`
-  (`node --test plugin/**/*.test.mjs`) (Slice 21: docs/plan/slices/21-plugin-session-cards.md).
 - **The design is in `docs/design/`.** Read every visual value (colour, size, spacing, copy)
   from those files ([README](docs/design/README.md)); never guess one and never fetch the
   design from outside the repo.
@@ -102,24 +99,9 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
 - The reporting rules an MCP client receives are one constant, `SERVER_INSTRUCTIONS` in `src/mcp/instructions.ts`,
   built from the domain constants; `docs/clients.md` tells chat users to copy it from the `initialize` result, never a
   hand copy (Slice 18: docs/plan/slices/18-agent-setup.md).
-- Plugin usage options: `report_usage` (default true, token counts), `read_plan_cap` (default false; reads Claude
-  Code's sign-in file for the plan cap, needs `report_usage` on) and `environment`. The cap reading stays opt-in.
-  The usage scripts in `plugin/scripts` keep state only in `CLAUDE_PLUGIN_DATA` (Slice 22:
-  docs/plan/slices/22-plugin-usage.md).
-- The park-reason rule (which `parked:` reasons give a blocked slice and no waiting card) lives only in
-  `waitsOnlyOnWork` in `plugin/scripts/sync-docs.mjs`; `plugin/skills/agent-board/SKILL.md` describes it in words,
-  so change the function and the words together (Slice 23: docs/plan/slices/23-plugin-plan-sync.md).
 - The chat instruction text reaches the owner only through `GET /api/chat-text` behind the Access check
   (`src/api/chatText.ts`), read from `SERVER_INSTRUCTIONS` and `CHAT_PREFACE`; never a hand copy in `web/` or docs
   (Slice 19: docs/plan/slices/19-chat-text.md).
-- A waiting card from the plugin's Notification hook opens only when something is asked (permission, elicitation, or an
-  idle prompt after a question); its text is masked by `maskSecrets` in `plugin/scripts/hooks/waiting-card.mjs` before it
-  leaves the machine; never send transcript text unmasked. The mask is a deny-list: a secret name followed by a
-  separator masks the line to its end (the next line too when the value is on it), plus shape maskers; input is cut to a
-  4096-character window and scanned linearly. Whether a card opens and which sentence is the question are decided on the
-  unmasked text; only the text that is sent is masked. The card's title reads the branch from `.git/HEAD` (`titleOf` in
-  `plugin/scripts/hooks/session-waiting.mjs`), never by running git (Slice 27: docs/plan/slices/27-needs-you-cards.md;
-  Slice 31: docs/plan/slices/31-sync-and-waiting-text.md).
 - The e2e output folder is per port (`test-results/<port>` in `playwright.config.ts`), so two suites can run at once,
   even in one worktree. Loading-delay tests use the shared clock helper `e2e/loadingClock.ts` (clock installed before
   `goto`, the 500 ms timer counted per action); never a wall-clock wait (Slice 38:
@@ -134,18 +116,10 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
 - Unlabelled usage rows are folded into the busiest named environment at read (`withBaseEnvironment` in
   `src/application/usage.ts`, pinned by `usage.baseEnvironment`); a machine must be named before any other environment
   is, and the "No label (main machine)" string shows only while none is named (Slice 28: docs/plan/slices/28-cloud-usage.md).
-- Cloud sessions load no plugin; `docs/setup/cloud.md` runs the plugin's usage scripts from a pinned download, so a
-  change to those script paths or imports must be mirrored there (Slice 28: docs/plan/slices/28-cloud-usage.md).
-- Plugin hook state needs no lock: one stop file per agent id under `<id>.stopped/`, and goal-file writes re-read and merge
-  only their own fields, then rename (`plugin/scripts/hooks/hook-input.mjs`); never add a read-modify-write of a shared
-  state file. No hook sends title or why on a session card (Slice 29: docs/plan/slices/29-agent-state-fixes.md).
 - The usage buckets are built once, in real time, by `bucketsBetween` in `src/domain/usage.ts`; the page draws the
   Worker's `{key, start, end}` list as sent and never rebuilds it, and positions come from `xOfMoment`. Every surface
   asks one offset rule, `offsetForZone`, for the zone's offset at each moment (Slice 35:
   docs/plan/slices/35-usage-page-fixes.md).
-- `planSince` in `plugin/scripts/cap-reading.mjs` is the one plan-guard rule: a status-line file is sent only when it was
-  written after the plan was first seen. Never guard on the board's last accepted plan (Slice 30:
-  docs/plan/slices/30-usage-script-fixes.md).
 - `list_open` and `get_item` replies are cut at 50,000 characters (Claude Code's own text-result limit) only by
   `cutReply` in `src/mcp/tools.ts`; it never clips ids or times, and its note names the first dropped key. Never add a
   second cut (Slice 32: docs/plan/slices/32-questions-and-rules.md).
@@ -160,10 +134,6 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
 - What a check shows and counts is `isShownCheck` / `isCountedCheck` in `src/domain/checks.ts`; `OPEN_CHECK_OF` in
   `src/infrastructure/d1Repository.ts` is built from the counted statuses; never a third copy. Retyping a live key is
   refused only in `itemProblem` (Slice 33: docs/plan/slices/33-sync-and-checks-rules.md).
-- Agent rows and the helper's row id `agent-<id>` come only from the `SubagentStart` hook
-  (`plugin/scripts/hooks/session-done.mjs`); the goal file is merged per agent (`mergeParents`), never a read-modify-write
-  of the whole `agentParents` map; every agent label passes `maskSecrets` before it is cut or sent (Slice 40:
-  docs/plan/slices/40-agents-in-tree.md).
 - A status report applies only when its time is at or after `live_status_at` (`NEXT_STATUS` in
   `src/infrastructure/d1Repository.ts`); `heartbeat_at` and `updated_at` keep the later time. A status-less report moves
   `live_status_at` only when it revives, with the same condition. Never compare a status with `heartbeat_at` (Slice 34:
@@ -173,28 +143,17 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
   holds them equal; change both (Slice 34: docs/plan/slices/34-storage-queries.md).
 - `SYNC_EVENT` is bound by `changes() > 0` and kept adjacent to its upsert, like `INSERT_EVENT`; never insert an event
   outside that binding (Slice 34: docs/plan/slices/34-storage-queries.md).
-- The own-card binding rule lives only in `mayBindCard` (`plugin/scripts/hooks/goal-reminder.mjs`): the first own-card
-  report binds, a new key moves the card only after the bound card is closed. Hooks heartbeat a slice card but never
-  close it, mark it done or set its status (Slice 41: docs/plan/slices/41-tasks-with-outcome.md).
 - A working card is an in_progress (or stale) item with an outcome, or agent "session": one rule, `isSessionItem` in
   `web/src/cards.ts`; never a second copy (Slice 41: docs/plan/slices/41-tasks-with-outcome.md).
 - An owner step (a waiting item from `ownerItem` with no `needs_you`) is recognised only by `isOwnerStep` in
   `web/src/cards.ts`; never a second copy (Slice 43: docs/plan/slices/43-owner-cards-read-right.md).
 - `<board address>` is resolved only at read on the page (`resolveBoardAddress` / `fillBoardAddress`), never stored: the
   host name stays out of the repo and the items (Slice 43: docs/plan/slices/43-owner-cards-read-right.md).
-- `plain()` in `plugin/scripts/sync-docs.mjs` keeps code spans; `checkHash` keeps its old reading so stored check keys do
-  not change (Slice 43: docs/plan/slices/43-owner-cards-read-right.md).
 - The owner-step title rule (`**You:** <action> | <steps>` into `Slice N: <action>` plus details) lives only in `ownerTitleFields` in `plugin/scripts/sync-docs.mjs`; the card's steps text only in `ownerStepDetails` in `web/src/cards.ts`. The page has one string table (English) and no locale picking (Slice 44:
   docs/plan/slices/44-english-only-owner-steps.md).
 - A doc-synced waiting item's `details_md` follows the document line: a non-null value replaces it, null clears it. The rule is `detailsOf` in `src/domain/docSync.ts` (Slice 45: docs/plan/slices/45-night-1602-follow-ups.md).
-- Every plugin card report goes through `sendCardReport` in `plugin/scripts/report-progress.mjs`, which logs the sender (hook name, session id, field names only, never text) to `senders.log`; never send a card report around it (Slice 45: docs/plan/slices/45-night-1602-follow-ups.md).
-- The "later close wins" rule lives only in `closeLaterThan` in `plugin/scripts/hooks/session-done.mjs`; `closing` in the goal file is set only for the duration of a close call, and the Stop report's time is taken before its hold write (Slice 46: docs/plan/slices/46-slice-45-follow-ups.md).
 - Board freshness after a page arrival is `isFreshLoad` / `isFreshData` in `web/src/boardState.ts`, from the `settles`
   count; never a time-based reuse window (Slice 47: docs/plan/slices/47-open-follow-ups.md).
-- The agent prune rule lives only in `liveAgentIds` (`plugin/scripts/hooks/background-agents.mjs`) used by `runningIds` in
-  `session-done.mjs`; a read it cannot make prunes nothing. The agent time is one rule, `agentTime` in the same file
-  (record mtime, else the meta file's, else unknown and kept unless a stop file names it); never add a second time
-  reading (Slice 48: docs/plan/slices/48-slice-47-follow-ups.md; Slice 49: docs/plan/slices/49-slice-48-follow-ups.md).
 - The archive rules (what an archive takes, what revives, the purge, an archived parent's time passed to its doc-synced rows) live in the write statements of `src/infrastructure/d1Repository.ts` (`ARCHIVE_ROWS`, `SYNC_UPSERT`, `SYNC_REVIVE`, `UPSERT_ITEM`, `PURGE_*`), never on an earlier read (Slice 50: docs/plan/slices/50-batch-and-archive.md).
 - The archive filters live in `BOARD_WHERE`, `EXPIRED_ROWS`, `WAITING_ROWS`, `OPEN_CHECK_OF` and `SESSION_WINDOWS`, and in their twins in `src/domain/stale.ts`; a new read of items adds `archived_at IS NULL` (Slice 50: docs/plan/slices/50-batch-and-archive.md).
 - The 30 days are `ARCHIVE_KEEP_DAYS` in `src/domain/archive.ts`; never write the number elsewhere (Slice 50: docs/plan/slices/50-batch-and-archive.md).

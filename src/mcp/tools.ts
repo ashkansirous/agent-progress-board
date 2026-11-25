@@ -1,20 +1,25 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { askHuman, type Clock, getItem, listOpen, markDone, reportProgress, syncSnapshot } from "../application/board";
+import { type ArchiveRepository, archiveItem, getItemWithArchive } from "../application/archive";
+import { applyBatch, askHuman, type Clock, listOpen, listSynced, markDone, reportProgress, syncSnapshot, upsertItem } from "../application/board";
 import type { ItemRepository, UsageRepository } from "../application/ports";
 import { reportCap, reportUsage } from "../application/usage";
 import { parseConfig } from "../config";
 import { DomainError } from "../domain/upsert";
 import { allows, Need, Scope } from "../domain/scope";
 import {
+  applyBatchShape,
+  archiveItemShape,
   askHumanShape,
   getItemShape,
   listOpenShape,
+  listSyncedShape,
   markDoneShape,
   reportCapShape,
   reportProgressShape,
   reportUsageShape,
   syncSnapshotShape,
+  upsertItemShape,
 } from "./schemas";
 
 const INTERNAL_ERROR = "internal error: the board could not complete the request";
@@ -200,7 +205,7 @@ export function fitItem<T extends { key: string; events: unknown[] }>(item: T): 
 
 export interface ToolContext {
   scope: Scope;
-  repo: ItemRepository & UsageRepository;
+  repo: ItemRepository & UsageRepository & ArchiveRepository;
   /** Raw BOARD_CONFIG, parsed only by list_open. */
   rawConfig: string | undefined;
   clock: Clock;
@@ -213,6 +218,10 @@ export enum ToolName {
   ListOpen = "list_open",
   GetItem = "get_item",
   SyncSnapshot = "sync_snapshot",
+  UpsertItem = "upsert_item",
+  ArchiveItem = "archive_item",
+  ApplyBatch = "apply_batch",
+  ListSynced = "list_synced",
   ReportUsage = "report_usage",
   ReportCap = "report_cap",
 }
@@ -224,6 +233,10 @@ export function registerTools(server: McpServer, ctx: ToolContext): void {
   registerListOpen(server, ctx);
   registerGetItem(server, ctx);
   registerSyncSnapshot(server, ctx);
+  registerUpsertItem(server, ctx);
+  registerArchiveItem(server, ctx);
+  registerApplyBatch(server, ctx);
+  registerListSynced(server, ctx);
   registerReportUsage(server, ctx);
   registerReportCap(server, ctx);
 }
@@ -261,6 +274,54 @@ function registerSyncSnapshot(server: McpServer, ctx: ToolContext): void {
       inputSchema: syncSnapshotShape,
     },
     (args) => run(ctx, Need.Snapshot, () => syncSnapshot(ctx.repo, args, ctx.clock)),
+  );
+}
+
+function registerUpsertItem(server: McpServer, ctx: ToolContext): void {
+  server.registerTool(
+    ToolName.UpsertItem,
+    {
+      description:
+        "Add or update one doc-sync item (idempotent), with its parts and checks, without touching any other item: the one-by-one form of sync_snapshot, and nothing is closed. A key that was archived comes back. Needs the static write token, since only a repo has plan documents.",
+      inputSchema: upsertItemShape,
+    },
+    (args) => run(ctx, Need.Snapshot, () => upsertItem(ctx.repo, args, ctx.clock), ToolName.UpsertItem),
+  );
+}
+
+function registerArchiveItem(server: McpServer, ctx: ToolContext): void {
+  server.registerTool(
+    ToolName.ArchiveItem,
+    {
+      description:
+        "Delete an item the safe way: archive it with everything under it. It leaves the board, list_open and every count, but is kept unchanged for 30 days (read it with get_item and include_archived), then removed for good. It takes the item's parts and checks and any other item from the plan documents under it, never a live bug, problem, waiting or session card. Upserting the key brings back what was archived with it; a report on it is refused. An item from the plan documents needs the static write token; any other item needs a write token.",
+      inputSchema: archiveItemShape,
+    },
+    (args) => run(ctx, Need.Write, () => archiveItem(ctx.repo, args, ctx.clock, allows(ctx.scope, Need.Snapshot))),
+  );
+}
+
+function registerApplyBatch(server: McpServer, ctx: ToolContext): void {
+  server.registerTool(
+    ToolName.ApplyBatch,
+    {
+      description:
+        "Add, update, close and archive many items in one atomic call: a list of operations, each upsert (the item), close (a doc-sync item that left the documents; it and its parts and checks become done) or archive (as archive_item), each key once. At most 200 items together after a slice's parts and checks are counted; a bad operation refuses the whole call and names its key; one result line per operation. Nothing relies on absence, so send only what changed, in as many calls as needed. Upsert and close need the static write token.",
+      inputSchema: applyBatchShape,
+    },
+    (args) => run(ctx, Need.Write, () => applyBatch(ctx.repo, args, ctx.clock, allows(ctx.scope, Need.Snapshot))),
+  );
+}
+
+function registerListSynced(server: McpServer, ctx: ToolContext): void {
+  server.registerTool(
+    ToolName.ListSynced,
+    {
+      description:
+        "One project's doc-sync items by key, one page at a time: key, status and a hash of what the documents last said about the item (its parts and checks included); an archived item carries archived true. A client that compares the hashes with its own documents sends only what changed. Ask for the next page with after_key = the last key shown; an empty page is the end.",
+      inputSchema: listSyncedShape,
+    },
+    (args) => run(ctx, Need.Read, async () => fitList(await listSynced(ctx.repo, args))),
   );
 }
 
@@ -311,13 +372,13 @@ function registerListOpen(server: McpServer, ctx: ToolContext): void {
 function registerGetItem(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
     ToolName.GetItem,
-    { description: "One item with its full event history.", inputSchema: getItemShape },
-    (args) => run(ctx, Need.Read, async () => fitItem(await getItem(ctx.repo, args.key))),
+    { description: "One item with its full event history. An archived item reads only with include_archived true.", inputSchema: getItemShape },
+    (args) => run(ctx, Need.Read, async () => fitItem(await getItemWithArchive(ctx.repo, args.key, args.include_archived === true))),
   );
 }
 
-async function run(ctx: ToolContext, needed: Need, work: () => Promise<unknown>): Promise<CallToolResult> {
-  if (!allows(ctx.scope, needed)) return failure(refusal(ctx.scope, needed));
+async function run(ctx: ToolContext, needed: Need, work: () => Promise<unknown>, tool: ToolName = ToolName.SyncSnapshot): Promise<CallToolResult> {
+  if (!allows(ctx.scope, needed)) return failure(refusal(ctx.scope, needed, tool));
   try {
     return success(await work());
   } catch (error) {
@@ -327,8 +388,8 @@ async function run(ctx: ToolContext, needed: Need, work: () => Promise<unknown>)
   }
 }
 
-function refusal(held: Scope, needed: Need): string {
-  if (needed === Need.Snapshot && held === Scope.Owner) return "forbidden: sync_snapshot needs the static write token";
+function refusal(held: Scope, needed: Need, tool: ToolName): string {
+  if (needed === Need.Snapshot && held === Scope.Owner) return `forbidden: ${tool} needs the static write token`;
   return "forbidden: this token is read-only, a write token is required";
 }
 

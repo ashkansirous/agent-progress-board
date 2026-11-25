@@ -12,6 +12,15 @@ export const MAX_SNAPSHOT_ITEMS = 200;
  * and the batch stays one atomic write.
  */
 export const MAX_EXPANDED_ITEMS = 1000;
+/** Items one `apply_batch` call may touch, counted after parts and checks are expanded (Slice 50). */
+export const MAX_BATCH_ITEMS = 200;
+
+/** The kinds of operation `apply_batch` takes (Slice 50). */
+export enum BatchOp {
+  Upsert = "upsert",
+  Close = "close",
+  Archive = "archive",
+}
 export const SYNC_ADDED_NOTE = "Added by doc sync";
 export const SYNC_CHANGED_NOTE = "Docs changed the status";
 /** The history note of a doc sync that moved a done item back to a live status; the reason follows the colon (Slice 51). */
@@ -100,6 +109,8 @@ export interface SyncRow extends Item {
   doc_status_at: string | null;
   /** When a report from a source other than doc-sync last set the status. */
   live_status_at: string | null;
+  /** When the item was archived (Slice 50); a sync write of the key brings it back. Left out on a row read before the column existed. */
+  archived_at?: string | null;
 }
 
 /** What the sync read; the write applies only while the row still looks like this. */
@@ -190,7 +201,8 @@ function docFieldsDiffer(stored: SyncRow, next: SyncRow): boolean {
     stored.doc_status !== next.doc_status ||
     stored.doc_status_at !== next.doc_status_at ||
     stored.status !== next.status ||
-    stored.done_at !== next.done_at
+    stored.done_at !== next.done_at ||
+    Boolean(stored.archived_at) !== Boolean(next.archived_at)
   );
 }
 
@@ -243,7 +255,15 @@ export function changeNote(from: ItemStatus, to: ItemStatus): string {
  * return flips in_doc_sync, which `docFieldsDiffer` sees; the row is saved, with no history row (the status
  * did not change) and its done_at kept. That is the right outcome: the item is in the docs again.
  */
-export function planItem(stored: SyncRow | undefined, snap: SnapshotItem, project: string, now: string, listsChecks = false): SyncWrite | null {
+export function planItem(
+  stored: SyncRow | undefined,
+  snap: SnapshotItem,
+  project: string,
+  now: string,
+  listsChecks = false,
+  /** True for `upsert_item` and an `apply_batch` upsert: the caller names the item's content, so an archived key comes back even when nothing else changed. */
+  explicit = false,
+): SyncWrite | null {
   if (!stored) {
     const event = { at: now, status: snap.status, note: SYNC_ADDED_NOTE };
     return { item: newRow(snap, project, now), event, read: null };
@@ -264,6 +284,9 @@ export function planItem(stored: SyncRow | undefined, snap: SnapshotItem, projec
     doc_status: snap.status,
     doc_status_at: docStatusAt,
     done_at: doneAt(status, stored, now),
+    // Only an explicit upsert brings an archived key back (Slice 50); `archived_at` is not a document field, so a sync
+    // of an unchanged item leaves it archived, and a sync write of a changed one clears it in storage with the subtree.
+    archived_at: explicit && stored.archived_at ? null : stored.archived_at,
   };
   if (!docFieldsDiffer(stored, next)) return null;
   const statusChanged = status !== stored.status;
@@ -301,6 +324,7 @@ export function closeTargets(
     (item) =>
       item.project === project &&
       item.in_doc_sync &&
+      !item.archived_at &&
       !listed.has(item.key) &&
       !isKeptChild(item, keepPartsOf, keepChecksOf),
   );
@@ -314,4 +338,102 @@ function isKeptChild(item: SyncRow, keepParts: Set<string>, keepChecks: Set<stri
   if (!item.parent_key) return false;
   if (item.type === ItemType.Check) return keepChecks.has(item.parent_key);
   return item.type === ItemType.Part && keepParts.has(item.parent_key);
+}
+
+/** One top-level doc-sync item of a project as `list_synced` reports it (Slice 50). */
+export interface SyncedEntry {
+  key: string;
+  status: ItemStatus;
+  /** `docHash` of the item as the documents last described it, parts and checks included. */
+  hash: string;
+  /** Present (true) only on an archived item: the plugin leaves it archived while its hash is unchanged, and an upsert (a changed hash) brings it back. */
+  archived?: true;
+}
+
+const HASH_MASK_HIGH = 2097151;
+const HASH_HEX_DIGITS = 14;
+
+/**
+ * cyrb53, a 53-bit string hash. It is not for security: it only tells whether the documents' description of an item
+ * changed, so the plugin sends only the items whose hash differs. The plugin holds a copy (`docHash` in
+ * plugin/scripts/sync-docs.mjs); `test/docHash.test.ts` and the plugin's own test hold the two equal.
+ */
+function hashText(text: string): number {
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  for (let i = 0; i < text.length; i += 1) {
+    const code = text.charCodeAt(i);
+    h1 = Math.imul(h1 ^ code, 2654435761);
+    h2 = Math.imul(h2 ^ code, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507);
+  h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507);
+  h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return 4294967296 * (HASH_MASK_HIGH & h2) + (h1 >>> 0);
+}
+
+const compareText = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+
+/**
+ * The hash of what the documents say about one item: its type, title, status, why, parent label, parent key and
+ * links, an owner step's details (the only details the documents keep refreshing), and its parts and checks
+ * in letter and key order. Priority, project and a reporter's own notes are not in it: the sync never changes them.
+ */
+export function docHash(item: SnapshotItem): string {
+  const view = [
+    item.type,
+    item.title,
+    item.status,
+    item.why ?? null,
+    item.parent ?? null,
+    item.parent_key ?? null,
+    (item.links ?? []).map((link) => [link.label, link.url]),
+    item.type === ItemType.WaitingForMe ? (item.details_md ?? null) : null,
+    [...(item.parts ?? [])].sort((a, b) => compareText(a.letter, b.letter)).map((part) => [part.letter, part.title, part.done]),
+    [...(item.checks ?? [])].sort((a, b) => compareText(a.key, b.key)).map((check) => [check.key, check.title]),
+  ];
+  return hashText(JSON.stringify(view)).toString(16).padStart(HASH_HEX_DIGITS, "0");
+}
+
+const PART_KEY_LETTER = /\/part-([A-Z])$/;
+
+/** A stored top-level item with its stored parts and checks, in the shape the plugin hashes. */
+export function storedView(row: SyncRow, children: SyncRow[]): SnapshotItem {
+  const parts: SnapshotPart[] = [];
+  const checks: SnapshotCheck[] = [];
+  for (const child of children) {
+    const letter = PART_KEY_LETTER.exec(child.key)?.[1];
+    if (child.type === ItemType.Part && letter) parts.push({ letter, title: child.title, done: child.doc_status === ItemStatus.Done });
+    else if (child.type === ItemType.Check) checks.push({ key: child.key, title: child.title });
+  }
+  return {
+    key: row.key,
+    project: row.project,
+    type: row.type,
+    title: row.title,
+    status: row.doc_status ?? row.status,
+    why: row.why,
+    parent: row.parent,
+    parent_key: row.parent_key ?? null,
+    details_md: row.details_md,
+    links: row.links,
+    parts,
+    checks,
+  };
+}
+
+/** One `list_synced` line per stored top-level item, its stored parts and checks matched by `parent_key`. */
+export function syncedEntries(rows: SyncRow[], children: SyncRow[]): SyncedEntry[] {
+  const byParent = new Map<string, SyncRow[]>();
+  for (const child of children) {
+    const parent = child.parent_key ?? "";
+    byParent.set(parent, [...(byParent.get(parent) ?? []), child]);
+  }
+  return rows.map((row) => ({
+    key: row.key,
+    status: row.status,
+    hash: docHash(storedView(row, byParent.get(row.key) ?? [])),
+    ...(row.archived_at ? { archived: true as const } : {}),
+  }));
 }

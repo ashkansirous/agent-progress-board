@@ -4,6 +4,7 @@ import {
   type ItemRepository,
   type ItemWithStepsText,
   type ItemWrite,
+  ArchivedItemError,
   StepsChangedError,
   type SessionWindow,
   type StaleCutoffs,
@@ -14,6 +15,8 @@ import {
   type TaskInfo,
   type UsageRepository,
 } from "../application/ports";
+import type { ArchiveRepository, ArchiveRequest, BatchApplied, PurgeCounts, SyncedPage } from "../application/archive";
+import { ARCHIVED_NOTE } from "../domain/archive";
 import { COUNTED_CHECK_STATUSES } from "../domain/checks";
 import type { CapReading } from "../domain/cap";
 import type { UsageSample } from "../domain/usage";
@@ -54,9 +57,10 @@ interface SyncItemRow extends ItemRow {
   doc_status: string | null;
   doc_status_at: string | null;
   live_status_at: string | null;
+  archived_at: string | null;
 }
 
-const SYNC_COLUMNS: ReadonlySet<string> = new Set(["in_doc_sync", "doc_status", "doc_status_at", "live_status_at"]);
+const SYNC_COLUMNS: ReadonlySet<string> = new Set(["in_doc_sync", "doc_status", "doc_status_at", "live_status_at", "archived_at"]);
 
 /** An item and its ancestors, nearest first, at most ?2 deep; the walk carries the visited keys (`path`, joined by the unit separator) and stops at a repeat, so a stored loop reads each key once (Slice 49 2). */
 export const CHAIN_ROWS = `WITH RECURSIVE chain(key, depth, path) AS (
@@ -87,14 +91,14 @@ interface EventRow extends ItemEvent {
  */
 const COUNTED_CHECK_SQL = COUNTED_CHECK_STATUSES.map((status) => `'${status}'`).join(", ");
 const OPEN_CHECK_OF = (parentKey: string) => `EXISTS (
-    SELECT 1 FROM items c WHERE c.parent_key = ${parentKey} AND c.type = 'check' AND c.status IN (${COUNTED_CHECK_SQL}))`;
+    SELECT 1 FROM items c WHERE c.parent_key = ${parentKey} AND c.archived_at IS NULL AND c.type = 'check' AND c.status IN (${COUNTED_CHECK_SQL}))`;
 const OWN_FILTERS = "(?2 IS NULL OR project = ?2) AND (?3 IS NULL OR type = ?3)";
 const LISTED_BY_ITSELF = `(status != 'done' OR done_at > ?1 OR (type = 'slice' AND ${OPEN_CHECK_OF("items.key")}))`;
-/** The slices the page lists (the type filter applies to them), read once as a list, never per row: no correlated probe per part (Slice 34). */
-const LISTED_SLICES = `SELECT p.key FROM items p WHERE p.type = 'slice'
+/** The slices the page lists (the type filter applies to them), read once as a list, never per row: no correlated probe per part (Slice 34). An archived slice is not listed (Slice 50). */
+const LISTED_SLICES = `SELECT p.key FROM items p WHERE p.type = 'slice' AND p.archived_at IS NULL
     AND (p.status != 'done' OR p.done_at > ?1 OR ${OPEN_CHECK_OF("p.key")})`;
-/** What list_open returns: only what is listed by itself, filtered by project and type. */
-export const BOARD_WHERE_OWN = `${LISTED_BY_ITSELF} AND ${OWN_FILTERS}`;
+/** What list_open returns: only what is listed by itself, filtered by project and type; an archived item is never listed (Slice 50). */
+export const BOARD_WHERE_OWN = `archived_at IS NULL AND ${LISTED_BY_ITSELF} AND ${OWN_FILTERS}`;
 /**
  * The board page's rows: those, plus the riders of a listed slice (the slice's own listing ignores the type
  * filter, so a `part` or `check` filter still finds its riders): every part (done ones too, for the bar) and the
@@ -102,7 +106,7 @@ export const BOARD_WHERE_OWN = `${LISTED_BY_ITSELF} AND ${OWN_FILTERS}`;
  * `slice` (the whole tile), or their own type.
  */
 export const BOARD_WHERE = `(${BOARD_WHERE_OWN}
-    OR (type IN ('part', 'check') AND (type = 'part' OR status != 'done') AND (?2 IS NULL OR project = ?2)
+    OR (archived_at IS NULL AND type IN ('part', 'check') AND (type = 'part' OR status != 'done') AND (?2 IS NULL OR project = ?2)
       AND (?3 IS NULL OR ?3 = 'slice' OR type = ?3)
       AND parent_key IN (${LISTED_SLICES})))`;
 
@@ -172,7 +176,7 @@ const SET_CHANGEABLE = CHANGEABLE_COLUMNS.map((col, i) =>
  * The rule of isExpired (domain/stale.ts) in SQL: ?1 is the cutoff, an ISO time; ?4 the shorter one
  * for a session card (agent = SESSION_AGENT). Every statement using it binds all four parameters.
  */
-export const EXPIRED_ROWS = `status IN (${LIVE_STATUS_LIST}) AND live_status_at IS NOT NULL
+export const EXPIRED_ROWS = `archived_at IS NULL AND status IN (${LIVE_STATUS_LIST}) AND live_status_at IS NOT NULL
   AND (doc_status_at IS NULL OR live_status_at > doc_status_at)
   AND heartbeat_at < MAX(?1, ?4)
   AND heartbeat_at < CASE WHEN agent = '${SESSION_AGENT}' THEN ?4 ELSE ?1 END`;
@@ -191,7 +195,7 @@ const STALE_ITEMS = `UPDATE items SET status = '${ItemStatus.Stale}', updated_at
  * kept while a slice or part is its `parent_key`, and when doc sync made it.
  */
 const WAITING_KEPT_TYPES = WAITING_KEPT_PARENT_TYPES.map((type) => `'${type}'`).join(", ");
-export const WAITING_ROWS = `type = '${ItemType.WaitingForMe}' AND status != '${ItemStatus.Done}' AND in_doc_sync = 0
+export const WAITING_ROWS = `type = '${ItemType.WaitingForMe}' AND status != '${ItemStatus.Done}' AND in_doc_sync = 0 AND archived_at IS NULL
   AND heartbeat_at < ?1
   AND NOT EXISTS (SELECT 1 FROM items p WHERE p.key = items.parent_key AND p.type IN (${WAITING_KEPT_TYPES}))`;
 
@@ -230,27 +234,30 @@ const UPSERT_ITEM = `INSERT INTO items (key, project, parent, type, priority, st
   done_at = CASE WHEN ${NEXT_STATUS} = 'done'
     THEN CASE WHEN status = 'done' THEN COALESCE(done_at, ?12) ELSE ?12 END
     ELSE NULL END
-  WHERE ${GUARD_FLAG} = 0 OR items.steps IS ${GUARD_STEPS}
+  WHERE items.archived_at IS NULL AND (${GUARD_FLAG} = 0 OR items.steps IS ${GUARD_STEPS})
   RETURNING *`;
 
 /**
  * A doc-sync write: the row is computed in the domain from one read, so only the columns sync
  * owns are set on an existing key; type, priority, details, heartbeat and created_at stay.
  * ?20 and ?21 are the updated_at and live_status_at the sync read (null for a new key): the
- * update applies only while the row still has them, so it never acts on a stale read.
+ * update applies only while the row still has them, so it never acts on a stale read. A doc-synced row takes its parent's
+ * `archived_at` (null when the parent is live or absent), insert and update alike, so none sits live under an archived parent.
  * ?22 is details_md as the domain decided it (`detailsOf` in docSync.ts: a reporter's notes are kept, the documents' own
  * text is refreshed); the compare-and-swap above means it was decided from the row as it still is.
  */
 const SYNC_UPSERT = `INSERT INTO items (key, project, parent, type, priority, status, title, why, links,
   source, heartbeat_at, created_at, updated_at, done_at, in_doc_sync, doc_status, doc_status_at, live_status_at,
-  parent_key, details_md)
-  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?22)
+  parent_key, details_md, archived_at)
+  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?22,
+    CASE WHEN ?15 = 1 THEN (SELECT p.archived_at FROM items p WHERE p.key = ?19) END)
   ON CONFLICT (key) DO UPDATE SET type = excluded.type, parent = excluded.parent, parent_key = excluded.parent_key,
   status = excluded.status,
   title = excluded.title, why = excluded.why, links = excluded.links, source = excluded.source,
   updated_at = excluded.updated_at, done_at = excluded.done_at, in_doc_sync = excluded.in_doc_sync,
   doc_status = excluded.doc_status, doc_status_at = excluded.doc_status_at,
-  details_md = excluded.details_md
+  details_md = excluded.details_md,
+  archived_at = excluded.archived_at
   WHERE items.updated_at IS ?20 AND items.live_status_at IS ?21`;
 
 /**
@@ -266,7 +273,7 @@ const SYNC_EVENT = `INSERT INTO events (item_key, at, status, source, note)
  * one statement. Like the write guard, a row whose updated_at or live_status_at moved since
  * the read (a live report, even one with the same status) is left open.
  */
-const CLOSE_ROWS = `in_doc_sync = 1
+const CLOSE_ROWS = `in_doc_sync = 1 AND archived_at IS NULL
   AND key IN (SELECT json_extract(k.value, '$.key') FROM json_each(?1) AS k)
   AND EXISTS (
   SELECT 1 FROM json_each(?1) AS r
@@ -283,6 +290,70 @@ const CLOSE_ITEMS = `UPDATE items SET in_doc_sync = 0, doc_status = 'done', doc_
   done_at = CASE WHEN status = 'done' THEN COALESCE(done_at, ?2) ELSE ?2 END,
   source = CASE WHEN status = 'done' THEN source ELSE ?3 END, status = 'done', updated_at = ?2
   WHERE ${CLOSE_ROWS}`;
+
+/**
+ * ?1 now, ?2 a JSON list of keys, ?3 1 when the caller may write plan items. Archives each key and the plan-owned rows
+ * under it (recursive on `parent_key`, only rows with `in_doc_sync = 1` or a part or check); a live bug, problem,
+ * waiting or agent card under it is never taken. A row already archived keeps its first time (Slice 50). The permission
+ * condition is in this statement: a caller without the sync scope archives only while no row it would take is
+ * doc-synced, else the statement changes nothing (`changes() = 0`, which the caller reads as a refusal).
+ */
+const ARCHIVE_ROWS = `WITH RECURSIVE sub(key) AS (
+    SELECT value FROM json_each(?2)
+    UNION SELECT c.key FROM items c JOIN sub ON c.parent_key = sub.key
+      AND (c.in_doc_sync = 1 OR c.type IN ('${ItemType.Part}', '${ItemType.Check}')))
+  UPDATE items SET archived_at = ?1 WHERE archived_at IS NULL
+  AND key IN (SELECT key FROM sub)
+  AND (?3 = 1 OR NOT EXISTS (SELECT 1 FROM items s WHERE s.key IN (SELECT key FROM sub) AND s.archived_at IS NULL AND s.in_doc_sync = 1))`;
+
+/**
+ * Brings the archived subtree of one key back (Slice 50): the key and every descendant reached only through rows whose
+ * `archived_at` equals the key's own, so a row archived at another time is neither revived nor passed through. The
+ * key's time is read inside the statement. The guard is the same compare-and-swap the upsert right after it carries,
+ * so a write that loses it revives nothing. Runs BEFORE the upsert, which clears the key's own time.
+ * ?1 key, ?2 the updated_at and ?3 the live_status_at the sync read (the guard of SYNC_UPSERT).
+ */
+const SYNC_REVIVE = `UPDATE items SET archived_at = NULL WHERE key IN (
+  WITH RECURSIVE sub(key, at) AS (
+    SELECT r.key, r.archived_at FROM items r
+      WHERE r.key = ?1 AND r.archived_at IS NOT NULL AND r.updated_at IS ?2 AND r.live_status_at IS ?3
+    UNION SELECT c.key, c.archived_at FROM items c JOIN sub ON c.parent_key = sub.key AND c.archived_at = sub.at)
+  SELECT key FROM sub)`;
+
+/**
+ * ?1 project, ?2 the last key of the previous page (null for the first), ?3 limit: the live top-level doc-sync rows by
+ * key. A part or check is read with its slice (`SYNCED_CHILDREN`), never listed alone.
+ */
+const SYNCED_ROWS = `SELECT * FROM items WHERE project = ?1 AND in_doc_sync = 1
+  AND type NOT IN ('${ItemType.Part}', '${ItemType.Check}') AND (?2 IS NULL OR key > ?2) ORDER BY key LIMIT ?3`;
+
+/** ?1 a JSON list of slice keys: their doc-sync parts and checks, archived ones too (the hash covers what the documents list). */
+const SYNCED_CHILDREN = `SELECT * FROM items WHERE in_doc_sync = 1
+  AND type IN ('${ItemType.Part}', '${ItemType.Check}') AND parent_key IN (SELECT value FROM json_each(?1))`;
+
+/**
+ * ?1 cutoff, ?2 limit: the keys one purge chunk removes; the three statements pick the same rows (the unlink changes no
+ * row the choice reads, and the events delete touches another table). Only the time counts: a row archived with its
+ * parent has the parent's time, one archived on its own has its own (Slice 50).
+ */
+const PURGE_KEYS = `SELECT key FROM items WHERE archived_at IS NOT NULL AND archived_at < ?1
+  ORDER BY key LIMIT ?2`;
+/**
+ * A row that names a purged item (a bug, problem or waiting card of the slice) loses the link, so no `parent_key` is left
+ * dangling. A doc-synced row keeps its `parent_key`: the documents own it, and clearing it would make its hash differ.
+ */
+const PURGE_UNLINK = `UPDATE items SET parent_key = NULL WHERE in_doc_sync = 0 AND parent_key IN (${PURGE_KEYS})`;
+const PURGE_EVENTS = `DELETE FROM events WHERE item_key IN (${PURGE_KEYS})`;
+const PURGE_ITEMS = `DELETE FROM items WHERE key IN (${PURGE_KEYS})`;
+
+/**
+ * ?1 now, ?2 a JSON list of keys: one `archived` history row for each named key that the archive update right before it
+ * archived (an already archived key kept its first time). Bound by `changes() > 0` like INSERT_EVENT and SYNC_EVENT, so
+ * an update that archived nothing adds no row; keep the two statements adjacent.
+ */
+const ARCHIVE_EVENTS = `INSERT INTO events (item_key, at, status, source, note)
+  SELECT key, ?1, status, source, '${ARCHIVED_NOTE}' FROM items
+  WHERE archived_at = ?1 AND key IN (SELECT value FROM json_each(?2)) AND changes() > 0`;
 
 /**
  * ?1 now, ?2 note (the caller's, else Heartbeat when `changesNothing` found the request changed only the
@@ -331,7 +402,7 @@ const SESSION_WINDOWS = `SELECT environment, start_at, end_at FROM (
   SELECT i.environment AS environment, MIN(e.at) AS start_at, MAX(e.at) AS end_at,
     ROW_NUMBER() OVER (PARTITION BY ${ENVIRONMENT_IDENTITY("i.environment")} ORDER BY MAX(e.at) DESC, i.key) AS rn
   FROM items i JOIN events e ON e.item_key = i.key
-  WHERE i.agent = ?1 AND i.environment IS NOT NULL AND i.environment <> '' AND e.status <> '${ItemStatus.Stale}'
+  WHERE i.agent = ?1 AND i.archived_at IS NULL AND i.environment IS NOT NULL AND i.environment <> '' AND e.status <> '${ItemStatus.Stale}'
     AND NOT EXISTS (SELECT 1 FROM usage_series s WHERE s.kind = 'environment'
       AND ${ENVIRONMENT_IDENTITY("s.value")} = ${ENVIRONMENT_IDENTITY("i.environment")})
   GROUP BY i.key HAVING MAX(e.at) >= ?2
@@ -438,7 +509,7 @@ interface CapReadingRow {
   source: string | null;
 }
 
-export class D1ItemRepository implements ItemRepository, UsageRepository {
+export class D1ItemRepository implements ItemRepository, UsageRepository, ArchiveRepository {
   constructor(private readonly db: D1Database) {}
 
   async saveUsage(sample: UsageSample, now: string): Promise<boolean> {
@@ -537,16 +608,24 @@ export class D1ItemRepository implements ItemRepository, UsageRepository {
     const guarded = write.ifStepsText !== undefined;
     const stored = await this.db.prepare("SELECT * FROM items WHERE key = ?1").bind(key).first<SyncItemRow>();
     const eventNote = note ?? quietNote(stored, write);
+    // A report never revives: UPSERT_ITEM itself skips an archived row (`archived_at IS NULL` in its WHERE), so a report that
+    // finds the key archived writes nothing and is refused below, whatever happened between the read above and the batch.
     const statements = [
       this.db.prepare(UPSERT_ITEM).bind(...upsertParams(write)),
       this.db.prepare(INSERT_EVENT).bind(write.now, eventNote, key),
     ];
     if (eventNote === HEARTBEAT_NOTE) statements.push(this.db.prepare(COALESCE_HEARTBEATS).bind(key, HEARTBEAT_NOTE));
-    const [upserted] = await this.db.batch(statements);
-    const row = upserted?.results[0] as ItemRow | undefined;
+    const results = await this.db.batch(statements);
+    const row = results[0]?.results[0] as ItemRow | undefined;
+    if (!row && (await this.isArchived(key))) throw new ArchivedItemError(key);
     if (!row && guarded) throw new StepsChangedError();
     if (!row) throw new Error(`upsert of ${key} returned no row`);
     return toItem(row);
+  }
+
+  private async isArchived(key: string): Promise<boolean> {
+    const row = await this.db.prepare("SELECT archived_at FROM items WHERE key = ?1").bind(key).first<{ archived_at: string | null }>();
+    return Boolean(row?.archived_at);
   }
 
   async loadForSync(project: string, keys: string[]): Promise<SyncRow[]> {
@@ -559,11 +638,25 @@ export class D1ItemRepository implements ItemRepository, UsageRepository {
   }
 
   async applySync(writes: SyncWrite[], closes: SyncRow[], now: string): Promise<SyncApplied> {
+    const { written, closed } = await this.runSync(writes, closes, { keys: [], canSync: true }, now);
+    return { written, closed };
+  }
+
+  async applyBatch(writes: SyncWrite[], closes: SyncRow[], archive: ArchiveRequest, now: string): Promise<BatchApplied> {
+    return this.runSync(writes, closes, archive, now);
+  }
+
+  /** The sync's statements (writes with their events, chunked closes) and the archive, in one batch; the tally reads each statement's own row count. */
+  private async runSync(writes: SyncWrite[], closes: SyncRow[], archive: ArchiveRequest, now: string): Promise<BatchApplied> {
+    const archiveKeys = archive.keys;
     const upsert = this.db.prepare(SYNC_UPSERT);
     const event = this.db.prepare(SYNC_EVENT);
     const statements: D1PreparedStatement[] = [];
     const upsertAt = new Map<number, string>();
+    const revive = this.db.prepare(SYNC_REVIVE);
     for (const { item, event: change, read } of writes) {
+      // The revive runs for every write of an existing key, so an archive that landed after the read is still undone with the write.
+      if (read) statements.push(revive.bind(item.key, read.updated_at, read.live_status_at));
       upsertAt.set(statements.length, item.key);
       statements.push(upsert.bind(...syncParams(item), read?.updated_at ?? null, read?.live_status_at ?? null, item.details_md));
       if (change) statements.push(event.bind(item.key, change.at, change.status, DOC_SYNC_SOURCE, change.note));
@@ -574,15 +667,44 @@ export class D1ItemRepository implements ItemRepository, UsageRepository {
       closeAt.add(statements.length);
       statements.push(this.db.prepare(CLOSE_ITEMS).bind(rows, now, DOC_SYNC_SOURCE));
     }
+    const archiveAt = archiveKeys.length > 0 ? statements.length : -1;
+    if (archiveKeys.length > 0) {
+      const keys = JSON.stringify(archiveKeys);
+      statements.push(this.db.prepare(ARCHIVE_ROWS).bind(now, keys, archive.canSync ? 1 : 0), this.db.prepare(ARCHIVE_EVENTS).bind(now, keys));
+    }
     const results = statements.length > 0 ? await this.db.batch(statements) : [];
     const written = new Set<string>();
     let closed = 0;
+    let archived = 0;
     results.forEach((result, index) => {
       const key = upsertAt.get(index);
       if (key !== undefined && (result.meta.changes ?? 0) > 0) written.add(key);
       if (closeAt.has(index)) closed += result.meta.changes ?? 0;
+      if (index === archiveAt) archived = result.meta.changes ?? 0;
     });
-    return { written, closed };
+    return { written, closed, archived };
+  }
+
+  async findWithArchive(key: string): Promise<{ item: Item | null; archivedAt: string | null }> {
+    const row = await this.db.prepare("SELECT * FROM items WHERE key = ?1").bind(key).first<SyncItemRow>();
+    return { item: row ? toItem(row) : null, archivedAt: row?.archived_at ?? null };
+  }
+
+  async syncedPage(project: string, afterKey: string | null, limit: number): Promise<SyncedPage> {
+    const { results } = await this.db.prepare(SYNCED_ROWS).bind(project, afterKey, limit).all<SyncItemRow>();
+    const rows = results.map(toSyncRow);
+    if (rows.length === 0) return { rows, children: [] };
+    const kids = await this.db.prepare(SYNCED_CHILDREN).bind(JSON.stringify(rows.map((row) => row.key))).all<SyncItemRow>();
+    return { rows, children: kids.results.map(toSyncRow) };
+  }
+
+  async purgeArchived(cutoff: string, limit: number): Promise<PurgeCounts> {
+    const [unlinked, , items] = await this.db.batch([
+      this.db.prepare(PURGE_UNLINK).bind(cutoff, limit),
+      this.db.prepare(PURGE_EVENTS).bind(cutoff, limit),
+      this.db.prepare(PURGE_ITEMS).bind(cutoff, limit),
+    ]);
+    return { removed: items?.meta.changes ?? 0, unlinked: unlinked?.meta.changes ?? 0 };
   }
 
   async markStale({ cutoff, sessionCutoff, waitingCutoff }: StaleCutoffs, now: string): Promise<StaleResult> {
@@ -787,6 +909,7 @@ function toSyncRow(row: SyncItemRow): SyncRow {
     doc_status: row.doc_status as ItemStatus | null,
     doc_status_at: row.doc_status_at,
     live_status_at: row.live_status_at,
+    archived_at: row.archived_at ?? null,
   };
 }
 

@@ -62,6 +62,13 @@ export interface ItemWrite {
   ifStepsText?: string | null;
 }
 
+/** A report named an archived key: `save` wrote nothing (a report never brings an archived item back; Slice 50). */
+export class ArchivedItemError extends Error {
+  constructor(readonly key: string) {
+    super(`${key} is archived`);
+  }
+}
+
 /** A guarded save found the stored steps changed since they were read (Slice 39). */
 export class StepsChangedError extends Error {
   constructor() {

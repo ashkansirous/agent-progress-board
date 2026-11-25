@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { MAX_CHECKS, MAX_KEY_LENGTH, PART_SUFFIX_LENGTH } from "../domain/checks";
-import { MAX_EXPANDED_ITEMS, MAX_SNAPSHOT_ITEMS } from "../domain/docSync";
+import { BatchOp, MAX_BATCH_ITEMS, MAX_EXPANDED_ITEMS, MAX_SNAPSHOT_ITEMS } from "../domain/docSync";
 import { ItemStatus, ItemType, Priority } from "../domain/item";
 import { MAX_PARTS } from "../domain/parts";
 import { MAX_AFTER_ANSWER, MAX_NEEDS_YOU, MAX_OUTCOME } from "../domain/upsert";
@@ -15,6 +15,7 @@ const MAX_ENVIRONMENT = 40;
 const MAX_MODEL = 100;
 const MAX_CAP_WINDOWS = 20;
 const TIME_TEXT_MAX = 40;
+const MAX_SYNCED_PAGE = 200;
 
 const key = z.string().min(1).max(MAX_KEY).describe("Stable item key, e.g. demo-app/slice-58");
 const label = z.string().min(1).max(MAX_LABEL);
@@ -194,7 +195,12 @@ export const listOpenShape = {
   window_hours: z.number().positive().optional().describe("Hours a done item stays; capped by config"),
 };
 
-export const getItemShape = { key };
+export const getItemShape = {
+  key,
+  include_archived: z.boolean().optional().describe("Also read an archived item (the reply then carries archived_at); an archived item is otherwise as good as absent"),
+};
+
+export const archiveItemShape = { key };
 
 const snapshotPart = z.object({
   letter: z.string().regex(/^[A-Z]$/, "one capital letter A to Z"),
@@ -240,6 +246,29 @@ const snapshotItem = z.object({
     .optional()
     .describe("The slice a top-level check, bug or problem belongs to (it need not be in the snapshot; a check needs one); left out keeps the stored value; null clears it (not on a check)"),
 });
+
+/** One item by itself, as the documents describe it: the same fields as a snapshot item, parts and checks included. */
+export const upsertItemShape = snapshotItem.shape;
+
+const batchOperation = z.discriminatedUnion("op", [
+  z.object({ op: z.literal(BatchOp.Upsert), item: snapshotItem.describe("Add or update this item (a key that was archived comes back)") }),
+  z.object({ op: z.literal(BatchOp.Close), key: key.describe("A doc-sync item that left the documents: it and its parts and checks become done") }),
+  z.object({ op: z.literal(BatchOp.Archive), key: key.describe("Hide this item and its parts and checks; they are removed for good 30 days later") }),
+]);
+
+export const applyBatchShape = {
+  project: label.describe("The project every operation belongs to"),
+  operations: z
+    .array(batchOperation)
+    .max(MAX_BATCH_ITEMS)
+    .describe(`Operations applied in one atomic batch, each with its own key once. At most ${MAX_BATCH_ITEMS} items together, counting a slice's parts and checks; a bad operation refuses the whole call and names its key`),
+};
+
+export const listSyncedShape = {
+  project: label.describe("The project whose doc-sync items are listed"),
+  after_key: key.optional().describe("The last key of the previous page; leave out for the first page"),
+  limit: z.number().int().min(1).max(MAX_SYNCED_PAGE).optional().describe(`Entries per page, at most ${MAX_SYNCED_PAGE}`),
+};
 
 export const syncSnapshotShape = {
   project: label.describe("The project whose doc-sync set this is"),

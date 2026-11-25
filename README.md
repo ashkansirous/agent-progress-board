@@ -140,10 +140,14 @@ Keys are stable and chosen by the reporter, for example `<project>/slice-58`.
 | `mark_done` | write | `key`, optional `source`, `note` | the item |
 | `ask_human` | write | `key`, `project`, `title`; optional `parent`, `priority`, `why`, `details_md`, `links`, `source`, `note`, `after_answer` (creates or updates a `waiting_for_me` item, open; on a key of another type it sets `needs_you` on that item instead) | the item |
 | `list_open` | read | optional `project`, `type`, `window_hours` (capped by config) | items not done, plus items done inside the window, each with its latest 20 events |
-| `get_item` | read | `key` | the item with all its events, newest first |
+| `get_item` | read | `key`, optional `include_archived` | the item with all its events, newest first; an archived item reads only with `include_archived: true` |
 | `report_usage` | write | `agent_key`, `model`, `record_at`, the four running token totals (`input_tokens`, `cache_write_tokens`, `cache_read_tokens`, `output_tokens`); optional `task_key`, `agent_kind`, `step`, `environment` | `{stored}`; the same report twice stores one sample |
 | `report_cap` | write | `taken_at`, `plan`, `windows[]` (`kind`, `percent`, optional `reset_at`), optional `source` | `{stored, windows}`; stale readings are worked out when read |
 | `sync_snapshot` | write | `project`, `items[]` (each `key`, `project`, `type`, `title`, `status`; optional `priority`, `parent`, `why`, `links`, and on a slice `parts` (`[{letter, title, done}]`); at most 200) | `{project, created, updated, closed, unchanged}`; doc-sync items missing from the list become done |
+| `upsert_item` | static write token | the fields of one `sync_snapshot` item | `{op, key, outcome, raced}`; adds or updates that item and its parts and checks, closes nothing else (Slice 50) |
+| `archive_item` | write | `key` | `{key, outcome, archived}`; there is no delete: the item and everything under it leave the board, `list_open` and every count, are kept 30 days (readable with `get_item` and `include_archived`), then the cron removes them for good (Slice 50) |
+| `apply_batch` | write (upsert and close need the static write token) | `project`, `operations[]` (`{op: "upsert", item}`, `{op: "close", key}` or `{op: "archive", key}`; at most 200 items a call, parts and checks counted) | `{project, results[], created, updated, unchanged, closed, archived, raced}`; one atomic batch, a bad operation refuses the call and names its key (Slice 50) |
+| `list_synced` | read | `project`, optional `after_key`, `limit` | `[{key, status, hash}]` (plus `archived: true` on an archived one), one page of the project's doc-sync items; the plugin compares the hashes and sends only changes (Slice 50) |
 
 Optional fields on `report_progress` and `ask_human`: leave one out to keep the stored value, send
 `null` to clear `parent`, `why`, `details_md`, `links`, `source`, `environment`, `steps`, `agent` or `model`. An empty string for `note`,

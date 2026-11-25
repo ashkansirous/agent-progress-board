@@ -3,6 +3,12 @@
 Every open "Not yet verified" check, one block per slice. A check that passes, or that the
 owner confirms, is removed here and its slice marked `verified`.
 
+### Slice 54: Cost per step: model, tokens, peak context, compactions ([slice](slices/54-step-cost.md))
+
+- [session] A real slice build's card shows the cost line on its implement-slice agent row, and `get_item` returns the same numbers.
+- [session] A real `/compact` in a live session counts one compaction on the active step.
+- [chrome] The cost line wraps on a phone-width board.
+
 ### Slice 53: Task tools become card steps with times seen by the hooks ([slice](slices/53-task-tools-steps.md))
 
 - [session] A real session with `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` shows its tasks as steps, with times within a minute of the transcript (read back with `get_item`).

@@ -36,6 +36,13 @@ export interface ParentSliceDto {
   title: string;
 }
 
+/** The newest history event when it is a doc sync's reopen; the page shows its reason. */
+export interface ReopenedDto {
+  at: string;
+  /** The status the plan now gives; the page words the reason from it. */
+  status: ItemStatus;
+}
+
 export interface BoardItemDto {
   key: string;
   project: string;
@@ -77,8 +84,12 @@ export interface BoardItemDto {
   needs_you_at: string | null;
   /** The task's steps in the order sent; null when it has none. */
   steps: Step[] | null;
-  /** Worked out at read from the steps; null when the item has no steps list. */
+  /** Worked out at read from the steps (and a slice's open checks); null when the item has no steps list. */
   progress: StepProgress | null;
+  /** A step is blocked on the owner (Slice 51): the card reads red and is listed under Needs you. Optional in a test fixture, which means false. */
+  blocked_on_owner?: boolean;
+  /** Why a doc sync moved the item back from done (Slice 51), when that is its newest event; null otherwise. */
+  reopened?: ReopenedDto | null;
   /** An agent is working on it now (the Active work rule); the page lists exactly these. */
   working: boolean;
   /** A slice's parts in letter order, worked out at read; null when it has none (no bar). */

@@ -2,6 +2,7 @@ import {
   assertSameProject,
   BatchOp,
   closeTargets,
+  keepsDoneForChecks,
   MAX_BATCH_ITEMS,
   MAX_EXPANDED_ITEMS,
   planItem,
@@ -14,7 +15,7 @@ import {
 } from "../domain/docSync";
 import { type ArchiveRepository, archiveRefused, assertMayArchive, type BatchApplied, docSyncChildren } from "./archive";
 import { type Item, ItemStatus, ItemType, type ItemWithEvents } from "../domain/item";
-import { ancestorKeys, itemProblem, MAX_PARENT_DEPTH, nestedChecks, type ParentRef } from "../domain/checks";
+import { ancestorKeys, isCountedCheck, itemProblem, MAX_PARENT_DEPTH, nestedChecks, type ParentRef } from "../domain/checks";
 import { expandParts } from "../domain/parts";
 import { DEFAULT_STALE_AFTER_MINUTES, expiryMinutesFor, hasOpenQuestion, SESSION_AGENT, staleCutoff, waitingCutoff } from "../domain/stale";
 import { checkReport, DomainError, newItem, type ReportInput, withQuestion } from "../domain/upsert";
@@ -228,6 +229,28 @@ export interface SkippedItem {
   reason: string;
 }
 
+/**
+ * The keys of the snapshot items that still list a check to do (Slice 51): a check the store has not seen, or one it
+ * holds in a counted state (`isCountedCheck`). A check the owner has done, or the docs dropped, no longer keeps a done slice done.
+ */
+function slicesWithOpenChecks(
+  items: SnapshotItem[],
+  kept: ReadonlySet<string>,
+  stored: Map<string, SyncRow>,
+  now: string,
+): Set<string> {
+  const heldRow = (check: SnapshotItem) => {
+    const row = stored.get(check.key);
+    return row !== undefined && isCountedCheck(row.status);
+  };
+  const stays = (slice: SnapshotItem) => {
+    const checks = nestedChecks(slice);
+    const applied = checks.filter((check) => kept.has(check.key));
+    return keepsDoneForChecks(applied, stored, now) || checks.some((check) => !kept.has(check.key) && heldRow(check));
+  };
+  return new Set(items.filter(stays).map((item) => item.key));
+}
+
 /** One project's full doc-sync set: merge each item, close the ones that left, one batch. */
 export async function syncSnapshot(
   repo: ItemRepository,
@@ -245,9 +268,10 @@ export async function syncSnapshot(
   const byKey = new Map(stored.map((item) => [item.key, item]));
   for (const candidate of candidates) assertSameProject(byKey.get(candidate.key), input.project);
   const { items, skipped, held } = screenSnapshot(input.project, groups, byKey);
+  const withChecks = slicesWithOpenChecks(input.items, new Set(items.map((item) => item.key)), byKey, now);
   const merges = items.map((snap) => ({
     existed: byKey.has(snap.key),
-    write: planItem(byKey.get(snap.key), snap, input.project, now),
+    write: planItem(byKey.get(snap.key), snap, input.project, now, withChecks.has(snap.key)),
   }));
   const skippedKeys = new Set(skipped.map((entry) => entry.key));
   const listed = new Set([...items.map((item) => item.key), ...skippedKeys, ...held]);
@@ -387,7 +411,12 @@ function planBatch(
   const { items, skipped } = screenSnapshot(project, groups, byKey);
   const first = skipped[0];
   if (first) throw new DomainError("operations", `field operations: ${first.key} is refused: ${first.reason}`);
-  const merges = items.map((snap) => ({ key: snap.key, existed: byKey.has(snap.key), write: planItem(byKey.get(snap.key), snap, project, now, true) }));
+  const withChecks = slicesWithOpenChecks(groups.map((group) => group.item), new Set(items.map((item) => item.key)), byKey, now);
+  const merges = items.map((snap) => ({
+    key: snap.key,
+    existed: byKey.has(snap.key),
+    write: planItem(byKey.get(snap.key), snap, project, now, withChecks.has(snap.key), true),
+  }));
   const listed = new Set(items.map((item) => item.key));
   const tops = groups.map((group) => group.item);
   const keepParts = new Set(tops.filter((i) => i.parts === undefined).map((i) => i.key));

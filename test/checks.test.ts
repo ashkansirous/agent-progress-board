@@ -232,11 +232,13 @@ describe("GET /api/board checks and problems", () => {
     expect(plan.filter((line) => /^(CORRELATED SCALAR SUBQUERY|SCAN) .*items (AS )?c\b/.test(line))).toEqual([]);
   });
 
-  it("keeps BOARD_WHERE and groupBoard equal: an old done slice is built only for an open or in-progress check, never a blocked one", async () => {
+  it("keeps BOARD_WHERE and groupBoard equal: an old done slice is built only for an open, in-progress or blocked check, never a stale one", async () => {
     await callTool("report_progress", { key: SLICE, project: PROJECT, type: "slice", title: "Slice 12 · Old", status: "done" });
-    await callTool("report_progress", { key: CHECK_A, project: PROJECT, type: "check", title: "Check A", status: "blocked", parent_key: SLICE });
+    await callTool("report_progress", { key: CHECK_A, project: PROJECT, type: "check", title: "Check A", status: "stale", parent_key: SLICE });
     await env.DB.prepare("UPDATE items SET done_at = ?1 WHERE key = ?2").bind("2020-01-01T00:00:00.000Z", SLICE).run();
     expect((await board()).groups).toEqual([]);
+    await callTool("report_progress", { key: CHECK_A, status: "blocked" });
+    expect((await board()).groups[0]!.built.map((s) => s.key)).toEqual([SLICE]);
     await callTool("report_progress", { key: CHECK_A, status: "in_progress" });
     const group = (await board()).groups[0]!;
     expect(group.built.map((s) => s.key)).toEqual([SLICE]);

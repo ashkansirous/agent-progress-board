@@ -3,14 +3,14 @@ import { type Clock, listBoardRows } from "../application/board";
 import type { BoardRow, ItemRepository } from "../application/ports";
 import { type BoardConfig, configFromRecord } from "../config";
 import { groupBoard } from "../domain/boardGroups";
-import { type CheckRow, type CheckView, checksBySlice } from "../domain/checks";
-import { splitSliceTitle } from "../domain/docSync";
-import { eventMarkerOf, type Item, type ItemStatus, ItemType } from "../domain/item";
-import { hasOpenQuestion } from "../domain/stale";
+import { type CheckRow, type CheckView, checksBySlice, countedChecks } from "../domain/checks";
+import { SYNC_REOPENED_SAYS, splitSliceTitle } from "../domain/docSync";
+import { eventMarkerOf, HEARTBEAT_NOTE, type Item, ItemStatus, ItemType, STATUS_DROPPED_NOTE } from "../domain/item";
+import { hasOpenQuestion, isHeartbeatExpired } from "../domain/stale";
 import { activePartOf, partLetterOf, partsProgress, partStateOf, shownStatusOf } from "../domain/parts";
-import { isWorkingNow, stepProgress } from "../domain/steps";
+import { isBlockedOnOwner, isWorkingNow, ownerBlockedSince, stepProgress } from "../domain/steps";
 import { resolveWindowHours } from "../domain/window";
-import type { BoardItemDto, BoardPageConfig, BoardPartDto, BoardResponse, ParentSliceDto } from "./boardDto";
+import type { BoardItemDto, BoardPageConfig, BoardPartDto, BoardResponse, ParentSliceDto, ReopenedDto } from "./boardDto";
 
 const DEFAULTS = configFromRecord(defaultConfigFile);
 
@@ -122,6 +122,37 @@ function questionFields(item: Item, shownStatus: ItemStatus, config: BoardConfig
   };
 }
 
+/**
+ * When the card started waiting on the owner: its open question's first-asked time, else (a card waiting only through an
+ * owner-blocked step, Slice 51) that step's report time, so it sorts by age in Needs you and shows its wait.
+ */
+function waitingSinceOf(item: Item, shownStatus: ItemStatus, config: BoardConfig, now: Date): string | null {
+  const asked = questionFields(item, shownStatus, config, now).needs_you_at;
+  if (asked !== null || !isLiveCard(item, shownStatus, config, now)) return asked;
+  return ownerBlockedSince(item.steps);
+}
+
+/** A card that is live: not done, not shown stale and heartbeat not expired, the same reach as an open question (`hasOpenQuestion`). */
+function isLiveCard(item: { status: ItemStatus; heartbeat_at: string }, shownStatus: ItemStatus, config: BoardConfig, now: Date): boolean {
+  return item.status !== ItemStatus.Done && shownStatus !== ItemStatus.Stale && !isHeartbeatExpired(item.heartbeat_at, config.staleAfterMinutes, now);
+}
+
+/** A slice's checks still to do (`isCountedCheck`: open, in progress or blocked), counted in its progress; 0 for any other item. */
+function openChecksOf(item: { type: ItemType; key: string }, ctx: PartsContext): number {
+  return item.type === ItemType.Slice ? countedChecks(ctx.checksOf.get(item.key) ?? []) : 0;
+}
+
+/** An event that is no change of status: a heartbeat, or a status report ignored as older. */
+const isQuietEvent = (event: { note: string | null }): boolean => event.note === HEARTBEAT_NOTE || event.note === STATUS_DROPPED_NOTE;
+
+/** A doc sync's reopen of the item: the newest event that is not a heartbeat, when it is the reopen and the item is not done again. */
+function reopenedOf(item: { status: ItemStatus; events: readonly { at: string; note: string | null }[] }): ReopenedDto | null {
+  const newest = item.events.find((event) => !isQuietEvent(event));
+  if (item.status === ItemStatus.Done || !newest?.note?.startsWith(SYNC_REOPENED_SAYS)) return null;
+  const status = newest.note.slice(SYNC_REOPENED_SAYS.length) as ItemStatus;
+  return Object.values(ItemStatus).includes(status) ? { at: newest.at, status } : null;
+}
+
 function itemDto(row: BoardRow, ctx: PartsContext): BoardItemDto {
   const { config, now } = ctx;
   const { expiry, ...item } = row;
@@ -152,8 +183,11 @@ function itemDto(row: BoardRow, ctx: PartsContext): BoardItemDto {
     model: item.model ?? null,
     outcome: item.outcome ?? null,
     ...questionFields(item, shownStatus, config, now),
+    needs_you_at: waitingSinceOf(item, shownStatus, config, now),
     steps: item.steps ?? null,
-    progress: stepProgress(item.steps, item.status),
+    progress: stepProgress(item.steps, item.status, openChecksOf(item, ctx)),
+    blocked_on_owner: isLiveCard(item, shownStatus, config, now) && isBlockedOnOwner(item.steps),
+    reopened: reopenedOf(item),
     working: item.type !== ItemType.Check && isWorkingNow({ ...item, ...expiry }, config.staleAfterMinutes, now),
     ...partsInfo,
     events: item.events.map(({ at, status, note }) => ({ at, status, note, marker: eventMarkerOf(note) })),

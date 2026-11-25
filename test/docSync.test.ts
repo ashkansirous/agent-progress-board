@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   MAX_SNAPSHOT_ITEMS,
   closeTargets,
+  keepsDoneForChecks,
   planItem,
   type SnapshotItem,
   SYNC_ADDED_NOTE,
   SYNC_CHANGED_NOTE,
+  SYNC_REOPENED_NOTE,
+  changeNote,
   type SyncRow,
   validateSnapshot,
 } from "../src/domain/docSync";
@@ -167,5 +170,53 @@ describe("validateSnapshot", () => {
     const many = Array.from({ length: MAX_SNAPSHOT_ITEMS + 1 }, (_, i) => ({ ...snap, key: `k${i}` }));
     expect(() => validateSnapshot(PROJECT, many)).toThrow(String(MAX_SNAPSHOT_ITEMS));
     expect(() => validateSnapshot(PROJECT, [])).not.toThrow();
+  });
+});
+
+describe("a done slice and the docs (Slice 51 C, D)", () => {
+  const doneRow = (): SyncRow => synced({ status: ItemStatus.Done, done_at: T1, doc_status: ItemStatus.Done, doc_status_at: T1 });
+  const withCheck = { ...snap, status: ItemStatus.InProgress, checks: [{ key: "demo-app/slice-1/check-a", title: "Try it on the phone" }] };
+
+  it("does not move a done slice with an open check back to in progress", () => {
+    const write = planItem(doneRow(), withCheck, PROJECT, T3, true)!;
+    expect(write.item).toMatchObject({ status: ItemStatus.Done, doc_status: ItemStatus.InProgress });
+    expect(write.event).toBeNull();
+  });
+
+  it("reopens a done slice that lists no check, and writes the reason as the history note", () => {
+    const write = planItem(doneRow(), { ...snap, status: ItemStatus.InProgress }, PROJECT, T3)!;
+    expect(write.item.status).toBe(ItemStatus.InProgress);
+    expect(write.event).toEqual({ at: T3, status: ItemStatus.InProgress, note: `${SYNC_REOPENED_NOTE}: the plan now says in_progress` });
+    expect(changeNote(ItemStatus.Open, ItemStatus.InProgress)).toBe(SYNC_CHANGED_NOTE);
+  });
+});
+
+describe("keepsDoneForChecks (Slice 51 D, decided from the resulting checks)", () => {
+  const checkSnap = (key: string): SnapshotItem => ({
+    key, project: PROJECT, type: ItemType.Check, title: key, status: ItemStatus.Open, parent_key: "demo-app/slice-1",
+  });
+  const storedCheck = (key: string, status: ItemStatus): SyncRow => ({
+    ...planItem(undefined, checkSnap(key), PROJECT, T1)!.item,
+    status,
+    live_status_at: status === ItemStatus.Done ? T2 : null,
+  });
+  const none = new Map<string, SyncRow>();
+
+  it("keeps done for a check new in this snapshot", () => {
+    expect(keepsDoneForChecks([checkSnap("demo-app/slice-1/a")], none, T3)).toBe(true);
+  });
+
+  it("keeps done for a stored open check", () => {
+    const stored = new Map([["demo-app/slice-1/a", storedCheck("demo-app/slice-1/a", ItemStatus.Open)]]);
+    expect(keepsDoneForChecks([checkSnap("demo-app/slice-1/a")], stored, T3)).toBe(true);
+  });
+
+  it("reopens when every check ends done", () => {
+    const stored = new Map([["demo-app/slice-1/a", storedCheck("demo-app/slice-1/a", ItemStatus.Done)]]);
+    expect(keepsDoneForChecks([checkSnap("demo-app/slice-1/a")], stored, T3)).toBe(false);
+  });
+
+  it("reopens when the slice lists no check", () => {
+    expect(keepsDoneForChecks([], none, T3)).toBe(false);
   });
 });

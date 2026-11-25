@@ -1,7 +1,7 @@
 import { ItemStatus } from "./item";
 import { DomainError } from "./errors";
 import { type ExpiryRow, isHeartbeatExpired } from "./stale";
-import { leavesOf, type Step, type StepInput, type StepProgress, StepState } from "./stepTypes";
+import { leavesOf, ownerBlockedSteps, type Step, type StepInput, type StepProgress, StepState, TimeSource, WaitsOn } from "./stepTypes";
 
 /** Steps in the whole tree, parents and leaves together (Slice 39). */
 export const MAX_STEPS = 200;
@@ -10,7 +10,13 @@ export const MAX_STEP_DEPTH = 4;
 export const MAX_STEP_LABEL = 80;
 export const MAX_STEP_NOTE = 120;
 export const MAX_STEP_ID = 80;
+export const MAX_STEP_LINK = 500;
+const HTTP_PROTOCOLS = ["http:", "https:"];
+/** How far ahead of the server's clock a reported time may be (clock skew between the reporter and the Worker). */
+export const REPORTED_TIME_SKEW_MS = 60_000;
 const PERCENT = 100;
+/** A card with an open check never reads 100%. */
+const MAX_PERCENT_WITH_OPEN_CHECK = 99;
 const ID_SEPARATOR = "/";
 
 function fail(message: string): never {
@@ -22,9 +28,33 @@ function checkStep(step: StepInput, at: string): void {
     fail(`${at} label needs 1 to ${MAX_STEP_LABEL} characters`);
   }
   if ((step.note ?? "").trim().length > MAX_STEP_NOTE) fail(`${at} note needs at most ${MAX_STEP_NOTE} characters`);
-  if (!Object.values(StepState).includes(step.state)) fail(`${at} state must be done, active or pending`);
+  if (!Object.values(StepState).includes(step.state)) fail(`${at} state must be done, active, pending or blocked`);
   if (step.id !== undefined && (step.id.trim().length < 1 || step.id.trim().length > MAX_STEP_ID)) {
     fail(`${at} id needs 1 to ${MAX_STEP_ID} characters`);
+  }
+  checkBlocked(step, at);
+}
+
+/** A blocked step says what it waits on (its note). A bad `waits_on` or `link` never refuses the report: `buildStep` drops it. */
+function checkBlocked(step: StepInput, at: string): void {
+  if (step.state === StepState.Blocked && (step.note ?? "").trim().length < 1) fail(`${at} is blocked: its note must say what it waits on`);
+}
+
+function validWaitsOn(value: string | null | undefined): WaitsOn | null {
+  return Object.values(WaitsOn).find((known) => known === value) ?? null;
+}
+
+/** A blocked step's link as stored: a well-formed http(s) URL within the length limit, else none (dropped, never refused). */
+function validLink(value: string | null | undefined): string | null {
+  const link = value?.trim() ?? "";
+  return link.length > 0 && link.length <= MAX_STEP_LINK && isHttpUrl(link) ? link : null;
+}
+
+function isHttpUrl(value: string): boolean {
+  try {
+    return HTTP_PROTOCOLS.includes(new URL(value).protocol);
+  } catch {
+    return false;
   }
 }
 
@@ -63,7 +93,7 @@ export interface StampContext {
 interface BuildContext {
   /** The ids the report gives explicitly, anywhere in its tree. */
   explicit: ReadonlySet<string>;
-  stamp: (input: StepInput, id: string, state: StepState) => Pick<Step, "started_at" | "done_at">;
+  stamp: (input: StepInput, id: string, state: StepState) => TimeFields;
   kept: (id: string) => Step | undefined;
 }
 
@@ -127,7 +157,10 @@ function buildStep(input: StepInput, ctx: BuildContext): Step {
   const id = input.id!.trim();
   const sent = input.children !== undefined && input.state === StepState.Done ? asDone(input.children) : input.children;
   const children = sent === undefined ? keptChildren(ctx.kept(id), input.state, ctx) : buildSteps(sent, ctx);
-  return { id, label: input.label.trim(), state: input.state, note: input.note?.trim() || null, ...ctx.stamp(input, id, input.state), children };
+  const blocked = input.state === StepState.Blocked;
+  const waitsOn = blocked ? (validWaitsOn(input.waits_on) ?? WaitsOn.Work) : null;
+  const link = blocked ? validLink(input.link) : null;
+  return { id, label: input.label.trim(), state: input.state, note: input.note?.trim() || null, ...ctx.stamp(input, id, input.state), waits_on: waitsOn, link, children };
 }
 
 function buildSteps(inputs: readonly StepInput[], ctx: BuildContext): Step[] {
@@ -182,16 +215,87 @@ function checkTree(steps: readonly Step[]): void {
   if (deepest(steps as Step[], 0) > MAX_STEP_DEPTH) fail(`at most ${MAX_STEP_DEPTH} levels of sub-steps`);
 }
 
-/** The stamps of a step after a report: kept by id while the step stays started or done, else this report's time. */
+/** The four time fields of a stored step. */
+type TimeFields = Pick<Step, "started_at" | "done_at" | "started_source" | "done_source">;
+
+interface TimeValue {
+  at: string;
+  source: TimeSource;
+}
+
+const SOURCE_RANK: Record<TimeSource, number> = { [TimeSource.Observed]: 3, [TimeSource.Reported]: 2, [TimeSource.Stamped]: 1 };
+
+/**
+ * The one precedence rule for a step time (Slice 51): a later report replaces the stored time only with one from a
+ * source at least as good (observed, then reported, then stamped); an observed time is never replaced by a reported or
+ * stamped one. The same time again keeps the stored source (a client echoing what it read back must not upgrade a guess),
+ * except that an explicit `observed` upgrades it.
+ */
+export function betterTime(stored: TimeValue | null, given: TimeValue | null): TimeValue | null {
+  if (!given) return stored;
+  if (!stored) return given;
+  if (given.at === stored.at) return given.source === TimeSource.Observed ? given : stored;
+  return SOURCE_RANK[given.source] >= SOURCE_RANK[stored.source] ? given : stored;
+}
+
+function storedTime(at: string | null | undefined, source: TimeSource | null | undefined): TimeValue | null {
+  return at ? { at, source: source ?? TimeSource.Stamped } : null;
+}
+
+/** An ISO-8601 date and time with a zone ("Z" or an offset); anything else (a bare number, a date without a zone) is not a reported time. */
+const ISO_WITH_ZONE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/;
+
+/**
+ * A time a report sent, as ISO. A source of `stamped` (an echo of a guess) is no report; one that is unparsable or
+ * ahead of the server's clock (by more than `REPORTED_TIME_SKEW_MS`) is dropped, so that end is stamped by the server
+ * and the rest of the report is kept (a bad time never refuses a steps report).
+ */
+function givenTime(at: string | null | undefined, source: TimeSource | null | undefined, now: string | null): TimeValue | null {
+  if (!at || source === TimeSource.Stamped) return null;
+  const ms = ISO_WITH_ZONE.test(at) ? Date.parse(at) : Number.NaN;
+  if (Number.isNaN(ms) || (now !== null && ms > Date.parse(now) + REPORTED_TIME_SKEW_MS)) return null;
+  return { at: new Date(ms).toISOString(), source: source === TimeSource.Observed ? TimeSource.Observed : TimeSource.Reported };
+}
+
+function stampedNow(now: string | null): TimeValue | null {
+  return now === null ? null : { at: now, source: TimeSource.Stamped };
+}
+
+/**
+ * The start must not be after the end, and a report is never refused for it: a guessed start moves back to the end;
+ * otherwise the end is the offending time and is stamped by the server (the report's time, no earlier than the start).
+ */
+function orderedTimes(start: TimeValue | null, end: TimeValue | null, now: string | null): { start: TimeValue | null; end: TimeValue | null } {
+  if (!start || !end || start.at <= end.at) return { start, end };
+  if (start.source === TimeSource.Stamped) return { start: { at: end.at, source: TimeSource.Stamped }, end };
+  const stampedAt = now !== null && now >= start.at ? now : start.at;
+  return { start, end: { at: stampedAt, source: TimeSource.Stamped } };
+}
+
+/**
+ * The times of a step after a report. Start: kept while the step stays started, else a reported one, else the
+ * report's time. End: only for a done step; kept while it stays done. A given time wins by `betterTime`.
+ */
+function resolveTimes(input: StepInput, id: string, state: StepState, before: Step | undefined, now: string | null): TimeFields {
+  const none: TimeFields = { started_at: null, done_at: null, started_source: null, done_source: null };
+  if (state === StepState.Pending) return none;
+  const start = betterTime(storedTime(before?.started_at, before?.started_source), givenTime(input.started_at, input.started_source, now)) ?? stampedNow(now);
+  const keptEnd = before?.state === StepState.Done ? storedTime(before.done_at, before.done_source) : null;
+  const end = state === StepState.Done ? (betterTime(keptEnd, givenTime(input.done_at, input.done_source, now)) ?? stampedNow(now)) : null;
+  const ordered = orderedTimes(start, end, now);
+  return {
+    started_at: ordered.start?.at ?? null,
+    done_at: ordered.end?.at ?? null,
+    started_source: ordered.start?.source ?? null,
+    done_source: ordered.end?.source ?? null,
+  };
+}
+
+/** The times of a step after a report, from the stored tree by id and the report's own times (`resolveTimes`). */
 function stampFrom(context: StampContext): BuildContext["stamp"] {
   const stored = new Map(flatten(context.previous ?? []).map((step) => [step.id, step]));
   const now = context.now ?? null;
-  return (_input, id, state) => {
-    const before = stored.get(id);
-    const started = state === StepState.Pending ? null : (before?.started_at ?? now);
-    const finished = state === StepState.Done ? (before?.state === StepState.Done ? (before.done_at ?? now) : now) : null;
-    return { started_at: started, done_at: finished };
-  };
+  return (input, id, state) => resolveTimes(input, id, state, stored.get(id), now);
 }
 
 /**
@@ -232,6 +336,43 @@ export function replaceChildren(stored: readonly Step[] | null | undefined, id: 
   return walk(stored ?? []);
 }
 
+/** The step id prefix of an agent's row; the plugin's hooks own only rows with it (`agentRowId` in the plugin). */
+export const AGENT_ROW_PREFIX = "agent-";
+/** The report `source` of the plugin's hooks. */
+export const HOOK_SOURCE = "hook";
+
+function isAgentRow(id: string | undefined): boolean {
+  return id !== undefined && id.trim().startsWith(AGENT_ROW_PREFIX);
+}
+
+function sameStep(sent: StepInput, stored: Step): boolean {
+  const id = sent.id?.trim();
+  return id ? id === stored.id : sent.label.trim() === stored.label;
+}
+
+/** One step a hook sent: its non-agent children are the ones sent, else the stored ones as stored; its agent rows are the ones sent. */
+function hookStep(sent: StepInput, match: Step | undefined): StepInput {
+  const given = sent.children ?? [];
+  const givenOwn = given.filter((child) => !isAgentRow(child.id));
+  const own: StepInput[] = givenOwn.length > 0 ? hookLevel(match?.children ?? [], givenOwn) : (match?.children ?? []).filter((child) => !isAgentRow(child.id));
+  return { ...sent, children: [...own, ...given.filter((child) => isAgentRow(child.id))] };
+}
+
+/** One level of a hook report: only the steps sent, non-agent ones first in order, then the agent rows sent. */
+function hookLevel(stored: readonly Step[], sent: readonly StepInput[]): StepInput[] {
+  const own = sent.filter((step) => !isAgentRow(step.id)).map((step) => hookStep(step, stored.find((candidate) => sameStep(step, candidate))));
+  return [...own, ...sent.filter((step) => isAgentRow(step.id))];
+}
+
+/**
+ * The list a report from the plugin's hooks stands for (Slice 51 G): the whole list, so a stored step it does not
+ * send is dropped. For each step it sends, the non-agent children are the ones it sent if any, else the stored ones;
+ * its agent rows are exactly the ones it sent.
+ */
+export function hookStepsInput(stored: readonly Step[] | null | undefined, sent: StepInput[]): StepInput[] {
+  return hookLevel(stored ?? [], sent);
+}
+
 /** An optional free-text field: whitespace-only reads as absent. */
 export function blankToNull(value: string | null | undefined): string | null {
   const trimmed = value?.trim();
@@ -252,7 +393,10 @@ function isStoredStep(value: unknown): value is StoredStep {
   const timeOk = (time: unknown): boolean => time === undefined || time === null || typeof time === "string";
   const childrenOk = children === undefined || (Array.isArray(children) && children.every(isStoredStep));
   const idOk = id === undefined || typeof id === "string";
-  return typeof label === "string" && stateOk && (note === undefined || note === null || typeof note === "string") && idOk && timeOk(started_at) && timeOk(done_at) && childrenOk;
+  const { waits_on, link } = value as Record<string, unknown>;
+  const waitsOk = waits_on === undefined || waits_on === null || Object.values(WaitsOn).includes(waits_on as WaitsOn);
+  const linkOk = link === undefined || link === null || typeof link === "string";
+  return typeof label === "string" && stateOk && (note === undefined || note === null || typeof note === "string") && idOk && timeOk(started_at) && timeOk(done_at) && waitsOk && linkOk && childrenOk;
 }
 
 /** A stored list this much over the write limit is not read: a legacy row cannot make every board read build thousands of steps (Slice 47 2b). */
@@ -271,7 +415,11 @@ export function parseStoredSteps(raw: string | null): Step[] | null {
     if (countStored(parsed) > STORED_STEPS_READ_MAX) return null;
     const stamp: BuildContext["stamp"] = (input) => {
       const stored = input as StoredStep;
-      return { started_at: stored.started_at ?? null, done_at: stored.done_at ?? null };
+      const started = stored.started_at ?? null;
+      const done = stored.done_at ?? null;
+      const sourceOf = (at: string | null, source: unknown): TimeSource | null =>
+        at === null ? null : Object.values(TimeSource).includes(source as TimeSource) ? (source as TimeSource) : TimeSource.Stamped;
+      return { started_at: started, done_at: done, started_source: sourceOf(started, stored.started_source), done_source: sourceOf(done, stored.done_source) };
     };
     const ctx: BuildContext = { explicit: new Set(explicitIds(parsed)), stamp, kept: () => undefined };
     return buildSteps(resolveIds(parsed, ctx), ctx);
@@ -284,22 +432,37 @@ function runningLeaves(steps: readonly Step[]): Step[] {
   return leavesOf(steps).filter((step) => step.state === StepState.Active);
 }
 
+/** Whether a step of the list is blocked on the owner (red, listed under Needs you). */
+export function isBlockedOnOwner(steps: readonly Step[] | null | undefined): boolean {
+  return ownerBlockedSteps(steps).length > 0;
+}
+
+/** When the owner-blocked steps started waiting: the earliest `started_at` among them (the step's report time), or null when none has one. */
+export function ownerBlockedSince(steps: readonly Step[] | null | undefined): string | null {
+  const times = ownerBlockedSteps(steps).flatMap((step) => (step.started_at ? [step.started_at] : []));
+  return times.length > 0 ? times.reduce((a, b) => (a <= b ? a : b)) : null;
+}
+
 /**
- * null when the item has no list. Progress counts leaves (steps with no children). A done item reads
- * 100% whatever its list says; the list is kept. `current` is the running leaf's label when one runs.
+ * null when the item has no list. Progress counts leaves (steps with no children) and the slice's open checks
+ * (`openChecks`, not yet done, Slice 51). A done item reads every step done, and 100% only with no open check; the
+ * list is kept. `current` is the running leaf's label when one runs.
  */
-export function stepProgress(steps: Step[] | null | undefined, status: ItemStatus): StepProgress | null {
+export function stepProgress(steps: Step[] | null | undefined, status: ItemStatus, openChecks = 0): StepProgress | null {
   if (!steps || steps.length === 0) return null;
   const leaves = leavesOf(steps);
-  const total = leaves.length;
+  const total = leaves.length + openChecks;
   const finished = status === ItemStatus.Done;
-  const done = finished ? total : leaves.filter((step) => step.state === StepState.Done).length;
+  const done = finished ? leaves.length : leaves.filter((step) => step.state === StepState.Done).length;
   const running = finished ? [] : runningLeaves(steps);
+  const percent = Math.round((done / total) * PERCENT);
   return {
     done,
     total,
-    percent: finished ? PERCENT : Math.round((done / total) * PERCENT),
+    percent: openChecks > 0 ? Math.min(percent, MAX_PERCENT_WITH_OPEN_CHECK) : finished ? PERCENT : percent,
     running: running.length,
+    blocked: finished ? 0 : leaves.filter((step) => step.state === StepState.Blocked).length,
+    open_checks: openChecks,
     current: running.length === 1 ? running[0]!.label : null,
   };
 }

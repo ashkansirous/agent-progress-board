@@ -558,3 +558,60 @@
   border-radius: 10px;
   background: var(--skeletonTile);
 }
+
+/* Blocked steps (Slice 51): orange (the needs-you colour) waiting on other work, red (the bug colour) waiting on the owner; both from the design's palette, light and dark. */
+
+.step-bar {
+  --seg-blocked: var(--needFg);
+  --seg-owner: var(--bugFg);
+}
+
+.seg-blocked {
+  background: var(--seg-blocked);
+}
+
+.seg-blocked.seg-owner {
+  background: var(--seg-owner);
+}
+
+.step-row-blocked .step-label,
+.step-row-blocked .step-state,
+.step-row-blocked .step-mark {
+  color: var(--needFg);
+  font-weight: 600;
+}
+
+.step-row-blocked .step-mark {
+  border-color: currentColor;
+}
+
+.step-row-blocked.step-row-owner .step-label,
+.step-row-blocked.step-row-owner .step-state,
+.step-row-blocked.step-row-owner .step-mark {
+  color: var(--bugFg);
+}
+
+.step-link {
+  color: var(--link);
+  font-size: 12px;
+}
+
+.card-checks {
+  margin-top: 8px;
+}
+
+.card-checks h3 {
+  font-size: 13px;
+  margin: 0 0 4px;
+}
+
+.step-orange .check-state {
+  color: var(--needFg);
+  font-weight: 600;
+}
+
+.reopened-line {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}

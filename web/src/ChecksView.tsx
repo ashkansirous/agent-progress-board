@@ -1,6 +1,6 @@
 import { useId } from "react";
 import type { BoardItemDto } from "../../src/api/boardDto";
-import { type CheckView, countedChecks, isCountedCheck } from "../../src/domain/checks";
+import { type CheckView, countedChecks } from "../../src/domain/checks";
 import { ItemStatus } from "../../src/domain/item";
 import { PartState } from "../../src/domain/parts";
 import { useView } from "./view";
@@ -15,10 +15,10 @@ export function ChecksList({ heading, checks }: { heading: string; checks: Check
       <h3 id={headingId}>{heading}</h3>
       <ul className="check-rows" aria-labelledby={headingId}>
         {checks.map((check) => (
-          <li key={check.key} className={isCountedCheck(check.status) ? "check-row" : "check-row check-row-stale"}>
+          <li key={check.key} className={showsState(check.status) ? "check-row check-row-stale" : "check-row"}>
             <span className="check-box" aria-hidden="true" />
             <span className="check-label">{check.title}</span>
-            {!isCountedCheck(check.status) && <span className="check-state">{checkStateWord(check.status, t)}</span>}
+            {showsState(check.status) && <span className="check-state">{checkStateWord(check.status, t)}</span>}
           </li>
         ))}
       </ul>
@@ -68,6 +68,11 @@ export function PartChecklist({ item, own }: { item: BoardItemDto; own: boolean 
       </ul>
     </div>
   );
+}
+
+/** A check in the state it shows beside its title: any but open or in progress (a blocked one is counted but says so). */
+function showsState(status: ItemStatus): boolean {
+  return status === ItemStatus.Blocked || status === ItemStatus.Stale;
 }
 
 function checkStateWord(status: ItemStatus, t: ReturnType<typeof useView>["t"]): string {

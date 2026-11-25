@@ -229,6 +229,20 @@
   font-weight: 700;
 }
 
+/* A step blocked on other work reads orange (the needs-you colour), one blocked on the owner red (the bug colour). */
+.step-chip-blocked {
+  border-color: var(--needBd);
+  background: var(--needBg);
+  color: var(--needFg);
+  font-weight: 700;
+}
+
+.step-chip-blocked.step-chip-owner {
+  border-color: var(--bugBd);
+  background: var(--bugBg);
+  color: var(--bugFg);
+}
+
 /* A stopped session in Done */
 
 .stale-rows {

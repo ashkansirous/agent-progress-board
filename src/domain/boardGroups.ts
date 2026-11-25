@@ -33,6 +33,8 @@ export interface GroupItem {
   /** The open question, null when none waits (the board DTO already hides an expired or answered one). */
   needs_you: string | null;
   needs_you_at: string | null;
+  /** A step is blocked on the owner (Slice 51): the item is listed under Needs you like a question. */
+  blocked_on_owner?: boolean;
   working: boolean;
   /** For a slice: its number and title as two values; null for any other type. */
   slice: SliceName | null;
@@ -132,17 +134,20 @@ const oldestFirst: Order = (a, b) => a.created_at.localeCompare(b.created_at);
 const bySlice = (a: PlannedSlice, b: PlannedSlice) =>
   STATE_RANK[a.state] - STATE_RANK[b.state] || (a.number ?? Infinity) - (b.number ?? Infinity) || a.key.localeCompare(b.key);
 
+/** The item asks the owner for something: an open question, or a step blocked on the owner (Slice 51). */
+const asksOwner = (item: GroupItem): boolean => item.needs_you !== null || item.blocked_on_owner === true;
+
 /** A session card that stopped with no question: it counts as finished work, shown dashed. */
 function isStoppedSession(item: GroupItem): boolean {
   const live = item.status === ItemStatus.InProgress || item.status === ItemStatus.Stale;
-  return item.agent === SESSION_AGENT && item.needs_you === null && live && !item.working;
+  return item.agent === SESSION_AGENT && !asksOwner(item) && live && !item.working;
 }
 
 /**
- * A done slice that still has a check not tried (open or in progress: `isCountedCheck`), the same rule as
+ * A done slice that still has a check to do (open, in progress or blocked: `isCountedCheck`), the same rule as
  * `OPEN_CHECK_OF` in `src/infrastructure/d1Repository.ts`, which loads the slice; `test/checks.test.ts` holds
  * the two equal. Every loaded check that is not done shows under its slice or as loose with its state
- * (`isShownCheck`); a stale or blocked one is only not counted and does not make a slice Built.
+ * (`isShownCheck`); a stale one is only not counted and does not make a slice Built.
  */
 function isBuilt(item: GroupItem, slicesWithOpenCheck: Set<string>): boolean {
   return item.type === ItemType.Slice && item.status === ItemStatus.Done && slicesWithOpenCheck.has(item.key);
@@ -205,14 +210,14 @@ function groupProject(id: string, items: GroupItem[], checkRows: CheckRow[]): Pr
   const plannedKeys = new Set([...planned, ...built].map((slice) => slice.key));
   const loose = [...checks].filter(([slice]) => !plannedKeys.has(slice)).flatMap(([, list]) => list);
   const live = [...open, ...builtItems];
-  const questions = [...live, ...openUncarded(items)].filter((item) => item.needs_you !== null).sort(oldestQuestion);
+  const questions = [...live, ...openUncarded(items)].filter(asksOwner).sort(oldestQuestion);
   const waiting = live
-    .filter((item) => item.needs_you === null && item.type === ItemType.WaitingForMe)
+    .filter((item) => !asksOwner(item) && item.type === ItemType.WaitingForMe)
     .sort(byPriorityThen(oldestFirst));
   const waitingSet = new Set(waiting);
-  const problems = open.filter((item) => isProblemType(item.type) && item.needs_you === null);
+  const problems = open.filter((item) => isProblemType(item.type) && !asksOwner(item));
   const working = live.filter(
-    (item) => item.working && item.needs_you === null && !isProblemType(item.type) && !waitingSet.has(item),
+    (item) => item.working && !asksOwner(item) && !isProblemType(item.type) && !waitingSet.has(item),
   );
   const placed = new Set([...questions, ...waiting, ...problems, ...working, ...slices]);
   const other = open.filter((item) => !placed.has(item)).sort(byPriorityThen(newestHeartbeat));

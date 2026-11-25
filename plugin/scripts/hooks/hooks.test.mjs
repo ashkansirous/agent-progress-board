@@ -8,7 +8,7 @@ import { describe, test } from 'node:test';
 import { setTimeout } from 'node:timers';
 import { fileURLToPath } from 'node:url';
 import { AGENT_FRESH_MS, agentTime, mergeSteps, placeAgents, modifiedAt, readBackgroundAgents, subagentsDir, liveAgentIds } from './background-agents.mjs';
-import { closeAnsweredWaiting, handle as remind, REMINDER_TEXT } from './goal-reminder.mjs';
+import { cardUpdate, closeAnsweredWaiting, handle as remind, REMINDER_TEXT } from './goal-reminder.mjs';
 import { SENDER_LOG_LINES, addStoppedAgent, hasMarker, listMarkers, logSender, readGoal, readStdinText, readStoppedAt, removeGoal, removeStoppedAgent, touchSeen, updateGoal, writeGoal, writeJson, writeMarker, writePrompt } from './hook-input.mjs';
 import { DEAD_SESSION_MS, closeDeadWaiting, markWaitingDone, pruneAgents, run as runDone, startContext } from './session-done.mjs';
 import { execFileSync } from 'node:child_process';
@@ -174,10 +174,11 @@ describe('background agents', () => {
     assert.deepEqual([merged[0].state, merged[0].children[0].state], ['active', 'active']);
   });
 
-  test('when the last agent under a step ages out, the step is sent with its own children list so the old row goes', () => {
+  test('Slice 51 G: when the last agent under a step ages out, the step is sent without `children`, so the board keeps its stored children', () => {
     const sent = [{ id: 's3', label: 'Record audio', state: 'active' }];
     const merged = mergeSteps(sent, [], { gone: 'id:s3' });
-    assert.deepEqual(merged, [{ id: 's3', label: 'Record audio', state: 'active', children: [] }]);
+    assert.deepEqual(merged, [{ id: 's3', label: 'Record audio', state: 'active' }]);
+    assert.equal('children' in merged[0], false);
   });
 
   test('an agent row leaves room for its helper\'s subtree: never deeper than level 3, else under the level-2 ancestor', () => {
@@ -352,7 +353,7 @@ describe('Stop, SubagentStop and UserPromptSubmit (session-done)', () => {
     await runDone({ session_id: 'sess-1', cwd: process.cwd(), hook_event_name: 'SubagentStart', agent_id: 'a2' }, envFor(board.url, root), {}, NOW);
     board.server.close();
     assert.equal(callsOf(board).length, 1);
-    assert.deepEqual(callsOf(board)[0].args.steps[0].children.map((step) => step.id), []);
+    assert.equal('children' in callsOf(board)[0].args.steps[0], false); // Slice 51 G: never `children: []`
     assert.deepEqual(readGoal('sess-1', root, NOW).agentParents, { old: 'id:s1', a2: 'id:s1' });
   });
 
@@ -739,6 +740,32 @@ describe('waiting card title and folder (session-waiting)', () => {
 describe('goal reminder and card key (goal-reminder)', () => {
   const promptInput = { session_id: 'sess-1', hook_event_name: 'UserPromptSubmit' };
   const toolInput = (extra = {}) => ({ session_id: 'sess-1', hook_event_name: 'PostToolUse', tool_name: 'Read', ...extra });
+
+  test('a blocked step and the times the session sent are kept in the goal file, so a hook report sends them again (Slice 51)', () => {
+    const steps = [
+      { id: 'a', label: 'Write', state: 'done', started_at: '2026-11-25T10:00:00.000Z', done_at: '2026-11-25T10:05:00.000Z', done_source: 'observed' },
+      { id: 'b', label: 'Approve', state: 'blocked', note: 'needs your OK', waits_on: 'owner', link: 'https://example.com/pr/1', done_source: 'stamped' },
+      { id: 'c', label: 'Odd', state: 'waiting' },
+    ];
+    const update = cardUpdate({ tool_name: 'mcp__agent-board__report_progress', tool_input: { key: 'demo-app/task-abc', title: 'T', steps } }, null);
+    assert.deepEqual(update.steps, [
+      { id: 'a', label: 'Write', state: 'done', started_at: '2026-11-25T10:00:00.000Z', done_at: '2026-11-25T10:05:00.000Z', done_source: 'observed' },
+      { id: 'b', label: 'Approve', state: 'blocked', note: 'needs your OK', waits_on: 'owner', link: 'https://example.com/pr/1' },
+    ]);
+  });
+
+  test('a pending step sends no times and a step that is not done sends no end time (Slice 51)', () => {
+    const at = '2026-11-25T10:00:00.000Z';
+    const steps = [
+      { id: 'p', label: 'Later', state: 'pending', started_at: at, done_at: at },
+      { id: 'r', label: 'Reopened', state: 'active', started_at: at, done_at: at },
+    ];
+    const update = cardUpdate({ tool_name: 'mcp__agent-board__report_progress', tool_input: { key: 'demo-app/task-abc', title: 'T', steps } }, null);
+    assert.deepEqual(update.steps, [
+      { id: 'p', label: 'Later', state: 'pending' },
+      { id: 'r', label: 'Reopened', state: 'active', started_at: at },
+    ]);
+  });
 
   test('a session with no goal is reminded once, at its second tool call', () => {
     const env = { AGENT_BOARD_SESSION_ROOT: folder() };

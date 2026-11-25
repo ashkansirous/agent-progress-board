@@ -1,4 +1,5 @@
 import { DEFAULT_PRIORITY, DOC_SYNC_SOURCE, type Item, type ItemLink, ItemStatus, ItemType, type Priority } from "./item";
+import { isCountedCheck } from "./checks";
 import { DomainError } from "./upsert";
 
 export const MAX_SNAPSHOT_ITEMS = 200;
@@ -22,6 +23,10 @@ export enum BatchOp {
 }
 export const SYNC_ADDED_NOTE = "Added by doc sync";
 export const SYNC_CHANGED_NOTE = "Docs changed the status";
+/** The history note of a doc sync that moved a done item back to a live status; the reason follows the colon (Slice 51). */
+export const SYNC_REOPENED_NOTE = "Docs reopened it";
+/** The words before the status in a reopen note; `reopenedOf` reads the status after them, so the page words it itself. */
+export const SYNC_REOPENED_SAYS = `${SYNC_REOPENED_NOTE}: the plan now says `;
 export const SYNC_LEFT_NOTE = "Left the plan";
 
 /** One item of a project's doc-sync set, as the docs describe it. */
@@ -212,6 +217,36 @@ function detailsOf(stored: SyncRow, snap: SnapshotItem): string | null {
 }
 
 /**
+ * The status a sync writes: the live one while it is newer than the docs' last change, else the docs'. A done slice
+ * that still has a check to do (`listsChecks`, decided from the resulting checks by `keepsDoneForChecks`) is never moved back
+ * to in progress: it stays done and shows as Built (Slice 51, Decision 4); once every check is done it is reopened as usual.
+ */
+function statusAfterSync(stored: SyncRow, snap: SnapshotItem, docStatusAt: string | null, listsChecks: boolean): ItemStatus {
+  if (showsLiveStatus(stored.live_status_at, docStatusAt)) return stored.status;
+  const stayDone = stored.status === ItemStatus.Done && snap.type === ItemType.Slice && snap.status === ItemStatus.InProgress && listsChecks;
+  return stayDone ? stored.status : snap.status;
+}
+
+/**
+ * Whether a done slice that the documents call in progress stays done (Slice 51, Decision 4): decided from the state
+ * after the snapshot's own checks are applied, so it stays only when at least one check is then counted
+ * (`isCountedCheck`), stored or new in this snapshot. `checks` are the slice's nested checks the sync keeps (a skipped one
+ * keeps its stored row, so pass that row in `stored`); a check the snapshot dropped is closed and does not count.
+ */
+export function keepsDoneForChecks(checks: readonly SnapshotItem[], stored: ReadonlyMap<string, SyncRow>, now: string): boolean {
+  return checks.some((check) => {
+    const row = stored.get(check.key);
+    const status = row ? statusAfterSync(row, check, nextDocStatusAt(row, check, now), false) : check.status;
+    return isCountedCheck(status);
+  });
+}
+
+/** The history note of a sync's status change: a reopen of a done item names the status the plan now gives (Slice 51), so the card can show why. */
+export function changeNote(from: ItemStatus, to: ItemStatus): string {
+  return from === ItemStatus.Done && to !== ItemStatus.Done ? `${SYNC_REOPENED_SAYS}${to}` : SYNC_CHANGED_NOTE;
+}
+
+/**
  * Merges one snapshot item into the stored row (or none). Title takes the snapshot's value; why, parent,
  * parent_key and links do too when the snapshot sends them (null clears one), and a field the snapshot leaves
  * out keeps its stored value on every sync, so a live value is never lost; the status shown is the live one
@@ -225,6 +260,7 @@ export function planItem(
   snap: SnapshotItem,
   project: string,
   now: string,
+  listsChecks = false,
   /** True for `upsert_item` and an `apply_batch` upsert: the caller names the item's content, so an archived key comes back even when nothing else changed. */
   explicit = false,
 ): SyncWrite | null {
@@ -233,7 +269,7 @@ export function planItem(
     return { item: newRow(snap, project, now), event, read: null };
   }
   const docStatusAt = nextDocStatusAt(stored, snap, now);
-  const status = showsLiveStatus(stored.live_status_at, docStatusAt) ? stored.status : snap.status;
+  const status = statusAfterSync(stored, snap, docStatusAt, listsChecks);
   const next: SyncRow = {
     ...stored,
     type: snap.type,
@@ -255,7 +291,7 @@ export function planItem(
   if (!docFieldsDiffer(stored, next)) return null;
   const statusChanged = status !== stored.status;
   const source = statusChanged ? DOC_SYNC_SOURCE : stored.source;
-  const event = statusChanged ? { at: now, status, note: SYNC_CHANGED_NOTE } : null;
+  const event = statusChanged ? { at: now, status, note: changeNote(stored.status, status) } : null;
   const read = { updated_at: stored.updated_at, live_status_at: stored.live_status_at };
   return { item: { ...next, source, updated_at: now }, event, read };
 }

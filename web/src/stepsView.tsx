@@ -1,9 +1,47 @@
 import { type CSSProperties, useState } from "react";
+import type { BoardItemDto } from "../../src/api/boardDto";
+import { ItemStatus } from "../../src/domain/item";
 import { leavesOf, type Step, StepState } from "../../src/domain/stepTypes";
+import { isSafeHttpUrl } from "./safeUrl";
 import { ChevronIcon } from "./icons";
-import type { Translate } from "./strings";
-import { secondLine, shownState, type StepClock, stateText, timesText } from "./stepsText";
-import { useView } from "./view";
+import type { StringKey, Translate } from "./strings";
+import { isOwnerBlocked, secondLine, shownState, type StepClock, stateText, timesText } from "./stepsText";
+import { statusName, useView } from "./view";
+
+const CHECK_WORDS: Partial<Record<ItemStatus, StringKey>> = {
+  [ItemStatus.Open]: "checkNotTried",
+  [ItemStatus.InProgress]: "checkTrying",
+  [ItemStatus.Blocked]: "statusBlocked",
+  [ItemStatus.Stale]: "statusStale",
+};
+
+/** A slice card's open checks after its steps, each with its state; they are counted in the progress line (Slice 51). */
+export function CardChecks({ item }: { item: BoardItemDto }) {
+  const { t } = useView();
+  const checks = item.checks ?? [];
+  if (checks.length === 0) return null;
+  return (
+    <div className="card-checks">
+      <h3>{t("cardChecksHeading", { n: checks.length })}</h3>
+      <ul className="check-rows">
+        {checks.map((check) => (
+          <li key={check.key} className={check.status === ItemStatus.Blocked ? "check-row step-orange" : "check-row"}>
+            <span className="check-box" aria-hidden="true" />
+            <span className="check-label">{check.title}</span>
+            <span className="check-state">{t(CHECK_WORDS[check.status] ?? "checkNotTried")}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** Why a doc sync moved the card back from done, when that is its newest history event (Slice 51). */
+export function ReopenedLine({ item }: { item: BoardItemDto }) {
+  const { t } = useView();
+  if (!item.reopened) return null;
+  return <p className="reopened-line">{t("reopenedLine", { status: statusName(item.reopened.status, t).toLowerCase() })}</p>;
+}
 
 const INDENT_PX = 26;
 
@@ -25,7 +63,7 @@ export function StepBar({ steps, variant, finished, type }: BarProps) {
   return (
     <span className={`step-bar step-bar-${variant}`} aria-hidden="true" style={style}>
       {leavesOf(steps).map((step) => (
-        <span key={step.id} className={`seg seg-${finished ? StepState.Done : step.state}`} />
+        <span key={step.id} className={`seg seg-${finished ? StepState.Done : step.state}${!finished && isOwnerBlocked(step) ? " seg-owner" : ""}`} />
       ))}
     </span>
   );
@@ -70,7 +108,7 @@ function StepRow({ step, path, level, isNext, open, clock, notes, t, onToggle }:
     <li className="step-item" style={{ paddingLeft: level * INDENT_PX }}>
       <button
         type="button"
-        className={`step-row step-row-${state}`}
+        className={`step-row step-row-${state}${isOwnerBlocked(step) ? " step-row-owner" : ""}`}
         aria-expanded={open}
         aria-current={state === StepState.Active ? "step" : undefined}
         onClick={() => onToggle(step.id)}
@@ -91,6 +129,11 @@ function StepRow({ step, path, level, isNext, open, clock, notes, t, onToggle }:
       {open && (
         <div className="step-box">
           {step.note && <span>{step.note}</span>}
+          {isSafeHttpUrl(step.link ?? undefined) && (
+            <a className="step-link" href={step.link ?? undefined} target="_blank" rel="noreferrer noopener">
+              {t("stepLinkLabel")}
+            </a>
+          )}
           <span className="step-times">{timesText(step, clock, t)}</span>
           {parent && <span className="step-kids">{t("stepKidsBelow", { n: step.children.length })}</span>}
         </div>

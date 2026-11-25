@@ -2,13 +2,13 @@ import { describe, expect, it } from "vitest";
 import type { BoardItemDto, BoardResponse } from "../src/api/boardDto";
 import { ItemStatus, ItemType, Priority } from "../src/domain/item";
 import { boardReducer, INITIAL_STATE, isFreshData, isFreshLoad, nextScroll } from "../web/src/boardState";
-import type { StepState } from "../src/domain/stepTypes";
+import { type StepState, TimeSource, WaitsOn } from "../src/domain/stepTypes";
 import { storedStep } from "./stepFixtures";
 import { groupBoard } from "../src/domain/boardGroups";
 import { activeTasks, projectLabel } from "../web/src/model";
 import { eventKeys, waitingText } from "../web/src/cards";
 import { closeHashFor, hashOfUrl, isDrawerHash, looseChecksHash, looseProjectOf, nextOrigin, openItemHash, openKeyOf, Route, routeOf } from "../web/src/route";
-import { currentStepText, durationText, leafCounts, progressText, secondLine, shownState, stateText, stepWords, timesText } from "../web/src/stepsText";
+import { currentStepText, durationText, isOwnerBlocked, leafCounts, progressText, secondLine, shownState, stateText, stepWords, timesText } from "../web/src/stepsText";
 import { translator } from "../web/src/strings";
 import { looksFor, paletteVars } from "../web/src/theme";
 import { ageText, clockTime, hoursSince, isTime, minutesSince, UNKNOWN_TIME } from "../web/src/time";
@@ -272,8 +272,8 @@ describe("active work", () => {
 
   it("reads Starting before anything is done, the label while one leaf runs, N running for several, and Done once finished", () => {
     const t = translator();
-    const none = { done: 0, total: 4, percent: 0, running: 0, current: null };
-    const progress = { done: 1, total: 4, percent: 25, running: 0, current: null };
+    const none = { done: 0, total: 4, percent: 0, running: 0, blocked: 0, open_checks: 0, current: null };
+    const progress = { done: 1, total: 4, percent: 25, running: 0, blocked: 0, open_checks: 0, current: null };
     expect(currentStepText(item({ progress: none }), t)).toBe("Starting");
     expect(currentStepText(item({ progress }), t)).toBe("Waiting for the next step");
     expect(currentStepText(item({ progress: { ...progress, running: 1, current: "Review 1" } }), t)).toBe("Review 1");
@@ -306,10 +306,14 @@ describe("step tree text (Slice 39)", () => {
   });
 
   it("reads the state text: Done with its time, Running with its time, Next for the first waiting one, Later after", () => {
-    const done = leaf("A", "done" as StepState, { started_at: started, done_at: finishedAt });
+    const done = leaf("A", "done" as StepState, { started_at: started, done_at: finishedAt, started_source: TimeSource.Reported, done_source: TimeSource.Reported });
     const running = leaf("B", "active" as StepState, { started_at: "2026-11-18T13:12:00.000Z" });
     const waiting = leaf("C", "pending" as StepState);
-    expect(stateText(done, clock, false, t)).toBe("Done · 8 min");
+    expect(stateText(done, clock, false, t)).toBe("Done · 8 min, reported");
+    const seen = { ...done, started_source: TimeSource.Observed, done_source: TimeSource.Observed };
+    expect(stateText(seen, clock, false, t)).toBe("Done · 8 min, seen by hook");
+    const guessed = { ...done, started_source: TimeSource.Stamped, done_source: TimeSource.Stamped };
+    expect(stateText(guessed, clock, false, t)).toBe("Done");
     expect(stateText(running, clock, false, t)).toBe("Running · 1 h 02 min");
     expect(stateText(waiting, clock, true, t)).toBe("Next");
     expect(stateText(waiting, clock, false, t)).toBe("Later");
@@ -317,11 +321,26 @@ describe("step tree text (Slice 39)", () => {
   });
 
   it("reads the open box's times line for done, running and waiting steps", () => {
-    const done = leaf("A", "done" as StepState, { started_at: started, done_at: finishedAt });
+    const done = leaf("A", "done" as StepState, { started_at: started, done_at: finishedAt, started_source: TimeSource.Reported, done_source: TimeSource.Reported });
     const running = leaf("B", "active" as StepState, { started_at: started });
-    expect(timesText(done, clock, t)).toBe(`Started ${clockTime(started)} · finished ${clockTime(finishedAt)} · took 8 min`);
+    expect(timesText(done, clock, t)).toBe(`Started ${clockTime(started)} · finished ${clockTime(finishedAt)} · took 8 min, reported`);
+    const guessed = { ...done, done_source: TimeSource.Stamped };
+    expect(timesText(guessed, clock, t)).toBe(`Started ${clockTime(started)} · finished ${clockTime(finishedAt)} · times guessed, no duration`);
     expect(timesText(running, clock, t)).toBe(`Started ${clockTime(started)} · running for 1 h 02 min`);
     expect(timesText(leaf("C", "pending" as StepState), clock, t)).toBe("Not started yet");
+  });
+
+  it("reads a blocked step orange for other work and red for the owner, and a parent over it the same", () => {
+    const work = leaf("W", "blocked" as StepState, { waits_on: WaitsOn.Work, note: "waits on slice 52" });
+    const owner = leaf("O", "blocked" as StepState, { waits_on: WaitsOn.Owner, note: "needs your OK" });
+    expect(stateText(work, clock, false, t)).toBe("Blocked");
+    expect(stateText(owner, clock, false, t)).toBe("Waiting on you");
+    expect(isOwnerBlocked(work)).toBe(false);
+    expect(isOwnerBlocked(owner)).toBe(true);
+    const parent = leaf("P", "pending" as StepState, { children: [leaf("a", "done" as StepState), owner] });
+    expect(shownState(parent, false)).toBe("blocked");
+    expect(isOwnerBlocked(parent)).toBe(true);
+    expect(stepWords([work, owner, parent], false).map((w) => w.key)).toEqual(["stepBlocked", "stepWaitsOwner", "stepWaitsOwner"]);
   });
 
   it("counts a parent's leaves in its second line and leaves out the parts that are empty", () => {

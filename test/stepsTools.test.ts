@@ -58,7 +58,7 @@ describe("report_progress steps", () => {
   it("reads seven steps with one done and one active back as 14% with the active label", async () => {
     await callTool("report_progress", { ...TASK, steps: SEVEN, agent: "Implementer", model: "model-mid" });
     const item = await itemOf(TASK.key);
-    expect(item.progress).toEqual({ done: 1, total: 7, percent: 14, running: 1, current: "Review 1" });
+    expect(item.progress).toEqual({ done: 1, total: 7, percent: 14, running: 1, blocked: 0, open_checks: 0, current: "Review 1" });
     expect(item.steps?.[1]).toMatchObject({ id: "Review 1", label: "Review 1", state: "active", note: "Two helper agents count under this step", children: [] });
     expect(item.steps?.[1]?.started_at).toEqual(expect.any(String));
     expect(item).toMatchObject({ agent: "Implementer", model: "model-mid", working: true });
@@ -68,7 +68,7 @@ describe("report_progress steps", () => {
     await callTool("report_progress", { ...TASK, steps: SEVEN });
     await callTool("report_progress", { key: TASK.key, steps: SIX_TWO_DONE });
     const item = await itemOf(TASK.key);
-    expect(item.progress).toEqual({ done: 2, total: 6, percent: 33, running: 1, current: "Fixing" });
+    expect(item.progress).toEqual({ done: 2, total: 6, percent: 33, running: 1, blocked: 0, open_checks: 0, current: "Fixing" });
     expect(item.steps).toHaveLength(6);
   });
 
@@ -93,6 +93,14 @@ describe("report_progress steps", () => {
     await callTool("report_progress", { key: TASK.key, steps: SIX_TWO_DONE });
     expect((await detail()).events[0]?.note).not.toBe("Heartbeat");
     expect((await detail()).updated_at).not.toBe(created);
+  });
+
+  it("accepts a blocked step with a bad waits_on and a bad link, and stores it without them", async () => {
+    const blocked = { ...step("Waiting", "blocked", "Needs a review"), waits_on: "nobody", link: "javascript:alert(1)" };
+    const reply = await callTool("report_progress", { ...TASK, steps: [blocked] });
+    expect(reply.isError).not.toBe(true);
+    const got = (await callTool("get_item", { key: TASK.key })).data as { steps: Record<string, unknown>[] };
+    expect(got.steps[0]).toMatchObject({ label: "Waiting", state: "blocked", waits_on: "work", link: null });
   });
 
   it("refuses a long label and a long note, and writes nothing", async () => {
@@ -192,8 +200,8 @@ describe("GET /api/board active work", () => {
     await env.DB.prepare("UPDATE items SET steps = ? WHERE key = ?").bind(flat, TASK.key).run();
     const item = await itemOf(TASK.key);
     expect(item.steps).toEqual([
-      { id: "A", label: "A", state: "done", note: null, started_at: null, done_at: null, children: [] },
-      { id: "B", label: "B", state: "active", note: "now", started_at: null, done_at: null, children: [] },
+      { id: "A", label: "A", state: "done", note: null, started_at: null, done_at: null, started_source: null, done_source: null, waits_on: null, link: null, children: [] },
+      { id: "B", label: "B", state: "active", note: "now", started_at: null, done_at: null, started_source: null, done_source: null, waits_on: null, link: null, children: [] },
     ]);
     expect(item.progress).toMatchObject({ done: 1, total: 2, running: 1, current: "B" });
   });
@@ -270,6 +278,48 @@ describe("report_progress under_step and the tree (Slice 39)", () => {
     await callTool("report_progress", { ...TASK, steps: RECORD });
     await callTool("report_progress", { key: TASK.key, steps: [step("Write", "done"), step("Record audio", "active")] });
     expect((await itemOf(TASK.key)).steps![1]!.children).toHaveLength(2);
+  });
+
+  it("Slice 51 G: a hook report of a step with no children field keeps the stored three, while children: [] would wipe them", async () => {
+    const three = [step("a", "done"), step("b", "done"), step("c", "active")];
+    await callTool("report_progress", { ...TASK, steps: [{ id: "refine", label: "Refine", state: "active", children: three }] });
+    await callTool("report_progress", { key: TASK.key, steps: [{ id: "refine", label: "Refine", state: "active", note: "background agents running" }] });
+    expect((await itemOf(TASK.key)).steps![0]!.children).toHaveLength(3);
+    await callTool("report_progress", { key: TASK.key, steps: [{ id: "refine", label: "Refine", state: "active", children: [] }] });
+    expect((await itemOf(TASK.key)).steps![0]!.children).toEqual([]);
+  });
+
+  it("Slice 51 G: a hook report replaces only the stored agent rows, the session's own children stay in order", async () => {
+    const own = [step("a", "done"), step("b", "done"), step("c", "active")];
+    const row = { id: "agent-a1", label: "Helper", state: "active", note: "Agent" };
+    await callTool("report_progress", { ...TASK, steps: [{ id: "refine", label: "Refine", state: "active", children: [...own, row] }] });
+    // the hook's later report: its own copy of the session steps, no agent rows left
+    await callTool("report_progress", { key: TASK.key, source: "hook", steps: [{ id: "refine", label: "Refine", state: "active", children: [] }] });
+    expect((await itemOf(TASK.key)).steps![0]!.children.map((child) => child.label)).toEqual(["a", "b", "c"]);
+    // a hook report with a live row adds it after the session's children
+    await callTool("report_progress", { key: TASK.key, source: "hook", steps: [{ id: "refine", label: "Refine", state: "active", children: [row] }] });
+    expect((await itemOf(TASK.key)).steps![0]!.children.map((child) => child.label)).toEqual(["a", "b", "c", "Helper"]);
+    // a session report with children omitted keeps all of them; one that sends children replaces them
+    await callTool("report_progress", { key: TASK.key, steps: [{ id: "refine", label: "Refine", state: "active" }] });
+    expect((await itemOf(TASK.key)).steps![0]!.children).toHaveLength(4);
+  });
+
+  it("Slice 51 G: a hook report that omits a stored step drops it with its agent rows", async () => {
+    const row = { id: "agent-a1", label: "Helper", state: "active" };
+    await callTool("report_progress", { ...TASK, steps: [
+      { id: "refine", label: "Refine", state: "active", children: [step("a", "done"), row] },
+      { id: "other", label: "Other", state: "pending", children: [step("x", "pending")] },
+    ] });
+    await callTool("report_progress", { key: TASK.key, source: "hook", steps: [{ id: "refine", label: "Refine", state: "active" }] });
+    const steps = (await itemOf(TASK.key)).steps!;
+    expect(steps.map((s) => s.label)).toEqual(["Refine"]);
+    expect(steps[0]!.children.map((c) => c.label)).toEqual(["a"]);
+  });
+
+  it("Slice 51 G: a hook report that sends its own non-agent children replaces the stored ones", async () => {
+    await callTool("report_progress", { ...TASK, steps: [{ id: "refine", label: "Refine", state: "active", children: [step("a", "done"), step("b", "done")] }] });
+    await callTool("report_progress", { key: TASK.key, source: "hook", steps: [{ id: "refine", label: "Refine", state: "active", children: [step("c", "active")] }] });
+    expect((await itemOf(TASK.key)).steps![0]!.children.map((c) => c.label)).toEqual(["c"]);
   });
 
   it("counts a resent identical tree as a heartbeat", async () => {

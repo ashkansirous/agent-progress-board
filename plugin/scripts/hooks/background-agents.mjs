@@ -306,13 +306,6 @@ function liveKeys(under) {
   return keys;
 }
 
-// Owners of the agents that were recorded but are not shown now (aged out): they are sent with their own children
-// list even when it is empty, so the board drops the old row.
-function emptiedKeys(sent, shown, parents) {
-  const gone = Object.keys(parents).filter((id) => !shown.some((agent) => agent.id === id));
-  return new Set(gone.map((id) => ownerPath(sent, parents[id])).filter(Boolean).map(pathKey));
-}
-
 function attach(level, context, prefix = []) {
   return level.map((step, index) => {
     const path = [...prefix, index];
@@ -322,7 +315,7 @@ function attach(level, context, prefix = []) {
     const live = context.live.has(key) && step.state === AGENT_STATE.done;
     const base = live ? { ...step, state: AGENT_STATE.active, note: clip(RUNNING_NOTE, STEP_NOTE_MAX) } : step;
     if (kept || rows.length) return { ...base, children: [...(kept || []), ...rows] };
-    return context.emptied.has(key) ? { ...base, children: [] } : base;
+    return base; // never `children: []` for a step the hook did not fill: the board keeps its stored non-agent children (Slice 51, G)
   });
 }
 
@@ -332,11 +325,12 @@ function attach(level, context, prefix = []) {
 // Running agents are `active` (several may be, the board allows it since Slice 39); a step with a running agent below
 // it is sent `active` even when the session marked it done, with a note, so the board never finishes the running
 // agent with it. An agent row is sent without `children`, so the board keeps what the helper reported under it. A
-// step whose agents all aged out is sent with its own children list, so the old row goes. Over the board's 200-step
+// step whose agents all aged out is sent as the session sent it, never with `children: []`; the board's rule for a hook
+// report (`hookStepsInput`) keeps its stored non-agent children and drops the stored agent rows (Slice 51, G). Over the board's 200-step
 // limit (nested steps count) the oldest finished agents are dropped first.
 export function mergeSteps(sent, agents, parents = {}) {
   const shown = fitAgents(countSteps(sent), agents);
   const { under, roots } = groupRows(sent, shown, parents);
-  const context = { under, live: liveKeys(under), emptied: emptiedKeys(sent, shown, parents) };
+  const context = { under, live: liveKeys(under) };
   return [...attach(sent, context), ...roots];
 }

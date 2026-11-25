@@ -2,12 +2,12 @@
 // Tests for the board hooks and background-agent reading. A local fake HTTP server stands in for the board.
 // Run: node --test "plugin/**/*.test.mjs"
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, test } from 'node:test';
 import { setTimeout } from 'node:timers';
 import { fileURLToPath } from 'node:url';
-import { AGENT_FRESH_MS, mergeSteps, placeAgents, readBackgroundAgents, subagentsDir, liveAgentIds } from './background-agents.mjs';
+import { AGENT_FRESH_MS, agentTime, mergeSteps, placeAgents, modifiedAt, readBackgroundAgents, subagentsDir, liveAgentIds } from './background-agents.mjs';
 import { closeAnsweredWaiting, handle as remind, REMINDER_TEXT } from './goal-reminder.mjs';
 import { SENDER_LOG_LINES, addStoppedAgent, hasMarker, listMarkers, logSender, readGoal, readStdinText, readStoppedAt, removeGoal, removeStoppedAgent, touchSeen, updateGoal, writeGoal, writeJson, writeMarker, writePrompt } from './hook-input.mjs';
 import { DEAD_SESSION_MS, closeDeadWaiting, markWaitingDone, pruneAgents, run as runDone, startContext } from './session-done.mjs';
@@ -43,7 +43,9 @@ function sessionWithAgents(agents, now = NOW) {
     writeFileSync(record, `${lines.map((line) => JSON.stringify(line)).join('\n')}\n`);
     const at = new Date(now - agent.ageMs);
     utimesSync(record, at, at);
-    writeFileSync(join(subagents, `agent-${agent.id}.meta.json`), JSON.stringify({ agentType: 'general-purpose', ...(agent.description ? { description: agent.description } : {}), ...(agent.finished ? { finished: true } : {}), ...(agent.shape ? { requestShape: agent.shape } : {}) }));
+    const meta = join(subagents, `agent-${agent.id}.meta.json`);
+    writeFileSync(meta, JSON.stringify({ agentType: 'general-purpose', ...(agent.description ? { description: agent.description } : {}), ...(agent.finished ? { finished: true } : {}), ...(agent.shape ? { requestShape: agent.shape } : {}) }));
+    utimesSync(meta, at, at); // the meta file is written at SubagentStart, never after the record
   }
   return transcript;
 }
@@ -1630,6 +1632,73 @@ describe('Slice 47 follow-ups (agent rows, sender log)', () => {
     assert.equal(liveAgentIds(missing, {}, NOW), undefined);
     assert.equal(liveAgentIds({}, {}, NOW), undefined);
     assert.equal(pruneAgents(content, NOW, liveAgentIds(missing, {}, NOW)), content);
+  });
+
+  test('Slice 49 1-3: a missing record (ENOENT) uses the meta time: a new agent is kept, an old one is pruned after 24 h, a stopped one is pruned; an unreadable file reads null', () => {
+    const transcript = sessionWithAgents([
+      { id: 'new', description: 'Just started', ageMs: MINUTE },
+      { id: 'old', description: 'Crashed, no record', ageMs: 25 * 60 * MINUTE },
+      { id: 'missing-stopped', description: 'Record gone, stopped', ageMs: 20 * MINUTE },
+      { id: 'alive', description: 'Writes', ageMs: 20 * MINUTE },
+    ]);
+    const records = join(transcript.replace(/\.jsonl$/, ''), 'subagents');
+    for (const id of ['new', 'old', 'missing-stopped']) unlinkSync(join(records, `agent-${id}.jsonl`));
+    const stopped = { 'missing-stopped': NOW - MINUTE };
+    assert.deepEqual(liveAgentIds({ transcript_path: transcript }, stopped, NOW).sort(), ['alive', 'new']);
+    assert.equal(agentTime(records, 'new'), NOW - MINUTE);
+    assert.equal(modifiedAt(join(records, 'agent-missing.jsonl')), null);
+    const busy = () => {
+      throw Object.assign(new Error('busy'), { code: 'EBUSY' });
+    };
+    assert.equal(modifiedAt(join(records, 'agent-alive.jsonl'), busy), null);
+  });
+
+  const busy = () => {
+    throw Object.assign(new Error('busy'), { code: 'EACCES' });
+  };
+  // A stat that fails for the agent's record only, so its meta file's time is the one read.
+  const recordBusy = (file) => (/\.jsonl$/.test(file) ? busy() : statSync(file));
+
+  test('Slice 49 2: record unreadable, meta readable: the agent ages out from the meta time, through the real null branch', () => {
+    const transcript = sessionWithAgents([
+      { id: 'fresh', description: 'Meta recent', ageMs: 5 * MINUTE },
+      { id: 'old', description: 'Meta old', ageMs: 30 * 60 * MINUTE },
+    ]);
+    const input = { transcript_path: transcript };
+    assert.deepEqual(liveAgentIds(input, {}, NOW, recordBusy), ['fresh']);
+    assert.deepEqual(readBackgroundAgents(input, NOW, {}, recordBusy).map((agent) => agent.id), ['fresh']);
+  });
+
+  test('Slice 49 2: neither time readable: kept live and listed active, but a stop file stops it whatever the time', () => {
+    const transcript = sessionWithAgents([{ id: 'alive', description: 'Writes', ageMs: 5 * MINUTE }]);
+    const input = { transcript_path: transcript };
+    assert.deepEqual(liveAgentIds(input, {}, NOW, busy), ['alive']);
+    assert.deepEqual(readBackgroundAgents(input, NOW, {}, busy).map((agent) => [agent.id, agent.state]), [['alive', 'active']]);
+    const stopped = { alive: NOW - MINUTE };
+    assert.deepEqual(liveAgentIds(input, stopped, NOW, busy), []);
+    assert.deepEqual(readBackgroundAgents(input, NOW, stopped, busy).map((agent) => [agent.id, agent.state]), [['alive', 'done']]);
+  });
+
+  test('Slice 49 1: a meta rewrite after the stop never changes a readable record time: the agent stays stopped', () => {
+    const transcript = sessionWithAgents([{ id: 'a', description: 'Stopped', ageMs: 10 * MINUTE }]);
+    const records = join(transcript.replace(/\.jsonl$/, ''), 'subagents');
+    const rewritten = new Date(NOW - MINUTE + 5000);
+    utimesSync(join(records, 'agent-a.meta.json'), rewritten, rewritten);
+    const stopped = { a: NOW - MINUTE };
+    assert.equal(agentTime(records, 'a'), NOW - 10 * MINUTE);
+    assert.deepEqual(liveAgentIds({ transcript_path: transcript }, stopped, NOW), []);
+    assert.deepEqual(readBackgroundAgents({ transcript_path: transcript }, NOW, stopped).map((agent) => [agent.id, agent.state]), [['a', 'done']]);
+  });
+
+  test('Slice 49 2: record unreadable with another error and no meta file (ENOENT): the time is unknown, not 0, and the agent is kept', () => {
+    const transcript = sessionWithAgents([{ id: 'alive', description: 'Writes', ageMs: 5 * MINUTE }]);
+    const records = join(transcript.replace(/\.jsonl$/, ''), 'subagents');
+    const noMeta = (file) => {
+      if (/\.meta\.json$/.test(file)) throw Object.assign(new Error('gone'), { code: 'ENOENT' });
+      return recordBusy(file);
+    };
+    assert.equal(agentTime(records, 'alive', noMeta), null);
+    assert.deepEqual(liveAgentIds({ transcript_path: transcript }, {}, NOW, noMeta), ['alive']);
   });
 
   test('4j: a foreground agent is never listed as a background one', () => {

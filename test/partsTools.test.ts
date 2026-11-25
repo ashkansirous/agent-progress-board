@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { boardResponse } from "../src/api/board";
 import type { BoardItemDto, BoardResponse } from "../src/api/boardDto";
 import { parseConfig } from "../src/config";
-import { D1ItemRepository } from "../src/infrastructure/d1Repository";
+import { CHAIN_ROWS, D1ItemRepository } from "../src/infrastructure/d1Repository";
 import { callTool, countRows, resetBoard } from "./helpers";
 
 const PROJECT = "demo-app";
@@ -271,6 +271,8 @@ describe("report_progress parent_key", () => {
     expect((await repo.findChain(u1, 1)).map((item) => item.key)).toEqual([u1]);
     await env.DB.prepare("UPDATE items SET parent_key = ?1 WHERE key = ?2").bind(u1, u3).run();
     expect((await repo.findChain(u1, 20)).map((item) => item.key)).toEqual([u1, u2, u3]);
+    const { results } = await env.DB.prepare(CHAIN_ROWS).bind(u1, 20).all<{ key: string }>();
+    expect(results.map((row) => row.key)).toEqual([u1, u2, u3]); // from SQL itself, not cut by findChain (Slice 49 2)
   });
 
   it("rejects an item that is its own parent", async () => {

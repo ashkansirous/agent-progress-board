@@ -22,9 +22,7 @@ owner's config repo. Decisions in [Slice 20](docs/plan/slices/20-plugin-connect.
 
 | Slice | Title | Status | PR | Issue | File |
 | --- | --- | --- | --- | --- | --- |
-| 50 | Item tools one by one and in batches, archive instead of delete | planned | | | [slice](docs/plan/slices/50-batch-and-archive.md) |
-| 51 | Bug: blocked step state, true step times, a visible reason when a card reopens; each step time names its source | planned (owner 2026-11-19; time sources added by owner 2026-11-22) | | | [slice](docs/plan/slices/51-blocked-steps-true-times.md) |
-| 53 | Task tools become card steps with times seen by the hooks | planned (owner 2026-11-22; needs 51, 52) | | | [slice](docs/plan/slices/53-task-tools-steps.md) |
+| 53 | Task tools become card steps with times seen by the hooks | planned (owner 2026-11-22; needs 51 and 52, both built) | | | [slice](docs/plan/slices/53-task-tools-steps.md) |
 | 54 | Cost per step: model, tokens, peak context, compactions | planned (owner 2026-11-22; needs 53) | | | [slice](docs/plan/slices/54-step-cost.md) |
 | 55 | Process keys, step counts and read tools for analysis | planned (owner 2026-11-22; needs 54) | | | [slice](docs/plan/slices/55-process-keys.md) |
 | 56 | Budgets per process, with a live breach on the card | planned (owner 2026-11-22; needs 55) | | | [slice](docs/plan/slices/56-process-budgets.md) |
@@ -72,7 +70,9 @@ Notes:
 
 ## Outstanding work
 
-- **Not yet tried on a device:** 90 checks across 40 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
+- **Not yet tried on a device:** 94 checks across 42 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
+- Slice 50: 8 review follow-ups (3 from check-2, 5 from check-3), listed in [its file](docs/plan/slices/50-batch-and-archive.md).
+- Slice 51: 11 review follow-ups, listed in [its file](docs/plan/slices/51-blocked-steps-true-times.md).
 - Done 2026-11-18 (Slices 16, 18, 19): the owner pasted the connector line and the instruction text from the board's "Set up a chat" page into claude.ai Instructions ("I've updated the instructions with the 2 texts"). Whether a chat now opens a card is read from the board, not asked ([Slice 19](docs/plan/slices/19-chat-text.md)). The page will give one Copy for both pieces ([Slice 37](docs/plan/slices/37-access-and-grants.md)).
 - Slices 1 to 28 are built (19 merged as PR #110, 27 as PR #109, 28 as PR #114, 26 as PR #115, all four live since the night 2026-11-17-2023 batched release): that release called the deploy hook at 22:53:22Z and `wrangler deployments list` (read 23:00Z) shows a deployment created 2026-11-17T22:54:43Z; `batch-release.mjs worker-deployed` was run after it ([note](docs/plan/notes/2026-11-17-2023-feedback-loop.md)). The plugin (Slices 20 to 23) ships from the repo, not the Worker.
 - Slices 29 to 46 are built and live (PRs #129 to #172); Slice 47 is built and live (PR #179, merged 2026-11-19T07:01Z). Worker deployments behind them (`wrangler deployments list`, read 2026-11-19 05:34Z): 2026-11-18T22:29:23Z (night 1602 waves 1 to 4), 2026-11-19T02:21:52Z (Slices 34, 41, 43 and 44, with migrations 0008 and 0009), 04:17:55Z (Slice 45), 04:42:36Z (the plan merge #171) and 05:29:53Z (Slice 46) and, read 07:10Z, 2026-11-19T07:10:15Z (Slice 47); `batch-release.mjs worker-deployed` was run after the last ([note](docs/plan/notes/2026-11-19-0554-feedback-loop.md)). Slices 29, 30, 31 and 38 change only plugin scripts and browser tests. Slice 48 is built and live (PR #184, merged 2026-11-19T08:22Z): the night 0734 release called the deploy hook at 08:28:22Z and `wrangler deployments list` (read 08:35Z) shows a deployment created 2026-11-19T08:29:49Z; `batch-release.mjs worker-deployed` was run after it ([note](docs/plan/notes/2026-11-19-0734-feedback-loop.md)). Slice 48's four check-3 nits were [Slice 49](docs/plan/slices/49-slice-48-follow-ups.md), built (PR #198, 2026-11-25).

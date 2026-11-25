@@ -3,6 +3,16 @@
 Every open "Not yet verified" check, one block per slice. A check that passes, or that the
 owner confirms, is removed here and its slice marked `verified`.
 
+### Slice 51: Blocked step state, true step times, and a visible reason when a card reopens ([slice](slices/51-blocked-steps-true-times.md))
+
+- [chrome] On the live board after the release, a slice card with a blocked step shows orange, and an owner-blocked one shows red under Needs you.
+- [session] In a real session, the hook's reports keep the session's own step children and drop an aged-out agent row.
+
+### Slice 50: Item tools one by one and in batches, archive instead of delete ([slice](slices/50-batch-and-archive.md))
+
+- [session] After release, run the plugin's sync in the owner's repo that hit the 200-item cap: it sends in several batches, no "exceed the 200-item cap" line appears, and the board's project block shows its open slices.
+- [session] After release, archive one test item with `archive_item`: it is gone from the board and readable with `get_item` and `include_archived`.
+
 ### Slice 52: Spike, one session's true step timeline ([slice](slices/52-timeline-spike.md))
 
 - [session] Compaction before/after context was not measured (the 87 s run had none): the cost slice forces one compaction to measure before/after context.

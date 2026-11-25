@@ -195,3 +195,12 @@ Cloudflare Worker + D1 board of agent work progress. Plan: [plan.md](plan.md), s
   `session-done.mjs`; a read it cannot make prunes nothing. The agent time is one rule, `agentTime` in the same file
   (record mtime, else the meta file's, else unknown and kept unless a stop file names it); never add a second time
   reading (Slice 48: docs/plan/slices/48-slice-47-follow-ups.md; Slice 49: docs/plan/slices/49-slice-48-follow-ups.md).
+- The archive rules (what an archive takes, what revives, the purge, an archived parent's time passed to its doc-synced rows) live in the write statements of `src/infrastructure/d1Repository.ts` (`ARCHIVE_ROWS`, `SYNC_UPSERT`, `SYNC_REVIVE`, `UPSERT_ITEM`, `PURGE_*`), never on an earlier read (Slice 50: docs/plan/slices/50-batch-and-archive.md).
+- The archive filters live in `BOARD_WHERE`, `EXPIRED_ROWS`, `WAITING_ROWS`, `OPEN_CHECK_OF` and `SESSION_WINDOWS`, and in their twins in `src/domain/stale.ts`; a new read of items adds `archived_at IS NULL` (Slice 50: docs/plan/slices/50-batch-and-archive.md).
+- The 30 days are `ARCHIVE_KEEP_DAYS` in `src/domain/archive.ts`; never write the number elsewhere (Slice 50: docs/plan/slices/50-batch-and-archive.md).
+- `docHash` has one board copy (`src/domain/docSync.ts`) and one plugin copy (`plugin/scripts/sync-docs.mjs`), held equal by `test/docHash.test.ts` and the plugin's vectors test; change both (Slice 50: docs/plan/slices/50-batch-and-archive.md).
+- The step-time source precedence (observed, reported, stamped) lives only in `betterTime` in `src/domain/steps.ts`, used by `saveStepsReport`; never compare sources elsewhere (Slice 51: docs/plan/slices/51-blocked-steps-true-times.md).
+- "A step is blocked on the owner" is one rule, `ownerBlockedSteps` in `src/domain/stepTypes.ts`; never a second copy (Slice 51: docs/plan/slices/51-blocked-steps-true-times.md).
+- A hook report's (`source: "hook"`) children rule is one function, `hookStepsInput` in `src/domain/steps.ts`: the hook owns only `agent-` rows and its step list is the whole list (Slice 51: docs/plan/slices/51-blocked-steps-true-times.md).
+- The done-slice keep rule (a done slice with a counted check stays done in doc sync) is `keepsDoneForChecks` in `src/domain/docSync.ts` (Slice 51: docs/plan/slices/51-blocked-steps-true-times.md).
+- Blocked colours come from the config palette (`needFg` / `bugFg` families), never a literal (Slice 51: docs/plan/slices/51-blocked-steps-true-times.md).

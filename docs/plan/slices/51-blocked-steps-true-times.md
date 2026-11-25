@@ -1,6 +1,6 @@
 ### Slice 51 — Blocked step state, true step times, and a visible reason when a card reopens (bug)
 
-*Built (2026-11-25), PR #200.* Bug, the board's part. The client's part is planned in the owner's private config repo.
+*Built (2026-11-25), merged as PR #200 (c04c32a).* Bug, the board's part. The client's part is planned in the owner's private config repo.
 
 **Touches:** `src/domain/stepTypes.ts`, `src/domain/steps.ts`, `src/domain/docSync.ts`, `src/domain/checks.ts`,
 `src/domain/boardGroups.ts`, `src/mcp/instructions.ts`, `src/mcp/schemas.ts`, `src/application/board.ts`,
@@ -132,7 +132,7 @@ Decided by this session (bug fix, no open question):
 
 *Changed while building:* a blocked check counts in progress and Built (`COUNTED_CHECK_STATUSES` in `src/domain/checks.ts`); a bad reported time, `waits_on` or `link` is dropped and never refuses a report; stored times without a source read as stamped and show no duration (Decision 2); a hook report's step list is the whole list (`hookStepsInput`). G's cause was confirmed by a replay test: the plugin hook's emptied-step branch sent `children: []`.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-25)
 
 - The step-time source precedence (observed, reported, stamped) lives only in `betterTime` in `src/domain/steps.ts`, used by `saveStepsReport`; never compare sources elsewhere (Slice 51: docs/plan/slices/51-blocked-steps-true-times.md).
 - "A step is blocked on the owner" is one rule, `ownerBlockedSteps` in `src/domain/stepTypes.ts`; never a second copy (Slice 51: docs/plan/slices/51-blocked-steps-true-times.md).
@@ -140,7 +140,7 @@ Decided by this session (bug fix, no open question):
 - The done-slice keep rule (a done slice with a counted check stays done in doc sync) is `keepsDoneForChecks` in `src/domain/docSync.ts` (Slice 51: docs/plan/slices/51-blocked-steps-true-times.md).
 - Blocked colours come from the config palette (`needFg` / `bugFg` families), never a literal (Slice 51: docs/plan/slices/51-blocked-steps-true-times.md).
 
-#### For README.md
+#### For README.md (lifted 2026-11-25)
 
 - A step state `blocked`, with `waits_on` (`work` or `owner`) and an optional `link`.
 - Steps take `started_at` / `done_at` with a source (`observed`, `reported`, `stamped`).

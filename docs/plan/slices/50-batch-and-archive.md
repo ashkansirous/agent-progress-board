@@ -1,6 +1,6 @@
 ### Slice 50 — Item tools one by one and in batches, archive instead of delete
 
-*Built (2026-11-25), PR #199.*
+*Built (2026-11-25), merged as PR #199 (2b4c864).*
 
 Planned 2026-11-19 from the owner's answers in a RefineScope pass (no review round).
 
@@ -143,14 +143,14 @@ by rule 5; check-2 #5-#7 and all five check-3 findings are the follow-ups above.
 - A report, `mark_done`, `ask_human` or heartbeat on an archived key is refused with an "archived" reply, and says how to bring it back; reporters fail open, so the caller is never blocked.
 - A purged item the documents still list comes back new on the next sync (rule 4 above): the documents are the source of record.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-25)
 
 - The archive rules (what an archive takes, what revives, the purge, an archived parent's time passed to its doc-synced rows) live in the write statements of `src/infrastructure/d1Repository.ts` (`ARCHIVE_ROWS`, `SYNC_UPSERT`, `SYNC_REVIVE`, `UPSERT_ITEM`, `PURGE_*`), never on an earlier read (Slice 50: docs/plan/slices/50-batch-and-archive.md).
 - The archive filters live in `BOARD_WHERE`, `EXPIRED_ROWS`, `WAITING_ROWS`, `OPEN_CHECK_OF` and `SESSION_WINDOWS`, and in their twins in `src/domain/stale.ts`; a new read of items adds `archived_at IS NULL` (Slice 50: docs/plan/slices/50-batch-and-archive.md).
 - The 30 days are `ARCHIVE_KEEP_DAYS` in `src/domain/archive.ts`; never write the number elsewhere (Slice 50: docs/plan/slices/50-batch-and-archive.md).
 - `docHash` has one board copy (`src/domain/docSync.ts`) and one plugin copy (`plugin/scripts/sync-docs.mjs`), held equal by `test/docHash.test.ts` and the plugin's vectors test; change both (Slice 50: docs/plan/slices/50-batch-and-archive.md).
 
-#### For README.md
+#### For README.md (lifted 2026-11-25)
 
 - `upsert_item`: add or update one item, with its parts and checks (static write token).
 - `archive_item`: archive an item and its plan-owned parts and checks; it is purged after 30 days.

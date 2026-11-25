@@ -102,11 +102,28 @@ function agentLabel(meta, head) {
   return clip(words ? `${AGENT_PREFIX}: ${words}` : AGENT_PREFIX, STEP_LABEL_MAX);
 }
 
-function modifiedAt(file) {
+// The one reader of a file's time: its mtime, or null when it cannot be stat-ed for any reason (missing, busy, no
+// access); never "quiet since 1970".
+export function modifiedAt(file, stat = statSync) {
   try {
-    return statSync(file).mtimeMs;
+    return stat(file).mtimeMs;
   } catch {
-    return 0;
+    return null;
+  }
+}
+
+// An agent's last-known time (Slice 49, fourth design): the record's mtime whenever it can be read, so a meta rewrite
+// after a stop never moves a readable record's time. Whenever the record's stat fails, for any reason (ENOENT
+// included), the meta file's mtime is used (written at SubagentStart): a new agent with no record yet is fresh, and a
+// crashed one with no record ages out AGENT_LIVE_MS after its start. If the meta's stat fails too, the time is
+// unknown, null.
+export function agentTime(dir, id, stat = statSync) {
+  const record = modifiedAt(join(dir, `agent-${id}.jsonl`), stat);
+  if (record !== null) return record;
+  try {
+    return stat(join(dir, `agent-${id}.meta.json`)).mtimeMs;
+  } catch {
+    return null;
   }
 }
 
@@ -136,7 +153,7 @@ function stoppedRecently(stops, agent, now) {
 // An agent is `done` when its meta file says `finished` or it stopped (`stopped`, from the SubagentStop hook's
 // agent_id: that hook may run before the meta file is updated) and its record did not change since; else it is
 // `active`. A stopped agent with an old record is not listed.
-export function readBackgroundAgents(input, now = Date.now(), stopped = {}) {
+export function readBackgroundAgents(input, now = Date.now(), stopped = {}, stat = statSync) {
   const dir = subagentsDir(input);
   if (!dir) return [];
   const stops = stopTimes(stopped);
@@ -144,16 +161,17 @@ export function readBackgroundAgents(input, now = Date.now(), stopped = {}) {
     return readdirSync(dir)
       .map((name) => AGENT_FILE.exec(name))
       .filter(Boolean)
-      .map(([name, id]) => ({ id, meta: readMeta(join(dir, name)), atMs: modifiedAt(join(dir, `agent-${id}.jsonl`)) }))
+      .map(([name, id]) => ({ id, meta: readMeta(join(dir, name)), time: agentTime(dir, id, stat) }))
+      .map((agent) => ({ ...agent, unknown: agent.time === null, atMs: agent.time ?? now })) // unknown time: listed as written just now (Slice 49)
       .filter((agent) => agent.meta.requestShape !== FOREGROUND_SHAPE) // the session waits for a foreground agent: no row (Slice 47 4j)
       .filter((agent) => now - agent.atMs <= AGENT_FRESH_MS || stoppedRecently(stops, agent, now))
       .map((agent) => ({ ...agent, head: readHead(join(dir, `agent-${agent.id}.jsonl`)) }))
-      .map(({ id, meta, atMs, head }) => ({
+      .map(({ id, meta, atMs, unknown, head }) => ({
         id,
         atMs,
         label: agentLabel(meta, head),
         model: head.model,
-        state: meta.finished === true || stoppedAfterLastWrite(stops, id, atMs) ? AGENT_STATE.done : AGENT_STATE.active,
+        state: meta.finished === true || (stops.has(id) && (unknown || stoppedAfterLastWrite(stops, id, atMs))) ? AGENT_STATE.done : AGENT_STATE.active,
       }))
       .sort((left, right) => left.atMs - right.atMs);
   } catch {
@@ -169,7 +187,7 @@ export const AGENT_LIVE_MS = 24 * 60 * 60 * 1000;
 // say `finished`, the agent did not stop (its record unchanged since the stop), and its record was written within
 // AGENT_LIVE_MS. The listed agents of `readBackgroundAgents` are only those written in the last 10 minutes, so a long
 // silent tool call is not listed but is kept; one quiet for a day is taken as crashed (Slice 48 3, pr-184-check-medium #1).
-export function liveAgentIds(input, stopped = {}, now = Date.now()) {
+export function liveAgentIds(input, stopped = {}, now = Date.now(), stat = statSync) {
   const dir = subagentsDir(input);
   if (!dir) return undefined;
   const stops = stopTimes(stopped);
@@ -177,10 +195,10 @@ export function liveAgentIds(input, stopped = {}, now = Date.now()) {
     return readdirSync(dir)
       .map((name) => AGENT_FILE.exec(name))
       .filter(Boolean)
-      .map(([name, id]) => ({ id, meta: readMeta(join(dir, name)), atMs: modifiedAt(join(dir, `agent-${id}.jsonl`)) }))
+      .map(([name, id]) => ({ id, meta: readMeta(join(dir, name)), atMs: agentTime(dir, id, stat) }))
       .filter((agent) => agent.meta.requestShape !== FOREGROUND_SHAPE && agent.meta.finished !== true)
-      .filter((agent) => !stoppedAfterLastWrite(stops, agent.id, agent.atMs))
-      .filter((agent) => now - agent.atMs <= AGENT_LIVE_MS)
+      .filter((agent) => (agent.atMs === null ? !stops.has(agent.id) : !stoppedAfterLastWrite(stops, agent.id, agent.atMs))) // unknown time: a stop file still stops it (Slice 49)
+      .filter((agent) => agent.atMs === null || now - agent.atMs <= AGENT_LIVE_MS) // neither time readable: keep
       .map((agent) => agent.id);
   } catch {
     return undefined; // unknown, not "none running": the caller prunes nothing (pr-184-check-2-medium #1)

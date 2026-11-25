@@ -357,9 +357,12 @@ describe("thinning old samples", () => {
   });
 
   it("runs from the scheduled handler with the keep-time from config", async () => {
-    await insertSeries(300, NOW.getTime() - 300 * SAMPLE_MINUTES * MS_PER_MINUTE);
+    // The handler reads the real clock, so the rows are placed from it: 12 to 37 hours old, the older ones past the keep-time.
+    const twelveHours = 12 * 60 * MS_PER_MINUTE;
+    const now = Date.now();
+    await insertSeries(300, now - twelveHours - 300 * SAMPLE_MINUTES * MS_PER_MINUTE);
     const config = JSON.stringify({ usage: { keepDays: 1 } });
-    const controller = createScheduledController({ scheduledTime: NOW, cron: "*/15 * * * *" });
+    const controller = createScheduledController({ scheduledTime: now, cron: "*/15 * * * *" });
     const ctx = createExecutionContext();
     await worker.scheduled(controller, { ...env, BOARD_CONFIG: config });
     await waitOnExecutionContext(ctx);

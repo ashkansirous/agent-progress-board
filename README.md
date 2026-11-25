@@ -153,6 +153,8 @@ Optional fields on `report_progress` and `ask_human`: leave one out to keep the 
 `null` to clear `parent`, `why`, `details_md`, `links`, `source`, `environment`, `steps`, `agent` or `model`. An empty string for `note`,
 `why`, `details_md` or `parent` is a tool error naming the field.
 
+A step's `state` may be `blocked`, with `waits_on` (`work` or `owner`) and an optional `link`. A step may carry `started_at` / `done_at` with a source (`observed`, `reported`, `stamped`); a bad time, `waits_on` or `link` is dropped, never a refusal (Slice 51).
+
 An item has `key`, `project`, `parent`, `type`, `priority`, `status`, `title`, `why`,
 `details_md`, `links`, `source`, `heartbeat_at`, `created_at`, `updated_at`, `done_at`, `needs_you`, `after_answer`, `needs_you_at`. A
 report that changes nothing but the heartbeat writes an event with the note `Heartbeat`.

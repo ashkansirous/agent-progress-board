@@ -52,4 +52,6 @@ Rows moved out of `plan.md`'s status table once built.
 | 47 | Open review follow-ups of Slices 33 to 36, 39 to 41 and 46 | built | #179 | | [47](../slices/47-open-follow-ups.md) |
 | 48 | Follow-ups left open by Slice 47 | built | #184 | | [48](../slices/48-slice-47-follow-ups.md) |
 | 49 | Follow-ups left open by Slice 48 | built | #198 | | [49](../slices/49-slice-48-follow-ups.md) |
+| 50 | Item tools one by one and in batches, archive instead of delete | built | #199 | | [50](../slices/50-batch-and-archive.md) |
+| 51 | Bug: blocked step state, true step times, a visible reason when a card reopens; each step time names its source | built | #200 | | [51](../slices/51-blocked-steps-true-times.md) |
 | 52 | Spike: rebuild one session's true step timeline from hooks and the transcript | built | #201 | | [52](../slices/52-timeline-spike.md) |

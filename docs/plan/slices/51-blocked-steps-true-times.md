@@ -1,10 +1,20 @@
 ### Slice 51 — Blocked step state, true step times, and a visible reason when a card reopens (bug)
 
-*Planned.* Bug, the board's part. The client's part is planned in the owner's private config repo.
+*In progress (wave 2026-11-25), draft PR.* Bug, the board's part. The client's part is planned in the owner's private config repo.
 
 **Touches:** `src/domain/stepTypes.ts`, `src/domain/steps.ts`, `src/domain/docSync.ts`, `src/domain/checks.ts`,
-`src/domain/boardGroups.ts`, `src/mcp/instructions.ts`, `web/src/`, `plugin/scripts/report-progress.mjs`,
-`plugin/scripts/hooks/goal-reminder.mjs`, `plugin/skills/agent-board/SKILL.md`, `test/`
+`src/domain/boardGroups.ts`, `src/mcp/instructions.ts`, `src/mcp/schemas.ts`, `src/application/board.ts`,
+`src/infrastructure/d1Repository.ts`, `web/src/`, `plugin/scripts/report-progress.mjs`, `plugin/scripts/sync-docs.mjs`,
+`plugin/scripts/hooks/goal-reminder.mjs`, `plugin/scripts/**/*.test.mjs`, `plugin/skills/agent-board/SKILL.md`,
+`docs/clients.md`, `test/`, `e2e/`
+
+Night 2026-11-25 claim notes (coordinator, no open question): Touches widened from the premise check (`schemas.ts`
+holds `z.enum(StepState)`, `saveStepsReport` is in `board.ts`, doc sync's status write in `d1Repository.ts` and
+`sync-docs.mjs`). Decision 1's "waiting on the owner" needs a data source: a blocked step carries an optional
+`waits_on` of `work` (default) or `owner`; `owner` is red and listed under Needs you. No migration (steps are JSON in
+`items.steps`). E's "plugin release" is the merge: the plugin ships from this repo's `main`. G's diagnosis reads the
+bug card's history with `get_item` and the local plugin `senders.log`; if neither settles the cause, the replay test
+and the fix for the reproducible half are built and the cause is recorded as likely.
 
 ## Why
 

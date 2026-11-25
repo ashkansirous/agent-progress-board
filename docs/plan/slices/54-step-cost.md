@@ -1,12 +1,25 @@
 ### Slice 54 — Cost per step: model, tokens, peak context, compactions
 
-*Planned.* Needs Slice 53.
+*In progress (wave 2026-11-25), draft PR.* Needs Slice 53 (built).
 
-**Touches:** `migrations/0010_step_runs.sql` (new), `src/domain/stepRuns.ts` (new), `src/application/board.ts`,
+**Touches:** `migrations/0011_step_runs.sql` (new), `src/domain/stepRuns.ts` (new), `src/domain/steps.ts`,
+`src/domain/stepTypes.ts`, `src/application/board.ts`, `src/application/usage.ts`,
 `src/application/ports.ts`, `src/infrastructure/d1Repository.ts`, `src/mcp/schemas.ts`, `src/mcp/tools.ts`,
 `src/mcp/instructions.ts`, `src/index.ts`, `plugin/scripts/step-cost.mjs` (new), `plugin/scripts/step-cost.test.mjs` (new),
-`plugin/scripts/hooks/task-steps.mjs`, `plugin/scripts/hooks/session-done.mjs`, `plugin/skills/agent-board/SKILL.md`,
-`test/pluginRules.test.ts`, `web/src/ActiveCard.tsx`, `web/src/Detail.tsx`, `test/`, `e2e/`
+`plugin/hooks/hooks.json`, `plugin/scripts/report-progress.mjs`, `plugin/scripts/hooks/task-steps.mjs`,
+`plugin/scripts/hooks/session-done.mjs`, `plugin/scripts/hooks/hooks.test.mjs`, `plugin/scripts/hooks/task-steps.test.mjs`,
+`plugin/skills/agent-board/SKILL.md`, `plugin/CLAUDE.md`, `test/pluginRules.test.ts`, `web/src/ActiveCard.tsx`,
+`web/src/Detail.tsx`, `web/src/`, `test/`, `e2e/`
+
+**Migrations:** 0011
+
+**Premise check (2026-11-25, wave 30):** the compaction test the spike asked for is answered from real transcripts already
+on disk (no new `/compact` needed): a `compact_boundary` line is `type: "system"`, `subtype: "compact_boundary"` with
+`compactMetadata` (`trigger`, `preTokens`, `postTokens`, ...). The first request after it is larger than `postTokens`
+(about 117k against 30k in one case), so before/after sizes come from the requests on either side, as the spike said;
+`preTokens`/`postTokens` are not used. The same `message.id` repeats on several lines (merge by id), and the model can
+change across a step (a step's cost holds a per-model list). Rows have no foreign key to `items`, so the Slice 50 purge
+leaves them.
 
 Source: phone scope milestone 2; desk refinement 2026-11-22 (owner approved: one row of measured facts per step,
 statistics worked out at read; cloud sessions keep per-agent totals; transcript read only on a step change or agent stop).

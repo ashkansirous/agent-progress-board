@@ -1,6 +1,6 @@
 ### Slice 55 — Process keys, step counts and read tools for analysis
 
-*Built 2026-11-25 (PR #209, not merged); the live check is under *Not yet verified*.*
+*Built 2026-11-25, merged as PR #209 (1faef66); the live check is under *Not yet verified*.*
 
 **Touches:** `src/domain/stepTypes.ts`, `src/domain/steps.ts`, `src/domain/stepRuns.ts`, `src/domain/processStats.ts` (new),
 `src/application/board.ts`, `src/application/processRuns.ts` (new), `src/infrastructure/d1Repository.ts`,
@@ -101,7 +101,7 @@ left out is listed below.
 - Skipped #3 (`reviews/pr-209-check-3-medium.md`): "recordCreated clears the stored key when a TaskCreated subject has no" prefix - Decision 6 says TaskCreated defines the key, so a re-created task starts clean.
 - Open follow-ups: pr-209-medium #1 (an index on `items.updated_at` needs a migration), pr-209-check-2-medium #3 (a TaskUpdate rename does not rename the step), pr-209-check-3-medium #2 (`storeKeyOnly` never sends a key change that arrives without a status) and #4 (`counts: {}` clears stored counts).
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-25)
 
 - Step `process`/`counts` keep/clear is one rule, `keptProcess`/`keptCounts` in `src/domain/steps.ts`; a run is only `runStepsOf` in `src/domain/processStats.ts`; never a second copy (Slice 55: docs/plan/slices/55-process-keys.md).
 

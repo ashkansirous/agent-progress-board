@@ -22,7 +22,6 @@ owner's config repo. Decisions in [Slice 20](docs/plan/slices/20-plugin-connect.
 
 | Slice | Title | Status | PR | Issue | File |
 | --- | --- | --- | --- | --- | --- |
-| 55 | Process keys, step counts and read tools for analysis | planned (owner 2026-11-22; needs 54) | | | [slice](docs/plan/slices/55-process-keys.md) |
 | 56 | Budgets per process, with a live breach on the card | planned (owner 2026-11-22; needs 55) | | | [slice](docs/plan/slices/56-process-budgets.md) |
 | 57 | Process optimiser: a skill that finds waste in the recorded runs | planned (owner 2026-11-22; needs 55, 56) | | | [slice](docs/plan/slices/57-process-optimiser.md) |
 
@@ -68,7 +67,7 @@ Notes:
 
 ## Outstanding work
 
-- **Not yet tried on a device:** 100 checks across 44 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
+- **Not yet tried on a device:** 102 checks across 45 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
 - Slice 50: 8 review follow-ups (3 from check-2, 5 from check-3), listed in [its file](docs/plan/slices/50-batch-and-archive.md).
 - Slice 51: 11 review follow-ups, listed in [its file](docs/plan/slices/51-blocked-steps-true-times.md).
 - Done 2026-11-18 (Slices 16, 18, 19): the owner pasted the connector line and the instruction text from the board's "Set up a chat" page into claude.ai Instructions ("I've updated the instructions with the 2 texts"). Whether a chat now opens a card is read from the board, not asked ([Slice 19](docs/plan/slices/19-chat-text.md)). The page will give one Copy for both pieces ([Slice 37](docs/plan/slices/37-access-and-grants.md)).

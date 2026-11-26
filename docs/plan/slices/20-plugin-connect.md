@@ -99,6 +99,18 @@ decision, 2026-11-17). If the CLI cannot be pointed at a temp folder, the instal
 - Skipped #5 (`reviews/pr-99-medium.md`): "slice Verify (fresh run reaching a working card) unmet, listed under Not yet verified." Already listed under *Not yet verified*.
 - Skipped #7 (`reviews/pr-99-medium.md`): "Hard-coded GitHub main URL to guide; forks misdirect" Low; the owner's repo is the only source of the plugin.
 
+#### Follow-ups
+
+1. **Auto-update did not deliver (live check 2026-11-25: failed).** On the owner's desktop the installed plugin is
+   commit `d654e9b` (installed and last updated 2026-11-18T03:29Z, `installed_plugins.json`; the marketplace entry in
+   `known_marketplaces.json` also last updated 2026-11-18), while `plugin/` changed on `main` through `7110e62`
+   (2026-11-25, Slices 49, 51, 53, 54, 55). A week of plugin merges never reached the client, so every live check that
+   needs tonight's plugin (Slices 29, 40, 46, 47, 50, 51, 53, 54, 55) is unreachable. Cause still to confirm: auto-update
+   is off for third-party marketplaces until it is turned on (Work item above), and no step turned it on or updates by
+   hand after a merge. Fix to plan: turn auto-update on for this marketplace on the owner's machines (or have the
+   release run `claude plugin marketplace update` plus `claude plugin update`), and prove it with the installed
+   commit read back after the next plugin merge.
+
 #### For CLAUDE.md (lifted 2026-11-17)
 
 - Replace the rule "Clients live in the repos that use them, not here" with: clients for Claude Code live in

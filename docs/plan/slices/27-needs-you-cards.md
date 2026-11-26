@@ -60,6 +60,15 @@ rules in `src/mcp/instructions.ts` do not name it, so only a client that calls i
 question). Either `ask_human` takes `needs_you` (and `links`) like `report_progress`, or its description says to use
 `report_progress` for a question. Verify: an MCP test asks through `ask_human` and the card shows the question.
 
+*Follow-up (not built, live check 2026-11-26: failed):* a real permission prompt card does not name the tool or its
+command. The installed plugin `d654e9b` contains this slice (PR #109 merged 2026-11-17), and its Notification hook
+opened a waiting card in another project on 2026-11-26T02:12:51Z whose only text was "needs_you: Claude needs your
+permission" (read with `get_item`; `details_md` null, no tool, no command). The title was the session goal, so that
+half works. Cause not checked: likely the tool input is not found in the transcript tail (see skipped #9 above,
+`readTail` 128 KB) or the permission notification carries no tool data. Fix to plan: find where the tool name and
+command come from for a permission prompt, and test it with a recorded real Notification payload. The idle-prompt
+halves of the check were not seen.
+
 ## From review
 
 Findings files: `reviews/pr-109-high.md` (11 findings: applied 1-7 and 10), `reviews/pr-109-medium.md` (7: applied 1, 3, 4, 6, 7), `reviews/pr-109-check-medium.md` (10: applied 1, 2, 5), `reviews/pr-109-check-2-medium.md` (9: applied 1 only, converged), `reviews/pr-109-check-3-medium.md` (4 low, none at medium or above). The rest are listed one by one below.

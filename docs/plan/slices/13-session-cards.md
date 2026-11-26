@@ -300,7 +300,9 @@ The doubled seed history note was fixed after the run and not re-run in a browse
 
 - On the deployed board, a real session's goal and steps show within 5 minutes.
 - On the deployed board, a question shows under Needs you with its text.
-- On the deployed board, a stopped session leaves Working now at once.
+- ~~On the deployed board, a stopped session leaves Working now at once.~~ Passed (live check 2026-11-26): a real
+  session card's Stop hook set it `done` within seconds ("Session stopped" at 2026-11-26T02:34:14Z, read with
+  `list_open`), so it left Working now; the page itself was not opened.
 - The owner's comparison of the deployed page with the mocks.
 - The drawer history of a working card with several events, in a browser.
 - The 1.5px border (renders as 1px in the browser run).

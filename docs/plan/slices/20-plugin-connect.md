@@ -110,6 +110,9 @@ decision, 2026-11-17). If the CLI cannot be pointed at a temp folder, the instal
    hand after a merge. Fix to plan: turn auto-update on for this marketplace on the owner's machines (or have the
    release run `claude plugin marketplace update` plus `claude plugin update`), and prove it with the installed
    commit read back after the next plugin merge.
+   *Live check 2026-11-26: failed again.* `installed_plugins.json` still shows `d654e9b` (installed and last updated
+   2026-11-18T03:29Z), while `plugin/` on `main` moved on to `8e7c155` (2026-11-26T02:26Z, Slice 57). The Worker
+   release of the same night deployed (02:39Z), so the board side is live and only the client is behind.
 
 #### For CLAUDE.md (lifted 2026-11-17)
 

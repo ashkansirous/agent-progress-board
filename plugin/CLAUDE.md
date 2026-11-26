@@ -35,8 +35,11 @@ Rules for the Claude Code plugin in this folder, moved from the root CLAUDE.md.
 - The own-card binding rule lives only in `mayBindCard` (`plugin/scripts/hooks/goal-reminder.mjs`): the first own-card
   report binds, a new key moves the card only after the bound card is closed. Hooks heartbeat a slice card but never
   close it, mark it done or set its status (Slice 41: docs/plan/slices/41-tasks-with-outcome.md).
-- `plain()` in `plugin/scripts/sync-docs.mjs` keeps code spans; `checkHash` keeps its old reading so stored check keys do
-  not change (Slice 43: docs/plan/slices/43-owner-cards-read-right.md).
+- `plain()` in `plugin/scripts/sync-docs.mjs` keeps code spans; `checkHash` keeps its old reading of code spans so stored check keys do
+  not change, but ignores a leading `[tag] ` (one whitespace character then text; chrome, session, phone, cloud, chat, owner, copied from
+  ClaudeSkills `live-checks.mjs` TAGS: update both together) and one trailing
+  `(live check YYYY-MM-DD: ...)` marker, so tagging a check or a live-check run never re-keys it; the one re-key when
+  this landed was accepted (Slice 43: docs/plan/slices/43-owner-cards-read-right.md; Slice 31 item 7, ClaudeSkills).
 - Every plugin card report goes through `sendCardReport` in `plugin/scripts/report-progress.mjs`, which logs the sender (hook name, session id, field names only, never text) to `senders.log`; never send a card report around it (Slice 45: docs/plan/slices/45-night-1602-follow-ups.md).
 - The "later close wins" rule lives only in `closeLaterThan` in `plugin/scripts/hooks/session-done.mjs`; `closing` in the goal file is set only for the duration of a close call, and the Stop report's time is taken before its hold write (Slice 46: docs/plan/slices/46-slice-45-follow-ups.md).
 - The agent prune rule lives only in `liveAgentIds` (`plugin/scripts/hooks/background-agents.mjs`) used by `runningIds` in

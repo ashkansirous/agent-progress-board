@@ -5,8 +5,8 @@ import type { ProjectGroups } from "../src/domain/boardGroups";
 import { readOpenMap, resolveOpen } from "../web/src/foldRules";
 import { pruneIdsOf, prunedMap } from "../web/src/projectFold";
 
-function group(needsYou: string[], working = 0): ProjectGroups {
-  return { id: "p", needs_you: needsYou, summary: { needs_you: needsYou.length, working, planned: 0, built: 0, problems: 0, checks_not_tried: 0 } } as ProjectGroups;
+function group(needsYou: string[], working = 0, findings: string[] = []): ProjectGroups {
+  return { id: "p", needs_you: needsYou, findings, summary: { needs_you: needsYou.length, working, planned: 0, built: 0, problems: 0, checks_not_tried: 0 } } as ProjectGroups;
 }
 
 describe("prunedMap (Slice 36)", () => {
@@ -51,6 +51,10 @@ describe("resolveOpen", () => {
     expect(resolveOpen({}, group([]))).toBe(false);
     expect(resolveOpen({}, group([], 1))).toBe(true);
     expect(resolveOpen(null, group([]))).toBe(true);
+  });
+
+  it("opens a project that has only open findings, so new findings are not hidden (Slice 57)", () => {
+    expect(resolveOpen({}, group([], 0, ["p/finding-x"]))).toBe(true);
   });
 
   it("opens a project with a question when nothing is stored", () => {

@@ -339,6 +339,7 @@ const en = {
   plannedN: "Planned · {n}",
   otherOpenN: "Other open items · {n}",
   problemsN: "Problems and bugs · {n}",
+  findingsN: "Findings · {n}",
   pillInProgress: "In progress",
   pillPlanned: "Planned",
   pillParked: "Parked",

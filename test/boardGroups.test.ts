@@ -165,6 +165,25 @@ describe("groupBoard", () => {
     expect(group.other).toEqual(["idle"]);
   });
 
+  it("lists open findings in their own group, by priority then newest report, and not in other", () => {
+    const finding = (key: string, over: Partial<GroupItem> = {}) => item(key, { type: ItemType.Finding, ...over });
+    const group = only([
+      finding("f-old", { heartbeat_at: minutesAgo(50) }),
+      finding("f-new", { heartbeat_at: minutesAgo(2) }),
+      finding("f-p1", { priority: Priority.P1, heartbeat_at: minutesAgo(90) }),
+      finding("f-done", { status: ItemStatus.Done, done_at: minutesAgo(10) }),
+      finding("f-ask", { status: ItemStatus.InProgress, needs_you: "Approve?", needs_you_at: minutesAgo(3) }),
+    ]);
+    expect(group.findings).toEqual(["f-p1", "f-new", "f-old"]);
+    expect(group.other).toEqual([]);
+    expect(group.needs_you).toEqual(["f-ask"]);
+    expect(group.done.recent.map((row) => row.key)).toEqual(["f-done"]);
+  });
+
+  it("shows a project that holds only a finding", () => {
+    expect(groupBoard([item("f", { type: ItemType.Finding })], [], [PROJECT])).toHaveLength(1);
+  });
+
   it("orders the configured projects first, drops one with nothing, and adds unknown ones by id", () => {
     const stray = item("z", { project: "zeta" });
     const lone = item("a", { project: "alpha" });

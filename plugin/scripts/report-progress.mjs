@@ -177,10 +177,13 @@ function toolResult(body) {
   const result = body && body.result;
   const text = result && result.content && result.content[0] ? String(result.content[0].text) : '';
   if (!result || result.isError) return { ok: false, error: `tool error: ${text || 'no result'}` };
+  // A size-cut or partial reply carries its note as a second text block; it rides along as `notice` (only when present).
+  const second = result.content[1] ? String(result.content[1].text) : '';
+  const notice = second ? { notice: second } : {};
   try {
-    return { ok: true, data: JSON.parse(text) };
+    return { ok: true, data: JSON.parse(text), ...notice };
   } catch {
-    return { ok: true, data: text };
+    return { ok: true, data: text, ...notice };
   }
 }
 

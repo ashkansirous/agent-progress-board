@@ -3,6 +3,11 @@
 Every open "Not yet verified" check, one block per slice. A check that passes, or that the
 owner confirms, is removed here and its slice marked `verified`.
 
+### Slice 57: Process optimiser: a skill that finds waste in the recorded runs ([slice](slices/57-process-optimiser.md))
+
+- [session] Live: the first weekly dry-run report exists on the board with at least one real run per detector input (needs the release, the plugin update and the owner's optimiser config).
+- [owner] Read four weeks of dry-run reports at `<board address>/`, then ask for a slice that turns finding cards on (`--file-findings` as the default).
+
 ### Slice 56: Budgets per process, with a live breach on the card ([slice](slices/56-process-budgets.md))
 
 - [chrome] Live: a step with a 1-minute test budget, left running 2 minutes, shows the over-budget line on the board (needs the release and a budgets entry in the private config).

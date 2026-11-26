@@ -75,7 +75,8 @@ function ProjectBody({ group, items, onOpen, onOpenLoose, id }: GroupProps & { i
       />
       <BuiltSection slices={group.built} items={items} onOpenItem={onOpen} />
       <ProblemsSection problems={group.problems} items={items} onOpen={onOpen} />
-      {group.other.length > 0 && <Section label={t("otherOpenN", { n: group.other.length })} list={itemsOf(group.other, items)} onOpen={onOpen} />}
+      {group.findings.length > 0 && <Section label={t("findingsN", { n: group.findings.length })} list={itemsOf(group.findings, items)} onOpen={onOpen} />}
+      {group.other.length > 0 &&<Section label={t("otherOpenN", { n: group.other.length })} list={itemsOf(group.other, items)} onOpen={onOpen} />}
       <DoneSection done={group.done} onOpen={onOpen} />
     </div>
   );

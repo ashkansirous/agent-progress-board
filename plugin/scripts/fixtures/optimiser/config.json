@@ -1,0 +1,16 @@
+{
+  "approval": { "text/owner-read": ["translate/chapter"] },
+  "budgets": {
+    "defaultPeakContext": 150000,
+    "processes": {
+      "test/suite": { "minutes": 6 },
+      "build/book": { "minutes": 30 }
+    }
+  },
+  "fanOut": { "minSiblings": 3 },
+  "serial": { "independent": [["review/security", "review/style"]], "maxGapSeconds": 600 },
+  "duplicate": { "minRepeats": 2 },
+  "reviews": { "processes": ["review/code"], "minPass": 2, "maxYieldPer100kTokens": 2, "findingsCount": "findings", "fixesCount": "fixed" },
+  "contextBloat": { "peakContext": 150000 },
+  "bigModel": { "mechanical": ["format/files"], "models": ["opus"] }
+}

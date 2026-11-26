@@ -34,6 +34,7 @@ Keep the card current:
 - Call mark_done only when the goal is done and no background agent is still working. Never call it just because a reply ended.
 - There is no delete: archive_item hides an item and everything under it, keeps them 30 days (get_item with include_archived reads them), then removes them. A report on an archived key is refused (upsert_item restores it). apply_batch changes up to 200 items a call; list_synced shows what a plan sync holds.
 - A question for the person goes in needs_you (and after_answer), on the same card: the question, its options and what each does, the work it belongs to (slice, task) in the title, and a link to where the person acts; never a card that only says "waiting". While it is open, repeat the same needs_you text in every report, heartbeats included (an unchanged text keeps its first-asked time; a report without it can clear the question). When it is answered, send needs_you null. A chat that cannot use report_progress asks with ask_human, giving needs_you (the question) and links on its own waiting_for_me item. A chat that is waiting on the person sends no heartbeat; its card turns stale after 15 minutes, and that is expected.
+- Only the process optimiser reports type "finding" (a proposed change with its evidence and estimated saving); the owner approves it in their own repo.
 - Never guess token numbers; report usage only if you can read it.
 <!-- END RULES -->
 

@@ -17,7 +17,7 @@ describe("seed data", () => {
   it("has 15 made-up items in three projects covering every type and status", () => {
     expect(SEED_ITEMS).toHaveLength(15);
     expect(new Set(SEED_ITEMS.map((i) => i.project))).toEqual(new Set(["recipe-box", "garden-planner", "home-lab"]));
-    expect(new Set(SEED_ITEMS.map((i) => i.type))).toEqual(new Set(Object.values(ItemType).filter((type) => type !== ItemType.Check)));
+    expect(new Set(SEED_ITEMS.map((i) => i.type))).toEqual(new Set(Object.values(ItemType).filter((type) => type !== ItemType.Check && type !== ItemType.Finding)));
     expect(new Set(SEED_ITEMS.map((i) => i.status))).toEqual(new Set(Object.values(ItemStatus)));
     expect(new Set(SEED_ITEMS.map((i) => i.priority))).toEqual(new Set(Object.values(Priority)));
     expect(SEED_ITEMS.filter((i) => i.status === ItemStatus.Done)).toHaveLength(3);

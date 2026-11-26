@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
-  activeTaskCard, buildArguments, callTool, isOrchestrator, keepStep, loadStepList, parseArgs, parseLinks, parseReportedTime, parseStepLabels, projectSlug, readTaskFile,
+  activeTaskCard, buildArguments, callTool, isOrchestrator, keepStep, loadStepList, parseArgs, parseCounts, parseLinks, parseReportedTime, parseStepLabels, projectSlug, readTaskFile,
   readTouchesFile, resolveConfig, resolveEnvironment, sliceKey, slugify, stateRoot, stepStates, taskFilePath,
 } from './report-progress.mjs';
 import { TEST_TOKEN, cleanUpAfterTests, envFor, replyOk, runNode, startFakeBoard, trackedTemp } from './test-helpers.mjs';
@@ -335,6 +335,71 @@ describe('task steps', () => {
     assert.match(tooLong.stderr, /over 80 characters/);
     assert.equal(tooLong.code, 0);
     assert.equal(board.requests.length, 0, 'neither report was sent');
+  });
+
+  test('parseCounts keeps valid names and whole numbers, drops bad pairs and caps at 10 names', () => {
+    assert.deepEqual(parseCounts('findings=3, fixed=0'), { findings: 3, fixed: 0 });
+    assert.equal(parseCounts('Bad=1,x=-1,y=1.5,z=1000001,=2,w'), null);
+    assert.deepEqual(parseCounts('a=1,B=2,c=3'), { a: 1, c: 3 });
+    assert.equal(Object.keys(parseCounts(Array.from({ length: 12 }, (_, index) => `n${index}=1`).join(','))).length, 10);
+    const proto = parseCounts([...Array.from({ length: 10 }, (_, index) => `n${index}=1`), 'constructor=2', '__proto__=3'].join(','));
+    assert.equal(Object.keys(proto).length, 10, 'prototype names count against the cap');
+    assert.deepEqual(Object.keys(parseCounts('constructor=2,__proto__=3')), ['constructor']); // `__proto__` fails the name rule
+  });
+
+  test('a steps-file process key and --counts go out on the step entries; a bad key is dropped', async () => {
+    const board = await startFakeBoard(replyOk);
+    const dir = stateFolder();
+    const file = stepsFile({ agent: 'x', steps: [{ label: 'Pass', process: 'review/pass-1' }, { label: 'Fix', process: 'Bad Key' }] });
+    const env = { ...envFor(board.url, dir), CLAUDE_CODE_SESSION_ID: 'sess-p' };
+    const out = await runNode(SCRIPT, ['--key', 'demo-app/t', '--steps-file', file, '--step-done', 'Pass', '--counts', 'findings=4,Oops=1'], env);
+    board.server.close();
+    const steps = board.requests[0].body.params.arguments.steps;
+    assert.deepEqual(steps[0], { label: 'Pass', state: 'done', process: 'review/pass-1', counts: { findings: 4 } });
+    assert.deepEqual(steps[1], { label: 'Fix', state: 'active' });
+    assert.match(out.stderr, /process key of step "Fix"/);
+    assert.match(out.stderr, /count "Oops=1"/);
+  });
+
+  test('review 8: file counts are validated; --counts goes on the --step-active step when no step is done; an unmatched label sends none', async () => {
+    const board = await startFakeBoard(replyOk);
+    const file = stepsFile({ agent: 'x', steps: [{ label: 'A', counts: { Findings: 2, ok: 2.5, fine: 3, 'a=1,b': 2, str: '4', neg: -1 } }, { label: 'B' }] });
+    const env = { ...envFor(board.url, stateFolder()), CLAUDE_CODE_SESSION_ID: 'sess-c1' };
+    const first = await runNode(SCRIPT, ['--key', 'demo-app/t', '--steps-file', file, '--step-active', 'B', '--counts', 'n=1'], env);
+    const second = await runNode(SCRIPT, ['--key', 'demo-app/t', '--steps-file', file, '--step-done', 'A', '--counts', 'n=1'], env);
+    const third = await runNode(SCRIPT, ['--key', 'demo-app/t', '--steps-file', file, '--step-done', 'Nope', '--counts', 'n=1'], env);
+    board.server.close();
+    const [one, two] = board.requests.map((request) => request.body.params.arguments.steps);
+    assert.deepEqual(one.map((step) => step.counts), [{ fine: 3 }, { n: 1 }], 'file counts cleaned; --step-active step takes the counts');
+    assert.deepEqual(two[0].counts, { n: 1 });
+    assert.match(first.stderr, /count "Findings=2"/);
+    assert.match(first.stderr, /count "ok=2.5"/);
+    assert.match(first.stderr, /count "a=1,b=2"/, 'a name holding "," or "=" is one bad entry, never split into pairs');
+    assert.match(first.stderr, /count "str=4"/, 'a string value from a file is refused');
+    assert.match(third.stderr, /--counts needs --step-done or --step-active naming a step/);
+    assert.equal(second.code, 0);
+  });
+
+  test('review 8: --counts with no step list sends none; a steps-file key is overridden by --step-process; an empty key is ignored with a line', async () => {
+    const board = await startFakeBoard(replyOk);
+    const file = stepsFile({ agent: 'x', steps: [{ label: 'A', process: 'review/pass-1' }, { label: 'B', process: 'review/fix' }] });
+    const env = { ...envFor(board.url, stateFolder()), CLAUDE_CODE_SESSION_ID: 'sess-c2' };
+    await runNode(SCRIPT, ['--key', 'demo-app/t', '--step-done', 'A', '--counts', 'n=1'], env);
+    const out = await runNode(SCRIPT, ['--key', 'demo-app/t', '--steps-file', file, '--step-done', 'A', '--step-process', 'A|review/pass-2', '--step-process', 'B|'], env);
+    board.server.close();
+    assert.equal(board.requests[0].body.params.arguments.steps, undefined);
+    const steps = board.requests[1].body.params.arguments.steps;
+    assert.deepEqual(steps.map((step) => step.process), ['review/pass-2', 'review/fix']);
+    assert.match(out.stderr, /--step-process "B\|" has no key/);
+  });
+
+  test('--step-process gives an inline --under-step list its process keys', async () => {
+    const board = await startFakeBoard(replyOk);
+    const env = { ...envFor(board.url, stateFolder()), CLAUDE_CODE_SESSION_ID: 'sess-q' };
+    await runNode(SCRIPT, ['--key', 'demo-app/t', '--steps', 'a|b', '--under-step', 'agent-a1', '--step-process', 'a|slice/implement', '--step-process', 'b|review/fix'], env);
+    board.server.close();
+    const sent = board.requests[0].body.params.arguments.steps;
+    assert.deepEqual(sent.map((step) => step.process), ['slice/implement', 'review/fix']);
   });
 
   test('stepStates: before the active one done, after pending; done moves on; unknown is null; skipped is left out', () => {

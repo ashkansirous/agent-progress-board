@@ -28,9 +28,9 @@ export function readOpenMap(read: () => string | null): OpenMap | null {
   }
 }
 
-/** A project with no working card and no question is quiet: it folds by default (the mock, `renderVals`). */
+/** A project with no working card, no question and no open finding is quiet: it folds by default (the mock, `renderVals`; Slice 57: an open finding is counted like the other lists). */
 export function isQuiet(group: ProjectGroups): boolean {
-  return group.summary.working === 0 && group.summary.needs_you === 0;
+  return group.summary.working === 0 && group.summary.needs_you === 0 && group.findings.length === 0;
 }
 
 /**

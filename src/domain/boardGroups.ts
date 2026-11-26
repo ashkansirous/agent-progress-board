@@ -101,6 +101,8 @@ export interface ProjectGroups {
   /** Checks not tried whose slice is neither a planned nor a built one (never synced, not listed, or not a slice): never a card, a dashed entry under Planned. A check of a done slice makes it built, so it is that slice's. */
   loose_checks: CheckView[];
   problems: ProblemEntry[];
+  /** Keys of the process optimiser's open findings (Slice 57) that ask nothing of the owner, by priority then newest report. */
+  findings: string[];
   /** Open items that are none of the above (an unplanned item nobody holds); the page lists them plainly. */
   other: string[];
   done: DoneGroup;
@@ -219,7 +221,8 @@ function groupProject(id: string, items: GroupItem[], checkRows: CheckRow[]): Pr
   const working = live.filter(
     (item) => item.working && !asksOwner(item) && !isProblemType(item.type) && !waitingSet.has(item),
   );
-  const placed = new Set([...questions, ...waiting, ...problems, ...working, ...slices]);
+  const findings = open.filter((item) => item.type === ItemType.Finding && !asksOwner(item) && !working.includes(item));
+  const placed = new Set([...questions, ...waiting, ...problems, ...working, ...slices, ...findings]);
   const other = open.filter((item) => !placed.has(item)).sort(byPriorityThen(newestHeartbeat));
   const needsYou = [...questions, ...waiting].map((item) => item.key);
   const group: ProjectGroups = {
@@ -230,6 +233,7 @@ function groupProject(id: string, items: GroupItem[], checkRows: CheckRow[]): Pr
     built,
     loose_checks: loose,
     problems: problems.sort(byPriorityThen(newestHeartbeat)).map(problemOf),
+    findings: findings.sort(byPriorityThen(newestHeartbeat)).map((item) => item.key),
     other: other.map((item) => item.key),
     done: doneGroupOf(finished),
     summary: { needs_you: needsYou.length, working: working.length, planned: planned.length, built: built.length, problems: problems.length, checks_not_tried: 0 },
@@ -241,7 +245,7 @@ function groupProject(id: string, items: GroupItem[], checkRows: CheckRow[]): Pr
 function hasAnything(group: ProjectGroups): boolean {
   const { summary } = group;
   const lists = summary.needs_you + summary.working + summary.planned + summary.built + summary.problems + summary.checks_not_tried;
-  return lists + group.other.length + group.done.count > 0;
+  return lists + group.findings.length + group.other.length + group.done.count > 0;
 }
 
 /**

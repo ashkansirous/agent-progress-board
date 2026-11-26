@@ -13,6 +13,8 @@ export enum ItemType {
    * names the slice it belongs to (always required).
    */
   Check = "check",
+  /** One finding of the process optimiser (Slice 57): evidence runs, numbers, estimated saving and the proposed change, in `details_md`. It is a card. */
+  Finding = "finding",
 }
 
 export enum ItemStatus {

@@ -71,6 +71,12 @@
       "color": "#1D4ED8",
       "light": { "bg": "#E6EEFC", "fg": "#1D4ED8", "border": "#BFD0F5" },
       "dark": { "bg": "#1C2B4A", "fg": "#9DBDFF", "border": "#2E4473" }
+    },
+    "finding": {
+      "label": "Finding",
+      "color": "#5B6370",
+      "light": { "bg": "#F0F2F5", "fg": "#5B6370", "border": "#E3E6EB" },
+      "dark": { "bg": "#232833", "fg": "#9AA3B2", "border": "#2E3440" }
     }
   },
   "statuses": {

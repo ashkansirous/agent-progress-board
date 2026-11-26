@@ -97,6 +97,18 @@ cap state live in `CLAUDE_PLUGIN_DATA/state`; nothing is written to the Claude f
 - **A device check** sets `AGENT_BOARD_DEBUG=1` to see one stderr line per branch (gate closed, run started, usage
   off, cap sent or skipped).
 
+### Process optimiser (Slice 57, optional)
+
+The plugin's `process-optimiser` skill (`plugin/scripts/optimiser/optimise.mjs`) reads a week of finished steps with
+`query_runs`, runs eight detectors over each project's rows and writes one report card per project,
+`<project>/optimiser-report-<ISO week>` (an `unplanned` card, done, the findings in its details). **Dry run is the
+default**: no finding card is filed. `--file-findings` also files one card of type `finding` per finding
+(`<project>/finding-<detector>-<hash>`: evidence runs, numbers, estimated saving and the proposed change in `details_md`);
+the board lists open findings in their own "Findings" section and edits no repo. It reads one config file the caller names
+(approval process keys and the steps they gate, budgets in the board's own shape, thresholds, mechanical process keys
+and big model names; a made-up example is in `plugin/scripts/fixtures/optimiser/config.json`) and fails open like
+every plugin client.
+
 ### Plan sync (Slice 23, optional)
 
 `plugin/scripts/sync-docs.mjs` reads a repo's `plan.md` `## Status` table, `docs/plan/slices/`, and
@@ -240,7 +252,7 @@ An event is `{at, status, source, note}`.
 **Allowed values**
 
 - `type`: `slice`, `problem`, `waiting_for_me`, `bug`, `unplanned`, `part` (one lettered part of a
-  slice, see *Slice parts* below)
+  slice, see *Slice parts* below), `finding` (one proposal of the process optimiser, see *Process optimiser* above)
 - `status`: `open`, `in_progress`, `blocked`, `done`, `stale`
 - `priority`: `P0`, `P1`, `P2`, `P3` (a new item defaults to `P2`)
 

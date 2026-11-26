@@ -4,6 +4,8 @@
 
 **Product:** agent-progress-board. Moved out of Slice 50 (docs/plan/slices/50-batch-and-archive.md), whose own work is built.
 
+*Check 2026-11-26 (plan-cleanup-check):* verdict keep open, not started. Read on `origin/main` (7318d16): `SYNC_UPSERT` still sets `archived_at = excluded.archived_at` (item 5), `ARCHIVE_EVENTS` still writes only for named keys (item 2), `SYNC_REVIVE` and `docSyncChildren` unchanged, `SYNCED_ROWS` comment still says "live" (item 7); no commit touches this slice's files after Slice 50/51. Every item is own work, no outside waits.
+
 **Touches:** `src/infrastructure/d1Repository.ts`, `src/domain/docSync.ts`, `src/application/board.ts`, `src/application/archive.ts`, `test/*.test.ts`
 
 #### Why

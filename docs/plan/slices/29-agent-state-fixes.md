@@ -88,6 +88,8 @@ as bug card `agent-progress-board/bug-hook-title-overwrite-2026-11-18`.
 
 #### Follow-ups
 
+*Check 2026-11-26 (`git grep` on origin/main): `<id>.stopped/` leaks (#1, check-3 #1) are fixed, `removeStoppedFolder` runs on goal expiry and session end (`hook-input.mjs:459,463`); `takeActiveSlot` no longer exists (#5 gone). Still present and low: the 3 s resume window (#4, `RESUME_SLACK_MS`), `currentAgents` in `session-done.mjs`, writeJson temp left on kill, held goal with no SubagentStop.*
+
 - Follow-up #1 (`reviews/pr-129-check-2-medium.md`): "`<id>.stopped/` folder removed only in readGoal's goalAt-expiry branch and removeGoal; sessions with no goal file (SubagentStop still writes) or whose goal file expired by mtime leak the folder forever." - not crash, data-loss, security or privacy; check passes converged.
 - Follow-up #2 (`reviews/pr-129-check-2-medium.md`): "Stop's in-flight in_progress report (up to 2 s) can land after the last SubagentStop's mark_done; card ends open and Stop's patch overwrites `closed`." - same; the board's stale rules close the card.
 - Follow-up #4 (`reviews/pr-129-check-2-medium.md`): "stoppedAfterLastWrite treats a write within 3 s after stop as still stopped; an agent resumed in that window is shown done and the card can close under running work." - same.

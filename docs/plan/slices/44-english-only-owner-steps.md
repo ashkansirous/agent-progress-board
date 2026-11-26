@@ -74,6 +74,7 @@ components).
 *Reviews:* `reviews/pr-160-high.md` (7 findings), `reviews/pr-160-medium.md` (4), `reviews/pr-160-check-medium.md` (3).
 
 - Applied: high #1, #3, #4, #5, #7; medium #1, #2, #3.
+- *Check 2026-11-26: #1 and #2 are built since (`ownerTitleFields` drops a repeated `Slice N:` prefix; `actionBar` skips code, bold and link spans via `spanEnd`, `plugin/scripts/sync-docs.mjs`). Only #3 (links built twice, `dedupeLinks` in `web/src/SessionCards.tsx`) is still open; it is low and stays one Outstanding line.*
 - Follow-ups, low, none applied (the check pass converged): check-medium #1 (`reviews/pr-160-check-medium.md`): a line already starting with `Slice N:` gets the prefix twice; #2: `actionBar` splits the raw line before `plain()`, so a bar inside bold or link text splits it; #3: board-address links are built twice (`addressLinks` and `stepUrls`) and hidden only by `dedupeLinks`.
 
 - Skipped #2 (`reviews/pr-160-high.md`): "Existing cards keep an old details_md while the title is cut at 80." - a one-off for cards already synced; a line rewritten to the bar form gets a new checkHash key and a fresh details_md, and the COALESCE lives in `d1Repository.ts`, outside this slice's Touches.

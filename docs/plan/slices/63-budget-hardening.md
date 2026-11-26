@@ -4,6 +4,8 @@
 
 **Product:** agent-progress-board.
 
+*Check 2026-11-26 (plan-cleanup-check): all four items read on origin/main (budgets.ts:9 plain index, ranMsOf skips stamped sources only for done steps, readBudgets logs only unknown process limits, breachText falls through to the context message). Verdict: keep open; nothing waits, nothing moved out.*
+
 **Touches:** `src/domain/budgets.ts`, `src/config.ts`, `web/src/stepsText.ts`, their tests
 
 Moved from Slice 56 (`reviews/pr-214-check-medium.md` #1 to #4). Needs Slice 56 (merged).

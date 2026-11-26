@@ -4,6 +4,8 @@
 
 **Product:** agent-progress-board.
 
+*2026-11-26 plan-cleanup check: keep open, not started. `budgets.ts` on origin/main still checks a running step for time only (`breachOf` doc line 58); no plugin change since Slice 54 sends cost for an active step (`git log origin/main -- plugin/ src/domain/stepRuns.ts` shows only Slices 53-57 and step-time/key work). No waits, no outside events, no side items in this slice.*
+
 **Touches:** `src/domain/stepRuns.ts`, `src/domain/steps.ts`, `src/domain/budgets.ts`, `plugin/`, their tests
 
 Needs Slices 54 and 56 (merged).

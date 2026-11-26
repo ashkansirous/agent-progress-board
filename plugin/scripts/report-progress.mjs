@@ -16,7 +16,11 @@
 //          [--orchestrator]
 //          [--steps "a|b|c" | --steps-file <path>] [--touches "<Touches line>"] [--touches-file <slice file>]
 //          [--step-active "<label>" | --step-done "<label>"] [--step-skipped "<label>"]... [--under-step <id>]
-//          [--started-at <ISO>] [--done-at <ISO>]
+//          [--started-at <ISO>] [--done-at <ISO>] [--step-process "<label>|<key>"]... [--counts "name=1,other=2"]
+// Process keys and counts (Slice 55): a step in a steps file may carry `process` (lower-case words joined by "/", 80
+// characters at most); an inline list gets keys from --step-process "<label>|<key>" (repeatable). --counts "findings=3,fixed=2"
+// goes on the step --step-done names (else --step-active): up to 10 names /^[a-z][a-z0-9_]*$/ (40 characters), whole numbers
+// 0 to 1,000,000. A bad key or count is dropped with one stderr line, as the board would drop it.
 // --started-at / --done-at (Slice 32 C) send the real start / end of the step --step-active / --step-done names, for a
 // late report; a real ISO date-time with a zone (an offset like +01:00 or +0100), not in the future (60 s of clock skew
 // allowed), else one stderr line and the time is left out (the board then stamps its own). Routing: --done-at goes on the
@@ -73,6 +77,13 @@ export const STEP_LABEL_MAX = 80; // the board's limits (docs/clients.md, Steps)
 export const STEP_NOTE_MAX = 120;
 export const STEPS_MAX = 200; // the board's whole-tree limit (src/mcp/schemas.ts, Slice 39)
 export const STEP_ID_MAX = 80;
+// Slice 55: a step's process key and counts, validated as the board does (src/domain/steps.ts); a bad one is dropped with a stderr line.
+export const PROCESS_MAX = 80;
+export const COUNTS_MAX = 10;
+export const COUNT_NAME_MAX = 40;
+export const COUNT_VALUE_MAX = 1_000_000;
+const PROCESS_KEY = /^[a-z0-9]+(?:[-_][a-z0-9]+)*(?:\/[a-z0-9]+(?:[-_][a-z0-9]+)*)*$/;
+const COUNT_NAME = /^[a-z][a-z0-9_]*$/;
 const STEP_SEPARATOR = '|';
 export const STATE_FOLDER = 'claude-board-hooks';
 export const STATE_ROOT_VARIABLE = 'AGENT_BOARD_SESSION_ROOT'; // a test or a user override of the state folder
@@ -86,7 +97,7 @@ const PART_LETTER = /^[A-Z]$/;
 const PART_TYPE = 'part';
 const WRITE_TOOLS = new Set(['report_progress', 'mark_done', 'ask_human']);
 const FIELD_ARGS = ['project', 'type', 'status', 'title', 'why', 'parent', 'priority', 'note', 'source', 'agent', 'model', 'outcome'];
-const REPEATABLE = new Set(['link', 'step-skipped']);
+const REPEATABLE = new Set(['link', 'step-skipped', 'step-process']);
 const SWITCHES = new Set(['waiting', 'orchestrator', 'clear-outcome']); // `--clear-outcome` sends `outcome: null` (Slice 47 6b)
 export const ORCHESTRATOR_SUFFIX = '.orchestrator.json';
 
@@ -281,7 +292,7 @@ export async function callTool(config, name, args, options = {}) {
 }
 
 export function parseArgs(argv) {
-  const out = { link: [], 'step-skipped': [] };
+  const out = { link: [], 'step-skipped': [], 'step-process': [] };
   for (let index = 0; index < argv.length; index += 1) {
     const flag = argv[index];
     if (!flag.startsWith('--')) continue;
@@ -465,9 +476,52 @@ export function loadStepList(value, touches = '') {
   }
 }
 
+// A process key that fits the board's rule, else '' (and one stderr line naming the step).
+export function validProcess(value, label = '') {
+  if (value === undefined || value === null || value === '') return '';
+  const text = typeof value === 'string' ? value.trim() : '';
+  if (text.length >= 1 && text.length <= PROCESS_MAX && PROCESS_KEY.test(text)) return text;
+  process.stderr.write(`report-progress: process key of step "${label}" is not lower-case words joined by "/" (80 characters at most), left out\n`);
+  return '';
+}
+
+// "findings=3,fixed=2" as { findings: 3, fixed: 2 }: up to 10 names, each valid, each value a whole number up to 1,000,000.
+// A bad pair is dropped with one stderr line; null when nothing is left.
+export function parseCounts(text) {
+  const pairs = String(text || '').split(',').map((part) => part.trim()).filter(Boolean).map((pair) => {
+    const cut = pair.indexOf('=');
+    const raw = cut > 0 ? pair.slice(cut + 1).trim() : '';
+    return [pair, cut > 0 ? pair.slice(0, cut).trim() : '', /^\d+$/.test(raw) ? Number(raw) : NaN];
+  });
+  return collectCounts(pairs);
+}
+
+// Each [label, name, value] entry checked on its own: a valid name, a whole number up to 1,000,000, at most 10 names.
+// A bad entry is dropped with one stderr line; null when nothing is left.
+function collectCounts(entries) {
+  const counts = new Map(); // a Map, so a name like `constructor` or `__proto__` is an ordinary key
+  for (const [label, name, value] of entries) {
+    const fits = COUNT_NAME.test(name) && name.length <= COUNT_NAME_MAX && Number.isSafeInteger(value) && value >= 0 && value <= COUNT_VALUE_MAX;
+    if (!fits || (!counts.has(name) && counts.size >= COUNTS_MAX)) {
+      process.stderr.write(`report-progress: count "${String(label).slice(0, 60)}" is not name=whole-number (name a-z, 0-9, _; up to ${COUNTS_MAX} counts), left out\n`);
+    } else counts.set(name, value);
+  }
+  return counts.size ? Object.fromEntries(counts) : null;
+}
+
+// A step's `counts` from a steps file: each entry checked directly (a name is never re-split, a value must be a number); anything but an object is ignored.
+function fileCounts(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  return collectCounts(Object.entries(value).map(([name, number]) => [`${name}=${number}`, name, typeof number === 'number' ? number : NaN]));
+}
+
 function stepEntry(step, state, times = {}) {
   const entry = { label: String(step.label).slice(0, STEP_LABEL_MAX), state };
   if (step.note) entry.note = String(step.note).slice(0, STEP_NOTE_MAX);
+  const processKey = validProcess(step.process, entry.label);
+  if (processKey) entry.process = processKey;
+  const counts = fileCounts(step.counts);
+  if (counts) entry.counts = counts;
   if (times.started_at && state !== STEP_STATE.pending) entry.started_at = times.started_at;
   if (times.done_at && state === STEP_STATE.done) entry.done_at = times.done_at;
   return entry;
@@ -694,8 +748,33 @@ function currentStep(states) {
 // The step list and the labels it came from: --steps gives them inline, else --steps-file reads them.
 function stepListOf(parsed, touches) {
   const inline = parsed.steps ? parseStepLabels(parsed.steps) : [];
-  if (inline.length) return { agent: '', steps: inline.map((label) => ({ label })), inline: true };
-  return loadStepList(parsed['steps-file'], touches);
+  if (inline.length) return { agent: '', steps: withProcesses(inline.map((label) => ({ label })), parsed['step-process']), inline: true };
+  const loaded = loadStepList(parsed['steps-file'], touches);
+  return loaded ? { ...loaded, steps: withProcesses(loaded.steps, parsed['step-process']) } : null;
+}
+
+// `--step-process "<label>|<key>"` (repeatable) gives a step its process key: an inline list's steps (an `--under-step` report sends labels
+// inline) and, over the file's own key, a steps file's step; a later flag wins.
+function withProcesses(steps, specs = []) {
+  const keys = new Map(specs.map(parseLabelKey).filter(Boolean).filter(([label, key]) => Boolean(key) || (process.stderr.write(`report-progress: --step-process "${label}|" has no key, left out\n`), false)));
+  return steps.map((step) => (keys.has(step.label) ? { ...step, process: keys.get(step.label) } : step));
+}
+
+function parseLabelKey(spec) {
+  const cut = String(spec).lastIndexOf('|');
+  return cut > 0 ? [spec.slice(0, cut).trim(), spec.slice(cut + 1).trim()] : null;
+}
+
+// `--counts "a=1,b=2"` goes on the step --step-done names, else the one --step-active names (the step that just produced them).
+function withCounts(steps, parsed, activeLabel) {
+  if (parsed.counts === undefined) return steps;
+  const label = String(parsed['step-done'] || activeLabel || '').trim();
+  const counts = parseCounts(parsed.counts);
+  if (!counts || !steps.some((step) => step.label === label)) {
+    if (counts) process.stderr.write('report-progress: --counts needs --step-done or --step-active naming a step in the list, left out\n');
+    return steps;
+  }
+  return steps.map((step) => (step.label === label ? { ...step, counts } : step));
 }
 
 // agent, model and the step list for a report_progress call, as parsed-argument overrides.
@@ -705,7 +784,7 @@ function stepContext(parsed, env) {
   const named = parsed['step-active'] || parsed['step-done'];
   const active = parsed['step-active'] || (list && list.inline && !named ? list.steps[0].label : ''); // a new inline list starts at its first step
   const moved = Boolean(active || parsed['step-done']);
-  const steps = list && moved ? stepStates(list.steps, active, parsed['step-done'], parsed['step-skipped'], reportedTimes(parsed, active)) : null;
+  const steps = list && moved ? stepStates(withCounts(list.steps, parsed, active), active, parsed['step-done'], parsed['step-skipped'], reportedTimes(parsed, active)) : null;
   if ((parsed['started-at'] !== undefined || parsed['done-at'] !== undefined) && !(list && moved)) {
     process.stderr.write('report-progress: --started-at/--done-at need a step list and --step-active or --step-done, left out\n');
   }

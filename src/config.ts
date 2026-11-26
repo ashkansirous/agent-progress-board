@@ -5,6 +5,7 @@ import {
   MAX_STALE_AFTER_MINUTES,
   MIN_STALE_AFTER_MINUTES,
 } from "./domain/stale";
+import { isProcessKey } from "./domain/steps";
 import { MAX_WINDOW_HOURS, type WindowConfig } from "./domain/window";
 
 export const DEFAULT_WINDOW: WindowConfig = { defaultHours: 12, maxHours: 72 };
@@ -126,7 +127,30 @@ export interface BoardConfig {
   /** The https origin the OAuth issuer and /mcp resource are pinned to; null means the request's own origin (Slice 5). */
   publicOrigin: string | null;
   usage: UsageConfig;
+  /** What a step of each process may use before the card flags it (Slice 56). */
+  budgets: BudgetsConfig;
 }
+
+/** One process's limits (Slice 56); a limit left out is not checked, except the peak context, which falls back to the default. */
+export interface ProcessBudget {
+  /** Whole minutes a running step may take. */
+  minutes?: number;
+  /** Tokens (all kinds) a finished step may use. */
+  tokens?: number;
+  /** The largest single request's context a finished step may reach. */
+  peakContext?: number;
+}
+
+export interface BudgetsConfig {
+  /** The peak-context budget of every step with a cost row and no budget of its own for it. */
+  defaultPeakContext: number;
+  /** Per process key. */
+  processes: Record<string, ProcessBudget>;
+}
+
+export const DEFAULT_PEAK_CONTEXT_BUDGET = 150_000;
+const MAX_BUDGET_MINUTES = 100_000;
+const MAX_BUDGET_TOKENS = 1_000_000_000_000;
 
 /** One chart series colour: a light and a dark value (Slice 8). */
 export interface SeriesColor {
@@ -213,7 +237,46 @@ export function configFromRecord(parsed: Record<string, unknown>): BoardConfig {
     oauthRedirectUris: readRedirectUris(parsed.oauth_redirect_uris),
     publicOrigin: readPublicOrigin(parsed.public_origin),
     usage: readUsage(asRecord(parsed.usage)),
+    budgets: readBudgets(asRecord(parsed.budgets)),
   };
+}
+
+function readBudgets(raw: Record<string, unknown>): BudgetsConfig {
+  const processes = asRecord(raw.processes);
+  const kept: Record<string, ProcessBudget> = {};
+  for (const [key, entry] of Object.entries(processes)) {
+    const budget = readProcessBudget(key, entry);
+    if (budget) kept[key] = budget;
+  }
+  return {
+    defaultPeakContext: readNumber("budgets.defaultPeakContext", raw.defaultPeakContext, DEFAULT_PEAK_CONTEXT_BUDGET, 1, MAX_BUDGET_TOKENS, true),
+    processes: kept,
+  };
+}
+
+/** One process's limits, or null (logged) when the key is no process key or a limit is not a positive whole number. */
+function readProcessBudget(key: string, raw: unknown): ProcessBudget | null {
+  const entry = asRecord(raw);
+  const names = ["minutes", "tokens", "peakContext"];
+  const field = `budgets.processes.${key}`;
+  if (raw !== entry || !isProcessKey(key)) {
+    console.error(`BOARD_CONFIG ${field}: need a process key mapped to {minutes, tokens, peakContext} whole numbers; skipping it`);
+    return null;
+  }
+  const clean: ProcessBudget = {};
+  for (const [name, value] of Object.entries(entry)) {
+    if (!names.includes(name)) {
+      console.error(`BOARD_CONFIG ${field}.${name}: unknown limit (use minutes, tokens or peakContext); skipping it`);
+      continue;
+    }
+    const max = name === "minutes" ? MAX_BUDGET_MINUTES : MAX_BUDGET_TOKENS;
+    if (typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= max) {
+      clean[name as keyof ProcessBudget] = value;
+    } else {
+      console.error(`BOARD_CONFIG ${field}.${name}: need a whole number from 1 to ${max}, got ${JSON.stringify(value)}; skipping it`);
+    }
+  }
+  return Object.keys(clean).length > 0 ? clean : null;
 }
 
 function readUsage(raw: Record<string, unknown>): UsageConfig {

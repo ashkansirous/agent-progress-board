@@ -75,6 +75,27 @@ export interface StepCost {
   ended_source: TimeSource;
 }
 
+/** What a step went over its budget on (Slice 56). */
+export enum BreachKind {
+  /** A running step has run longer than its minutes. */
+  Time = "time",
+  /** A finished step's cost row holds more tokens than its budget. */
+  Tokens = "tokens",
+  /** A finished step's largest request is bigger than its peak-context budget. */
+  Context = "context",
+}
+
+/**
+ * A step over its budget, worked out at read and never stored (Slice 56): `used` and `budget` are minutes for a time breach
+ * (`used` rounded up) and tokens otherwise; `compacted` says the step's context was compacted at least once.
+ */
+export interface Breach {
+  kind: BreachKind;
+  used: number;
+  budget: number;
+  compacted: boolean;
+}
+
 /**
  * One step of a task as stored: free text, shown as sent. Steps form a tree (Slice 39): a step with
  * children is a parent, one with none is a leaf. `started_at` and `done_at` are the reporter's when it sent
@@ -108,6 +129,8 @@ export interface Step {
   counts?: Record<string, number>;
   /** The step's measured cost, attached at read from `step_runs` (Slice 54); never part of the stored steps text. */
   cost?: StepCost | null;
+  /** Set at read when the step is over its budget (Slice 56); never part of the stored steps text. */
+  breach?: Breach | null;
   children: Step[];
 }
 

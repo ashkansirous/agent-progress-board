@@ -3,7 +3,7 @@ import type { BoardItemDto } from "../../src/api/boardDto";
 import { ItemStatus } from "../../src/domain/item";
 import { FollowLink, TileParts } from "./PartsView";
 import { PriorityBadge } from "./PriorityBadge";
-import { currentStepText, progressText } from "./stepsText";
+import { breachText, currentStepText, firstBreach, progressText } from "./stepsText";
 import { StepBar } from "./stepsView";
 import { statusLabel, useView } from "./view";
 
@@ -29,6 +29,7 @@ function TileSteps({ item }: { item: BoardItemDto }) {
   const { t, looks } = useView();
   if (!item.progress || !item.steps) return null;
   const type = looks.type(item.type);
+  const over = firstBreach(item.steps);
   return (
     <span className="tile-steps">
       <span className="tile-steps-line">
@@ -36,6 +37,7 @@ function TileSteps({ item }: { item: BoardItemDto }) {
         <span className="tile-steps-count">{progressText(item, t)}</span>
       </span>
       <StepBar steps={item.steps} variant="tile" finished={item.status === ItemStatus.Done} type={type} />
+      {over && <span className="tile-breach">{breachText(over, t)}</span>}
     </span>
   );
 }

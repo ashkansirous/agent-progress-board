@@ -6,6 +6,13 @@
     { "id": "garden-planner", "label": "Garden Planner" },
     { "id": "home-lab", "label": "Home Lab" }
   ],
+  "budgets": {
+    "defaultPeakContext": 150000,
+    "processes": {
+      "build/run-tests": { "minutes": 6 },
+      "docs/write-guide": { "minutes": 20, "tokens": 2000000, "peakContext": 200000 }
+    }
+  },
   "usage": {
     "lowMarkPercent": 2,
     "keepDays": 30,

@@ -1,6 +1,6 @@
 import type { BoardItemDto } from "../../src/api/boardDto";
 import { ItemStatus } from "../../src/domain/item";
-import { leavesOf, ownerBlockedSteps, type Step, StepState, TimeSource } from "../../src/domain/stepTypes";
+import { BreachKind, leavesOf, ownerBlockedSteps, type Step, StepState, TimeSource } from "../../src/domain/stepTypes";
 import type { StringKey, Translate } from "./strings";
 import { clockTime } from "./time";
 import { isShownCost } from "../../src/domain/stepRuns";
@@ -163,6 +163,31 @@ export function costText(step: Step, t: Translate): string | null {
   ];
   if (cost.compactions > 0) segments.push(t(cost.compactions === 1 ? "stepCostCompaction" : "stepCostCompactions", { n: cost.compactions }));
   return segments.join(COST_SEPARATOR);
+}
+
+/** A step's over-budget line (Slice 56), built from the Worker's `breach` data; null when the step has none. */
+export function breachText(step: Step, t: Translate): string | null {
+  const breach = step.breach;
+  if (!breach) return null;
+  if (breach.kind === BreachKind.Time) return t("breachTime", { used: breach.used, budget: breach.budget });
+  const sizes = { used: tokenText(breach.used, PAGE_LOCALE), budget: tokenText(breach.budget, PAGE_LOCALE) };
+  if (breach.kind === BreachKind.Tokens) return t("breachTokens", sizes);
+  return t(breach.compacted ? "breachContext" : "breachContextNoCompaction", sizes);
+}
+
+/** The first step in the tree (parents before their children) that is over its budget and, when `running`, still active. */
+function findBreach(steps: readonly Step[], running: boolean): Step | null {
+  for (const step of steps) {
+    if (step.breach && (!running || step.state === StepState.Active)) return step;
+    const inside = findBreach(step.children, running);
+    if (inside) return inside;
+  }
+  return null;
+}
+
+/** The step over its budget for the tile and the card's own line: a running step's breach first, else the first in tree order. */
+export function firstBreach(steps: readonly Step[]): Step | null {
+  return findBreach(steps, true) ?? findBreach(steps, false);
 }
 
 /** The open box's times line, as the mock words it. */

@@ -526,6 +526,30 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* A step over its budget (Slice 56): the needs-you orange from the palette, never a literal; the row's label and state turn orange too. */
+
+.step-breach,
+.tile-breach,
+.card-breach {
+  color: var(--needFg);
+  font-weight: 600;
+}
+
+.tile-breach,
+.card-breach {
+  font-size: 12px;
+}
+
+.card-breach {
+  display: block;
+  margin-top: 4px;
+}
+
+.step-row-over .step-label,
+.step-row-over .step-state {
+  color: var(--needFg);
+}
+
 /* Steps in the drawer */
 
 .steps-section {

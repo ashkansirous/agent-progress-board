@@ -6,7 +6,7 @@ import type { Translate } from "./strings";
 import { projectLabel } from "./model";
 import { parentText } from "./partsText";
 import { openItemHash } from "./route";
-import { currentStepText, progressText } from "./stepsText";
+import { breachText, currentStepText, firstBreach, progressText } from "./stepsText";
 import { CardChecks, ReopenedLine, StepBar, StepRows } from "./stepsView";
 import { ageText } from "./time";
 import { useView } from "./view";
@@ -99,6 +99,7 @@ export function ActiveCard({ item, initiallyOpen = false, onScrolled }: CardProp
   const type = looks.type(item.type);
   const steps = item.steps ?? [];
   const finished = item.status === ItemStatus.Done;
+  const over = firstBreach(steps);
   const border = cardBorder(item, type.border);
   const ref = useScrollIntoView(initiallyOpen, onScrolled);
   return (
@@ -117,6 +118,7 @@ export function ActiveCard({ item, initiallyOpen = false, onScrolled }: CardProp
               <span className="progress-count">{progressText(item, t)}</span>
             </div>
             <StepBar steps={steps} variant="card" finished={finished} />
+            {over && <span className="card-breach">{breachText(over, t)}</span>}
           </div>
         )}
       </div>

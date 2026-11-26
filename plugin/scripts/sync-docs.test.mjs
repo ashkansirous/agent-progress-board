@@ -125,6 +125,32 @@ describe('parsing', () => {
     assert.notEqual(checkHash('- one thing'), checkHash('- another thing'));
     assert.match(checkHash('- x'), /^[0-9a-f]{8}$/);
   });
+
+  test('check hash ignores a leading tag and a trailing live-check marker', () => {
+    const base = checkHash('- Import works on the phone');
+    assert.equal(checkHash('- [phone] Import works on the phone'), base);
+    assert.equal(checkHash('- [chrome] Import works on the phone (live check 2026-11-26: passed)'), base);
+    assert.equal(checkHash('- Import works on the phone. (live check 2026-11-26: failed)'), base);
+    assert.notEqual(checkHash('- [other] Import works on the phone'), base);
+  });
+
+  test('check hash accepts any whitespace after the tag and a ")" inside the marker reason', () => {
+    const base = checkHash('- Import works on the phone');
+    assert.equal(checkHash('- [phone]  Import works on the phone'), base);
+    assert.equal(checkHash('- [phone]\tImport works on the phone'), base);
+    assert.equal(checkHash('- Import works on the phone (live check 2026-11-26: unreachable: Chrome stopped (Access sign-in))'), base);
+    assert.equal(checkHash('- [chrome] Import works on the phone (live check 2026-11-26: failed, Slice 5)'), base);
+  });
+
+  test('check hash strips only the exact tag and marker forms, and untagged lines keep their old key', () => {
+    assert.equal(checkHash('- one thing'), '3a77aa5c');
+    assert.equal(checkHash('- [chat](http://a) review'), '00c609be');
+    assert.notEqual(checkHash('- [phone]x'), checkHash('- x'));
+    assert.notEqual(checkHash('- [Phone] x'), checkHash('- x'));
+    assert.notEqual(checkHash('- X (live check 2026-11-26: ok) done'), checkHash('- X'));
+    assert.notEqual(checkHash('- X (live check 2026-11-26: ok) (see PR 12)'), checkHash('- X'));
+    assert.equal(checkHash('- X (see PR 12) (live check 2026-11-26: ok)'), checkHash('- X (see PR 12)'));
+  });
 });
 
 describe('snapshot items', () => {

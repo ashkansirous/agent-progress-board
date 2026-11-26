@@ -26,6 +26,12 @@ const DETAILS_LIMIT = 20000; // the board's longest details_md
 const WHY_LIMIT = 2000;
 const SLICES_DIR = 'docs/plan/slices';
 const DONE_PATH = 'docs/plan/notes/slices-done.md';
+// A check's leading `[tag] ` and trailing `(live check YYYY-MM-DD: ...)` marker change as the check is worked, never its key.
+// Both match the writer's form (ClaudeSkills live-checks.mjs): one whitespace character of any kind after the tag (TAG_PATTERN
+// `\s`), text after it, and a trailing marker whose reason may hold one level of `( )`, ending at the line's final `)`;
+// a markdown link `[chat](url)` or `[phone]x` is not a tag. The tag list is copied from its TAGS.
+const CHECK_TAG = /^\[(?:chrome|session|phone|cloud|chat|owner)\]\s(?=\s*\S)/;
+const LIVE_CHECK_MARKER = /\s*\(live check \d{4}-\d{2}-\d{2}: (?:[^()]|\([^()]*\))*\)\s*$/;
 const SLICE_NUMBER = /^\d+[a-z]*$/i;
 const PARKED_STATUS = /^\s*parked\b|waiting on the user/i;
 // A park reason that waits only on work, never on the person: another slice (also in another repo), an
@@ -152,7 +158,7 @@ function hashText(text) {
 }
 
 export function checkHash(line) {
-  const normal = hashText(line.replace(/^\s*[-*]\s+/, '')).toLowerCase().replace(/[.\s]+$/, '');
+  const normal = hashText(line.replace(/^\s*[-*]\s+/, '').replace(CHECK_TAG, '').replace(LIVE_CHECK_MARKER, '')).toLowerCase().replace(/[.\s]+$/, '');
   return createHash('sha1').update(normal).digest('hex').slice(0, HASH_LENGTH);
 }
 

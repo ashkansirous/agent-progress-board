@@ -42,6 +42,10 @@ From Slice 49 (`docs/plan/slices/49-slice-48-follow-ups.md`, *Follow-ups (check 
   (`waitForQuietScrolls` settled-page check, the unreachable `seen` backstop in `findChain`, the usageTools constant,
   the check-pass-3 nits) are done in the same pass, each checked against `origin/main` first.
 
+- [ ] **8.** (Feedback loop pass 2.) Under load the first full run of Slice 56's fix pass 2 failed
+  `plugin` `report-progress.test.mjs` (projectSlug), one vitest case and two `active.spec` e2e cases, all green on
+  rerun: find the shared state or wall-clock wait in each and fix it (Slice 38's clock helper for e2e).
+
 ## Verify
 
 `npm run lint`, `npm run typecheck`, `npm test` green, with a test per item 1-5.

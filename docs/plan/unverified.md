@@ -3,6 +3,11 @@
 Every open "Not yet verified" check, one block per slice. A check that passes, or that the
 owner confirms, is removed here and its slice marked `verified`.
 
+### Slice 56: Budgets per process, with a live breach on the card ([slice](slices/56-process-budgets.md))
+
+- [chrome] Live: a step with a 1-minute test budget, left running 2 minutes, shows the over-budget line on the board (needs the release and a budgets entry in the private config).
+- [owner] Add real per-process budgets to the board's private config (`BOARD_CONFIG`) when wanted; the default 150k peak-context budget already applies.
+
 ### Slice 55: Process keys, step counts and read tools for analysis ([slice](slices/55-process-keys.md))
 
 - [session] `process_stats` for the last 30 days returns review and implement keys once the owner's skills send them. (live check 2026-11-25: unreachable: the owner's skills send no process keys yet; process_stats returns only derived keys)

@@ -1,6 +1,6 @@
 ### Slice 56 — Budgets per process, with a live breach on the card
 
-*Built (wave 2026-11-26), PR #214. Lint, typecheck, npm test and e2e green.* Needs Slice 55 (merged).
+*Merged as PR #214 (8fd7b2e). Lint, typecheck, npm test and e2e green.* Needs Slice 55 (merged).
 
 **Touches:** `config/board.example.json`, `src/config.ts`, `src/domain/budgets.ts` (new), `src/domain/stepTypes.ts`,
 `src/application/board.ts`, `src/api/board.ts`, `src/api/boardDto.ts`, `web/src/model.ts`, `web/src/stepsView.tsx`,
@@ -86,7 +86,7 @@ Source: [note](../notes/2026-11-22-timeline-spike.md), *Changes Slices 53 to 57 
 - Follow-up (`reviews/pr-214-check-medium.md` #3): unknown keys under `budgets` in `src/config.ts` are ignored without a log line (a misspelled `defaultPeak` leaves 150000 in force silently).
 - Follow-up (`reviews/pr-214-check-medium.md` #4): `breachText` in `web/src/stepsText.ts` sends every kind other than time/tokens to the context message; return null for an unknown kind.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-26)
 
 - A step's budget breach is derived at read only by `breachOf` in `src/domain/budgets.ts` (priority for a finished step: peak context, tokens, time; a running step only time, only on a live card); the page picks the shown one only by `firstBreach` in `web/src/stepsText.ts`; never stored, never a second copy (Slice 56: docs/plan/slices/56-process-budgets.md).
 

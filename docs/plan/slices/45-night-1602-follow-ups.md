@@ -1,6 +1,8 @@
 ### Slice 45 — Review follow-ups left open by the night 2026-11-18-1602
 
-*Built (wave 2026-11-19), merged as PR #167 (bcdc87e); the live-board check of item 8 waits for the night's batched release.* *Planned 2026-11-19 by the feedback loop ([note](../notes/2026-11-18-1602-feedback-loop.md)).*
+*Built (wave 2026-11-19), merged as PR #167 (bcdc87e); live since the 2026-11-19T04:17:55Z deployment.* *Planned 2026-11-19 by the feedback loop ([note](../notes/2026-11-18-1602-feedback-loop.md)).*
+
+*Plan cleanup check 2026-11-26: verdict close. Own work is built (PR #167). Item 8's "NaN:00" half passed in Chrome on 2026-11-19 (read in `docs/plan/unverified.md`); its Reset-overlap half is an unverified line, not a reason to keep the slice open. Items not built (13 #1 and #3, 14 #4 and check-3 #3, 4 #8, 7 #3) are decisions with reasons under *Found while building*; none is open work. The "waits for the batched release" wording was stale and is replaced above.*
 
 *Settled 2026-11-19 by the starter session, under the owner's standing rule (no review or approval round; 2026-11-18:
 "you should not fucking wait for my fucking review"): build every item below, item 12 (privacy) first, then 1-3. An

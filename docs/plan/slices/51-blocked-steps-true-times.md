@@ -2,6 +2,8 @@
 
 *Built (2026-11-25), merged as PR #200 (c04c32a).* Bug, the board's part. The client's part is planned in the owner's private config repo.
 
+*Plan cleanup 2026-11-26: verdict close.* All Work items A to G and E are ticked and live (latest Worker deployment 2026-11-26T02:44:50Z, after the deploy hook at 02:37:56Z, read with `npx wrangler deployments list`). The review follow-ups listed under *From review* and G (ownerBlockedSince, stepProgress with only checks, hookStep rename, statusAfterSync vs OPEN_CHECK_OF test, orderedTimes `now`, `agent-` prefix trust, isStoredStep strictness, apply_batch reopen) are not this slice's own work: moved to a new slice (title "Step and sync rule follow-ups from Slice 51's reviews", numbered by the index pass). The `timeFields` follow-up (#6) is already fixed (`goal-reminder.mjs` skips stamped times). The two *Not yet verified* lines stay in `unverified.md` and do not hold the slice.
+
 **Touches:** `src/domain/stepTypes.ts`, `src/domain/steps.ts`, `src/domain/docSync.ts`, `src/domain/checks.ts`,
 `src/domain/boardGroups.ts`, `src/mcp/instructions.ts`, `src/mcp/schemas.ts`, `src/application/board.ts`,
 `src/infrastructure/d1Repository.ts`, `web/src/`, `plugin/scripts/report-progress.mjs`, `plugin/scripts/sync-docs.mjs`,

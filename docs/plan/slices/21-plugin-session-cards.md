@@ -77,7 +77,7 @@ owner's config repo (`skills/report-progress/`: `report-progress.mjs`, `hooks/ho
 8. `plugin/scripts/hooks/goal-reminder.mjs:117` (low): `process.exitCode = 0` in `.finally` does not force exit; a lingering handle keeps the hook alive to the 5 s timeout; the sync part of `closeAnsweredWaiting` can throw outside the try.
 9. `plugin/scripts/hooks/session-done.mjs:146` (low): each SubagentStop does an extra disk read/write plus `closeDeadWaiting` marker stats; the stopped-id file grows unbounded.
 10. `plugin/scripts/hooks/hooks.test.mjs:93` (low): no tests for concurrent `addStoppedAgent`, old stopped ids, resumed agents, a report landing during `saveGoal`, or the active slot after the `mergeSteps` dedupe.
-11. Board side (feedback loop 2026-11-17-1826): the board allows one active step (`normalizeSteps` in `src/domain/steps.ts`), so while a background agent runs the session's own step shows as pending. The wave kept the rule (*Decisions (wave)*); relaxing it is a product choice for the owner, not planned.
+11. Board side (feedback loop 2026-11-17-1826): the board allows one active step (`normalizeSteps` in `src/domain/steps.ts`), so while a background agent runs the session's own step shows as pending. The wave kept the rule (*Decisions (wave)*); relaxing it is a product choice for the owner, not planned. *(Plan cleanup 2026-11-26: obsolete. Slice 39, PR #143, built, lets several steps run at once; nothing is left here.)*
 
 #### For CLAUDE.md (lifted 2026-11-17)
 

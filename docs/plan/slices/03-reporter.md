@@ -3,7 +3,9 @@
 Source: phone scope (2026-11-15), milestone 3, changed at the desk the same day — see
 [Slice 1](01-items-api.md).
 
-*Built (wave 2026-11-15), merged as PR #36 (e59a231); not yet verified: no client has been written from the guide yet.*
+*Built (wave 2026-11-15), merged as PR #36 (e59a231). Closed by plan-cleanup 2026-11-26: clients now exist (the `plugin/` client, Slice 20, whose scripts read `AGENT_BOARD_URL` / `AGENT_BOARD_TOKEN` as the guide says); the guide's own work is done.*
+
+*Plan-cleanup check 2026-11-26: verdict close. The status line "no client has been written from the guide yet" was stale: `plugin/` (hooks, scripts, skill, `.mcp.json`) is on origin/main, `plugin/scripts/report-progress.mjs` reads the env pair, and this run reports to the board through it. `docs/clients.md` was last changed by Slice 57. Work item 3 (tell the config repo) is done by the Outstanding work line, now stale. The Verification line is a live check and stays in `unverified.md`; it never holds the slice.*
 
 **Touches:** `README.md`, `docs/clients.md`
 
@@ -63,6 +65,6 @@ typecheck and `npm test` green (33 tests). No review passes (docs-only change).
 
 #### Not yet verified
 
-- A client written only from the guide reports a real run and its tiles move live (waits for the first deploy and for the client in the owner's config repo).
+- A client written only from the guide reports a real run and its tiles move live (the deploy has happened and `plugin/` is a client; plan-cleanup 2026-11-26: reading a real run's tile live is not a reason to keep the slice open).
 
 *Verified 2026-11-15* (Worker at c1cc5de): the curl examples in `docs/clients.md` (`report_progress` and `sync_snapshot`) were run as written against the deployed Worker, only project and key made up; both answered 200 with `result.content[0].text` as documented. The required `Accept` and JSON headers were not tested without.

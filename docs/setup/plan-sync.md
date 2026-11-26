@@ -63,7 +63,9 @@ first); the plugin installs no hook for it.
   `Slice <N>: <short action>` (cut at 80 characters) and the steps, with their direct link, are the card's text
   underneath. A line with no bar is all action; an empty action keeps the plain title.
 - Lettered groups (`**A. Title**`) in a slice file's Work section are the slice's parts.
-- At most 200 items and 1000 items plus parts go in one call; over either nothing is sent (one stderr line).
+- Only changed items are sent (an upsert per changed item, a close per item the documents dropped), in as many calls
+  as needed of at most 200 items each, an item counted with its parts and checks (`chunkOperations` in
+  `plugin/scripts/sync-docs.mjs`).
 
 ## 4. Check it worked
 

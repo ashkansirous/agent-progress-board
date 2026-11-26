@@ -28,6 +28,8 @@ owner's config repo. Decisions in [Slice 20](docs/plan/slices/20-plugin-connect.
 | 61 | Optimiser detector and discovery follow-ups | planned | | | [61](docs/plan/slices/61-optimiser-follow-ups.md) |
 | 62 | A running step reports its cost, so tokens and context breaches show live | planned | | | [62](docs/plan/slices/62-running-step-cost.md) |
 | 63 | Budget hardening: four review follow-ups from Slice 56 | planned | | | [63](docs/plan/slices/63-budget-hardening.md) |
+| 64 | A permission-prompt card names the tool and command | planned | | | [64](docs/plan/slices/64-permission-card-names-tool.md) |
+| 65 | Task-row and step-cost review follow-ups (from Slices 53 and 54) | planned | | | [65](docs/plan/slices/65-step-and-cost-follow-ups.md) |
 
 Notes:
 
@@ -39,6 +41,7 @@ Notes:
 
 - [Feedback loop 2026-11-17 night 2023](docs/plan/notes/2026-11-17-2023-feedback-loop.md): what the audit of the sixth night found.
 - [Feedback loop 2026-11-17 night 1826](docs/plan/notes/2026-11-17-1826-feedback-loop.md): what the audit of the fifth night found.
+- [Feedback loop 2026-11-25-1729](docs/plan/notes/2026-11-25-1729-feedback-loop.md): what the audit of night 2026-11-25-1729 found (Slices 64, 65 planned).
 - [Feedback loop 2026-11-17 evening](docs/plan/notes/2026-11-17-1657-feedback-loop.md): what the audit of the fourth night found.
 - [Feedback loop 2026-11-17](docs/plan/notes/2026-11-17-1216-feedback-loop.md): what the audit of the third night found.
 - [Finished slices](docs/plan/notes/slices-done.md): rows of built slices.

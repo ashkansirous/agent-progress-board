@@ -5,7 +5,7 @@ import { OutcomeLine } from "./ActiveCard";
 import { cardLabel, cardQuestion, fillBoardAddress, isOwnerStep, ownerStepDetails, resolveBoardAddress, sessionLabel, stepUrls, waitingText, withoutBoardPages } from "./cards";
 import { projectLabel } from "./model";
 import { isSafeHttpUrl } from "./safeUrl";
-import { isOwnerBlocked } from "./stepsText";
+import { breachText, firstBreach, isOwnerBlocked } from "./stepsText";
 import { ageText } from "./time";
 import { useView } from "./view";
 
@@ -167,6 +167,7 @@ function StepChips({ item }: { item: BoardItemDto }) {
 /** One working session: which session, how long since it did anything, its goal, purpose and steps. */
 export function SessionCard({ item, onOpen }: CardProps) {
   const { t, nowMs } = useView();
+  const over = firstBreach(item.steps ?? []);
   return (
     <button type="button" className="session-card" onClick={() => onOpen(item.key)}>
       <span className="session-top">
@@ -177,6 +178,7 @@ export function SessionCard({ item, onOpen }: CardProps) {
       <OutcomeLine outcome={item.outcome} compact />
       {item.why && <span className="session-why">{item.why}</span>}
       <StepChips item={item} />
+      {over && <span className="card-breach">{breachText(over, t)}</span>}
     </button>
   );
 }

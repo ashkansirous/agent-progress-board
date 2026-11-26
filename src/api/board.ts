@@ -3,6 +3,7 @@ import { type Clock, listBoardRows } from "../application/board";
 import type { BoardRow, ItemRepository } from "../application/ports";
 import { type BoardConfig, configFromRecord } from "../config";
 import { groupBoard } from "../domain/boardGroups";
+import { withBreaches } from "../domain/budgets";
 import { type CheckRow, type CheckView, checksBySlice, countedChecks } from "../domain/checks";
 import { SYNC_REOPENED_SAYS, splitSliceTitle } from "../domain/docSync";
 import { eventMarkerOf, HEARTBEAT_NOTE, type Item, ItemStatus, ItemType, STATUS_DROPPED_NOTE } from "../domain/item";
@@ -184,7 +185,7 @@ function itemDto(row: BoardRow, ctx: PartsContext): BoardItemDto {
     outcome: item.outcome ?? null,
     ...questionFields(item, shownStatus, config, now),
     needs_you_at: waitingSinceOf(item, shownStatus, config, now),
-    steps: item.steps ?? null,
+    steps: withBreaches(item.steps, config.budgets, now, isLiveCard(item, shownStatus, config, now)),
     progress: stepProgress(item.steps, item.status, openChecksOf(item, ctx)),
     blocked_on_owner: isLiveCard(item, shownStatus, config, now) && isBlockedOnOwner(item.steps),
     reopened: reopenedOf(item),

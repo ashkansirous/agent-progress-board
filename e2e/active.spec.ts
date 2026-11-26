@@ -2,7 +2,7 @@ import { expect, type Locator, type Page, test } from "@playwright/test";
 import type { BoardResponse } from "../src/api/boardDto";
 import exampleConfig from "../config/board.example.json" with { type: "json" };
 import { ItemStatus } from "../src/domain/item";
-import { type Step, type StepCost, StepState, TimeSource, WaitsOn } from "../src/domain/stepTypes";
+import { BreachKind, type Step, type StepCost, StepState, TimeSource, WaitsOn } from "../src/domain/stepTypes";
 import { activeBoard, activeTasks, CRASH, PART_B, PART_C, STALE, treeTasks } from "./activeFixture";
 import { demoBoard, SERVER_TIME } from "./fixture";
 import { expectLoadingAfterDelay, holdBoardRoute, pageSettled, pausedClock } from "./loadingClock";
@@ -242,6 +242,26 @@ test.describe("active work page", () => {
     await expect(part.locator(".step-cost")).toHaveCount(1);
     await expect(part.locator(".step-cost")).toHaveText("20 min · model-mid · 300 k tokens · peak context 280 k · 1 compaction");
     await expect(part.locator(".step-cost")).toHaveCSS("white-space", "normal"); // wraps on a phone, never cut with an ellipsis (Decision 9)
+  });
+
+  test("a running step past its time budget shows the breach in the needs-you orange, and a context breach says no compaction (Slice 56)", async ({ page }) => {
+    const base = { note: null, started_source: TimeSource.Reported, done_source: null, waits_on: null, link: null, children: [] };
+    const over: Step = {
+      ...base, id: "t", label: "Run tests", state: StepState.Active, started_at: new Date(Date.parse(SERVER_TIME) - 9 * 60_000).toISOString(), done_at: null,
+      breach: { kind: BreachKind.Time, used: 9, budget: 6, compacted: false },
+    };
+    const big: Step = {
+      ...base, id: "w", label: "Write guide", state: StepState.Done, started_at: new Date(Date.parse(SERVER_TIME) - 30 * 60_000).toISOString(), done_at: new Date(Date.parse(SERVER_TIME) - 10 * 60_000).toISOString(),
+      done_source: TimeSource.Reported, breach: { kind: BreachKind.Context, used: 180_000, budget: 150_000, compacted: false },
+    };
+    const tasks = activeTasks().map((task) => (task.key === PART_B ? { ...task, steps: [big, over] } : task));
+    await openActive(page, activeBoard(tasks));
+    const part = card(page, "Part B · Search box");
+    await expect(part.locator(".step-breach")).toHaveText(["over budget: 180 k context of 150 k · no compaction", "over budget: 9 min of 6"]);
+    await expect(part.locator(".card-breach")).toHaveText("over budget: 9 min of 6"); // a running step's breach comes before a finished one's
+    expect(await css(part.locator(".step-breach").nth(1), "color")).toBe(rgbOf(palette().needFg));
+    expect(await css(part.locator(".step-row-over .step-label").nth(1), "color")).toBe(rgbOf(palette().needFg));
+    await expect(card(page, "Part C · Notification channel").locator(".step-breach")).toHaveCount(0);
   });
 
   test("a task with no active step reads Starting", async ({ page }) => {

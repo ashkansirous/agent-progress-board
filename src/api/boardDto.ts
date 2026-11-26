@@ -82,7 +82,7 @@ export interface BoardItemDto {
   needs_you: string | null;
   after_answer: string | null;
   needs_you_at: string | null;
-  /** The task's steps in the order sent; null when it has none. */
+  /** The task's steps in the order sent; null when it has none. A step over its budget carries a `breach`, worked out at read (Slice 56). */
   steps: Step[] | null;
   /** Worked out at read from the steps (and a slice's open checks); null when the item has no steps list. */
   progress: StepProgress | null;

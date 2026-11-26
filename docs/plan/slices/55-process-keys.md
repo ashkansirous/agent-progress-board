@@ -2,6 +2,8 @@
 
 *Built 2026-11-25, merged as PR #209 (1faef66); the live check is under *Not yet verified*.*
 
+*Plan cleanup 2026-11-26: close. Own work A, B and C is built on `origin/main` (`query_runs`, `process_stats`, `storeKeyOnly`) and live (Worker deployment 2026-11-25T23:53Z, plan.md line 77). The 4 "Open follow-ups" below were side findings, not this slice's work: moved to a new slice (Process-key review follow-ups, numbered by the index pass). Both live checks stay in `unverified.md`; the owner's skills sending keys is a Watch line.*
+
 **Touches:** `src/domain/stepTypes.ts`, `src/domain/steps.ts`, `src/domain/stepRuns.ts`, `src/domain/processStats.ts` (new),
 `src/application/board.ts`, `src/application/processRuns.ts` (new), `src/infrastructure/d1Repository.ts`,
 `src/mcp/schemas.ts`, `src/mcp/tools.ts`, `src/mcp/instructions.ts`, `plugin/skills/agent-board/SKILL.md`,
@@ -99,7 +101,7 @@ left out is listed below.
 - Skipped #5, second part (`reviews/pr-209-check-medium.md`): "values 81-320 chars pass the loosened schema max and are dropped with notice" - over the 80 limit, so dropping with a notice (stored key kept) is what Decision 6 asks.
 - Skipped #1 (`reviews/pr-209-check-3-medium.md`): "looseField still refuses the whole report when a `process` or `counts` value is over 2000 characters" - "a report over a limit is refused" is the published rule; the 2000-character bound is a size limit like the label limit of 80.
 - Skipped #3 (`reviews/pr-209-check-3-medium.md`): "recordCreated clears the stored key when a TaskCreated subject has no" prefix - Decision 6 says TaskCreated defines the key, so a re-created task starts clean.
-- Open follow-ups: pr-209-medium #1 (an index on `items.updated_at` needs a migration), pr-209-check-2-medium #3 (a TaskUpdate rename does not rename the step), pr-209-check-3-medium #2 (`storeKeyOnly` never sends a key change that arrives without a status) and #4 (`counts: {}` clears stored counts).
+- (Moved 2026-11-26 to a new numberless slice, Process-key review follow-ups.) Open follow-ups: pr-209-medium #1 (an index on `items.updated_at` needs a migration), pr-209-check-2-medium #3 (a TaskUpdate rename does not rename the step), pr-209-check-3-medium #2 (`storeKeyOnly` never sends a key change that arrives without a status) and #4 (`counts: {}` clears stored counts).
 
 #### For CLAUDE.md (lifted 2026-11-25)
 

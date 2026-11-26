@@ -2,6 +2,8 @@
 
 *Merged as PR #214 (8fd7b2e). Lint, typecheck, npm test and e2e green.* Needs Slice 55 (merged).
 
+*Plan cleanup check 2026-11-26: verdict close. Work items A to C are done and merged. The Follow-ups bullet (live running-step cost) and the four check-medium follow-ups (#1 to #4) are not this slice's own work; they are moved out (a numberless new slice for each, proposed in the cleanup index). Read on origin/main: all four follow-ups are still true (`budgets.processes[step.process]` at `src/domain/budgets.ts:9` has no own-property guard; `breachText` falls through to the context text for any other kind; `readBudgets` in `src/config.ts` has no unknown-key log; the stamped-source rule is at `budgets.ts:25`). The release after PR #214 is a Watch line (deployments read 2026-11-26T02:39:19Z and 02:44:51Z, `wrangler d1 migrations list --remote` "No migrations to apply"; `batch-release.mjs worker-deployed` not yet run), and the live check stays in `unverified.md`.*
+
 **Touches:** `config/board.example.json`, `src/config.ts`, `src/domain/budgets.ts` (new), `src/domain/stepTypes.ts`,
 `src/application/board.ts`, `src/api/board.ts`, `src/api/boardDto.ts`, `web/src/model.ts`, `web/src/stepsView.tsx`,
 `web/src/stepsText.ts`, `web/src/active.css`, `web/src/ActiveCard.tsx`, `web/src/SessionCards.tsx`, `web/src/Tile.tsx`, `web/src/strings.ts`,

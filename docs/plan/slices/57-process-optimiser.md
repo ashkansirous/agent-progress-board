@@ -1,6 +1,8 @@
 ### Slice 57 — Process optimiser: a skill that finds waste in the recorded runs
 
-*Built (wave 2026-11-26), merged as PR #217 (6513635), not yet verified live (first weekly report, owner's 4-week read). Checks 2026-11-26 02:21-02:24Z: lint and typecheck clean; vitest 981, node 570, e2e 344 passed (6 skipped).* Needs Slices 55 and 56 (both merged).
+*Plan cleanup 2026-11-26 02:50Z: verdict close. The Worker is live: `wrangler deployments list` shows a deployment created 2026-11-26T02:44:51Z (after the release hook at 02:37:56Z) and `wrangler d1 migrations list DB --remote` reads "No migrations to apply" (0012 applied). All four work items A to D are done. The 7 "Follow-up" skips below are not this slice's own work (review follow-ups, rule: a slice holds only its own work); they moved to one new unnumbered slice, "Optimiser detector and discovery follow-ups". `git log origin/main -- plugin/scripts/optimiser` shows no change since 8e7c155, so all 7 are still open. Left: the Watch line and the two Not yet verified checks.*
+
+*Built (wave 2026-11-26), merged as PR #217 (6513635), live since 2026-11-26T02:44Z; first weekly report and the owner's 4-week read still to come. Checks 2026-11-26 02:21-02:24Z: lint and typecheck clean; vitest 981, node 570, e2e 344 passed (6 skipped).* Needs Slices 55 and 56 (both merged).
 
 **Touches:** `plugin/skills/process-optimiser/` (new), `plugin/scripts/optimiser/` (new), `plugin/scripts/fixtures/optimiser/` (new),
 `src/domain/item.ts`, `src/mcp/schemas.ts`, `src/mcp/instructions.ts`, `plugin/skills/agent-board/SKILL.md`,

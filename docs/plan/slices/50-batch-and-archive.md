@@ -2,6 +2,8 @@
 
 *Built (2026-11-25), merged as PR #199 (2b4c864).*
 
+*Plan cleanup 2026-11-26 (verdict: close):* all seven work items are built (PR #199). `wrangler deployments list` shows a Worker version created 2026-11-26T02:44:51Z, after the batched release's deploy hook at 02:37:56Z, so the code is live. The eight review follow-ups under *From review* are not this slice's work: moved to a new slice (archive follow-ups, number given by the index pass). The live plugin-sync run stays a `[session]` line in `unverified.md` (installed plugin is still the 2026-11-18 copy); it never holds the slice open. Check-3 #4 (the `SYNCED_ROWS` comment says "live" but the query lists archived rows) still reads wrong at `src/infrastructure/d1Repository.ts:329`.
+
 Planned 2026-11-19 from the owner's answers in a RefineScope pass (no review round).
 
 **Touches:** src/mcp/tools.ts, src/mcp/schemas.ts, src/mcp/instructions.ts, src/application/board.ts,
@@ -124,7 +126,7 @@ Decided by the starter session (2026-11-19), inside those answers:
      upsert of the parent revives the row with it (rule 2, same time). A row that is not doc-synced (a bug, problem,
      waiting or agent card) written under an archived parent stays live; the purge clears its `parent_key` (rule 3).
      Closes (`CLOSE_ROWS`, `CLOSE_ITEMS`) skip archived rows (`archived_at IS NULL`).
-- Follow-ups (`reviews/pr-199-check-2-medium.md`, not built in this slice):
+- Follow-ups (`reviews/pr-199-check-2-medium.md`, not built in this slice; MOVED 2026-11-26 to the new archive follow-ups slice):
   - #5: "SYNC_REVIVE adds a statement per write, so a 200-item batch uses about 600+ statements in one D1 batch, near or over the per-invocation limit; if rejected nothing applies and the plugin retries the same call."
   - #6: "ARCHIVE_EVENTS writes an archived event only for named keys, not for the parts and checks the same statement archived; a revive writes no restored event."
   - #7: "docSyncChildren walks only rows loadForSync returned; a closed part/check (in_doc_sync = 0) or a live card in the chain can hide a doc-synced grandchild, so the early check passes and the SQL guard refuses with the generic text. Treat the early check as advisory."

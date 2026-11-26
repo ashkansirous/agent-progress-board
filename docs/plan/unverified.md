@@ -234,4 +234,4 @@ owner confirms, is removed here and its slice marked `verified`.
 
 ### Slice 3: Client handover: tool reference and client guide ([slice](slices/03-reporter.md))
 
-- [session] A client written only from the guide reports a real run and its tiles move live (waits for the first deploy and for the client in the owner's config repo). (live check 2026-11-26: unreachable: no client written only from the guide exists)
+- [session] A client written only from the guide reports a real run and its tiles move live (the deploy has happened and `plugin/` is a client; plan-cleanup 2026-11-26: reading a real run's tile live is not a reason to keep the slice open). (live check 2026-11-26: unreachable: no client written only from the guide exists)

@@ -3,6 +3,8 @@
 *Planned 2026-11-18 (owner: "double check and plan the follow up work"). Grouping and order decided by the planning
 session of 2026-11-18; every item below was re-checked against `origin/main` (d654e9b) that day.* Wave 1.
 
+*Plan-cleanup check 2026-11-26: close. All 11 Work boxes were built by PR #129 (merged 2026-11-18T17:10:23Z) and are ticked on that evidence: stop files per agent (`addStoppedAgent`, `removeStoppedAgent` in `hook-input.mjs`, called at `session-done.mjs:109`/`:401`), freshness filter (`background-agents.mjs:151-169`), resume slack and `sig` reset (`session-done.mjs:339`), `goal-reminder.mjs:196` sets exit code in `.finally`, and tests in `hooks.test.mjs`. The design changed from a lock to lock-free files (see *From review*), so item 1 reads "lock" loosely. Follow-ups below are not this slice's work: moved to one Outstanding line. The only unverified check (two parallel agents on the owner's machine) stays in unverified.md.*
+
 *Built (wave 2026-11-18), merged as PR #129 (9b34b1e).* Claim check against `origin/main` (00c1452): `subagentCard` is at
 `session-done.mjs:71-79`, `saveGoal` at `:35-38`, `resumeCard` at `:85-94` (items 5-7 below cite older lines);
 `stoppedIds.has` is at `background-agents.mjs:54`, `mergeSteps` at `:76`. No state lock exists in
@@ -33,28 +35,28 @@ as bug card `agent-progress-board/bug-hook-title-overwrite-2026-11-18`.
 
 #### Work
 
-- [ ] **Find the title overwrite first** (new, 2026-11-18). Find which hook sends `title`/`why` on a card it did not
+- [x] **Find the title overwrite first** (new, 2026-11-18). Find which hook sends `title`/`why` on a card it did not
   create, or which hook reads another session's prompt. Likely `goal-reminder.mjs` or `session-done.mjs`. Not
   confirmed. Fix it, and add a test: two sessions' goal files, and one session's hook never writes the other's card.
-- [ ] 1 (medium): `addStoppedAgent` (`hook-input.mjs:133-137`) reads and then writes without a lock. Parallel
+- [x] 1 (medium): `addStoppedAgent` (`hook-input.mjs:133-137`) reads and then writes without a lock. Parallel
   SubagentStop hooks lose a stopped id. Take the same lock the other state writes use.
-- [ ] 2 (medium): `background-agents.mjs:53`. The `stoppedIds.has(agent.id)` clause skips the `AGENT_FRESH_MS`
+- [x] 2 (medium): `background-agents.mjs:53`. The `stoppedIds.has(agent.id)` clause skips the `AGENT_FRESH_MS`
   freshness filter.
-- [ ] 3 (medium): `mergeSteps` (`background-agents.mjs:80-90`) demotes an active step to pending, then the
+- [x] 3 (medium): `mergeSteps` (`background-agents.mjs:80-90`) demotes an active step to pending, then the
   known-labels filter drops the agent with the same label.
-- [ ] 4 (medium): a resumed agent is forced to done. `session-done.mjs:143` only adds stopped ids and never removes
+- [x] 4 (medium): a resumed agent is forced to done. `session-done.mjs:143` only adds stopped ids and never removes
   one when the agent resumes.
-- [ ] 5 (medium): `saveGoal` (`session-done.mjs:33-36`) writes `readGoal() || goal`, which brings back a goal file
+- [x] 5 (medium): `saveGoal` (`session-done.mjs:33-36`) writes `readGoal() || goal`, which brings back a goal file
   that was removed. `resumeCard` sends an empty `needsYou`, which wipes a question asked during its 2 s call.
-- [ ] 6 (medium): `subagentCard` (`session-done.mjs:117-121`) sends a plain `in_progress` with every step done after
+- [x] 6 (medium): `subagentCard` (`session-done.mjs:117-121`) sends a plain `in_progress` with every step done after
   Stop has left the card open, and nothing ever closes that card. Close it when the last background agent stops and
   the turn has ended.
-- [ ] 7 (low): the `resumeCard` patch (about `session-done.mjs:108`) does not reset `sig`.
-- [ ] 8 (low): the exit code is set in `.finally` (`goal-reminder.mjs:117-121`). The other half of the finding (a
+- [x] 7 (low): the `resumeCard` patch (about `session-done.mjs:108`) does not reset `sig`.
+- [x] 8 (low): the exit code is set in `.finally` (`goal-reminder.mjs:117-121`). The other half of the finding (a
   sync throw outside the try) no longer applies, because `closeAnsweredWaiting` is async.
-- [ ] 9 (low): every SubagentStop does one extra read and write (`session-done.mjs:143`). Its growth is already
+- [x] 9 (low): every SubagentStop does one extra read and write (`session-done.mjs:143`). Its growth is already
   bounded by `readFreshJson` max age (`hook-input.mjs:78-88`).
-- [ ] 10 (low): add tests to `hooks.test.mjs` for: concurrent `addStoppedAgent`, old stopped ids, a resumed agent,
+- [x] 10 (low): add tests to `hooks.test.mjs` for: concurrent `addStoppedAgent`, old stopped ids, a resumed agent,
   a report during `saveGoal`, and the active slot after the `mergeSteps` dedupe.
 
 #### Verification

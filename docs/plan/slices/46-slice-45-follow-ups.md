@@ -6,6 +6,8 @@ for Slice 45): build every item, the two correctness faults first; item 8 keeps 
 
 *Built 2026-11-19 (wave); merged as PR #172 (e0ab581) on 2026-11-19. No device involved.*
 
+*Plan cleanup check 2026-11-26: verdict close. Built and live (deployment 2026-11-19T05:29:53Z). The seven check-3 follow-ups and the skipped review findings below were taken over by [Slice 47](47-open-follow-ups.md) item 8 (ticked: 8h and 8d fixed, 8f covered, 8e and 8g kept). The two live hook checks under *Not yet verified* stay in `unverified.md` and do not hold the slice.*
+
 **Touches:** `plugin/scripts/hooks/session-done.mjs`, `plugin/scripts/sync-docs.mjs`, `plugin/scripts/usage-tick.mjs`,
 `src/mcp/schemas.ts`, `plugin/scripts/report-progress.mjs`, `plugin/scripts/hooks/hook-input.mjs`,
 `plugin/scripts/hooks/waiting-card.mjs`, `plugin/scripts/sync-docs.test.mjs`, `plugin/scripts/hooks/hooks.test.mjs`,

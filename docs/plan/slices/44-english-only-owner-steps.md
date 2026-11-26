@@ -9,6 +9,8 @@ components).
 
 *Built 2026-11-19, merged as PR #160 (ee47e3f); the two Verification lines need the release.*
 
+*Plan-cleanup check 2026-11-26: verdict close. Own work is done on `origin/main` (`pickLocale` and `const de:` no longer exist in `web/`; `ownerTitleFields` is in `plugin/scripts/sync-docs.mjs`). The two Verification lines are device checks that stay in `docs/plan/unverified.md` (both are listed there under Slice 44; the live check could not read them, no Chrome domain configured) and do not hold the slice. The page is English only by the owner's decision. The three low review follow-ups below moved to one Outstanding work line.*
+
 **Touches:** `web/src/strings.ts`, `web/src/App.tsx`, `test/web.test.ts`, `test/partsWeb.test.ts`,
 `test/capCostFormat.test.ts`, `test/planningText.test.ts`, `test/sessionWeb.test.ts`, `test/usageWeb.test.ts`, `e2e/projects.spec.ts`, `web/src/cards.ts`,
 `web/src/SessionCards.tsx`, the e2e spec and fixture that cover owner-step cards, `docs/setup/plan-sync.md`, `docs/clients.md`,

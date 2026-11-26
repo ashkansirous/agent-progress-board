@@ -1,6 +1,6 @@
 ### Slice 57 — Process optimiser: a skill that finds waste in the recorded runs
 
-*Built (wave 2026-11-26), PR #217, not yet verified live (first weekly report, owner's 4-week read). Checks 2026-11-26 02:21-02:24Z: lint and typecheck clean; vitest 981, node 570, e2e 344 passed (6 skipped).* Needs Slices 55 and 56 (both merged).
+*Built (wave 2026-11-26), merged as PR #217 (6513635), not yet verified live (first weekly report, owner's 4-week read). Checks 2026-11-26 02:21-02:24Z: lint and typecheck clean; vitest 981, node 570, e2e 344 passed (6 skipped).* Needs Slices 55 and 56 (both merged).
 
 **Touches:** `plugin/skills/process-optimiser/` (new), `plugin/scripts/optimiser/` (new), `plugin/scripts/fixtures/optimiser/` (new),
 `src/domain/item.ts`, `src/mcp/schemas.ts`, `src/mcp/instructions.ts`, `plugin/skills/agent-board/SKILL.md`,
@@ -121,11 +121,11 @@ Findings read: `reviews/pr-217-high.md` 8/8, `reviews/pr-217-medium.md` 6/6, `re
 - Skipped #4 (`reviews/pr-217-check-2-medium.md`): "An invalid `--now` gives an Invalid Date" - same reason as #1. Follow-up.
 - Skipped #5 (`reviews/pr-217-check-2-medium.md`): "Ranking sums seconds and tokens/100000, mixed units" - same reason as #1 (repeat of high #8). Follow-up.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-26)
 
 - Detectors are pure functions in `plugin/scripts/optimiser/detectors.mjs`; every threshold comes from the caller's config, never from code. The finding-card keep/close rule (Decision 14 close marker) lives only in `plugin/scripts/optimiser/optimise.mjs`; never a second copy. A run is a dry run by default; only `--file-findings` files cards (Slice 57: docs/plan/slices/57-process-optimiser.md).
 
-#### For README.md
+#### For README.md (lifted 2026-11-26)
 
 - `process-optimiser` skill: reads a week of finished steps and writes a dry-run report of waste (serial steps, repeats, over-budget, approval order); finding cards only with `--file-findings`.
 

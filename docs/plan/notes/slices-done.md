@@ -59,3 +59,4 @@ Rows moved out of `plan.md`'s status table once built.
 | 54 | Cost per step: model, tokens, peak context, compactions | built | #207 | | [54](../slices/54-step-cost.md) |
 | 55 | Process keys, step counts and read tools for analysis | built | #209 | | [55](../slices/55-process-keys.md) |
 | 56 | Budgets per process, with a live breach on the card | built | #214 | | [56](../slices/56-process-budgets.md) |
+| 57 | Process optimiser: a skill that finds waste in the recorded runs | built | #217 | | [57](../slices/57-process-optimiser.md) |

@@ -22,7 +22,6 @@ owner's config repo. Decisions in [Slice 20](docs/plan/slices/20-plugin-connect.
 
 | Slice | Title | Status | PR | Issue | File |
 | --- | --- | --- | --- | --- | --- |
-| 57 | Process optimiser: a skill that finds waste in the recorded runs | planned (owner 2026-11-22; needs 55, 56) | | | [slice](docs/plan/slices/57-process-optimiser.md) |
 
 Notes:
 
@@ -66,7 +65,7 @@ Notes:
 
 ## Outstanding work
 
-- **Not yet tried on a device:** 92 checks across 45 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
+- **Not yet tried on a device:** 94 checks across 46 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
 - Slice 50: 8 review follow-ups (3 from check-2, 5 from check-3), listed in [its file](docs/plan/slices/50-batch-and-archive.md).
 - Slice 51: 11 review follow-ups, listed in [its file](docs/plan/slices/51-blocked-steps-true-times.md).
 - Slice 55: 4 review follow-ups (pr-209-medium #1, check-2 #3, check-3 #2 and #4), listed in [its file](docs/plan/slices/55-process-keys.md).

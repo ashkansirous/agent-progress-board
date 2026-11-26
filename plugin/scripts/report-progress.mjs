@@ -16,6 +16,14 @@
 //          [--orchestrator]
 //          [--steps "a|b|c" | --steps-file <path>] [--touches "<Touches line>"] [--touches-file <slice file>]
 //          [--step-active "<label>" | --step-done "<label>"] [--step-skipped "<label>"]... [--under-step <id>]
+//          [--started-at <ISO>] [--done-at <ISO>]
+// --started-at / --done-at (Slice 32 C) send the real start / end of the step --step-active / --step-done names, for a
+// late report; a real ISO date-time with a zone (an offset like +01:00 or +0100), not in the future (60 s of clock skew
+// allowed), else one stderr line and the time is left out (the board then stamps its own). Routing: --done-at goes on the
+// --step-done step only; --started-at goes on the --step-active step, or on the --step-done step when none is named.
+// With --step-done and --done-at but no --started-at, the step that becomes active starts at that done time. A start after
+// the end leaves both out. One call times only the steps it names: the other steps it flips to done keep the board's stamp,
+// so a late correction is one call per step, oldest first. A list is needed too (--steps / --steps-file), else a stderr line.
 // --under-step <id> sends the list as only that step's children (the board's `under_step`); a helper reports its own
 // subtree with it. It is sent only together with a list.
 // --orchestrator (Slice 41) sends nothing: it marks the session as an orchestrator (a wave runner, whose slices have
@@ -281,7 +289,7 @@ export function parseArgs(argv) {
     if (SWITCHES.has(name)) { out[name] = true; continue; }
     const value = argv[index + 1];
     if (value === undefined || value.startsWith('--')) {
-      if (name === 'part' || name === 'under-step') out[name] = ''; // given with no value: seen as given, never as absent
+      if (name === 'part' || name === 'under-step' || name === 'started-at' || name === 'done-at') out[name] = ''; // given with no value: seen as given, never as absent
       continue;
     }
     index += 1;
@@ -457,10 +465,74 @@ export function loadStepList(value, touches = '') {
   }
 }
 
-function stepEntry(step, state) {
+function stepEntry(step, state, times = {}) {
   const entry = { label: String(step.label).slice(0, STEP_LABEL_MAX), state };
   if (step.note) entry.note = String(step.note).slice(0, STEP_NOTE_MAX);
+  if (times.started_at && state !== STEP_STATE.pending) entry.started_at = times.started_at;
+  if (times.done_at && state === STEP_STATE.done) entry.done_at = times.done_at;
   return entry;
+}
+
+// A reported time (--started-at / --done-at): an ISO date-time that is not in the future, as a normalised ISO string,
+// or '' (one stderr line, the time is left out and the board stamps its own). Never throws.
+const REPORTED_TIME_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/;
+const REPORTED_TIME_SKEW_MS = 60_000; // the server allows the same clock skew
+
+// True when the fields name a real calendar date and clock time (Date.parse rolls 2026-11-31 over to December 1).
+function realDateTime([, year, month, day, hour, minute, second = '0']) {
+  const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+  const sameDay = date.getUTCFullYear() === Number(year) && date.getUTCMonth() === Number(month) - 1 && date.getUTCDate() === Number(day);
+  return sameDay && Number(hour) <= 23 && Number(minute) <= 59 && Number(second) <= 59;
+}
+
+export function parseReportedTime(value, flag, now = Date.now()) {
+  if (value === undefined) return '';
+  if (value === true || value === '') {
+    process.stderr.write(`report-progress: ${flag} needs a value, left out\n`);
+    return '';
+  }
+  const text = String(value).trim();
+  const match = REPORTED_TIME_PATTERN.exec(text);
+  const zoned = match ? text.replace(/([+-]\d{2})(\d{2})$/, '$1:$2') : '';
+  const ms = match && realDateTime(match) ? Date.parse(zoned) : NaN;
+  if (Number.isNaN(ms)) {
+    process.stderr.write(`report-progress: ${flag} is not a real ISO date-time with a zone, left out\n`);
+    return '';
+  }
+  if (ms > now + REPORTED_TIME_SKEW_MS) {
+    process.stderr.write(`report-progress: ${flag} is in the future, left out\n`);
+    return '';
+  }
+  return new Date(ms).toISOString();
+}
+
+// The times by step label: --started-at goes on the step --step-active names (or --step-done's when no active one is
+// named), --done-at on the step --step-done names. Each needs its step flag, else one stderr line and it is left out.
+function reportedTimes(parsed, activeLabel = '') {
+  const times = Object.create(null); // a label such as `__proto__` is an ordinary key here
+  const startLabel = String(activeLabel || parsed['step-done'] || '').trim();
+  const doneLabel = String(parsed['step-done'] || '').trim();
+  const started = parseReportedTime(parsed['started-at'], '--started-at');
+  const done = parseReportedTime(parsed['done-at'], '--done-at');
+  // Only times that land on the same step can be out of order; a late report of one step's end and the next step's
+  // start in one call is normal.
+  if (started && done && startLabel === doneLabel && Date.parse(started) > Date.parse(done)) {
+    process.stderr.write('report-progress: --started-at is after --done-at, both left out\n');
+    return times;
+  }
+  if (started && !startLabel) process.stderr.write('report-progress: --started-at needs --step-active or --step-done, left out\n');
+  else if (started) times[startLabel] = { ...times[startLabel], started_at: started };
+  if (done && !doneLabel) process.stderr.write('report-progress: --done-at needs --step-done, left out\n');
+  else if (done) times[doneLabel] = { ...times[doneLabel], done_at: done };
+  return times;
+}
+
+// The times for the step that becomes active: its own, else (after a --step-done with --done-at) the done step's end,
+// since it started when that one finished.
+function startedAfterDone(times, steps, done, index) {
+  const own = times[steps[index].label] || {};
+  const doneAt = done >= 0 && done < index ? (times[steps[done].label] || {}).done_at : '';
+  return own.started_at || !doneAt ? own : { ...own, started_at: doneAt };
 }
 
 // The whole list with states from the moves named, or null (send no `steps` at all) when the list
@@ -470,7 +542,7 @@ function stepEntry(step, state) {
 // `skipped` labels name steps that never happened. The board's step states are done, active and pending only
 // (src/domain/stepTypes.ts), so a skipped step is left out of the sent list, never shown
 // as done. The active step is never left out.
-export function stepStates(steps, activeLabel = '', doneLabel = '', skipped = []) {
+export function stepStates(steps, activeLabel = '', doneLabel = '', skipped = [], times = {}) {
   const done = doneLabel ? steps.findIndex((step) => step.label === String(doneLabel).trim()) : -1;
   const active = activeLabel ? steps.findIndex((step) => step.label === String(activeLabel).trim()) : -1;
   if (!steps.length || (done < 0 && active < 0)) return null;
@@ -479,9 +551,9 @@ export function stepStates(steps, activeLabel = '', doneLabel = '', skipped = []
   const left = new Set(skipped.map((label) => String(label).trim()));
   const states = steps
     .map((step, index) => {
-      if (index === current) return stepEntry(step, STEP_STATE.active);
+      if (index === current) return stepEntry(step, STEP_STATE.active, startedAfterDone(times, steps, done, index));
       if (left.has(step.label)) return null;
-      return stepEntry(step, index <= doneUpTo ? STEP_STATE.done : STEP_STATE.pending);
+      return stepEntry(step, index <= doneUpTo ? STEP_STATE.done : STEP_STATE.pending, times[step.label]);
     })
     .filter(Boolean);
   return states.length ? states : null;
@@ -633,7 +705,10 @@ function stepContext(parsed, env) {
   const named = parsed['step-active'] || parsed['step-done'];
   const active = parsed['step-active'] || (list && list.inline && !named ? list.steps[0].label : ''); // a new inline list starts at its first step
   const moved = Boolean(active || parsed['step-done']);
-  const steps = list && moved ? stepStates(list.steps, active, parsed['step-done'], parsed['step-skipped']) : null;
+  const steps = list && moved ? stepStates(list.steps, active, parsed['step-done'], parsed['step-skipped'], reportedTimes(parsed, active)) : null;
+  if ((parsed['started-at'] !== undefined || parsed['done-at'] !== undefined) && !(list && moved)) {
+    process.stderr.write('report-progress: --started-at/--done-at need a step list and --step-active or --step-done, left out\n');
+  }
   if (list && moved && !steps) process.stderr.write('report-progress: step not in the list, list not sent\n');
   if (list) for (const problem of skippedProblems(parsed, list.steps)) process.stderr.write(`report-progress: ${problem}\n`);
   const agent = parsed.agent || (list && list.agent) || '';

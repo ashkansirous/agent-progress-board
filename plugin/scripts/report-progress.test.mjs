@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
-  activeTaskCard, buildArguments, callTool, isOrchestrator, keepStep, loadStepList, parseArgs, parseLinks, parseStepLabels, projectSlug, readTaskFile,
+  activeTaskCard, buildArguments, callTool, isOrchestrator, keepStep, loadStepList, parseArgs, parseLinks, parseReportedTime, parseStepLabels, projectSlug, readTaskFile,
   readTouchesFile, resolveConfig, resolveEnvironment, sliceKey, slugify, stateRoot, stepStates, taskFilePath,
 } from './report-progress.mjs';
 import { TEST_TOKEN, cleanUpAfterTests, envFor, replyOk, runNode, startFakeBoard, trackedTemp } from './test-helpers.mjs';
@@ -343,6 +343,83 @@ describe('task steps', () => {
     assert.deepEqual(stepStates(STEPS, '', 'Ship').map((step) => step.state), ['done', 'done', 'done']);
     assert.equal(stepStates(STEPS, 'Nope'), null);
     assert.deepEqual(stepStates(STEPS, 'Ship', '', ['Build']).map((step) => step.label), ['Plan', 'Ship']);
+  });
+
+  test('stepStates: reported times go on the named steps only (started on active/done, done_at on done)', () => {
+    const states = stepStates(STEPS, '', 'Build', [], { Build: { started_at: '2026-11-19T09:02:00.000Z', done_at: '2026-11-19T09:19:00.000Z' } });
+    assert.deepEqual(states[1], { label: 'Build', state: 'done', started_at: '2026-11-19T09:02:00.000Z', done_at: '2026-11-19T09:19:00.000Z' });
+    assert.deepEqual(states[2], { label: 'Ship', state: 'active', started_at: '2026-11-19T09:19:00.000Z' }, 'the next step starts when the done one ended');
+    const pending = stepStates(STEPS, 'Plan', '', [], { Ship: { started_at: '2026-11-19T09:02:00.000Z' } });
+    assert.deepEqual(pending[2], { label: 'Ship', state: 'pending' });
+  });
+
+  test('parseReportedTime: ISO with a zone is normalised; junk, a missing zone and the future are left out', () => {
+    const now = Date.parse('2026-11-26T12:00:00Z');
+    assert.equal(parseReportedTime('2026-11-19T09:02:00+01:00', '--started-at', now), '2026-11-19T08:02:00.000Z');
+    assert.equal(parseReportedTime('yesterday', '--started-at', now), '');
+    assert.equal(parseReportedTime('2026-11-19T09:02:00', '--started-at', now), '');
+    assert.equal(parseReportedTime('2026-11-27T09:02:00Z', '--done-at', now), '');
+    assert.equal(parseReportedTime(undefined, '--done-at', now), '');
+  });
+
+  test('parseReportedTime: rolled dates are rejected, +0100 is accepted, 60 s of skew is allowed', () => {
+    const now = Date.parse('2026-11-26T12:00:00Z');
+    assert.equal(parseReportedTime('2026-11-31T10:00:00Z', '--done-at', now), '');
+    assert.equal(parseReportedTime('2026-02-30T00:00:00Z', '--done-at', now), '');
+    assert.equal(parseReportedTime('2026-11-19T24:00:00Z', '--done-at', now), '');
+    assert.equal(parseReportedTime('2026-11-19T10:19:00+0100', '--done-at', now), '2026-11-19T09:19:00.000Z');
+    assert.equal(parseReportedTime('2026-11-26T12:00:30Z', '--done-at', now), '2026-11-26T12:00:30.000Z');
+    assert.equal(parseReportedTime('2026-11-26T12:02:00Z', '--done-at', now), '');
+  });
+
+  test('stepStates: --step-done with a done time and no start gives the next active step that start', () => {
+    const doneAt = '2026-11-19T09:19:00.000Z';
+    const states = stepStates(STEPS, '', 'Plan', [], { Plan: { done_at: doneAt } });
+    assert.deepEqual(states[1], { label: 'Build', state: 'active', started_at: doneAt });
+    const own = stepStates(STEPS, 'Build', 'Plan', [], { Plan: { done_at: doneAt }, Build: { started_at: '2026-11-19T09:30:00.000Z' } });
+    assert.equal(own[1].started_at, '2026-11-19T09:30:00.000Z');
+  });
+
+  test('CLI time flags: stderr lines for no list, a bare flag, a start after the end; a new inline list uses its first step', async () => {
+    const board = await startFakeBoard(replyOk);
+    const env = envFor(board.url, stateFolder(), { CLAUDE_CODE_SESSION_ID: 'sess-u' });
+    const noList = await runNode(SCRIPT, ['--key', 'demo-app/t', '--step-done', 'Build', '--done-at', '2026-11-19T09:19:00Z'], env);
+    const bare = await runNode(SCRIPT, ['--key', 'demo-app/t', '--steps', 'Plan|Build', '--step-done', 'Plan', '--done-at'], env);
+    const order = await runNode(SCRIPT, ['--key', 'demo-app/t', '--steps', 'Plan|Build', '--step-done', 'Plan', '--started-at', '2026-11-19T09:19:00Z', '--done-at', '2026-11-19T09:02:00Z'], env);
+    const inline = await runNode(SCRIPT, ['--key', 'demo-app/t', '--steps', 'Plan|Build', '--started-at', '2026-11-19T09:02:00Z'], env);
+    const doneOnly = await runNode(SCRIPT, ['--key', 'demo-app/t', '--steps', 'Plan|Build', '--step-active', 'Build', '--done-at', '2026-11-19T09:19:00Z'], env);
+    board.server.close();
+    assert.match(noList.stderr, /need a step list/);
+    assert.match(bare.stderr, /--done-at needs a value/);
+    assert.match(order.stderr, /after --done-at/);
+    assert.doesNotMatch(inline.stderr, /needs --step-active/);
+    assert.match(doneOnly.stderr, /--done-at needs --step-done/);
+    assert.equal(noList.code + bare.code + order.code + inline.code + doneOnly.code, 0);
+    assert.deepEqual(board.requests[3].body.params.arguments.steps[0], { label: 'Plan', state: 'active', started_at: '2026-11-19T09:02:00.000Z' });
+  });
+
+  test('CLI late report: done on one step and start on the next keeps both times', async () => {
+    const board = await startFakeBoard(replyOk);
+    const env = envFor(board.url, stateFolder(), { CLAUDE_CODE_SESSION_ID: 'sess-late' });
+    const late = await runNode(SCRIPT, ['--key', 'demo-app/t', '--steps', 'Build|Review', '--step-done', 'Build', '--done-at', '2026-11-19T09:00:00Z', '--step-active', 'Review', '--started-at', '2026-11-19T09:30:00Z'], env);
+    board.server.close();
+    assert.doesNotMatch(late.stderr, /after --done-at/);
+    assert.deepEqual(board.requests[0].body.params.arguments.steps, [
+      { label: 'Build', state: 'done', done_at: '2026-11-19T09:00:00.000Z' },
+      { label: 'Review', state: 'active', started_at: '2026-11-19T09:30:00.000Z' },
+    ]);
+  });
+
+  test('CLI --started-at/--done-at go on the named steps; a bad time is left out and the exit is 0', async () => {
+    const board = await startFakeBoard(replyOk);
+    const env = envFor(board.url, stateFolder(), { CLAUDE_CODE_SESSION_ID: 'sess-t' });
+    const base = ['--key', 'demo-app/t', '--title', 'T', '--steps', 'Plan|Build|Ship'];
+    await runNode(SCRIPT, [...base, '--step-done', 'Build', '--started-at', '2026-11-19T09:02:00Z', '--done-at', '2026-11-19T09:19:00Z'], env);
+    await runNode(SCRIPT, [...base, '--step-active', 'Build', '--started-at', 'nonsense', '--done-at', '2999-01-01T00:00:00Z'], env);
+    board.server.close();
+    const [late, bad] = board.requests.map((request) => request.body.params.arguments.steps);
+    assert.deepEqual(late[1], { label: 'Build', state: 'done', started_at: '2026-11-19T09:02:00.000Z', done_at: '2026-11-19T09:19:00.000Z' });
+    assert.deepEqual(bad[1], { label: 'Build', state: 'active' });
   });
 
   test('CLI --steps sends the whole list with the first step active and writes the task file', async () => {

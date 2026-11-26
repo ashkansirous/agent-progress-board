@@ -23,6 +23,12 @@ The owner cannot tell from the card what is being asked. Separately, `ask_human`
 - [ ] **2.** `ask_human` takes `needs_you` and `links` like `report_progress`, or its description tells the client to use
   `report_progress` for a question; the rules text in `src/mcp/instructions.ts` and the SKILL.md copy say which.
 
+- [ ] **3.** (Feedback loop pass 2.) When plan.md's status table has no open rows (the last row moved to
+  `docs/plan/notes/slices-done.md`), `plugin/scripts/sync-docs.mjs` sends an empty snapshot and closes the project's
+  doc-synced items (night 2026-11-25-1729: closed 73, created 72, then closed 84 / created 71 earlier). An empty table
+  with slice files present must not close them; read what was closed with `list_synced` first. Test: an empty table
+  closes nothing.
+
 ## Verify
 
 - A plugin test replays the recorded payload and the card's `needs_you` names the tool and the command.

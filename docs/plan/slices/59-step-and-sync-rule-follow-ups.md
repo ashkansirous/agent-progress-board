@@ -4,6 +4,8 @@
 
 **Product:** agent-progress-board.
 
+*Check 2026-11-26 (plan-cleanup-check): keep open, not started. No commit mentions Slice 59 beyond planning, and `steps.ts` and `docSync.ts` have no commits since Slice 51/55. Item 1 re-read: `ownerBlockedSince` (steps.ts:631) still uses `started_at`. Item 2 re-read: `stepProgress` (steps.ts:641) still returns null for empty steps even with `openChecks`. Items 3-8 not re-proved line by line; no change landed in their files. Item 9: user-says finds nothing the user said on it. No outside waits in this slice.*
+
 **Touches:** `src/domain/steps.ts`, `src/domain/docSync.ts`, `src/infrastructure/d1Repository.ts`, `plugin/scripts/hooks/`, `src/api/board.ts`, `test/`.
 
 ## Why

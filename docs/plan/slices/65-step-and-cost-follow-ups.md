@@ -5,6 +5,8 @@ the skipped review findings of Slices 53 and 54 were listed only in those built 
 
 **Product:** agent-progress-board.
 
+*Plan cleanup check 2026-11-26: keep open. Items 1-6 and 8 are not built on origin/main (no Slice 65 commit; `keepMirroredRows` is still skipped for non-hook creation at `src/domain/upsert.ts:69-74`; the cost bound still reuses the `MAX_STEPS` text at `src/domain/steps.ts:139`). Item 7's stat-failure part is already built: `agentTime` in `plugin/scripts/hooks/background-agents.mjs` returns null (agent kept) on a failed stat, test 'Slice 49 2' covers it; the rest of item 7 is the Slice 49 nit lists, checked at build time. No outside waits.*
+
 **Touches:** `src/domain/steps.ts`, `src/domain/upsert.ts`, `src/domain/stepRuns.ts`, `src/application/board.ts`,
 `src/infrastructure/d1Repository.ts`, `src/mcp/schemas.ts`, `plugin/scripts/step-cost.mjs`, their tests
 

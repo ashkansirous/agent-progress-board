@@ -4,6 +4,8 @@
 
 **Product:** agent-progress-board.
 
+*Checked 2026-11-26 by plan-cleanup-check against origin/main (8e7c155 is the last optimiser commit): keep open. All 7 items are still unbuilt (maxGap Infinity at detectors.mjs:168, `compactions === 0` at :291, `new Date(parsed.now)` unchecked at optimise.mjs:38). No waits, no outside events.*
+
 **Touches:** `plugin/scripts/optimiser/detectors.mjs`, `plugin/scripts/optimiser/optimise.mjs`, their tests
 
 ## Why

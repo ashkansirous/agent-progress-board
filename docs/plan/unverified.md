@@ -94,10 +94,6 @@ owner confirms, is removed here and its slice marked `verified`.
 
 - [phone] On a phone or desktop in a zone with daylight saving, the Usage page's bars, reset markers and labels line up across a clock change (next change: late March). (live check 2026-11-26: unreachable: no clock change until late March)
 
-### Slice 32: Open questions are counted and kept right; `ask_human` can set `needs_you` ([slice](slices/32-questions-and-rules.md))
-
-- [chat] A live `ask_human` from a chat sets `needs_you` on its card, after the release.
-
 ### Slice 42: A built slice whose checks are untried shows as built, not in progress ([slice](slices/42-built-not-in-progress.md))
 
 - [phone] A device look at the Built section on a phone. Tried 2026-11-19: phone Chrome stops at the Access sign-in. (live check 2026-11-26: unreachable: phone Chrome stops at the Access sign-in)

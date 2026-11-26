@@ -22,14 +22,14 @@ owner's config repo. Decisions in [Slice 20](docs/plan/slices/20-plugin-connect.
 
 | Slice | Title | Status | PR | Issue | File |
 | --- | --- | --- | --- | --- | --- |
-| 58 | Archive follow-ups from Slice 50's reviews | planned | | | [58](docs/plan/slices/58-archive-follow-ups.md) |
-| 59 | Step and sync rule follow-ups from Slice 51's reviews | planned | | | [59](docs/plan/slices/59-step-and-sync-rule-follow-ups.md) |
-| 60 | Process-key review follow-ups (from Slice 55) | planned | | | [60](docs/plan/slices/60-process-key-follow-ups.md) |
-| 61 | Optimiser detector and discovery follow-ups | planned | | | [61](docs/plan/slices/61-optimiser-follow-ups.md) |
-| 62 | A running step reports its cost, so tokens and context breaches show live | planned | | | [62](docs/plan/slices/62-running-step-cost.md) |
-| 63 | Budget hardening: four review follow-ups from Slice 56 | planned | | | [63](docs/plan/slices/63-budget-hardening.md) |
-| 64 | A permission-prompt card names the tool and command | planned | | | [64](docs/plan/slices/64-permission-card-names-tool.md) |
-| 65 | Task-row and step-cost review follow-ups (from Slices 53 and 54) | planned | | | [65](docs/plan/slices/65-step-and-cost-follow-ups.md) |
+| 58 | Archive follow-ups from Slice 50's reviews | planned (not started; 7 own-work items, all still hold on origin/main) | | | [58](docs/plan/slices/58-archive-follow-ups.md) |
+| 59 | Step and sync rule follow-ups from Slice 51's reviews | planned (not started; 9 own-work items open, none waits on an outside event) | | | [59](docs/plan/slices/59-step-and-sync-rule-follow-ups.md) |
+| 60 | Process-key review follow-ups (from Slice 55) | planned (4 own-work items open, none started) | | | [60](docs/plan/slices/60-process-key-follow-ups.md) |
+| 61 | Optimiser detector and discovery follow-ups | planned (7 optimiser follow-ups, none built; checked 2026-11-26) | | | [61](docs/plan/slices/61-optimiser-follow-ups.md) |
+| 62 | A running step reports its cost, so tokens and context breaches show live | planned (not started; all three work items open, checked 2026-11-26) | | | [62](docs/plan/slices/62-running-step-cost.md) |
+| 63 | Budget hardening: four review follow-ups from Slice 56 | planned (all 4 items still open on origin/main 2026-11-26) | | | [63](docs/plan/slices/63-budget-hardening.md) |
+| 64 | A permission-prompt card names the tool and command | planned (item 1 open: live card of 2026-11-26 lacked the tool though cardText builds it; item 2 done, item 3 moved to Slice 66) | | | [64](docs/plan/slices/64-permission-card-names-tool.md) || 65 | Task-row and step-cost review follow-ups (from Slices 53 and 54) | planned (items 1-6 and 8 unbuilt; item 7 stat-failure part already built) | | | [65](docs/plan/slices/65-step-and-cost-follow-ups.md) |
+| 66 | An empty status table must not close doc-synced items | planned | | | [66](docs/plan/slices/66-empty-table-keeps-synced-items.md) |
 
 Notes:
 
@@ -45,6 +45,7 @@ Notes:
 - [Feedback loop 2026-11-17 evening](docs/plan/notes/2026-11-17-1657-feedback-loop.md): what the audit of the fourth night found.
 - [Feedback loop 2026-11-17](docs/plan/notes/2026-11-17-1216-feedback-loop.md): what the audit of the third night found.
 - [Finished slices](docs/plan/notes/slices-done.md): rows of built slices.
+- [Review findings kept as they are](docs/plan/notes/2026-11-26-kept-review-findings.md): findings that match a rule or a decision (moved from Outstanding work, 2026-11-26).
 - [Feedback loop 2026-11-15](docs/plan/notes/2026-11-15-1406-feedback-loop.md): what the end-of-run audit found.
 - [Design brief 2026-11-17](docs/plan/notes/2026-11-17-design-brief.md): the page redesign for Slices 13 to 15, for Claude Design.
 - [Finished batches](docs/plan/notes/2026-11-17-finished-batches.md): order and deploy notes of Slices 8 to 11 and 13 to 16; all are built.
@@ -74,22 +75,18 @@ Notes:
 
 ## Outstanding work
 
-- **Not yet tried on a device:** 93 checks across 46 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
-- Slices 1 to 57 are built and live (migrations 0001 to 0012 applied). Slices 49 to 55 went live with the 2026-11-25T23:53:29Z deployment. Slices 56 (PR #214) and 57 (PR #217, migration 0012) went live with the night 2026-11-25-1729 batched release: the deploy hook was called at 2026-11-26T02:37:56Z, `wrangler deployments list` (read 2026-11-26 02:49Z) shows deployments created 02:39:20Z and 02:44:51Z, and `wrangler d1 migrations list DB --remote` reads "No migrations to apply" (0012_findings.sql is in the repo). `batch-release.mjs worker-deployed` has not been run for this release yet (see Watch below).
-- Live checks now due (Slices 56 and 57, released): Slice 56 `[chrome]` a step with a 1-minute test budget left running 2 minutes shows the over-budget line (needs a budgets entry in the private config); Slice 57 first weekly dry-run report. They stay in docs/plan/unverified.md.
-- Slice 45 and 46 follow-ups: Slice 45's not-built items (13 #1 and #3, 14 #4 and check-3 #3, 4 #8, 7 #3) are recorded decisions with reasons in its *Found while building*, not open work. Slice 45 item 8's "NaN:00" half passed in Chrome 2026-11-19; the Reset-overlap half stays in `docs/plan/unverified.md` (live check 2026-11-26 could not run: no Chrome domain in `.claude/live-checks.local.json`). Slice 46's seven check-3 follow-ups were built or kept in Slice 47 item 8.
-- `D:\tmp-mirror-stage` (two files, CLAUDE.md and plan.main.md, dated 2026-11-18, read still present 2026-11-26) is a stray folder at the drive root from night 2026-11-18-1602; every agent's delete was blocked by a safety check, so the owner deletes it (`rm -rf /d/tmp-mirror-stage` in a `!` prompt). The guard gap (`drive-root-guard.mjs` let a mirror-to-drive agent create it) is item (1) of the ClaudeSkills `plan.md` line "Feedback loop agent-progress-board night 2026-11-18-1602, tooling still to build", still open on its origin/main; the earlier "ClaudeSkills #350" label was PR #350 (merged 2026-11-19, a docs change), not a plan item, so name the plan line instead.
-- Slice 29 low follow-ups (see its Follow-ups section: leaked `.stopped/` folders, writeJson temp file left on kill, held goal with no SubagentStop, takeActiveSlot label match, currentAgents delete side effect, stoppedAfterLastWrite 3 s window); all low, not built (Slice 45 also left check-3 #3 unbuilt). Check: `git grep -n removeStoppedFolder origin/main -- plugin/scripts/hooks`.
-- Slice 44 low follow-ups (pr-160-check-medium.md): a line already starting `Slice N:` gets the prefix twice; `actionBar` splits the raw line before `plain()` so a bar inside bold or link text splits it; board-address links are built twice (`addressLinks`, `stepUrls`) and hidden only by `dedupeLinks`. Check: `git grep -n "ownerTitleFields\|actionBar\|stepUrls" origin/main -- plugin web`
+- **Not yet tried on a device:** 92 checks across 45 slices, in [docs/plan/unverified.md](docs/plan/unverified.md).
+- Slices 1 to 57 are built and live (migrations 0001 to 0012; `wrangler d1 migrations list DB --remote` read 2026-11-26 21:41Z: "No migrations to apply"). Slices 58 to 66 are planned follow-up slices. Slices 56 and 57 went live with the night 2026-11-25-1729 release (deploy hook 2026-11-26T02:37:56Z; deployments 02:39Z and 02:44Z; later deployments 05:58Z and 10:04Z; no `src`, `web`, `migrations` or `config` change on origin/main since 02:45Z). The release is closed out: `batch-release.json` has no `workerNotDeployed` or `workerHook` key, so `worker-deployed` has nothing to clear and need not be run.
+- Live checks due for Slices 56 and 57 stay in docs/plan/unverified.md: Slice 56 `[chrome]` budget breach line (needs a budgets entry in the private config; no Chrome domain in `.claude/live-checks.local.json`); Slice 57 first dry-run report (read 2026-11-26 21:41Z: `list_open` shows no `optimiser-report-*` card; the plugin cache now holds 7318d16e2360 with `scripts/optimiser/`, but no run has reported).
+- Owner step: delete the stray folder `D:\tmp-mirror-stage` (CLAUDE.md and plan.main.md, 2026-11-18; read still present 2026-11-26) with `rm -rf /d/tmp-mirror-stage` in a `!` prompt; every agent delete was blocked. The guard gap is closed: `drive-root-guard.mjs` is on ClaudeSkills origin/main (a34af9b, bfd137e) and item (1) of its plan line "Feedback loop agent-progress-board night 2026-11-18-1602" is built in its Slice 29 row (merged #375), so that plan line's item (1) is stale, only the folder remains. Check: `ls /d/tmp-mirror-stage`.
+- Slice 29 low follow-ups still present (reread 2026-11-26): the 3 s resume window `RESUME_SLACK_MS` (`background-agents.mjs`), `currentAgents` delete side effect (`session-done.mjs:105`), writeJson temp file left on kill, held goal with no SubagentStop. Fixed since: leaked `.stopped/` folders (`removeStoppedFolder` on goal expiry), `takeActiveSlot` gone. All low, none built.
+- Slice 44 low follow-up left: board-address links are built twice (`addressLinks`, `stepUrls`) and hidden only by `dedupeLinks` (`web/src/SessionCards.tsx:59-87`). The `Slice N:` double prefix and the `actionBar` bold/link split are built (`plugin/scripts/sync-docs.mjs` `ownerTitleFields`, `spanEnd`).
 - **Ideas to check (owner, 2026-11-18), from the survey of similar tools:** (1) Claude Code's OpenTelemetry metrics as a usage source, (2) a board answer that goes back to the waiting agent (needs the owner's yes: read-mostly rule), (3) Backlog.md folders as a second plan format for `sync_snapshot`. None is a slice yet ([note](docs/plan/notes/2026-11-18-similar-tools.md)).
-- **Kept as they are (match a rule or a decision):** Slice 9 #3 and #4 (cost derived at read; an unfitted model gives null), Slice 2 pr-35-high #10 (no Cancel on the loading card; the mock draws none), Slice 14 pass-2 #6, Slice 23 med #6, med #10 and check #5, Slice 10 med #7. (Slice 21 item 11 dropped: Slice 39 allows several running steps. Slice 14 check #8 dropped: migration 0007 is applied on the live D1.)
 
 **Watch (checked by plan-cleanup):**
 
-- Slices 56 and 57 release: the code is already live (Worker deployments at 2026-11-26T02:39:19Z and 02:44:51Z, after the deploy hook call at 02:37:56Z; `wrangler d1 migrations list --remote` "No migrations to apply"). `node skills/run-wave/batch-release.mjs worker-deployed` is still to be run for this release; then the live Slice 56 budget check in `docs/plan/unverified.md` (a step with a 1-minute budget left running 2 minutes shows the over-budget line).
-- Slice 55: when the owner's skills send process keys, read `process_stats` (MCP tool on /mcp, last 30 days) and expect review and implement keys; the two Slice 55 live checks in `docs/plan/unverified.md` settle then.
-- Slice 57: first weekly optimiser dry-run report on the board (key `<project>/optimiser-report-<ISO week>`, read via `list_open` or `get_item`); after 4 weeks of reports the owner reads them, then a new slice turns `--file-findings` on by default (Slice 57 Decision 11).
-- Slices 16, 18, 19: whether a claude.ai chat now opens a card. Read the board's chat cards (owner's board page, or `list_open` over MCP); when one exists, mark Slices 16, 18 and 19 live-checked. The owner's step is done ("I've updated the instructions with the 2 texts", 2026-11-18T10:54), so nothing is asked of them.
+- Slice 55: read `process_stats` (MCP tool on /mcp, last 30 days) once the owner's skills send process keys; expect review and implement keys with a `process_source` other than `derived`. Read 2026-11-26 21:41Z: 189 keys, all `process_source: derived`; the plugin pass-through is built (ClaudeSkills Slice 34, commit 1258d51), the skills send no keys yet. The two Slice 55 live checks in `unverified.md` settle then.
+- Slice 57: first weekly optimiser dry-run report on the board (key `<project>/optimiser-report-<ISO week>`; read with `list_open` or `get_item`; none exists as of 2026-11-26 21:41Z). After 4 weeks of reports the owner reads them; then a new slice turns `--file-findings` on by default (Slice 57 Decision 11).
 
 ## Risks / kill criteria
 

@@ -24,6 +24,9 @@ connection with a test card. See [docs/setup/connect.md](docs/setup/connect.md).
 your own on your own Cloudflare account, give your Claude Code
 [docs/setup/own-board.md](docs/setup/own-board.md).
 
+The plugin also ships a `process-optimiser` skill: it reads a week of finished steps and writes a dry-run report
+of waste (serial steps, repeats, over-budget, approval order); finding cards are filed only with `--file-findings`.
+
 ## Design in one paragraph
 
 A Cloudflare Worker with a D1 database holds the items. State comes from two sources merged

@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { CapCostModelDto, UsagePageResponse } from "../../src/api/usageDto";
 import { FitMode, MixSource } from "../../src/domain/capCost";
 import { TOKEN_KINDS, TokenKind } from "../../src/domain/usage";
-import { defaultBase, kindsSentence, logLow, logTicks, logX, multipleOf, multipleText, ratioText, splitBold, tokensPhone, tokensTable, tokensWords } from "./capCostFormat";
+import { untrackedText, defaultBase, isComparable, kindsSentence, logLow, logTicks, logX, multipleOf, multipleText, ratioText, splitBold, tokensPhone, tokensTable, tokensWords } from "./capCostFormat";
 import { HowSurePill } from "./HowSurePill";
 import { ClockIcon } from "./icons";
 import { seriesColor, TOKEN_KIND_LABELS, useUsageView } from "./usageView";
@@ -76,7 +76,9 @@ function TokensPerOne({ data }: Props) {
             {models.map((model) => (
               <tr key={model.model}>
                 <th scope="row" className="left"><ModelName data={data} model={model} /></th>
-                {model.mode === FitMode.PerKind ? (
+                {model.not_enough ? (
+                  <td colSpan={TOKEN_KINDS.length} className="merged-cell">{t("notEnoughData")}</td>
+                ) : model.mode === FitMode.PerKind ? (
                   TOKEN_KINDS.map((kind) => <td key={kind}>{kindCell(model.tokens_per_percent[kind], locale, t)}</td>)
                 ) : (
                   <td colSpan={TOKEN_KINDS.length} className="merged-cell">
@@ -86,17 +88,32 @@ function TokensPerOne({ data }: Props) {
                 <td className="strong-col">
                   {kindCell(model.all_kinds_tokens_per_percent, locale, t)}
                   <MixNote model={model} />
+                  {model.own_cap !== null && <span className="mix-note">{t("ownCapNote")}</span>}
                 </td>
                 <td>
-                  <HowSurePill howSure={model.how_sure} />
+                  {!model.not_enough && <HowSurePill howSure={model.how_sure} />}
                   <span className="pill-count">{t("stretchesN", { n: model.stretches })}</span>
                 </td>
               </tr>
             ))}
+            <UntrackedRow data={data} />
           </tbody>
         </table>
       </div>
     </div>
+  );
+}
+
+/** The fit's intercept (Slice 67): growth no report explains, shown as its own row and never in a model's figures. */
+function UntrackedRow({ data }: Props) {
+  const { t, locale } = useUsageView();
+  const perDay = data.cap_cost.untracked_per_day;
+  if (perDay === null) return null;
+  return (
+    <tr>
+      <th scope="row" className="left">{t("untrackedUse")}</th>
+      <td colSpan={TOKEN_KINDS.length + 2} className="merged-cell">{untrackedText(perDay, locale, t)}</td>
+    </tr>
   );
 }
 
@@ -180,7 +197,7 @@ function ModelRow({ data, model, base, y, low }: ModelRowProps) {
 
 function CompareChart({ data, base }: { data: UsagePageResponse; base: CapCostModelDto | undefined }) {
   const { t } = useUsageView();
-  const models = data.cap_cost.models;
+  const models = data.cap_cost.models.filter(isComparable);
   const gridBottom = GRID_TOP + ROW_STEP * models.length;
   const multiples = models.flatMap((model) => [multipleOf(model, null, base), ...TOKEN_KINDS.map((kind) => multipleOf(model, kind, base))]);
   const low = logLow(multiples.filter((m): m is number => m !== null));
@@ -225,7 +242,7 @@ function CompareTable({ data, base }: { data: UsagePageResponse; base: CapCostMo
           </tr>
         </thead>
         <tbody>
-          {data.cap_cost.models.map((model) => {
+          {data.cap_cost.models.filter(isComparable).map((model) => {
             const mix = multipleOf(model, null, base);
             const isBase = model.model === base?.model;
             return (
@@ -259,8 +276,12 @@ function CompareBlock({ data }: Props) {
   const { t } = view;
   const models = data.cap_cost.models;
   const [chosen, setChosen] = useState<string | null>(null);
-  const baseName = models.some((m) => m.model === chosen) ? chosen : defaultBase(models);
+  // A model on its own cap is never the comparison base (no multiple would be left).
+  const bases = models.filter(isComparable);
+  const baseName = bases.some((m) => m.model === chosen) ? chosen : defaultBase(models);
   const base = models.find((m) => m.model === baseName);
+  // No model to compare in: no block, never a base the dropdown does not list.
+  if (base === undefined) return null;
   return (
     <div className="cost-block">
       <div className="block-head">
@@ -268,7 +289,7 @@ function CompareBlock({ data }: Props) {
         <label className="base-field">
           <span>{t("measuredIn")}</span>
           <select value={baseName ?? ""} onChange={(event) => setChosen(event.target.value)}>
-            {models.map((model) => (
+            {bases.map((model) => (
               <option key={model.model} value={model.model}>{t("modelTokens", { model: model.model })}</option>
             ))}
           </select>
@@ -354,7 +375,7 @@ function KindsBlock({ data }: Props) {
                 {model.kind_ratios ? (
                   TOKEN_KINDS.map((kind) => <td key={kind}>{ratio(model, kind)}</td>)
                 ) : (
-                  <td colSpan={TOKEN_KINDS.length} className="merged-cell">{t("notSplit")}</td>
+                  <td colSpan={TOKEN_KINDS.length} className="merged-cell">{t(model.not_enough ? "notEnoughData" : "notSplit")}</td>
                 )}
               </tr>
             ))}
@@ -396,16 +417,20 @@ function PhoneModel({ data, model, base }: { data: UsagePageResponse; model: Cap
   const n = wordsOrDash(model.all_kinds_tokens_per_percent, locale, t);
   const mix = multipleOf(model, null, base);
   const x = mix === null ? NO_VALUE : multipleText(mix, locale);
-  const line = isBase ? t("onePercentBase", { n }) : t("onePercentModel", { n, x, base: base?.model ?? "" });
+  const plainLine = model.own_cap !== null || base === undefined;
+  const line = isBase ? t("onePercentBase", { n }) : plainLine ? t("onePercentOnly", { n }) : t("onePercentModel", { n, x, base: base.model });
   return (
     <li className="phone-model">
       <span className="phone-model-top">
         <ModelName data={data} model={model} />
-        <HowSurePill howSure={model.how_sure} />
+        {!model.not_enough && <HowSurePill howSure={model.how_sure} />}
       </span>
-      <span className="phone-model-line"><Emphasised text={line} pieces={[n, `${x}×`]} /></span>
+      {!model.not_enough && <span className="phone-model-line"><Emphasised text={line} pieces={plainLine && !isBase ? [n] : [n, `${x}×`]} /></span>}
       <MixNote model={model} />
-      {model.mode === FitMode.PerKind ? (
+      {model.own_cap !== null && <span className="phone-model-note">{t("ownCapNote")}</span>}
+      {model.not_enough ? (
+        <span className="phone-model-note">{t("notEnoughData")}</span>
+      ) : model.mode === FitMode.PerKind ? (
         <span className="kind-cells">
           {TOKEN_KINDS.map((kind) => {
             const multiple = multipleOf(model, kind, base);
@@ -429,7 +454,7 @@ function PhoneKinds({ data }: Props) {
   const { t, locale } = useUsageView();
   const models = data.cap_cost.models;
   const groups = ratioGroups(models, (kind, ratios) => (ratios[kind] == null ? NO_VALUE : ratioText(ratios[kind] ?? 0, locale, true)));
-  const unsplit = models.filter((m) => m.kind_ratios === null).map((m) => m.model);
+  const unsplit = models.filter((m) => m.kind_ratios === null && !m.not_enough).map((m) => m.model);
   const notSplit = unsplit.length > 0 ? t("kindsNotSplit", { models: unsplit.join(t("andJoin")) }) : null;
   if (groups.length === 0 && notSplit === null) return null;
   return (
@@ -480,6 +505,19 @@ function ratioGroups(models: CapCostModelDto[], show: (kind: TokenKind, ratios: 
   return [...groups.values()];
 }
 
+/** The intercept on the phone (Slice 67): the same "Untracked use" line as the desktop row. */
+function PhoneUntracked({ data }: Props) {
+  const { t, locale } = useUsageView();
+  const perDay = data.cap_cost.untracked_per_day;
+  if (perDay === null) return null;
+  return (
+    <li className="phone-model">
+      <span className="phone-model-top">{t("untrackedUse")}</span>
+      <span className="phone-model-note">{untrackedText(perDay, locale, t)}</span>
+    </li>
+  );
+}
+
 function PhoneCapCost({ data }: Props) {
   const { t } = useUsageView();
   const models = data.cap_cost.models;
@@ -488,11 +526,12 @@ function PhoneCapCost({ data }: Props) {
     <>
       <section className="usage-card" aria-labelledby="cap-cost-title">
         <h2 id="cap-cost-title">{t("oneTitleShort")}</h2>
-        <p className="block-note">{t("phoneCaption", { base: base?.model ?? "" })}</p>
+        {base !== undefined && <p className="block-note">{t("phoneCaption", { base: base.model })}</p>}
         <ul className="phone-models">
           {models.map((model) => (
             <PhoneModel key={model.model} data={data} model={model} base={base} />
           ))}
+          <PhoneUntracked data={data} />
         </ul>
       </section>
       <PhoneKinds data={data} />
@@ -515,7 +554,8 @@ export function NotReadyCard({ data }: Props) {
 /** "What 1% of the week costs": three blocks on the desktop, two cards on the phone, or the "not ready" card. */
 export function CapCostSection({ data }: Props) {
   const { phone } = useUsageView();
-  if (!data.cap_cost.ready) return <NotReadyCard data={data} />;
-  if (data.cap_cost.models.length === 0) return null;
-  return phone ? <PhoneCapCost data={data} /> : <DesktopCapCost data={data} />;
+  const rows = data.cap_cost.models.length === 0 ? null : phone ? <PhoneCapCost data={data} /> : <DesktopCapCost data={data} />;
+  // Own-cap models with a fit of their own show beside the not-ready card, never in place of it.
+  if (!data.cap_cost.ready) return <><NotReadyCard data={data} />{rows}</>;
+  return rows;
 }

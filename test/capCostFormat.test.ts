@@ -3,7 +3,7 @@ import { DEFAULT_CAP_COST, parseConfig } from "../src/config";
 import type { CapCostModelDto } from "../src/api/usageDto";
 import { FitMode, HowSure, MixSource } from "../src/domain/capCost";
 import { TokenKind } from "../src/domain/usage";
-import { defaultBase, kindsSentence, ratioAmount, logLow, logTicks, logX, multipleOf, multipleText, ratioText, shareText, spanText, splitBold, tokensPhone, tokensTable, tokensWords } from "../web/src/capCostFormat";
+import { untrackedText, defaultBase, kindsSentence, ratioAmount, logLow, logTicks, logX, multipleOf, multipleText, ratioText, shareText, spanText, splitBold, tokensPhone, tokensTable, tokensWords } from "../web/src/capCostFormat";
 import { translator } from "../web/src/strings";
 
 const t = translator();
@@ -14,6 +14,8 @@ function model(name: string, mix: number, input: number | null = mix): CapCostMo
     model: name,
     color_index: 0,
     mode: FitMode.OneWeight,
+    not_enough: false,
+    own_cap: null,
     tokens_per_percent: each,
     all_kinds_tokens_per_percent: mix,
     mix_source: MixSource.Current,
@@ -63,6 +65,14 @@ describe("the comparison", () => {
     expect(multipleOf(models[0] as CapCostModelDto, null, base)).toBeCloseTo(27.14, 1);
     expect(multipleOf(models[1] as CapCostModelDto, null, base)).toBeCloseTo(13.57, 1);
     expect(multipleOf(base as CapCostModelDto, null, base)).toBe(1);
+  });
+
+  it("takes the default base only from models the compare dropdown lists: not own-cap, not not_enough (Slice 67)", () => {
+    const own = { ...model("model-own", 30_000_000), own_cap: "weekly:own" };
+    const thin = { ...model("model-thin", 25_000_000), not_enough: true };
+    expect(defaultBase([own, thin, model("model-a", 700_000)])).toBe("model-a");
+    expect(defaultBase([own, thin])).toBeNull();
+    expect(defaultBase([own, { ...model("model-b", 1), all_kinds_tokens_per_percent: null }])).toBe("model-b");
   });
 
   it("gives no all-kinds multiple between models weighted by different windows' mixes (Slice 26)", () => {
@@ -167,5 +177,13 @@ describe("the kinds sentence", () => {
 
   it("is left out without ratios", () => {
     expect(kindsSentence({ ...ratios, output: null }, TokenKind.Input, "en-US", t)).toBeNull();
+  });
+});
+
+describe("untrackedText", () => {
+  it("shows the number, and the under-1% text when it rounds to 0", () => {
+    expect(untrackedText(0.4, "en-US", t)).toBe("about 0.4% of the week a day that no report explains");
+    expect(untrackedText(0.04, "en-US", t)).toBe("under 1% of the week a day that no report explains");
+    expect(untrackedText(0, "en-US", t)).toBe("under 1% of the week a day that no report explains");
   });
 });

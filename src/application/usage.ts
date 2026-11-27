@@ -11,7 +11,7 @@ import type {
   UsageResponse,
   UsageSeriesDto,
 } from "../api/usageDto";
-import type { UsageConfig } from "../config";
+import type { CapCostConfig, UsageConfig } from "../config";
 import {
   type CapEvaluation,
   type CapReading,
@@ -31,7 +31,12 @@ import {
   environmentIdentity,
   environmentKey,
   fitCapCost,
+  fitOwnCap,
+  fromFitStart,
+  type ModelFit,
   MixSource,
+  ownCapKinds,
+  costedModels,
   MultiplierState,
   MAX_PLACE_WINDOWS,
   placeInWindows,
@@ -434,6 +439,10 @@ function capLine(cap: CapState, kind: string, from: string): CapLineDto {
 /** The fit of the chosen plan, or none while it has too few stretches; the count is kept either way. */
 interface Costing {
   fit: CapCostFit | null;
+  /** The shared cap's fit is ready (Slice 67): own-cap model fits may exist while it is not. */
+  sharedReady: boolean;
+  /** At least one own-cap model has its own fitted result. */
+  ownReady: boolean;
   stretches: number;
   base: string | null;
   minStretches: number;
@@ -447,7 +456,7 @@ interface Costing {
  * An environment that does report tokens is fitted like any other and has no window here.
  */
 function placeChatGrowth(costing: Costing, history: UsageDelta[], order: SeriesName[], sessionWindows: SessionWindow[], rangeFrom: string): Costing {
-  if (costing.fit === null) return costing;
+  if (costing.fit === null || !costing.sharedReady) return costing;
   const reporting = new Set([
     ...history.map(({ sample }) => environmentIdentity(environmentKey(sample.environment, costing.base))),
     ...order.filter((entry) => entry.kind === SeriesKind.Environment).map((entry) => environmentIdentity(entry.value)),
@@ -465,14 +474,32 @@ function windowsInFilter(windows: SessionWindow[], environment: string | null): 
 }
 
 function fitFor(cap: CapState, history: UsageDelta[], config: UsageConfig, base: string | null): Costing {
-  const stretches = cap.plan === null ? [] : buildStretches(cap.evaluation.windows, cap.plan, history, config.capCost, base);
-  const fit = stretches.length >= config.capCost.minStretches ? fitCapCost(stretches, base, config.capCost) : null;
-  return { fit, stretches: stretches.length, base, minStretches: config.capCost.minStretches, placed: new Map() };
+  const plan = cap.plan;
+  // Slice 67: the fit starts at `fitFrom` (older rows stay stored), and a model with a cap of its own is fitted on that window.
+  const start = fromFitStart(cap.evaluation.windows, history, config.capCost.fitFrom);
+  const owns = plan === null ? new Map<string, string>() : ownCapKinds(start.windows, plan, [...new Set(start.deltas.map(({ sample }) => sample.model))]);
+  const shared = start.deltas.filter(({ sample }) => !owns.has(sample.model));
+  const stretches = plan === null ? [] : buildStretches(start.windows, plan, shared, config.capCost, base);
+  const sharedFit = stretches.length >= config.capCost.minStretches ? fitCapCost(stretches, base, config.capCost) : null;
+  // Own-cap fits stand on their own windows, so they run even while the shared fit is not ready.
+  const fit = plan === null ? sharedFit : withOwnCaps(sharedFit, config.capCost, base, owns, (models, kind) => fitOwnCap(start.windows, plan, start.deltas, config.capCost, base, models, kind));
+  const ownReady = fit !== null && fit.models.some((m) => m.ownCap !== null && m.enough);
+  return { fit, sharedReady: sharedFit !== null, ownReady, stretches: stretches.length, base, minStretches: config.capCost.minStretches, placed: new Map() };
+}
+
+/** The shared fit (an empty one while it is not ready) with each own-cap model's own fit added after the models of the shared cap. */
+function withOwnCaps(fit: CapCostFit | null, config: CapCostConfig, base: string | null, owns: Map<string, string>, fitKind: (models: string[], kind: string) => ModelFit[]): CapCostFit | null {
+  const byKind = new Map<string, string[]>();
+  for (const [model, kind] of owns) byKind.set(kind, [...(byKind.get(kind) ?? []), model]);
+  const own = [...byKind.entries()].flatMap(([kind, models]) => fitKind(models.sort(), kind)).sort((a, b) => a.model.localeCompare(b.model));
+  if (own.length === 0) return fit;
+  const shared = fit ?? fitCapCost([], base, config);
+  return { ...shared, models: [...shared.models, ...own] };
 }
 
 /** Points of the cap per key; null while the estimate is not ready. */
 function costsBy(deltas: UsageDelta[], costing: Costing, keyOf: (delta: UsageDelta) => string | null): Map<string, number | null> | null {
-  return costing.fit ? costByKey(deltas, costing.fit, costing.base, keyOf) : null;
+  return costing.fit && costing.sharedReady ? costByKey(deltas, costing.fit, costing.base, keyOf) : null;
 }
 
 interface CapCostContext {
@@ -487,19 +514,22 @@ interface CapCostContext {
 
 function capCostDto(costing: Costing, context: CapCostContext): CapCostDto {
   const { fit } = costing;
-  const head = { ready: false, stretches: costing.stretches, min_stretches: costing.minStretches };
-  if (fit === null) {
-    return { ...head, models: [], environments: [], unexplained: null, unexplained_stretches: [], steps: [] };
-  }
+  const head = { ready: false, stretches: costing.stretches, min_stretches: costing.minStretches, own_cap_ready: costing.ownReady };
   const { known, shown, order, config, from, lastMix } = context;
-  const totals = unexplainedTotals(fit, from);
   const modelIndex = colorIndexer(order, SeriesKind.Model);
   const mixes: ModelMixes = { current: totalsByModel(known), last: lastMix === null ? null : totalsByModel(lastMix) };
+  if (fit === null || !costing.sharedReady) {
+    // The shared estimate is not ready: the page keeps its not-ready card, and shows own-cap models beside it only when they have a fit of their own.
+    const own = fit !== null && costing.ownReady ? fit.models.filter((m) => m.ownCap !== null).map((m) => modelDto(fit, m.model, mixes, modelIndex)) : [];
+    return { ...head, models: own, environments: [], untracked_per_day: null, unexplained: null, unexplained_stretches: [], steps: [] };
+  }
+  const totals = unexplainedTotals(fit, from);
   return {
     ...head,
     ready: true,
     models: fit.models.map((model) => modelDto(fit, model.model, mixes, modelIndex)),
     environments: environmentCosts(costing, fit, known, order, config),
+    untracked_per_day: fit.untrackedPerDay,
     unexplained: { points: totals.points, growth_points: totals.growthPoints, share: totals.share },
     unexplained_stretches: unexplainedStretches(fit, from, config.capCost.unexplainedStretches).map((s) => ({
       start: s.start,
@@ -556,15 +586,20 @@ function modelDto(fit: CapCostFit, name: string, mixes: ModelMixes, indexOf: (va
   const { mix, source } = mixOf(fit, name, mixes);
   const reference = ratioReference(model.perToken);
   const ratio = (kind: TokenKind): number | null => (reference === null ? null : model.perToken[kind] / model.perToken[reference]);
+  // Slice 67: a number the fit cannot back is a dash, never a figure.
+  const shown = model.enough;
+  const perKind = shown && model.mode === FitMode.PerKind;
   return {
     model: name,
     color_index: indexOf(name),
     mode: model.mode,
-    tokens_per_percent: perKindValues((kind) => (model.perToken[kind] > 0 ? 1 / model.perToken[kind] : null)),
-    all_kinds_tokens_per_percent: tokensPerPercent(model.perToken, mix),
+    not_enough: !shown,
+    own_cap: model.ownCap,
+    tokens_per_percent: perKindValues((kind) => (shown && model.perToken[kind] > 0 ? 1 / model.perToken[kind] : null)),
+    all_kinds_tokens_per_percent: shown ? tokensPerPercent(model.perToken, mix) : null,
     mix_source: source,
-    kind_ratios: model.mode === FitMode.PerKind ? perKindValues(ratio) : null,
-    kind_ratio_reference: model.mode === FitMode.PerKind ? reference : null,
+    kind_ratios: perKind ? perKindValues(ratio) : null,
+    kind_ratio_reference: perKind ? reference : null,
     how_sure: model.howSure,
     stretches: model.stretches,
     finer_at: model.finerAt,
@@ -579,7 +614,7 @@ function stretchMix(fit: CapCostFit, name: string): TokenTotals {
 }
 
 function environmentCosts(costing: Costing, fit: CapCostFit, known: UsageDelta[], order: SeriesName[], config: UsageConfig): CapCostEnvironmentDto[] {
-  const weighted = new Set(fit.models.map((m) => m.model));
+  const weighted = costedModels(fit);
   const reporting = environmentList(known, order, config).map((environment) => {
     const fitted = fit.environments.find((e) => e.environment === environment.value);
     const own = known.filter(({ sample }) => sample.environment === environment.value);

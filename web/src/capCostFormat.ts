@@ -131,9 +131,15 @@ export function shareText(share: number): string {
 
 /** The model that gets the least cap per token (the most tokens per 1% in its mix): the default comparison base. */
 export function defaultBase(models: CapCostModelDto[]): string | null {
-  const ranked = models.filter((m) => m.all_kinds_tokens_per_percent !== null);
+  const listed = models.filter(isComparable);
+  const ranked = listed.filter((m) => m.all_kinds_tokens_per_percent !== null);
   const best = ranked.sort((a, b) => (b.all_kinds_tokens_per_percent ?? 0) - (a.all_kinds_tokens_per_percent ?? 0))[0];
-  return best?.model ?? models[0]?.model ?? null;
+  return best?.model ?? listed[0]?.model ?? null;
+}
+
+/** A model the compare block lists: on the shared cap and with a fit; the only kind a base can be. */
+export function isComparable(model: CapCostModelDto): boolean {
+  return model.own_cap === null && !model.not_enough;
 }
 
 /** Tokens per 1% of the base model's mix, the unit every multiple is counted in. */
@@ -144,6 +150,8 @@ function unitOf(base: CapCostModelDto | undefined): number | null {
 /** How many base tokens one token of `model` (in `kind`, or its whole mix) uses as much of the week as; null when unknown. */
 export function multipleOf(model: CapCostModelDto, kind: TokenKind | null, base: CapCostModelDto | undefined): number | null {
   const unit = unitOf(base);
+  // Slice 67: a model on its own cap counts points of another cap; no multiple either way.
+  if (model.own_cap !== null || (base !== undefined && base.own_cap !== null)) return null;
   // Two figures weighted by different windows' mixes (Slice 26) are not comparable: show a dash.
   if (kind === null && base !== undefined && model.mix_source !== base.mix_source) return null;
   const own = kind === null ? model.all_kinds_tokens_per_percent : model.tokens_per_percent[kind];
@@ -190,4 +198,10 @@ export function splitBold(text: string, pieces: string[]): { text: string; bold:
     parts.splice(at, 1, { text: part.text.slice(0, start), bold: false }, { text: piece, bold: true }, { text: part.text.slice(start + piece.length), bold: false });
   }
   return parts.filter((part) => part.text !== "");
+}
+
+/** The "Untracked use" text, one formatter for the desktop row and the phone line (Slice 67): "under 1%" when it rounds to 0. */
+export function untrackedText(perDay: number, locale: string, t: Translate): string {
+  if (Math.round(perDay * 10) === 0) return t("untrackedPerDayTiny");
+  return t("untrackedPerDay", { n: plain(perDay, locale, 1) });
 }

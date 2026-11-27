@@ -191,6 +191,18 @@ export interface CapCostConfig {
   minGrowthPoints: number;
   /** The alternating fit stops when no multiplier moves by more than this. */
   convergence: number;
+  /** Slice 67: history before this ISO date is left out of the fit (never deleted); null uses all of it. */
+  fitFrom: string | null;
+  /** Slice 67: a model shows weights only with this many stretches where it holds a real share of the use. */
+  modelMinStretches: number;
+  /** Slice 67: a model's tokens must be at least this share of a stretch's tokens for the stretch to count as evidence. */
+  modelMinShare: number;
+  /** Slice 67: ridge strength on the weights (a share of each column's own size), so kinds that move together cannot run away. */
+  ridge: number;
+  /** Slice 67: the same for the intercept ("untracked use"), set high so tokens explain what they can first. */
+  untrackedRidge: number;
+  /** Slice 67: a kind below this share of a model's tokens has no column of its own; it takes the model's mean weight. */
+  minKindShare: number;
 }
 
 export const DEFAULT_CAP_COST: CapCostConfig = {
@@ -202,6 +214,12 @@ export const DEFAULT_CAP_COST: CapCostConfig = {
   minStretchMinutes: 10,
   minGrowthPoints: 1,
   convergence: 1e-7,
+  fitFrom: null,
+  modelMinStretches: 4,
+  modelMinShare: 0.02,
+  ridge: 0.001,
+  untrackedRidge: 20,
+  minKindShare: 0.01,
 };
 
 export const DEFAULT_LOW_MARK_PERCENT = 2;
@@ -308,7 +326,25 @@ function readCapCost(raw: Record<string, unknown>): CapCostConfig {
     minStretchMinutes: field("minStretchMinutes", raw.minStretchMinutes, base.minStretchMinutes, 0, 1440, false),
     minGrowthPoints: field("minGrowthPoints", raw.minGrowthPoints, base.minGrowthPoints, 0, 100, false),
     convergence: field("convergence", raw.convergence, base.convergence, 1e-12, 1, false),
+    fitFrom: readFitFrom(raw.fitFrom),
+    modelMinStretches: field("modelMinStretches", raw.modelMinStretches, base.modelMinStretches, 1, 1000, true),
+    modelMinShare: field("modelMinShare", raw.modelMinShare, base.modelMinShare, 0, 1, false),
+    ridge: field("ridge", raw.ridge, base.ridge, 0, 10, false),
+    untrackedRidge: field("untrackedRidge", raw.untrackedRidge, base.untrackedRidge, 0, 1000, false),
+    minKindShare: field("minKindShare", raw.minKindShare, base.minKindShare, 0, 1, false),
   };
+}
+
+/** An ISO date or time, or null (all history). A bad value is logged and means null, never a throw. */
+function readFitFrom(raw: unknown): string | null {
+  if (raw === undefined || raw === null) return null;
+  if (typeof raw === "string" && /^\d{4}-\d{2}-\d{2}/.test(raw)) {
+    // A time with no zone is UTC (every stored time is), never the host's local time.
+    const zoned = /^\d{4}-\d{2}-\d{2}$/.test(raw) || /(Z|[+-]\d{2}:?\d{2})$/i.test(raw) ? raw : `${raw}Z`;
+    if (Number.isFinite(Date.parse(zoned))) return zoned;
+  }
+  console.error("BOARD_CONFIG usage.capCost.fitFrom: need an ISO date such as 2026-11-19; using all history");
+  return null;
 }
 
 function readNumber(field: string, raw: unknown, fallback: number, min: number, max: number, whole: boolean): number {

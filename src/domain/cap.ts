@@ -6,6 +6,22 @@
  */
 export const WEEKLY_WINDOW = "weekly";
 export const SHORT_WINDOW = "short";
+/** Slice 67: a window kind of the form `weekly:<model>` is that model's own cap (a name part of the model, case ignored). */
+export const OWN_CAP_PREFIX = `${WEEKLY_WINDOW}:`;
+
+/** Every model (from `models`) a window kind is the own cap of; none for a shared kind. */
+export function ownCapModels(windowKind: string, models: string[]): string[] {
+  if (!windowKind.startsWith(OWN_CAP_PREFIX)) return [];
+  const part = windowKind.slice(OWN_CAP_PREFIX.length).trim().toLowerCase();
+  if (part === "") return [];
+  const wanted = part.split("-");
+  return models.filter((model) => hasParts(model.toLowerCase().split("-"), wanted));
+}
+
+/** Whether `wanted` appears in `parts` as whole consecutive parts (`opus` is in `claude-opus-4`, `op` is not). */
+function hasParts(parts: string[], wanted: string[]): boolean {
+  return parts.some((_, start) => wanted.every((w, i) => parts[start + i] === w));
+}
 
 export enum DropReason {
   /** Lower than a reading already stored in the same window, with no sign of a reset. */

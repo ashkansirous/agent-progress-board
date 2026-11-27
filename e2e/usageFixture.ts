@@ -158,6 +158,8 @@ function fittedModel(model: string, colorIndex: number, factor: number, howSure:
     model,
     color_index: colorIndex,
     mode: FitMode.PerKind,
+    not_enough: false,
+    own_cap: null,
     tokens_per_percent: scaled(factor),
     all_kinds_tokens_per_percent: 700_000 * factor,
     mix_source: MixSource.Current,
@@ -176,6 +178,8 @@ function coarseModel(model: string, colorIndex: number, stretches: number): CapC
     model,
     color_index: colorIndex,
     mode: FitMode.OneWeight,
+    not_enough: false,
+    own_cap: null,
     tokens_per_percent: { input: each, cache_write: each, cache_read: each, output: each },
     all_kinds_tokens_per_percent: each,
     mix_source: MixSource.Current,
@@ -191,6 +195,7 @@ function coarseModel(model: string, colorIndex: number, stretches: number): CapC
 export function readyCapCost(): CapCostDto {
   return {
     ready: true,
+    own_cap_ready: false,
     stretches: 14,
     min_stretches: 3,
     models: [fittedModel("model-alpha", 0, 1, HowSure.Sure), fittedModel("model-beta", 1, 2, HowSure.Sure), coarseModel("model-gamma", 2, 7)],
@@ -198,6 +203,7 @@ export function readyCapCost(): CapCostDto {
       { ...ENV_ONE, tokens: 24_100_000, reports: 40, cap_points: 19.6, multiplier: 1, state: MultiplierState.Base, how_sure: null, stretches: 14 },
       { ...ENV_TWO, tokens: 11_700_000, reports: 22, cap_points: 11.8, multiplier: 0.98, state: MultiplierState.Measured, how_sure: HowSure.Sure, stretches: 18 },
     ],
+    untracked_per_day: 0.4,
     unexplained: { points: 2.8, growth_points: 34.2, share: 0.0819 },
     unexplained_stretches: [
       { start: "2026-11-14T10:05:00.000Z", end: "2026-11-14T12:40:00.000Z", points: 1.6, growth_points: 1.6, explained_points: 0 },
@@ -210,7 +216,7 @@ export function readyCapCost(): CapCostDto {
 
 /** A plan with too few stretches: the "estimate not ready" card. */
 export function notReadyCapCost(stretches: number): CapCostDto {
-  return { ready: false, stretches, min_stretches: 3, models: [], environments: [], unexplained: null, unexplained_stretches: [], steps: [] };
+  return { ready: false, own_cap_ready: false, stretches, min_stretches: 3, models: [], environments: [], untracked_per_day: null, unexplained: null, unexplained_stretches: [], steps: [] };
 }
 
 /** The demo week with a ready estimate, cap figures on the tasks and agent kinds. */

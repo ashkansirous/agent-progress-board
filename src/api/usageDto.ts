@@ -65,6 +65,10 @@ export interface CapCostModelDto {
   model: string;
   color_index: number;
   mode: FitMode;
+  /** Slice 67: too few stretches where this model holds a real share of the use; every figure is null and the page says "not enough data". */
+  not_enough: boolean;
+  /** Slice 67: the model is fitted against a cap of its own (its window kind); its figures are points of that cap, so never compared with another model's. */
+  own_cap: string | null;
   /** Tokens that use 1% of the cap, per kind; the same number for every kind on one weight; null when the kind costs nothing. */
   tokens_per_percent: Record<TokenKind, number | null>;
   /** The same for this window's mix of kinds. */
@@ -126,8 +130,12 @@ export interface CapCostDto {
   /** Stretches inside one window on the plan. */
   stretches: number;
   min_stretches: number;
+  /** Slice 67: a model with a cap of its own has its own fitted result, whether or not the shared estimate is ready; then `models` holds those models. */
+  own_cap_ready: boolean;
   models: CapCostModelDto[];
   environments: CapCostEnvironmentDto[];
+  /** Slice 67: points of the cap per day the fit puts on use no report explains ("untracked use"); null while not ready. */
+  untracked_per_day: number | null;
   unexplained: UnexplainedDto | null;
   unexplained_stretches: UnexplainedStretchDto[];
   steps: StepCostDto[];

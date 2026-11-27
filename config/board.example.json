@@ -27,7 +27,13 @@
       "unexplainedStretches": 3,
       "minStretchMinutes": 10,
       "minGrowthPoints": 1,
-      "convergence": 1e-7
+      "convergence": 1e-7,
+      "fitFrom": "2026-01-01",
+      "modelMinStretches": 4,
+      "modelMinShare": 0.02,
+      "ridge": 0.001,
+      "untrackedRidge": 20,
+      "minKindShare": 0.01
     },
     "series": [
       { "light": "#2a78d6", "dark": "#3987e5" },

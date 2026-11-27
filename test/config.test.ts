@@ -17,6 +17,19 @@ describe("parseConfig", () => {
     expect(parseConfig('{"types":{"bug":{"label":"Bug","color":"#a855f7"}}}').types.bug?.color).toBe("#a855f7");
   });
 
+  it("reads the cap-cost fit start date, and falls back to all history on a bad one (Slice 67)", () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const fitFrom = (value: unknown): string | null => parseConfig(JSON.stringify({ usage: { capCost: { fitFrom: value } } })).usage.capCost.fitFrom;
+    expect(parseConfig(undefined).usage.capCost.fitFrom).toBeNull();
+    expect(fitFrom("2026-11-19")).toBe("2026-11-19");
+    // A time with no zone is read as UTC, so the cutoff is the same on every machine.
+    expect(fitFrom("2026-11-19T10:00")).toBe("2026-11-19T10:00Z");
+    expect(Date.parse(fitFrom("2026-11-19T10:00") ?? "")).toBe(Date.parse("2026-11-19T10:00:00Z"));
+    expect(fitFrom("2026-11-19T10:00:00+02:00")).toBe("2026-11-19T10:00:00+02:00");
+    for (const bad of ["yesterday", "2026-13-45", 5, ""]) expect(fitFrom(bad), String(bad)).toBeNull();
+    log.mockRestore();
+  });
+
   it("reads public_origin only as a bare https origin", () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
     expect(parseConfig(undefined).publicOrigin).toBeNull();

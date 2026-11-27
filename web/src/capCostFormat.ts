@@ -131,7 +131,7 @@ export function shareText(share: number): string {
 
 /** The model that gets the least cap per token (the most tokens per 1% in its mix): the default comparison base. */
 export function defaultBase(models: CapCostModelDto[]): string | null {
-  const ranked = models.filter((m) => m.all_kinds_tokens_per_percent !== null);
+  const ranked = models.filter((m) => m.all_kinds_tokens_per_percent !== null && m.own_cap === null);
   const best = ranked.sort((a, b) => (b.all_kinds_tokens_per_percent ?? 0) - (a.all_kinds_tokens_per_percent ?? 0))[0];
   return best?.model ?? models[0]?.model ?? null;
 }
@@ -144,6 +144,8 @@ function unitOf(base: CapCostModelDto | undefined): number | null {
 /** How many base tokens one token of `model` (in `kind`, or its whole mix) uses as much of the week as; null when unknown. */
 export function multipleOf(model: CapCostModelDto, kind: TokenKind | null, base: CapCostModelDto | undefined): number | null {
   const unit = unitOf(base);
+  // Slice 67: a model on its own cap counts points of another cap; no multiple either way.
+  if (model.own_cap !== null || (base !== undefined && base.own_cap !== null)) return null;
   // Two figures weighted by different windows' mixes (Slice 26) are not comparable: show a dash.
   if (kind === null && base !== undefined && model.mix_source !== base.mix_source) return null;
   const own = kind === null ? model.all_kinds_tokens_per_percent : model.tokens_per_percent[kind];

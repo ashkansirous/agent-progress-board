@@ -1,10 +1,10 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
-import type { UsagePageResponse } from "../src/api/usageDto";
+import type { CapCostModelDto, UsagePageResponse } from "../src/api/usageDto";
 import exampleConfig from "../config/board.example.json" with { type: "json" };
-import { MixSource, MultiplierState } from "../src/domain/capCost";
+import { FitMode, HowSure, MixSource, MultiplierState } from "../src/domain/capCost";
 import { TokenKind } from "../src/domain/usage";
 import { demoBoard } from "./fixture";
-import { demoUsage, emptyUsage, ENV_ONE, ENV_TWO, PLANS, readyCapCost, readyUsage, USAGE_SERVER_TIME } from "./usageFixture";
+import { demoUsage, emptyUsage, ENV_ONE, ENV_TWO, notReadyCapCost, PLANS, readyCapCost, readyUsage, USAGE_SERVER_TIME } from "./usageFixture";
 
 const USAGE_ROUTE = "**/api/usage?*";
 const BOARD_ROUTE = "**/api/board";
@@ -298,13 +298,29 @@ test.describe("what 1% of the cap costs", () => {
     // Wait until every model's figure is drawn in every place a mix note could sit (the tokens-per-1% table and the compare
     // table on desktop, the cards on the phone), then assert no note.
     const count = readyCapCost().models.length;
-    if (isPhone()) await expect(page.locator(".phone-model")).toHaveCount(count);
+    if (isPhone()) await expect(page.locator(".phone-model", { hasNotText: "Untracked use" })).toHaveCount(count);
     else {
       const tables = page.locator(".cap-cost-card table.usage-table");
       await expect(tables).not.toHaveCount(0);
-      for (const table of await tables.all()) await expect(table.locator("tbody tr")).toHaveCount(count);
+      for (const table of await tables.all()) await expect(table.locator("tbody tr", { hasNotText: "Untracked use" })).toHaveCount(count);
     }
     await expect(page.locator(".mix-note")).toHaveCount(0);
+  });
+
+  test("shows the untracked use as its own row, and a dash with \"Not enough data\" for a thin model (Slice 67)", async ({ page }) => {
+    const ready = readyCapCost();
+    const first = ready.models[0] as CapCostModelDto;
+    const thin: CapCostModelDto = { ...first, model: "model-thin", not_enough: true, how_sure: HowSure.Rough, all_kinds_tokens_per_percent: null, tokens_per_percent: { input: null, cache_write: null, cache_read: null, output: null }, kind_ratios: null, kind_ratio_reference: null };
+    await openUsage(page, () => readyUsage({ cap_cost: { ...ready, models: [...ready.models, thin] } }));
+    if (isPhone()) {
+      await expect(page.locator(".phone-model", { hasText: "model-thin" })).toContainText("Not enough data");
+      await expect(page.locator(".phone-model", { hasText: "model-thin" }).locator(".pill, .phone-model-line")).toHaveCount(0);
+      await expect(page.locator(".phone-model", { hasText: "Untracked use" })).toContainText("about 0.4% of the week a day that no report explains");
+      return;
+    }
+    await expect(modelRow(page, "model-thin")).toContainText("Not enough data");
+    await expect(modelRow(page, "model-thin").locator(".pill")).toHaveCount(0);
+    await expect(page.locator(".cap-cost-card tbody tr", { hasText: "Untracked use" })).toContainText("about 0.4% of the week a day that no report explains");
   });
 
   test("marks only the model whose all-kinds figure uses last week's mix (Slice 26)", async ({ page }) => {
@@ -408,6 +424,15 @@ test.describe("what 1% of the cap costs", () => {
     await openUsage(page, () => ({ ...ready, cap_cost: { ...ready.cap_cost, models } }));
     const card = page.locator(".usage-card", { hasText: "Kinds compared with fresh input" });
     await expect(card.locator(".kind-ratio-group")).toHaveCount(2);
+  });
+
+  test("keeps the not-ready card while a model with its own cap shows its row beside it, with no untracked row (Slice 67)", async ({ page }) => {
+    const first = readyCapCost().models[0] as CapCostModelDto;
+    const own: CapCostModelDto = { ...first, model: "model-own", own_cap: "weekly:own", mode: FitMode.OneWeight, kind_ratios: null, kind_ratio_reference: null };
+    await openUsage(page, () => demoUsage({ cap_cost: { ...notReadyCapCost(2), own_cap_ready: true, models: [own] } }));
+    await expect(page.getByText("Not enough data for an estimate yet")).toBeVisible();
+    await expect(page.locator(".model-name", { hasText: "model-own" }).first()).toBeVisible();
+    await expect(page.getByText("Untracked use")).toHaveCount(0);
   });
 
   test("shows the estimate-not-ready card in place of the section, with dashes for the cap figures", async ({ page }) => {

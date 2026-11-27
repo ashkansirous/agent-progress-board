@@ -41,6 +41,11 @@ beforeAll(async () => {
 
 beforeEach(resetBoard);
 
+/** Within half a percent: the ridge term (Slice 67) shrinks an exact fit by about a tenth of a percent. */
+function expectNear(value: number | null | undefined, want: number): void {
+  expect(Math.abs((value ?? 0) / want - 1)).toBeLessThan(0.005);
+}
+
 async function getUsage(query: string, at: Date = NOW): Promise<UsageResponse> {
   const jwt = await new SignJWT({ email: "owner@example.com" })
     .setProtectedHeader({ alg: "RS256", kid: KEY_ID })
@@ -100,10 +105,10 @@ describe("the cap cost in the usage route", () => {
     expect(cost.ready).toBe(true);
     const model = cost.models[0];
     expect(model?.mode).toBe("per_kind");
-    expect(model?.tokens_per_percent.input).toBeCloseTo(400_000, -1);
+    expectNear(model?.tokens_per_percent.input, 400_000);
     for (const value of Object.values(model?.tokens_per_percent ?? {})) expect(value === null || value > 0).toBe(true);
     const task = usage.top_tasks.find((t) => t.key === TASK);
-    expect(task?.cap_points).toBeCloseTo((task?.tokens ?? 0) / 400_000, 1);
+    expectNear(task?.cap_points, (task?.tokens ?? 0) / 400_000);
     expect(task?.cap_points ?? 0).toBeGreaterThan(80);
     expect(usage.agent_kinds[0]?.cap_points).toBeCloseTo(task?.cap_points ?? 0, 6);
     expect(cost.steps[0]).toMatchObject({ step: "build" });
@@ -115,7 +120,7 @@ describe("the cap cost in the usage route", () => {
     await seedWeekWithReset();
     const young = (await getUsage("?range=30d", new Date(hour(33)))).cap_cost.models[0];
     expect(young?.mix_source).toBe("last_full");
-    expect(young?.all_kinds_tokens_per_percent).toBeCloseTo(400_000, -1);
+    expectNear(young?.all_kinds_tokens_per_percent, 400_000);
     const aged = (await getUsage("?range=30d", new Date(hour(32 + 30)))).cap_cost.models[0];
     expect(aged?.mix_source).toBe("current");
     expect((await getUsage("?range=30d")).cap_cost.models[0]?.mix_source).toBe("current");
@@ -132,7 +137,7 @@ describe("the cap cost in the usage route", () => {
     const aged = (await getUsage("?range=30d", new Date(hour(32 + 30)))).cap_cost.models[0];
     expect(young?.mix_source).toBe("last_full");
     expect(aged?.mix_source).toBe("current");
-    expect(young?.all_kinds_tokens_per_percent).toBeCloseTo(400_000, -1);
+    expectNear(young?.all_kinds_tokens_per_percent, 400_000);
     expect(Math.abs((aged?.all_kinds_tokens_per_percent ?? 0) - 400_000)).toBeGreaterThan(10_000);
   });
 
@@ -149,7 +154,7 @@ describe("the cap cost in the usage route", () => {
     const large = models.find((m) => m.model === "model-large");
     const small = models.find((m) => m.model === "model-small");
     expect(large?.mix_source).toBe("last_full");
-    expect(large?.all_kinds_tokens_per_percent).toBeCloseTo(400_000, -1);
+    expectNear(large?.all_kinds_tokens_per_percent, 400_000);
     expect(small?.mix_source).toBe("current");
   });
 
@@ -176,6 +181,29 @@ describe("the cap cost in the usage route", () => {
     expect(usage.cap_cost).toMatchObject({ ready: false, stretches: 1, min_stretches: 3, models: [], unexplained: null });
     expect(usage.top_tasks[0]?.cap_points).toBeNull();
     expect(usage.agent_kinds[0]?.cap_points).toBeNull();
+  });
+
+  it("fits a model's own cap even while the shared cap has too few stretches (Slice 67)", async () => {
+    for (let h = 0; h <= 10; h++) {
+      await reportUsage(
+        repo(),
+        { agent_key: "demo-app/session-2", model: "claude-fable-5", record_at: hour(h), input_tokens: MILLION * (h + 1), cache_write_tokens: 0, cache_read_tokens: 0, output_tokens: 0 },
+        clock,
+      );
+      const windows = [{ kind: "weekly:fable", percent: h * POINTS_PER_MILLION, reset_at: FIRST_RESET }, ...(h <= 1 ? [{ kind: "weekly", percent: h * 3, reset_at: FIRST_RESET }] : [])];
+      await reportCap(repo(), { taken_at: hour(h), plan: PLAN, windows });
+    }
+    const cost = (await getUsage("?range=30d")).cap_cost;
+    expect(cost.stretches).toBeLessThan(cost.min_stretches);
+    // The shared estimate stays not ready (the page keeps its card); the own-cap model rides along with its own readiness and no "Untracked use".
+    expect(cost.ready).toBe(false);
+    expect(cost.own_cap_ready).toBe(true);
+    expect(cost.untracked_per_day).toBeNull();
+    expect(cost.environments).toEqual([]);
+    const fable = cost.models.find((m) => m.model === "claude-fable-5");
+    expect(cost.models).toHaveLength(1);
+    expect(fable?.own_cap).toBe("weekly:fable");
+    expectNear(fable?.tokens_per_percent.input, 400_000);
   });
 
   it("lists each environment with its multiplier: the base at 1x, one with too few stretches as not enough data", async () => {
@@ -283,7 +311,8 @@ describe("cap growth inside a reported chat window (Slice 16)", () => {
     expect(chat).toMatchObject({ tokens: null, reports: 0, multiplier: null });
     expect(chat?.cap_points).toBeCloseTo(3, 1);
     expect(usage.cap_cost.unexplained?.points).toBeGreaterThan(2.9);
-    expect(usage.cap_cost.unexplained?.points).toBeLessThan(3.1);
+    // The intercept (Slice 67) takes a little of the explained growth, so a little more is left than the 3 points seeded.
+    expect(usage.cap_cost.unexplained?.points).toBeLessThan(3.6);
   });
 
   it("places nothing against a chat while the environment filter names another environment", async () => {

@@ -14,6 +14,8 @@ function model(name: string, mix: number, input: number | null = mix): CapCostMo
     model: name,
     color_index: 0,
     mode: FitMode.OneWeight,
+    not_enough: false,
+    own_cap: null,
     tokens_per_percent: each,
     all_kinds_tokens_per_percent: mix,
     mix_source: MixSource.Current,

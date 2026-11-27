@@ -146,6 +146,8 @@ const en = {
   stretchesN: "{n} stretches",
   notEnoughData: "Not enough data",
   ownCapNote: "its own cap, not compared",
+  priceNote: "The gaps between models come from list prices; the data moves a model off them only where it clearly says so.",
+  priceFactorNote: "the data says {x}× its list price",
   untrackedUse: "Untracked use",
   untrackedPerDay: "about {n}% of the week a day that no report explains",
   untrackedPerDayTiny: "under 1% of the week a day that no report explains",

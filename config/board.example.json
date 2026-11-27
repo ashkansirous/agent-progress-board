@@ -33,7 +33,15 @@
       "modelMinShare": 0.02,
       "ridge": 0.001,
       "untrackedRidge": 20,
-      "minKindShare": 0.01
+      "minKindShare": 0.01,
+      "priceShrink": 50,
+      "priceFactorShown": 0.5,
+      "prices": {
+        "opus": { "input": 4, "output": 20, "cache_read": 0.2 },
+        "sonnet": { "input": 2, "output": 10, "cache_read": 0.1 },
+        "haiku": { "input": 0.1, "output": 0.5, "cache_read": 0.01 },
+        "fable": { "input": 8, "output": 40, "cache_read": 0.2 }
+      }
     },
     "series": [
       { "light": "#2a78d6", "dark": "#3987e5" },

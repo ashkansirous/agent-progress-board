@@ -278,6 +278,22 @@ describe("the cap cost in the usage route", () => {
     expect(model?.kind_ratio_reference).toBe("cache_read");
     expect(model?.kind_ratios?.cache_read).toBe(1);
   });
+
+  it("never compares the kinds with one whose cell is a dash, even where a list price weighs it (Slice 67 review)", async () => {
+    for (let h = 0; h <= 20; h++) {
+      await reportUsage(
+        repo(),
+        { agent_key: "demo-app/session-1", model: "claude-opus-5-5", record_at: hour(h), input_tokens: 0, cache_write_tokens: 0, cache_read_tokens: MILLION * (h + 1), output_tokens: 0 },
+        clock,
+      );
+      if (h > 0) await readCap(h, h * POINTS_PER_MILLION, SECOND_RESET);
+    }
+    const model = (await getUsage("?range=30d")).cap_cost.models[0];
+    expect(model?.tokens_per_percent.input).toBeNull();
+    expect(model?.kind_ratios?.input).toBeNull();
+    expect(model?.kind_ratio_reference).toBe("cache_read");
+    expect(model?.kind_ratios?.cache_read).toBe(1);
+  });
 });
 
 describe("cap growth inside a reported chat window (Slice 16)", () => {

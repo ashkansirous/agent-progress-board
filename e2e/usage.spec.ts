@@ -445,6 +445,15 @@ test.describe("what 1% of the cap costs", () => {
     await expect(page.locator(".cap-cost-card").getByText("about 0%")).toHaveCount(0);
   });
 
+  test("says the gaps between models come from list prices, and names a model the data moved far off them (Slice 67)", async ({ page }) => {
+    const ready = readyCapCost();
+    const first = ready.models[0] as CapCostModelDto;
+    const moved: CapCostModelDto = { ...first, price_factor: 2.4 };
+    await openUsage(page, () => readyUsage({ cap_cost: { ...ready, price_anchored: true, models: [moved, ...ready.models.slice(1)] } }));
+    await expect(page.getByText("The gaps between models come from list prices").first()).toBeVisible();
+    await expect(page.getByText("the data says 2.4× its list price")).toBeVisible();
+  });
+
   test("keeps the not-ready card while a model with its own cap shows its row beside it, with no untracked row (Slice 67)", async ({ page }) => {
     const first = readyCapCost().models[0] as CapCostModelDto;
     const own: CapCostModelDto = { ...first, model: "model-own", own_cap: "weekly:own", mode: FitMode.OneWeight, kind_ratios: null, kind_ratio_reference: null };

@@ -6,7 +6,9 @@
 
 **Touches:** `src/domain/capCost.ts` (`buildStretches`, `planFit`, `nnls`, `solve`, `howSure`), `src/application/usage.ts`
 (`fitFor`, `historyStart`, the cap-cost cells near `ratioReference`), `src/config.ts` (`CapCostConfig`, `readCapCost`),
-`config/board.example.json`, `test/capCost.test.ts`, `test/usageTools.test.ts`, `web/` cap-cost table (dash and "not
+`config/board.example.json`, `test/capCost.test.ts`, `test/usageTools.test.ts`, `src/domain/prices.ts`,
+`src/api/usageDto.ts`, `test/capCostPrices.test.ts`, `test/capCostFormat.test.ts`, `e2e/usage.spec.ts`,
+`e2e/usageFixture.ts`, `web/src/strings.ts` (the list-price notes), `web/` cap-cost table (dash and "not
 enough data" text only)
 
 ## Why
@@ -56,6 +58,18 @@ What the code and data showed (2026-11-26, origin/main 7c1c438):
    `untrackedRidge` 20, `minKindShare` 0.01. `fitFrom` takes a date (UTC midnight) or a time with a zone; a zoneless
    time is read as UTC; a bad value is logged and means all history (`readFitFrom`).
 5. The "Untracked use" row has no mock; it reuses the model-row styles from docs/design/ (review 2026-11-27).
+6. **Model gaps are anchored to the published prices (owner, 2026-11-27: "anchor it").** Items 1 to 6 went live and a
+   replay of the live data with `fitFrom` 2026-11-19 still gave Haiku 16.3x Opus per token. The models run together
+   (helper agents inside one session), so the cap growth cannot tell them apart; more data will not fix it. The fit
+   therefore starts from the list-price ratios between models and kinds and fits only how many tokens 1% of the cap
+   is; a model moves off its price ratio only as far as the data clearly says (a strong shrink toward the prior). The
+   page says the gaps between models come from list prices. Owner chose this over "measure only, dash when models move
+   together".
+   The list-price notes have no mock; they reuse the existing note styles (review 2026-11-27).
+   Live replay 2026-11-27 (item 7 code, after the high review): tokens per 1% on All kinds Sonnet 85.6M, Opus 95.8M;
+   Haiku is a dash, "Not enough data" (under the evidence floor; before the floor applied to priced models it showed
+   1,088M). Per kind the order is Haiku, Sonnet, Opus; Sonnet's All-kinds mix leans on output and cache write, so on
+   All kinds it sits about 10% behind Opus, accepted.
 
 ## Work
 
@@ -80,6 +94,10 @@ only); Decisions 5 records it.
   purpose (now recorded in Decisions 4).
 - Skipped #7 (`reviews/s67-medium.md`): "returns null for a whole task, step or environment" - repeat of high #5, the
   null-never-0 rule.
+- Price-prior pass (`reviews/s67b-medium.md`, 1 important, 4 nits): applied #1 and #4.
+- Skipped #2 (`reviews/s67b-medium.md`): "src/domain/capCost.ts:332, nit. Every priced model is forced into FitMode.PerKind, so kind_ratios shows list-price ratios as if measured, and no "one weight so far" note shows for a priced model with few stretches." - the list-price note covers it.
+- Skipped #3 (`reviews/s67b-medium.md`): "src/domain/capCost.ts:555, nit. evidenceOf lets a priced collinear model pass on its list-price weight alone (weight = scale x price, non-zero), so it shows a figure with no measurement behind it (e.g. Haiku only inside Opus sessions)." - prior-backed by design, Decisions 6.
+- Skipped #5 (`reviews/s67b-medium.md`): "src/config.ts:372, nit. readPrices always starts from DEFAULT_PRICES; a config cannot drop a default, and a bad entry with a default's name silently keeps the default." - a nit with no wrong figure: the kept default is the list price, and a bad entry is logged.
 
 - [x] **1. Fit start date.** Optional `usage.capCost.fitFrom` (ISO date) in `CapCostConfig`; `fitFor` drops history
   deltas and cap windows before it before `buildStretches`. Absent means today's behaviour. The example config shows
@@ -98,6 +116,18 @@ only); Decisions 5 records it.
   into the model weights.
 - [x] **6. Tests.** A thin model shows a dash; collinear kinds stay bounded; `fitFrom` drops older stretches; a
   per-model cap is fitted on its own window; the fit's timing test still passes.
+- [ ] **7. Anchor model gaps to list prices (Decisions 6).**
+  - Price table: list prices per model family and kind (input, output, cache write, cache read), as public defaults
+    in `src/domain/` matched by whole model-name parts (the same matching as `ownCapModels`). Values of 2026-11-27:
+    Opus 5.5 $4 / $20, cache read $0.20; Sonnet 5.5 $2 / $10, cache read $0.10; Haiku 5.5 $0.10 / $0.50, cache read
+    $0.01; Fable 5.2 $8 / $40, cache read $0.20; cache write 1.25x input. `usage.capCost.prices` in config overrides
+    or adds entries.
+  - Fit: each model's kind weights are its price vector times one shared scale plus a per-model factor shrunk hard
+    toward 1 (config `priceShrink`). A model with no price entry keeps today's fit.
+  - Page: one short note on the table saying the gaps between models come from list prices; a model whose fitted
+    factor moves more than a set amount off 1 shows that.
+  - Tests: a fixture where the models' use moves together (as live) gives Haiku cheaper than Sonnet cheaper than
+    Opus, in their price order; a fixture with separable use still lets a clear factor through; the timing test passes.
 
 ## Verify
 
@@ -115,11 +145,14 @@ only); Decisions 5 records it.
   deletes nothing; never cut old rows to change the fit (Slice 67: docs/plan/slices/67-believable-cap-cost.md).
 - The "Untracked use" row reuses the model-row styles of the cap-cost table (`UntrackedRow` / `PhoneUntracked` in
   `web/src/CapCostSection.tsx`); it has no mock of its own (Slice 67: docs/plan/slices/67-believable-cap-cost.md).
+- Model prices are matched only by `priceOf` in `src/domain/prices.ts`; never a second copy (Slice 67:
+  docs/plan/slices/67-believable-cap-cost.md).
 
 #### Not yet verified
 
-- [owner] Set `usage.capCost.fitFrom` to `2026-11-19` in the live `BOARD_CONFIG` (the owner's private config; the example
-  file holds a placeholder).
-- [chrome] After the deploy and that config, the live usage page shows Haiku cheaper than Opus, or a dash where the data is too thin.
+- [chrome] After item 7's deploy, the live usage page shows Haiku cheaper than Opus, or a dash where the data is too
+  thin. (2026-11-27, items 1 to 6 live with `fitFrom` 2026-11-19 set in `BOARD_CONFIG`, copy in the secrets store: a
+  replay of the live data through the deployed code gave Opus 302.7M tokens per 1%, Sonnet 56.7M, Haiku 18.6M, so
+  Haiku at 16.3x Opus; Fable no row, its only data predates `fitFrom`.)
 - [chrome] The own-cap rule (Decisions 3) matches the live `weekly:<model>` cap readings; read the readings and the page
   after the deploy and write the result into Decisions 3.

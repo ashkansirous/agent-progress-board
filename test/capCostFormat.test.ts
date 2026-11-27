@@ -16,6 +16,7 @@ function model(name: string, mix: number, input: number | null = mix): CapCostMo
     mode: FitMode.OneWeight,
     not_enough: false,
     own_cap: null,
+    price_factor: null,
     tokens_per_percent: each,
     all_kinds_tokens_per_percent: mix,
     mix_source: MixSource.Current,

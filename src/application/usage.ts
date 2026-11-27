@@ -514,20 +514,20 @@ interface CapCostContext {
 
 function capCostDto(costing: Costing, context: CapCostContext): CapCostDto {
   const { fit } = costing;
-  const head = { ready: false, stretches: costing.stretches, min_stretches: costing.minStretches, own_cap_ready: costing.ownReady };
+  const head = { ready: false, stretches: costing.stretches, min_stretches: costing.minStretches, own_cap_ready: costing.ownReady, price_anchored: fit?.priceAnchored ?? false };
   const { known, shown, order, config, from, lastMix } = context;
   const modelIndex = colorIndexer(order, SeriesKind.Model);
   const mixes: ModelMixes = { current: totalsByModel(known), last: lastMix === null ? null : totalsByModel(lastMix) };
   if (fit === null || !costing.sharedReady) {
     // The shared estimate is not ready: the page keeps its not-ready card, and shows own-cap models beside it only when they have a fit of their own.
-    const own = fit !== null && costing.ownReady ? fit.models.filter((m) => m.ownCap !== null).map((m) => modelDto(fit, m.model, mixes, modelIndex)) : [];
+    const own = fit !== null && costing.ownReady ? fit.models.filter((m) => m.ownCap !== null).map((m) => modelDto(fit, m.model, mixes, modelIndex, config.capCost.priceFactorShown)) : [];
     return { ...head, models: own, environments: [], untracked_per_day: null, unexplained: null, unexplained_stretches: [], steps: [] };
   }
   const totals = unexplainedTotals(fit, from);
   return {
     ...head,
     ready: true,
-    models: fit.models.map((model) => modelDto(fit, model.model, mixes, modelIndex)),
+    models: fit.models.map((model) => modelDto(fit, model.model, mixes, modelIndex, config.capCost.priceFactorShown)),
     environments: environmentCosts(costing, fit, known, order, config),
     untracked_per_day: fit.untrackedPerDay,
     unexplained: { points: totals.points, growth_points: totals.growthPoints, share: totals.share },
@@ -551,6 +551,9 @@ function stepCosts(deltas: UsageDelta[], costing: Costing): { step: string; cap_
 
 const UNIT_MIX: TokenTotals = { input: 1, cache_write: 1, cache_read: 1, output: 1 };
 
+/** A factor under this prints as "0.00x" (two decimals): it is never named. */
+const MIN_NAMED_FACTOR = 0.005;
+
 function perKindValues(make: (kind: TokenKind) => number | null): Record<TokenKind, number | null> {
   return {
     input: make(TokenKind.Input),
@@ -560,8 +563,15 @@ function perKindValues(make: (kind: TokenKind) => number | null): Record<TokenKi
   };
 }
 
+/** The weights with every kind the filter rejects set to 0, so a reference is never picked from a dashed cell. */
+function perTokenOfUsed(perToken: TokenTotals, usedKind: (kind: TokenKind) => boolean): TokenTotals {
+  const kept = { ...perToken };
+  for (const kind of TOKEN_KINDS) if (!usedKind(kind)) kept[kind] = 0;
+  return kept;
+}
+
 /** Fresh input, unless the fit gave it no weight (it is never negative); then the kind that weighs the most. */
-function ratioReference(perToken: TokenTotals): TokenKind | null {
+export function ratioReference(perToken: TokenTotals): TokenKind | null {
   if (perToken.input > 0) return TokenKind.Input;
   const heaviest = TOKEN_KINDS.reduce((best, kind) => (perToken[kind] > perToken[best] ? kind : best), TokenKind.Input);
   return perToken[heaviest] > 0 ? heaviest : null;
@@ -581,24 +591,35 @@ function mixOf(fit: CapCostFit, name: string, mixes: ModelMixes): { mix: TokenTo
   return { mix: own && totalOf(own) > 0 ? own : stretchMix(fit, name), source: MixSource.Current };
 }
 
-function modelDto(fit: CapCostFit, name: string, mixes: ModelMixes, indexOf: (value: string | null) => number): CapCostModelDto {
+/** The factor is named when it is further than `shown` from 1 on a ratio scale (0.5 is as far as 2: |ln f| > ln(1 + shown) is 1.5x either way) and rounds to a figure that is not 0.00. */
+function isFactorShown(factor: number | null, shown: number): boolean {
+  if (factor === null || !(factor >= MIN_NAMED_FACTOR)) return false;
+  return Math.abs(Math.log(factor)) > Math.log(1 + shown);
+}
+
+function modelDto(fit: CapCostFit, name: string, mixes: ModelMixes, indexOf: (value: string | null) => number, factorShown: number): CapCostModelDto {
   const model = fit.models.find((m) => m.model === name) as CapCostFit["models"][number];
   const { mix, source } = mixOf(fit, name, mixes);
-  const reference = ratioReference(model.perToken);
+  // The reference is a kind whose cell is shown: a kind the model never used is a dash, so it cannot be the one the others are compared with.
+  const used = stretchMix(fit, name);
+  const usedKind = (kind: TokenKind): boolean => used[kind] > 0;
+  const reference = ratioReference(perTokenOfUsed(model.perToken, usedKind));
   const ratio = (kind: TokenKind): number | null => (reference === null ? null : model.perToken[kind] / model.perToken[reference]);
   // Slice 67: a number the fit cannot back is a dash, never a figure.
   const shown = model.enough;
   const perKind = shown && model.mode === FitMode.PerKind;
+  // A kind the model never used has no figure, even where its price gives it a weight: a dash, never a list-price number as if measured.
   return {
     model: name,
     color_index: indexOf(name),
     mode: model.mode,
     not_enough: !shown,
     own_cap: model.ownCap,
-    tokens_per_percent: perKindValues((kind) => (shown && model.perToken[kind] > 0 ? 1 / model.perToken[kind] : null)),
+    price_factor: shown && isFactorShown(model.priceFactor, factorShown) ? model.priceFactor : null,
+    tokens_per_percent: perKindValues((kind) => (shown && usedKind(kind) && model.perToken[kind] > 0 ? 1 / model.perToken[kind] : null)),
     all_kinds_tokens_per_percent: shown ? tokensPerPercent(model.perToken, mix) : null,
     mix_source: source,
-    kind_ratios: perKind ? perKindValues(ratio) : null,
+    kind_ratios: perKind ? perKindValues((kind) => (usedKind(kind) ? ratio(kind) : null)) : null,
     kind_ratio_reference: perKind ? reference : null,
     how_sure: model.howSure,
     stretches: model.stretches,

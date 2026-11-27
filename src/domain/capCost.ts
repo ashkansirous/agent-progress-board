@@ -5,6 +5,7 @@
  */
 import type { CapCostConfig } from "../config";
 import { type CapWindow, OWN_CAP_PREFIX, ownCapModels, WEEKLY_WINDOW } from "./cap";
+import { priceOf } from "./prices";
 import { TOKEN_KINDS, type TokenKind, type TokenTotals, totalOf, type UsageDelta, zeroTotals } from "./usage";
 
 const MS_PER_MINUTE = 60_000;
@@ -17,6 +18,8 @@ const KIND_COUNT = TOKEN_KINDS.length;
  * under the Worker CPU limit (the measured time is in the slice file).
  */
 const MAX_FIT_ROUNDS = 25;
+/** A priced column whose squared norm is under this (relative to the hold, and absolutely) has no evidence of its own. */
+const MIN_COLUMN_EVIDENCE = 1e-12;
 const MAX_SOLVE_ROUNDS = 200;
 const SOLVE_STEP_LIMIT = 1e-9;
 /** Two stretches must differ at least this much in the share an environment holds, or its multiplier cannot be told apart. */
@@ -83,6 +86,8 @@ export interface ModelFit {
   ownCap: string | null;
   /** Points of the cap per token, per kind (the same number for every kind on one weight). */
   perToken: TokenTotals;
+  /** Slice 67: how far the data moved the model off its list-price ratio (1 is none); null when the model has no price or no fitted weight. */
+  priceFactor: number | null;
   /** Stretches holding use of this model. */
   stretches: number;
   /** The stretch count at which the model gets a weight per kind. */
@@ -109,6 +114,8 @@ export interface CapCostFit {
   leftoverShare: number;
   /** Slice 67: points of the cap per day the fit puts on use no tokens explain ("untracked use"); never in a model's weights. */
   untrackedPerDay: number;
+  /** Slice 67: some model's weights were anchored to list prices, so the gaps between models come from them. */
+  priceAnchored: boolean;
 }
 
 export interface UnexplainedStretch {
@@ -274,6 +281,10 @@ interface Column {
   kind: TokenKind | null;
   /** Slice 67: the intercept, one per fit: points per day no tokens explain; it has no model. */
   untracked?: boolean;
+  /** Slice 67: the model's list price per kind; the column is then price-weighted tokens (dollars) and its weight is points per dollar. */
+  price?: TokenTotals;
+  /** Slice 67: with some model priced, an unpriced column's tokens are scaled by the priced models' mean dollars per token, so its weight is in the same unit (points per dollar). */
+  unit?: number;
 }
 
 interface FitPlan {
@@ -315,26 +326,41 @@ function stretchesWith(stretches: Stretch[], match: (use: StretchUse) => boolean
 
 function planFit(stretches: Stretch[], config: CapCostConfig): FitPlan {
   const models = modelsOf(stretches);
+  const prices = new Map(models.flatMap((model): Array<[string, TokenTotals]> => {
+    const price = priceOf(model, config.prices);
+    return price === null ? [] : [[model, price]];
+  }));
   const modes = new Map(
     models.map((model): [string, FitMode] => [
       model,
-      stretchesWith(stretches, (use) => use.model === model) >= config.fineFactor * KIND_COUNT ? FitMode.PerKind : FitMode.OneWeight,
+      prices.has(model) || stretchesWith(stretches, (use) => use.model === model) >= config.fineFactor * KIND_COUNT ? FitMode.PerKind : FitMode.OneWeight,
     ]),
   );
   const merged = new Map<string, TokenKind[]>();
+  const unit = meanPrice([...prices.values()]);
   const columns = models.flatMap((model): Column[] => {
-    if (modes.get(model) !== FitMode.PerKind) return [{ model, kind: null }];
+    const price = prices.get(model);
+    // A priced model has one column: the kinds keep their price ratios, only a factor is fitted (Decisions 6).
+    if (price !== undefined) return [{ model, kind: null, price }];
+    if (modes.get(model) !== FitMode.PerKind) return [{ model, kind: null, unit }];
     const kept = columnKinds(modelKindTokens(stretches, model), config);
     merged.set(model, TOKEN_KINDS.filter((kind) => !kept.includes(kind)));
-    return kept.map((kind) => ({ model, kind }));
+    return kept.map((kind) => ({ model, kind, unit }));
   });
   if (stretches.length > 0) columns.push({ model: "", kind: null, untracked: true });
   return { models, modes, columns, merged };
 }
 
+/** The priced models' mean dollars per million tokens over their kinds; undefined when none is priced (the columns then stay in plain tokens). */
+function meanPrice(prices: TokenTotals[]): number | undefined {
+  if (prices.length === 0) return undefined;
+  return prices.reduce((sum, price) => sum + totalOf(price) / KIND_COUNT, 0) / prices.length;
+}
+
 function columnTokens(use: StretchUse, column: Column): number {
   if (column.untracked || use.model !== column.model) return 0;
-  return column.kind === null ? totalOf(use.totals) : use.totals[column.kind];
+  if (column.price !== undefined) return TOKEN_KINDS.reduce((sum, kind) => sum + (column.price?.[kind] ?? 0) * use.totals[kind], 0);
+  return (column.unit ?? 1) * (column.kind === null ? totalOf(use.totals) : use.totals[column.kind]);
 }
 
 /** Weight columns with the multipliers held: per stretch the tokens in millions, scaled by each environment's multiplier; the intercept's is the stretch's days. */
@@ -390,25 +416,68 @@ function environmentShare(stretch: Stretch, environment: string): number {
 interface Solved {
   weights: number[];
   multipliers: Map<string, number>;
+  /** Points per dollar of list price the priced models share; 0 when none is priced. */
+  scale: number;
+}
+
+interface WeightFit {
+  weights: number[];
+  scale: number;
+}
+
+/**
+ * The weights with the multipliers held. Priced models (Decisions 6) weigh `scale x factor` points per
+ * dollar of list price: the shared scale has a light ridge, each model's deviation from it (a column
+ * up and a column down, both non-negative) a hard one, so the factors stay at 1 unless the data clearly
+ * pulls them. Every other column is fitted as before.
+ */
+function fitWeights(stretches: Stretch[], plan: FitPlan, multipliers: Map<string, number>, start: number[], config: CapCostConfig): WeightFit {
+  const growth = stretches.map((s) => s.growth);
+  const columns = weightColumns(stretches, plan, multipliers);
+  const ridge = ridgeOf(plan, config);
+  const priced = plan.columns.flatMap((column, c) => (column.price === undefined ? [] : [c]));
+  if (priced.length === 0) return { weights: nnls(columns, growth, start, ridge), scale: 0 };
+  const free = plan.columns.flatMap((_, c) => (priced.includes(c) ? [] : [c]));
+  const shared = growth.map((_, row) => priced.reduce((sum, c) => sum + (columns[c]?.[row] ?? 0), 0));
+  const up = priced.map((c) => columns[c] ?? []);
+  const down = up.map((column) => column.map((v) => -v));
+  const startScale = priced.reduce((sum, c) => sum + (start[c] ?? 0), 0) / priced.length;
+  // The hold on a factor is `priceShrink` typical stretches' worth of evidence for 1, the same for every model and fixed however much data there is:
+  // a small column cannot swing far on weak evidence, and enough separable use still outweighs it.
+  const holdNorm = config.priceShrink * shared.reduce((sum, v) => sum + v * v, 0) / Math.max(1, growth.length);
+  // A column too small to carry evidence (zero, or a norm so tiny the quotient would overflow) is held at its list price like an empty one, never Infinity.
+  const floor = Math.max(holdNorm * MIN_COLUMN_EVIDENCE, MIN_COLUMN_EVIDENCE);
+  const shrink = up.map((column) => holdNorm / Math.max(column.reduce((sum, v) => sum + v * v, 0), floor));
+  const solved = nnls(
+    [...free.map((c) => columns[c] ?? []), shared, ...up, ...down],
+    growth,
+    [...free.map((c) => start[c] ?? 0), startScale, ...priced.map(() => 0), ...priced.map(() => 0)],
+    [...free.map((c) => ridge[c] ?? 0), config.ridge, ...shrink, ...shrink],
+  );
+  const scale = solved[free.length] ?? 0;
+  const weights = plan.columns.map(() => 0);
+  free.forEach((c, i) => (weights[c] = solved[i] ?? 0));
+  priced.forEach((c, i) => (weights[c] = Math.max(0, scale + (solved[free.length + 1 + i] ?? 0) - (solved[free.length + 1 + priced.length + i] ?? 0))));
+  return { weights, scale };
 }
 
 /** Alternating non-negative least squares: weights with the multipliers fixed, then multipliers with the weights fixed. */
 function solve(stretches: Stretch[], plan: FitPlan, estimated: string[], config: CapCostConfig): Solved {
   const growth = stretches.map((s) => s.growth);
   const multipliers = new Map<string, number>(estimated.map((name) => [name, 1]));
-  let weights = nnls(weightColumns(stretches, plan, multipliers), growth, plan.columns.map(() => 0), ridgeOf(plan, config));
+  let { weights, scale } = fitWeights(stretches, plan, multipliers, plan.columns.map(() => 0), config);
   for (let round = 0; round < MAX_FIT_ROUNDS && estimated.length > 0; round++) {
     const before = estimated.map((name) => multipliers.get(name) ?? 1);
     const weightsBefore = weights;
     const fixed = fixedPart(stretches, plan, weights, estimated);
     const next = nnls(multiplierColumns(stretches, plan, weights, estimated), growth.map((g, s) => g - (fixed[s] ?? 0)), before);
     estimated.forEach((name, i) => multipliers.set(name, next[i] ?? 0));
-    weights = nnls(weightColumns(stretches, plan, multipliers), growth, weights, ridgeOf(plan, config));
+    ({ weights, scale } = fitWeights(stretches, plan, multipliers, weights, config));
     const change = Math.max(...estimated.map((name, i) => Math.abs((multipliers.get(name) ?? 0) - (before[i] ?? 0))));
     const weightChange = Math.max(0, ...weights.map((w, i) => Math.abs(w - (weightsBefore[i] ?? 0))));
     if (Math.max(change, weightChange) < config.convergence) break;
   }
-  return { weights, multipliers };
+  return { weights, multipliers, scale };
 }
 
 /** Per stretch, the points the environments that are not estimated (the base and the unmeasured ones, all 1x) account for. */
@@ -429,7 +498,7 @@ function perTokenOf(plan: FitPlan, weights: number[], model: string, stretches: 
   plan.columns.forEach((column, c) => {
     if (column.model !== model || column.untracked) return;
     const value = (weights[c] ?? 0) / PER_MILLION;
-    for (const kind of column.kind === null ? TOKEN_KINDS : [column.kind]) perToken[kind] = value;
+    for (const kind of column.kind === null ? TOKEN_KINDS : [column.kind]) perToken[kind] = value * (column.price?.[kind] ?? column.unit ?? 1);
   });
   const small = plan.merged.get(model) ?? [];
   if (small.length === 0) return perToken;
@@ -474,6 +543,7 @@ interface FitState {
   weights: number[];
   multipliers: Map<string, number>;
   fitError: number[];
+  scale: number;
 }
 
 /**
@@ -486,6 +556,7 @@ function evidenceOf(model: string, tokenEvidence: number[], state: FitState, con
   const parts = tokenEvidence.flatMap((i) => {
     const stretch = stretches[i] as Stretch;
     const points = modelPoints(stretch, model, plan, weights, multipliers);
+    // A priced model passes the same floor: a figure that is the list price alone is no evidence (Decisions 2).
     if (points < config.modelMinShare * stretch.growth) return [];
     const fitted = fittedGrowth(stretch, plan, weights, multipliers);
     const portion = fitted > 0 ? points / fitted : 0;
@@ -496,9 +567,17 @@ function evidenceOf(model: string, tokenEvidence: number[], state: FitState, con
   return { count: parts.length, ownError: growth === 0 ? 0 : net / growth };
 }
 
+/** A priced model's factor off its list-price ratio: its weight over the shared scale. */
+function priceFactorOf(model: string, state: FitState): number | null {
+  const c = state.plan.columns.findIndex((column) => column.model === model && column.price !== undefined);
+  const pricedCount = state.plan.columns.filter((column) => column.price !== undefined).length;
+  // A lone priced model is its own scale, so its factor is 1 by construction: no factor.
+  return c < 0 || state.scale <= 0 || pricedCount < 2 ? null : (state.weights[c] ?? 0) / state.scale;
+}
+
 function modelFitOf(model: string, all: Stretch[], thin: Set<string>, state: FitState, config: CapCostConfig): ModelFit {
   const base = { model, ownCap: null, finerAt: config.fineFactor * KIND_COUNT, stretches: stretchesWith(all, (use) => use.model === model) };
-  if (thin.has(model)) return { ...base, mode: FitMode.OneWeight, enough: false, perToken: zeroTotals(), howSure: HowSure.Rough };
+  if (thin.has(model)) return { ...base, mode: FitMode.OneWeight, enough: false, perToken: zeroTotals(), priceFactor: null, howSure: HowSure.Rough };
   const { count, ownError } = evidenceOf(model, evidenceIndexes(all, model, config), state, config);
   const enough = count >= config.modelMinStretches;
   return {
@@ -506,6 +585,7 @@ function modelFitOf(model: string, all: Stretch[], thin: Set<string>, state: Fit
     mode: state.plan.modes.get(model) ?? FitMode.OneWeight,
     enough,
     perToken: perTokenOf(state.plan, state.weights, model, state.stretches),
+    priceFactor: priceFactorOf(model, state),
     howSure: enough ? howSure(count, ownError, config) : HowSure.Rough,
   };
 }
@@ -521,13 +601,13 @@ export function fitCapCost(all: Stretch[], base: string | null, config: CapCostC
   const stretches = thin.size === 0 ? all : all.map((s) => ({ ...s, uses: s.uses.filter((use) => !thin.has(use.model)) }));
   const plan = planFit(stretches, config);
   const estimated = base === null ? [] : estimableEnvironments(stretches, baseKey, config);
-  const { weights, multipliers } = solve(stretches, plan, estimated, config);
+  const { weights, multipliers, scale } = solve(stretches, plan, estimated, config);
   const residuals = stretches.map((s) => s.growth - fittedGrowth(s, plan, weights, multipliers));
   const leftoverShare = shareOfGrowth(stretches, residuals);
   // The verdict judges the whole fit, the intercept included; the shown residuals leave it out (it is the unexplained growth).
   const fitError = residuals.map((r, i) => r - untrackedPoints(stretches[i] as Stretch, plan, weights));
   const netShare = netErrorShare(stretches, fitError);
-  const state: FitState = { stretches, plan, weights, multipliers, fitError };
+  const state: FitState = { stretches, plan, weights, multipliers, fitError, scale };
   const models = modelsOf(all).map((model) => modelFitOf(model, all, thin, state, config));
   const names = [...new Set(all.flatMap((s) => s.uses.map((use) => use.environment)))].sort();
   const environments = names.map((name): EnvironmentFit => {
@@ -541,7 +621,7 @@ export function fitCapCost(all: Stretch[], base: string | null, config: CapCostC
       howSure: measured ? howSure(count, netShare, config) : null,
     };
   });
-  return { models, environments, stretches: all, residuals, leftoverShare, untrackedPerDay: untrackedPerDay(plan, weights) };
+  return { models, environments, stretches: all, residuals, leftoverShare, untrackedPerDay: untrackedPerDay(plan, weights), priceAnchored: models.filter((m) => m.enough && m.priceFactor !== null).length >= 2 };
 }
 
 /** The models that have a cap of their own among the plan's windows, as model name -> window kind. */
@@ -573,7 +653,7 @@ export function fitOwnCap(windows: CapWindow[], plan: string, deltas: UsageDelta
   const stretches = buildStretches(windows, plan, own, config, base, windowKind);
   const fits = stretches.length === 0 ? [] : fitCapCost(stretches, base, config).models;
   return models.map((model): ModelFit => {
-    const empty: ModelFit = { model, mode: FitMode.OneWeight, enough: false, ownCap: windowKind, perToken: zeroTotals(), stretches: 0, finerAt: config.fineFactor * KIND_COUNT, howSure: HowSure.Rough };
+    const empty: ModelFit = { model, mode: FitMode.OneWeight, enough: false, ownCap: windowKind, perToken: zeroTotals(), priceFactor: null, stretches: 0, finerAt: config.fineFactor * KIND_COUNT, howSure: HowSure.Rough };
     const fitted = fits.find((m) => m.model === model);
     if (fitted === undefined) return empty;
     return { ...fitted, enough: fitted.enough && stretches.length >= config.minStretches, ownCap: windowKind };

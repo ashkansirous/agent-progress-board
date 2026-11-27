@@ -49,6 +49,13 @@ function MixNote({ model }: { model: CapCostModelDto }) {
   return <span className="mix-note">{t("mixLastWeek")}</span>;
 }
 
+/** Says so when the data moved a model far off its list-price ratio (Slice 67; the Worker sends the factor only then). */
+function PriceFactorNote({ model, className }: { model: CapCostModelDto; className: string }) {
+  const { t, locale } = useUsageView();
+  if (model.price_factor === null) return null;
+  return <span className={className}>{t("priceFactorNote", { x: multipleText(model.price_factor, locale) })}</span>;
+}
+
 /** The name of the all-kinds figure for one model: its own source of mix. */
 function mixLabel(model: CapCostModelDto, t: ReturnType<typeof useUsageView>["t"]): string {
   return t(model.mix_source === MixSource.LastFull ? "columnMixLast" : "columnMix");
@@ -89,6 +96,7 @@ function TokensPerOne({ data }: Props) {
                   {kindCell(model.all_kinds_tokens_per_percent, locale, t)}
                   <MixNote model={model} />
                   {model.own_cap !== null && <span className="mix-note">{t("ownCapNote")}</span>}
+                  <PriceFactorNote model={model} className="mix-note" />
                 </td>
                 <td>
                   {!model.not_enough && <HowSurePill howSure={model.how_sure} />}
@@ -395,6 +403,7 @@ function DesktopCapCost({ data }: Props) {
       <div className="card-head-stack">
         <h2 id="cap-cost-title">{t("oneTitle", { plan })}</h2>
         <p className="card-note">{t("oneCaption")}</p>
+        {data.cap_cost.price_anchored && <p className="card-note">{t("priceNote")}</p>}
       </div>
       <TokensPerOne data={data} />
       <CompareBlock data={data} />
@@ -428,6 +437,7 @@ function PhoneModel({ data, model, base }: { data: UsagePageResponse; model: Cap
       {!model.not_enough && <span className="phone-model-line"><Emphasised text={line} pieces={plainLine && !isBase ? [n] : [n, `${x}×`]} /></span>}
       <MixNote model={model} />
       {model.own_cap !== null && <span className="phone-model-note">{t("ownCapNote")}</span>}
+      <PriceFactorNote model={model} className="phone-model-note" />
       {model.not_enough ? (
         <span className="phone-model-note">{t("notEnoughData")}</span>
       ) : model.mode === FitMode.PerKind ? (
@@ -527,6 +537,7 @@ function PhoneCapCost({ data }: Props) {
       <section className="usage-card" aria-labelledby="cap-cost-title">
         <h2 id="cap-cost-title">{t("oneTitleShort")}</h2>
         {base !== undefined && <p className="block-note">{t("phoneCaption", { base: base.model })}</p>}
+        {data.cap_cost.price_anchored && <p className="block-note">{t("priceNote")}</p>}
         <ul className="phone-models">
           {models.map((model) => (
             <PhoneModel key={model.model} data={data} model={model} base={base} />

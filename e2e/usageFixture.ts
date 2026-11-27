@@ -160,6 +160,7 @@ function fittedModel(model: string, colorIndex: number, factor: number, howSure:
     mode: FitMode.PerKind,
     not_enough: false,
     own_cap: null,
+    price_factor: null,
     tokens_per_percent: scaled(factor),
     all_kinds_tokens_per_percent: 700_000 * factor,
     mix_source: MixSource.Current,
@@ -180,6 +181,7 @@ function coarseModel(model: string, colorIndex: number, stretches: number): CapC
     mode: FitMode.OneWeight,
     not_enough: false,
     own_cap: null,
+    price_factor: null,
     tokens_per_percent: { input: each, cache_write: each, cache_read: each, output: each },
     all_kinds_tokens_per_percent: each,
     mix_source: MixSource.Current,
@@ -196,6 +198,7 @@ export function readyCapCost(): CapCostDto {
   return {
     ready: true,
     own_cap_ready: false,
+    price_anchored: true,
     stretches: 14,
     min_stretches: 3,
     models: [fittedModel("model-alpha", 0, 1, HowSure.Sure), fittedModel("model-beta", 1, 2, HowSure.Sure), coarseModel("model-gamma", 2, 7)],
@@ -216,7 +219,7 @@ export function readyCapCost(): CapCostDto {
 
 /** A plan with too few stretches: the "estimate not ready" card. */
 export function notReadyCapCost(stretches: number): CapCostDto {
-  return { ready: false, own_cap_ready: false, stretches, min_stretches: 3, models: [], environments: [], untracked_per_day: null, unexplained: null, unexplained_stretches: [], steps: [] };
+  return { ready: false, own_cap_ready: false, price_anchored: false, stretches, min_stretches: 3, models: [], environments: [], untracked_per_day: null, unexplained: null, unexplained_stretches: [], steps: [] };
 }
 
 /** The demo week with a ready estimate, cap figures on the tasks and agent kinds. */

@@ -674,7 +674,7 @@ describe("growth placed inside reported chat windows (Slice 16)", () => {
   /** A fit built by hand: `count` stretches of 60 minutes, each with `left` points the reports do not explain. */
   function fitWith(left: number, count = 1): CapCostFit {
     const stretches = Array.from({ length: count }, (_, i): Stretch => ({ plan: "plan-a", start: T(i * 60), end: T(i * 60 + 60), growth: left, uses: [] }));
-    return { models: [], environments: [], stretches, residuals: stretches.map(() => left), leftoverShare: 1, untrackedPerDay: 0 };
+    return { models: [], environments: [], stretches, residuals: stretches.map(() => left), leftoverShare: 1, untrackedPerDay: 0, priceAnchored: false };
   }
   const window = (environment: string, from: number, to: number) => ({ environment, start: T(from), end: T(to) });
 
@@ -776,7 +776,7 @@ describe("growth placed inside reported chat windows (Slice 16)", () => {
 describe("placement edge cases (Slice 35)", () => {
   const fitOf = (left: number): CapCostFit => {
     const stretches: Stretch[] = [{ plan: "plan-a", start: T(0), end: T(60), growth: left, uses: [] }];
-    return { models: [], environments: [], stretches, residuals: [left], leftoverShare: 1, untrackedPerDay: 0 };
+    return { models: [], environments: [], stretches, residuals: [left], leftoverShare: 1, untrackedPerDay: 0, priceAnchored: false };
   };
   const win = (environment: string, start: string, end: string) => ({ environment, start, end });
 
@@ -800,7 +800,7 @@ describe("placement edge cases (Slice 35)", () => {
 
   it("counts growth under the listing threshold in the total, though the list leaves it out", () => {
     const stretches: Stretch[] = [0, 1, 2].map((i) => ({ plan: "plan-a", start: T(i * 60), end: T(i * 60 + 60), growth: 1, uses: [] }));
-    const fit: CapCostFit = { models: [], environments: [], stretches, residuals: [0.04, 0.03, 2], leftoverShare: 1, untrackedPerDay: 0 };
+    const fit: CapCostFit = { models: [], environments: [], stretches, residuals: [0.04, 0.03, 2], leftoverShare: 1, untrackedPerDay: 0, priceAnchored: false };
     expect(unexplainedStretches(fit, T(-1), 5)).toHaveLength(1);
     expect(unexplainedTotals(fit, T(-1)).points).toBeCloseTo(2.07, 9);
   });

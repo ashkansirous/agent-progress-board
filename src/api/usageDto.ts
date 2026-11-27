@@ -69,6 +69,8 @@ export interface CapCostModelDto {
   not_enough: boolean;
   /** Slice 67: the model is fitted against a cap of its own (its window kind); its figures are points of that cap, so never compared with another model's. */
   own_cap: string | null;
+  /** Slice 67: how far the data moved this model off its list-price ratio (1 is none); null unless it is further than `priceFactorShown` from 1. */
+  price_factor: number | null;
   /** Tokens that use 1% of the cap, per kind; the same number for every kind on one weight; null when the kind costs nothing. */
   tokens_per_percent: Record<TokenKind, number | null>;
   /** The same for this window's mix of kinds. */
@@ -132,6 +134,8 @@ export interface CapCostDto {
   min_stretches: number;
   /** Slice 67: a model with a cap of its own has its own fitted result, whether or not the shared estimate is ready; then `models` holds those models. */
   own_cap_ready: boolean;
+  /** Slice 67: the gaps between models come from list prices (some model is priced); the page says so under the table. */
+  price_anchored: boolean;
   models: CapCostModelDto[];
   environments: CapCostEnvironmentDto[];
   /** Slice 67: points of the cap per day the fit puts on use no report explains ("untracked use"); null while not ready. */

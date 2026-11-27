@@ -19,7 +19,7 @@ export function ownCapModels(windowKind: string, models: string[]): string[] {
 }
 
 /** Whether `wanted` appears in `parts` as whole consecutive parts (`opus` is in `claude-opus-4`, `op` is not). */
-function hasParts(parts: string[], wanted: string[]): boolean {
+export function hasParts(parts: string[], wanted: string[]): boolean {
   return parts.some((_, start) => wanted.every((w, i) => parts[start + i] === w));
 }
 

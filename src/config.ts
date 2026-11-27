@@ -203,7 +203,31 @@ export interface CapCostConfig {
   untrackedRidge: number;
   /** Slice 67: a kind below this share of a model's tokens has no column of its own; it takes the model's mean weight. */
   minKindShare: number;
+  /** Slice 67: list prices in dollars per million tokens, by model family (whole name parts, case ignored); the fit keeps the gaps between models at these ratios unless the data clearly says otherwise. */
+  prices: Record<string, ListPrice>;
+  /** Slice 67: how hard a model's factor is held to 1, as the number of typical stretches' worth of evidence for the list price; the same for every model, so more separable use outweighs it, collinear use never does. */
+  priceShrink: number;
+  /** Slice 67: the page names a model's factor only when it is further than this from 1 (0.5 is half again or half). */
+  priceFactorShown: number;
 }
+
+/** Dollars per million tokens. `cache_write` defaults to `CACHE_WRITE_FACTOR` times `input`. */
+export interface ListPrice {
+  input: number;
+  output: number;
+  cache_read: number;
+  cache_write?: number;
+}
+
+export const CACHE_WRITE_FACTOR = 1.25;
+
+/** Public list prices of 2026-11-27 (Slice 67). */
+export const DEFAULT_PRICES: Record<string, ListPrice> = {
+  opus: { input: 4, output: 20, cache_read: 0.2 },
+  sonnet: { input: 2, output: 10, cache_read: 0.1 },
+  haiku: { input: 0.1, output: 0.5, cache_read: 0.01 },
+  fable: { input: 8, output: 40, cache_read: 0.2 },
+};
 
 export const DEFAULT_CAP_COST: CapCostConfig = {
   minStretches: 3,
@@ -220,6 +244,9 @@ export const DEFAULT_CAP_COST: CapCostConfig = {
   ridge: 0.001,
   untrackedRidge: 20,
   minKindShare: 0.01,
+  prices: DEFAULT_PRICES,
+  priceShrink: 50,
+  priceFactorShown: 0.5,
 };
 
 export const DEFAULT_LOW_MARK_PERCENT = 2;
@@ -332,7 +359,43 @@ function readCapCost(raw: Record<string, unknown>): CapCostConfig {
     ridge: field("ridge", raw.ridge, base.ridge, 0, 10, false),
     untrackedRidge: field("untrackedRidge", raw.untrackedRidge, base.untrackedRidge, 0, 1000, false),
     minKindShare: field("minKindShare", raw.minKindShare, base.minKindShare, 0, 1, false),
+    prices: readPrices(raw.prices),
+    priceShrink: field("priceShrink", raw.priceShrink, base.priceShrink, 0, 1000, false),
+    priceFactorShown: field("priceFactorShown", raw.priceFactorShown, base.priceFactorShown, 0, 100, false),
   };
+}
+
+const MAX_PRICE = 100_000;
+
+/** The default prices with the configured entries added or replacing one of the same name; a bad entry is logged and skipped. */
+function readPrices(raw: unknown): Record<string, ListPrice> {
+  const prices: Record<string, ListPrice> = { ...DEFAULT_PRICES };
+  if (raw === undefined) return prices;
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    console.error("BOARD_CONFIG usage.capCost.prices: need an object of model family to prices; using the defaults");
+    return prices;
+  }
+  for (const [name, value] of Object.entries(raw)) {
+    const price = readPrice(name, asRecord(value));
+    if (price !== null && name.trim() !== "") prices[name.trim().toLowerCase()] = price;
+  }
+  return prices;
+}
+
+function readPrice(name: string, raw: Record<string, unknown>): ListPrice | null {
+  const field = (key: string): number | null => {
+    const value = raw[key];
+    return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= MAX_PRICE ? value : null;
+  };
+  const input = field("input");
+  const output = field("output");
+  const cacheRead = field("cache_read");
+  const cacheWrite = raw.cache_write === undefined ? undefined : field("cache_write");
+  if (input === null || output === null || cacheRead === null || cacheWrite === null || input + output + cacheRead === 0) {
+    console.error(`BOARD_CONFIG usage.capCost.prices.${name}: need input, output and cache_read as numbers from 0 to ${MAX_PRICE} (cache_write optional); entry ignored`);
+    return null;
+  }
+  return cacheWrite === undefined ? { input, output, cache_read: cacheRead } : { input, output, cache_read: cacheRead, cache_write: cacheWrite };
 }
 
 /** An ISO date or time, or null (all history). A bad value is logged and means null, never a throw. */

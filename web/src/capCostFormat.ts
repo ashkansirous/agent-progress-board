@@ -199,3 +199,9 @@ export function splitBold(text: string, pieces: string[]): { text: string; bold:
   }
   return parts.filter((part) => part.text !== "");
 }
+
+/** The "Untracked use" text, one formatter for the desktop row and the phone line (Slice 67): "under 1%" when it rounds to 0. */
+export function untrackedText(perDay: number, locale: string, t: Translate): string {
+  if (Math.round(perDay * 10) === 0) return t("untrackedPerDayTiny");
+  return t("untrackedPerDay", { n: plain(perDay, locale, 1) });
+}

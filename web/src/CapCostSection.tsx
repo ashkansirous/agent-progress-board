@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { CapCostModelDto, UsagePageResponse } from "../../src/api/usageDto";
 import { FitMode, MixSource } from "../../src/domain/capCost";
 import { TOKEN_KINDS, TokenKind } from "../../src/domain/usage";
-import { defaultBase, isComparable, kindsSentence, logLow, logTicks, logX, multipleOf, multipleText, ratioText, splitBold, tokensPhone, tokensTable, tokensWords } from "./capCostFormat";
+import { untrackedText, defaultBase, isComparable, kindsSentence, logLow, logTicks, logX, multipleOf, multipleText, ratioText, splitBold, tokensPhone, tokensTable, tokensWords } from "./capCostFormat";
 import { HowSurePill } from "./HowSurePill";
 import { ClockIcon } from "./icons";
 import { seriesColor, TOKEN_KIND_LABELS, useUsageView } from "./usageView";
@@ -109,11 +109,10 @@ function UntrackedRow({ data }: Props) {
   const { t, locale } = useUsageView();
   const perDay = data.cap_cost.untracked_per_day;
   if (perDay === null) return null;
-  const n = new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(perDay);
   return (
     <tr>
       <th scope="row" className="left">{t("untrackedUse")}</th>
-      <td colSpan={TOKEN_KINDS.length + 2} className="merged-cell">{t("untrackedPerDay", { n })}</td>
+      <td colSpan={TOKEN_KINDS.length + 2} className="merged-cell">{untrackedText(perDay, locale, t)}</td>
     </tr>
   );
 }
@@ -418,14 +417,15 @@ function PhoneModel({ data, model, base }: { data: UsagePageResponse; model: Cap
   const n = wordsOrDash(model.all_kinds_tokens_per_percent, locale, t);
   const mix = multipleOf(model, null, base);
   const x = mix === null ? NO_VALUE : multipleText(mix, locale);
-  const line = isBase ? t("onePercentBase", { n }) : t("onePercentModel", { n, x, base: base?.model ?? "" });
+  const plainLine = model.own_cap !== null || base === undefined;
+  const line = isBase ? t("onePercentBase", { n }) : plainLine ? t("onePercentOnly", { n }) : t("onePercentModel", { n, x, base: base.model });
   return (
     <li className="phone-model">
       <span className="phone-model-top">
         <ModelName data={data} model={model} />
         {!model.not_enough && <HowSurePill howSure={model.how_sure} />}
       </span>
-      {!model.not_enough && <span className="phone-model-line"><Emphasised text={line} pieces={[n, `${x}×`]} /></span>}
+      {!model.not_enough && <span className="phone-model-line"><Emphasised text={line} pieces={plainLine && !isBase ? [n] : [n, `${x}×`]} /></span>}
       <MixNote model={model} />
       {model.own_cap !== null && <span className="phone-model-note">{t("ownCapNote")}</span>}
       {model.not_enough ? (
@@ -510,11 +510,10 @@ function PhoneUntracked({ data }: Props) {
   const { t, locale } = useUsageView();
   const perDay = data.cap_cost.untracked_per_day;
   if (perDay === null) return null;
-  const n = new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(perDay);
   return (
     <li className="phone-model">
       <span className="phone-model-top">{t("untrackedUse")}</span>
-      <span className="phone-model-note">{t("untrackedPerDay", { n })}</span>
+      <span className="phone-model-note">{untrackedText(perDay, locale, t)}</span>
     </li>
   );
 }

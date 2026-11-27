@@ -428,6 +428,23 @@ test.describe("what 1% of the cap costs", () => {
     await expect(card.locator(".kind-ratio-group")).toHaveCount(2);
   });
 
+  test("a model with its own cap shows its tokens per 1% with no multiple or base, and a tiny untracked use reads under 1% (Slice 67)", async ({ page }) => {
+    const ready = readyCapCost();
+    const first = ready.models[0] as CapCostModelDto;
+    const own: CapCostModelDto = { ...first, model: "model-own", own_cap: "weekly:own", mode: FitMode.OneWeight, kind_ratios: null, kind_ratio_reference: null };
+    await openUsage(page, () => readyUsage({ cap_cost: { ...ready, untracked_per_day: 0.01, models: [...ready.models, own] } }));
+    if (isPhone()) {
+      const item = page.locator(".phone-model", { hasText: "model-own" });
+      await expect(item.locator(".phone-model-line")).toContainText("1% ≈");
+      await expect(item.locator(".phone-model-line")).not.toContainText("×");
+      await expect(item).toContainText("its own cap, not compared");
+      await expect(page.locator(".phone-model", { hasText: "Untracked use" })).toContainText("under 1% of the week a day that no report explains");
+      return;
+    }
+    await expect(page.locator(".cap-cost-card tbody tr", { hasText: "Untracked use" })).toContainText("under 1% of the week a day that no report explains");
+    await expect(page.locator(".cap-cost-card").getByText("about 0%")).toHaveCount(0);
+  });
+
   test("keeps the not-ready card while a model with its own cap shows its row beside it, with no untracked row (Slice 67)", async ({ page }) => {
     const first = readyCapCost().models[0] as CapCostModelDto;
     const own: CapCostModelDto = { ...first, model: "model-own", own_cap: "weekly:own", mode: FitMode.OneWeight, kind_ratios: null, kind_ratio_reference: null };

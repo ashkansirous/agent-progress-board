@@ -3,7 +3,7 @@ import { DEFAULT_CAP_COST, parseConfig } from "../src/config";
 import type { CapCostModelDto } from "../src/api/usageDto";
 import { FitMode, HowSure, MixSource } from "../src/domain/capCost";
 import { TokenKind } from "../src/domain/usage";
-import { defaultBase, kindsSentence, ratioAmount, logLow, logTicks, logX, multipleOf, multipleText, ratioText, shareText, spanText, splitBold, tokensPhone, tokensTable, tokensWords } from "../web/src/capCostFormat";
+import { untrackedText, defaultBase, kindsSentence, ratioAmount, logLow, logTicks, logX, multipleOf, multipleText, ratioText, shareText, spanText, splitBold, tokensPhone, tokensTable, tokensWords } from "../web/src/capCostFormat";
 import { translator } from "../web/src/strings";
 
 const t = translator();
@@ -177,5 +177,13 @@ describe("the kinds sentence", () => {
 
   it("is left out without ratios", () => {
     expect(kindsSentence({ ...ratios, output: null }, TokenKind.Input, "en-US", t)).toBeNull();
+  });
+});
+
+describe("untrackedText", () => {
+  it("shows the number, and the under-1% text when it rounds to 0", () => {
+    expect(untrackedText(0.4, "en-US", t)).toBe("about 0.4% of the week a day that no report explains");
+    expect(untrackedText(0.04, "en-US", t)).toBe("under 1% of the week a day that no report explains");
+    expect(untrackedText(0, "en-US", t)).toBe("under 1% of the week a day that no report explains");
   });
 });

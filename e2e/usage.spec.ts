@@ -320,6 +320,8 @@ test.describe("what 1% of the cap costs", () => {
     }
     await expect(modelRow(page, "model-thin")).toContainText("Not enough data");
     await expect(modelRow(page, "model-thin").locator(".pill")).toHaveCount(0);
+    // The compare table lists only models with a figure and the shared cap: no empty dash row for the thin one.
+    await expect(page.locator(".cost-block", { hasText: "What one token is worth, compared" }).locator("table tbody tr", { hasText: "model-thin" })).toHaveCount(0);
     await expect(page.locator(".cap-cost-card tbody tr", { hasText: "Untracked use" })).toContainText("about 0.4% of the week a day that no report explains");
   });
 

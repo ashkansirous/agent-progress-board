@@ -442,7 +442,7 @@ describe("believable cap cost (Slice 67)", () => {
     expect(ownCapModels("weekly:nothing-like-it", models)).toEqual([]);
   });
 
-  it("matches the own-cap kind by whole name parts, never by a substring, and keeps the first kind found (review 2026-11-27)", () => {
+  it("matches the own-cap kind by whole name parts, never by a substring, and keeps the kind naming the most parts (review 2026-11-27)", () => {
     const models = ["claude-opus-4", "claude-sonnet-5", "model-opus-mini"];
     expect(ownCapModels("weekly:op", models)).toEqual([]);
     expect(ownCapModels("weekly:o", models)).toEqual([]);
@@ -453,7 +453,10 @@ describe("believable cap cost (Slice 67)", () => {
     const kinds = ownCapKinds(windows, "plan-a", models);
     expect(kinds.size).toBe(2);
     expect(kinds.get("model-opus-mini")).toBe("weekly:opus");
-    expect(kinds.get("claude-opus-4")).toBe(windows.find((w) => ownCapModels(w.windowKind, models).includes("claude-opus-4"))?.windowKind);
+    expect(kinds.get("claude-opus-4")).toBe("weekly:opus-4");
+    const reversed = ownCapKinds([...windows].reverse(), "plan-a", models);
+    expect(reversed.get("claude-opus-4")).toBe("weekly:opus-4");
+    expect(reversed.get("model-opus-mini")).toBe("weekly:opus");
   });
 
   it("takes every model whose name matches the own-cap kind out of the shared fit", () => {

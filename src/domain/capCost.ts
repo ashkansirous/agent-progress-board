@@ -4,7 +4,7 @@
  * all worked out on every read from the readings and the use samples.
  */
 import type { CapCostConfig } from "../config";
-import { type CapWindow, ownCapModels, WEEKLY_WINDOW } from "./cap";
+import { type CapWindow, OWN_CAP_PREFIX, ownCapModels, WEEKLY_WINDOW } from "./cap";
 import { TOKEN_KINDS, type TokenKind, type TokenTotals, totalOf, type UsageDelta, zeroTotals } from "./usage";
 
 const MS_PER_MINUTE = 60_000;
@@ -549,9 +549,17 @@ export function ownCapKinds(windows: CapWindow[], plan: string, models: string[]
   const kinds = new Map<string, string>();
   for (const window of windows) {
     if (window.plan !== plan) continue;
-    for (const model of ownCapModels(window.windowKind, models)) if (!kinds.has(model)) kinds.set(model, window.windowKind);
+    for (const model of ownCapModels(window.windowKind, models)) {
+      const held = kinds.get(model);
+      if (held === undefined || namePartCount(window.windowKind) > namePartCount(held)) kinds.set(model, window.windowKind);
+    }
   }
   return kinds;
+}
+
+/** How many name parts an own-cap kind names (`weekly:opus-4` is 2): the more it names, the closer the match. */
+function namePartCount(windowKind: string): number {
+  return windowKind.slice(OWN_CAP_PREFIX.length).split("-").length;
 }
 
 /**

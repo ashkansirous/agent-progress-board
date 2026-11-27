@@ -131,9 +131,15 @@ export function shareText(share: number): string {
 
 /** The model that gets the least cap per token (the most tokens per 1% in its mix): the default comparison base. */
 export function defaultBase(models: CapCostModelDto[]): string | null {
-  const ranked = models.filter((m) => m.all_kinds_tokens_per_percent !== null && m.own_cap === null);
+  const listed = models.filter(isComparable);
+  const ranked = listed.filter((m) => m.all_kinds_tokens_per_percent !== null);
   const best = ranked.sort((a, b) => (b.all_kinds_tokens_per_percent ?? 0) - (a.all_kinds_tokens_per_percent ?? 0))[0];
-  return best?.model ?? models[0]?.model ?? null;
+  return best?.model ?? listed[0]?.model ?? null;
+}
+
+/** A model the compare block lists: on the shared cap and with a fit; the only kind a base can be. */
+export function isComparable(model: CapCostModelDto): boolean {
+  return model.own_cap === null && !model.not_enough;
 }
 
 /** Tokens per 1% of the base model's mix, the unit every multiple is counted in. */

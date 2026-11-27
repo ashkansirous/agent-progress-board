@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { CapCostModelDto, UsagePageResponse } from "../../src/api/usageDto";
 import { FitMode, MixSource } from "../../src/domain/capCost";
 import { TOKEN_KINDS, TokenKind } from "../../src/domain/usage";
-import { defaultBase, kindsSentence, logLow, logTicks, logX, multipleOf, multipleText, ratioText, splitBold, tokensPhone, tokensTable, tokensWords } from "./capCostFormat";
+import { defaultBase, isComparable, kindsSentence, logLow, logTicks, logX, multipleOf, multipleText, ratioText, splitBold, tokensPhone, tokensTable, tokensWords } from "./capCostFormat";
 import { HowSurePill } from "./HowSurePill";
 import { ClockIcon } from "./icons";
 import { seriesColor, TOKEN_KIND_LABELS, useUsageView } from "./usageView";
@@ -198,7 +198,7 @@ function ModelRow({ data, model, base, y, low }: ModelRowProps) {
 
 function CompareChart({ data, base }: { data: UsagePageResponse; base: CapCostModelDto | undefined }) {
   const { t } = useUsageView();
-  const models = data.cap_cost.models;
+  const models = data.cap_cost.models.filter(isComparable);
   const gridBottom = GRID_TOP + ROW_STEP * models.length;
   const multiples = models.flatMap((model) => [multipleOf(model, null, base), ...TOKEN_KINDS.map((kind) => multipleOf(model, kind, base))]);
   const low = logLow(multiples.filter((m): m is number => m !== null));
@@ -243,7 +243,7 @@ function CompareTable({ data, base }: { data: UsagePageResponse; base: CapCostMo
           </tr>
         </thead>
         <tbody>
-          {data.cap_cost.models.map((model) => {
+          {data.cap_cost.models.filter(isComparable).map((model) => {
             const mix = multipleOf(model, null, base);
             const isBase = model.model === base?.model;
             return (
@@ -278,9 +278,11 @@ function CompareBlock({ data }: Props) {
   const models = data.cap_cost.models;
   const [chosen, setChosen] = useState<string | null>(null);
   // A model on its own cap is never the comparison base (no multiple would be left).
-  const bases = models.filter((m) => m.own_cap === null);
+  const bases = models.filter(isComparable);
   const baseName = bases.some((m) => m.model === chosen) ? chosen : defaultBase(models);
   const base = models.find((m) => m.model === baseName);
+  // No model to compare in: no block, never a base the dropdown does not list.
+  if (base === undefined) return null;
   return (
     <div className="cost-block">
       <div className="block-head">
@@ -525,7 +527,7 @@ function PhoneCapCost({ data }: Props) {
     <>
       <section className="usage-card" aria-labelledby="cap-cost-title">
         <h2 id="cap-cost-title">{t("oneTitleShort")}</h2>
-        <p className="block-note">{t("phoneCaption", { base: base?.model ?? "" })}</p>
+        {base !== undefined && <p className="block-note">{t("phoneCaption", { base: base.model })}</p>}
         <ul className="phone-models">
           {models.map((model) => (
             <PhoneModel key={model.model} data={data} model={model} base={base} />

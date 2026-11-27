@@ -67,6 +67,14 @@ describe("the comparison", () => {
     expect(multipleOf(base as CapCostModelDto, null, base)).toBe(1);
   });
 
+  it("takes the default base only from models the compare dropdown lists: not own-cap, not not_enough (Slice 67)", () => {
+    const own = { ...model("model-own", 30_000_000), own_cap: "weekly:own" };
+    const thin = { ...model("model-thin", 25_000_000), not_enough: true };
+    expect(defaultBase([own, thin, model("model-a", 700_000)])).toBe("model-a");
+    expect(defaultBase([own, thin])).toBeNull();
+    expect(defaultBase([own, { ...model("model-b", 1), all_kinds_tokens_per_percent: null }])).toBe("model-b");
+  });
+
   it("gives no all-kinds multiple between models weighted by different windows' mixes (Slice 26)", () => {
     const last = { ...model("model-a", 700_000), mix_source: MixSource.LastFull };
     const base = model("model-c", 19_000_000);

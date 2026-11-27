@@ -73,7 +73,7 @@ What the code and data showed (2026-11-26, origin/main 7c1c438):
 
 ## Work
 
-*Built 2026-11-27 (items 1 to 6), not merged; the live checks under Not yet verified are open.*
+*Built 2026-11-27 (items 1 to 7), merged as PR #231 (0e16352) and PR #232 (56e9b25), both deployed; the live checks under Not yet verified are open.*
 
 *Changed while building:* the own-cap rule (Decisions 3) is read from the code, not from live cap readings; it still has
 to be confirmed. The "Untracked use" row is outside the slice's first Touches line (web dash and "not enough data" text
@@ -135,7 +135,7 @@ only); Decisions 5 records it.
   Opus's and no cell exceeds a sane bound.
 - After the deploy, the live usage page shows Haiku cheaper than Opus, or a dash where the data is too thin.
 
-#### For CLAUDE.md
+#### For CLAUDE.md (lifted 2026-11-27)
 
 - The cap-cost evidence floor (`evidenceIndexes`, `thinModels` in `src/domain/capCost.ts`) and the own-cap split
   (`ownCapModels` in `src/domain/cap.ts`, `ownCapKinds` / `fitOwnCap` in `src/domain/capCost.ts`) live only in those

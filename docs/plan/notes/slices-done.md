@@ -60,3 +60,4 @@ Rows moved out of `plan.md`'s status table once built.
 | 55 | Process keys, step counts and read tools for analysis | built | #209 | | [55](../slices/55-process-keys.md) |
 | 56 | Budgets per process, with a live breach on the card | built | #214 | | [56](../slices/56-process-budgets.md) |
 | 57 | Process optimiser: a skill that finds waste in the recorded runs | built | #217 | | [57](../slices/57-process-optimiser.md) |
+| 67 | The cap-cost table shows only believable numbers | built (merged 2026-11-27; live checks open) | #231, #232 | | [67](../slices/67-believable-cap-cost.md) |

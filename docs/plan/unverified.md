@@ -3,6 +3,11 @@
 Every open "Not yet verified" check, one block per slice. A check that passes, or that the
 owner confirms, is removed here and its slice marked `verified`.
 
+### Slice 67: The cap-cost table shows only believable numbers ([slice](slices/67-believable-cap-cost.md))
+
+- [chrome] After item 7's deploy, the live usage page shows Haiku cheaper than Opus, or a dash where the data is too thin. (2026-11-27, items 1 to 6 live with `fitFrom` 2026-11-19 set in `BOARD_CONFIG`: a replay of the live data through the deployed code gave Opus 302.7M tokens per 1%, Sonnet 56.7M, Haiku 18.6M, so Haiku at 16.3x Opus; Fable no row, its only data predates `fitFrom`.)
+- [chrome] The own-cap rule (Decisions 3) matches the live `weekly:<model>` cap readings; read the readings and the page after the deploy and write the result into Decisions 3.
+
 ### Slice 57: Process optimiser: a skill that finds waste in the recorded runs ([slice](slices/57-process-optimiser.md))
 
 - [session] Live: the first weekly dry-run report exists on the board with at least one real run per detector input (needs the release, the plugin update and the owner's optimiser config). (live check 2026-11-26: unreachable: the release is live (Worker deployed 02:39Z), but the installed plugin is still d654e9b of 2026-11-18 and no optimiser run has reported)
